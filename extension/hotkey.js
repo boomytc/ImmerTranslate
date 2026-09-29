@@ -138,7 +138,7 @@
    */
   function tokenFromPart(part) {
     const lower = part.toLowerCase();
-    if (lower === "ctrl" || lower === "control") return "Ctrl";
+    if (lower === "ctrl" || lower === "control" || lower === "macctrl") return "Ctrl";
     if (lower === "alt" || lower === "option" || lower === "opt") return "Alt";
     if (lower === "shift") return "Shift";
     if (
@@ -295,6 +295,20 @@
   }
 
   /**
+   * Saved paragraph chord vs chrome.commands shortcut. Both sides are
+   * canonicalized, so macOS ⌥T matches Alt+T and MacCtrl matches Ctrl.
+   * Empty shortcuts never match.
+   * @param {string} a
+   * @param {string} b
+   * @returns {boolean}
+   */
+  function sameHotkey(a, b) {
+    const left = normalizeHotkey(a);
+    const right = normalizeHotkey(b);
+    return Boolean(left) && left === right;
+  }
+
+  /**
    * Page vs paragraph. Empty when the chord does not match, focus is in a
    * field, or this is a key repeat / IME composition. Paragraph wins when the
    * pointer is over a segment so Alt+T never toggles the whole page.
@@ -325,8 +339,9 @@
 
   /**
    * One physical chord: keydown is authoritative. keyup runs only when that
-   * keydown never arrived (browser ate it) and a toggle has not just run.
-   * A second keydown is not suppressed by the recent-toggle window.
+   * keydown never arrived (browser ate it). The recent-toggle window applies
+   * only to the page chord, so a paragraph keyup is not dropped after Alt+A.
+   * A second keydown is not suppressed by that window.
    * @param {{ type?: string, altKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean, metaKey?: boolean, code?: string, key?: string, repeat?: boolean, isComposing?: boolean }} event
    * @param {{ paragraphSpec?: string, pageSpec?: string, typing?: boolean, hovered?: boolean, keydownCode?: string, lastToggleAt?: number, now?: number }} [ctx]
    * @returns {{ action: "" | "page" | "paragraph", prevent: boolean, keydownCode: string }}
@@ -344,7 +359,7 @@
     if (type === "keyup") {
       const last = Number(info.lastToggleAt) || 0;
       const now = Number(info.now) || 0;
-      if (last && now && now - last < 500) {
+      if (action === "page" && last && now && now - last < 500) {
         return { action: "", prevent: false, keydownCode: "" };
       }
       return { action, prevent: true, keydownCode: "" };
@@ -379,6 +394,7 @@
     formatHotkeyDisplay,
     formatActionLabel,
     eventMatchesHotkey,
+    sameHotkey,
     hotkeyAction,
     resolveChord,
     markChordEvent,

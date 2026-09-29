@@ -220,8 +220,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.4.1") {
-  fail(`manifest version 应为 0.4.1，实际 ${manifest.version}`);
+if (manifest.version !== "0.4.2") {
+  fail(`manifest version 应为 0.4.2，实际 ${manifest.version}`);
 }
 if (manifest.action?.default_popup !== "popup.html") {
   fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
@@ -448,6 +448,60 @@ chord = hotkeyApi.resolveChord(
   { typing: false, hovered: true, keydownCode: "", paragraphSpec: "Alt+T" }
 );
 if (chord.action !== "paragraph") fail("macOS ⌥T 悬停时应译段落");
+chord = hotkeyApi.resolveChord(
+  { ...altTDown, type: "keyup", key: "†" },
+  {
+    typing: false,
+    hovered: true,
+    keydownCode: "",
+    paragraphSpec: "⌥T",
+    lastToggleAt: 1000,
+    now: 1200,
+  }
+);
+if (chord.action !== "paragraph" || !chord.prevent) {
+  fail("整页刚切换过时，被吃掉的 ⌥T keyup 仍应只译悬停段");
+}
+chord = hotkeyApi.resolveChord(altTDown, {
+  typing: false,
+  hovered: true,
+  keydownCode: "",
+  paragraphSpec: "Ctrl+Shift+K",
+});
+if (chord.action !== "") fail("改键后悬停时 Alt+T 必须失效");
+const customParagraph = {
+  type: "keydown",
+  altKey: false,
+  ctrlKey: true,
+  shiftKey: true,
+  metaKey: false,
+  code: "KeyK",
+  key: "K",
+  repeat: false,
+  isComposing: false,
+};
+chord = hotkeyApi.resolveChord(customParagraph, {
+  typing: false,
+  hovered: true,
+  keydownCode: "",
+  paragraphSpec: "Ctrl+Shift+K",
+});
+if (chord.action !== "paragraph" || !chord.prevent) fail("保存的新组合悬停时应只译该段");
+chord = hotkeyApi.resolveChord(customParagraph, {
+  typing: false,
+  hovered: false,
+  keydownCode: "",
+  paragraphSpec: "Ctrl+Shift+K",
+});
+if (chord.action !== "") fail("未悬停时新的段落组合不能切换整页");
+if (typeof hotkeyApi.sameHotkey !== "function") fail("hotkey.js 未导出 sameHotkey");
+if (!hotkeyApi.sameHotkey("⌥T", "Alt+T")) fail("⌥T 与命令里的 Alt+T 应视为同一段落键");
+if (!hotkeyApi.sameHotkey("MacCtrl+Shift+K", "Ctrl+Shift+K")) fail("MacCtrl 应等同 Ctrl");
+if (hotkeyApi.sameHotkey("Alt+T", "Ctrl+Shift+K")) fail("不同组合不能当成同一快捷键");
+if (hotkeyApi.sameHotkey("", "Alt+T") || hotkeyApi.sameHotkey("Alt+T", "")) {
+  fail("空的命令快捷键不能匹配段落键");
+}
+if (hotkeyApi.normalizeHotkey("MacCtrl+T") !== "Ctrl+T") fail("MacCtrl+T 应规范为 Ctrl+T");
 chord = hotkeyApi.resolveChord(winAltA, { typing: true, hovered: false, keydownCode: "" });
 if (chord.action !== "" || chord.prevent) fail("输入框内不应拦截 Alt+A");
 chord = hotkeyApi.resolveChord(
@@ -588,6 +642,55 @@ if (!bg.includes("chrome.commands.onCommand") || !bg.includes("toggle-page-trans
 if (!bg.includes('type: "TOGGLE_TRANSLATE"')) {
   fail("整页命令必须向当前页发送 TOGGLE_TRANSLATE");
 }
+const paragraphCommand = manifest.commands?.["translate-hovered-paragraph"];
+if (!paragraphCommand?.description) fail("manifest 缺少段落命令 translate-hovered-paragraph");
+const paragraphSuggested = paragraphCommand.suggested_key || {};
+for (const platform of ["default", "mac", "windows", "linux", "chromeos"]) {
+  if (paragraphSuggested[platform] !== "Alt+T") {
+    fail(`段落命令在 ${platform} 上应为 Alt+T，实际 ${paragraphSuggested[platform] || ""}`);
+  }
+}
+if (/Ctrl\+T|Command\+T|Meta\+T/.test(JSON.stringify(paragraphSuggested))) {
+  fail("段落命令不能改成 Ctrl+T 或 ⌘T");
+}
+if (!bg.includes("translate-hovered-paragraph") || !bg.includes("paragraphCommandShortcut")) {
+  fail("service worker 未按当前绑定处理段落命令");
+}
+if (!bg.includes('type: "TRANSLATE_HOVERED_PARAGRAPH"')) {
+  fail("段落命令必须向当前页发送 TRANSLATE_HOVERED_PARAGRAPH");
+}
+if (!contentJs.includes("TRANSLATE_HOVERED_PARAGRAPH") || !contentJs.includes("onParagraphFromCommand")) {
+  fail("content.js 未处理段落命令");
+}
+if (!contentJs.includes("sameHotkey")) fail("段落命令未与已保存的 paragraphHotkey 比对");
+const onChordBody = contentJs.slice(
+  contentJs.indexOf("function onChordKey"),
+  contentJs.indexOf("function onStorageChanged")
+);
+const denyBeforePrevent = onChordBody.indexOf("originDenied()");
+const preventInChord = onChordBody.indexOf("event.preventDefault()");
+if (denyBeforePrevent < 0 || preventInChord < 0 || denyBeforePrevent > preventInChord) {
+  fail("黑名单上的段落热键必须在 preventDefault 之前停手");
+}
+const segSrc = contentJs.slice(
+  contentJs.indexOf("async function translateSegment"),
+  contentJs.indexOf("function currentViewport")
+);
+const pendingSet = segSrc.indexOf('setAttribute(ATTR_PENDING, "1")');
+const settingsAwait = segSrc.indexOf("await getPageSettings");
+if (pendingSet < 0 || settingsAwait < 0 || pendingSet > settingsAwait) {
+  fail("单段翻译必须在 await 之前标上 pending，避免同一次按键插入两块译文");
+}
+if (!segSrc.includes('getAttribute(ATTR_DONE) === "1"')) fail("已译段落必须直接返回");
+const resetAt = optionsJs.indexOf('resetHotkey").addEventListener');
+const resetFn = optionsJs.slice(resetAt, resetAt + 500);
+if (
+  resetAt < 0 ||
+  !resetFn.includes("chrome.storage.local.set") ||
+  !resetFn.includes("DEFAULT_PARAGRAPH_HOTKEY")
+) {
+  fail("恢复默认必须写回该平台的段落快捷键");
+}
 if (bg.includes("chrome.action.onClicked") || bg.includes("action.onClicked")) {
   fail("整页命令不能改回 action.onClicked");
 }
@@ -684,6 +787,9 @@ const placeSrc = contentJs.slice(
   contentJs.indexOf("function clearTranslations")
 );
 if (!placeSrc.includes("originDenied()")) fail("placeTranslation 必须拒绝黑名单来源");
+if (!placeSrc.includes("getAttribute(ATTR_DONE)") || !placeSrc.includes("CLASS_TRANS")) {
+  fail("placeTranslation 必须拒绝已有译文节点");
+}
 if (!contentCss.includes("data-immer-font-size") || !contentCss.includes("data-immer-contrast")) {
   fail("content.css 缺少字号或对比度开关");
 }
@@ -697,8 +803,11 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.4.1") || !readme.includes("dev-0.4.1")) {
-  fail("README 未记录 0.4.1 / dev-0.4.1");
+if (!readme.includes("0.4.2") || !readme.includes("dev-0.4.2")) {
+  fail("README 未记录 0.4.2 / dev-0.4.2");
+}
+if (readme.includes("当前开发版本为 **0.4.1**") || readme.includes("当前开发线是 `dev-0.4.1`")) {
+  fail("README 仍把 0.4.1 写成当前版本");
 }
 if (readme.includes("当前开发版本为 **0.4.0**") || readme.includes("当前开发线是 `dev-0.4.0`")) {
   fail("README 仍把 0.4.0 写成当前版本");
@@ -725,12 +834,16 @@ const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
 if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
   fail("README.en.md 未写明 Load unpacked 与 pin");
 }
-if (!readmeEn.includes("0.4.1") || !readmeEn.includes("dev-0.4.1")) {
-  fail("README.en.md 未记录 0.4.1 / dev-0.4.1");
+if (!readmeEn.includes("0.4.2") || !readmeEn.includes("dev-0.4.2")) {
+  fail("README.en.md 未记录 0.4.2 / dev-0.4.2");
+}
+if (readmeEn.includes("The current dev version is **0.4.1**") || readmeEn.includes("currently `dev-0.4.1`")) {
+  fail("README.en.md 仍把 0.4.1 写成当前版本");
 }
 if (readmeEn.includes("The current dev version is **0.4.0**") || readmeEn.includes("currently `dev-0.4.0`")) {
   fail("README.en.md 仍把 0.4.0 写成当前版本");
 }
+if (!changelog.includes("## 0.4.2")) fail("CHANGELOG 缺少 0.4.2");
 if (!changelog.includes("## 0.4.1")) fail("CHANGELOG 缺少 0.4.1");
 if (!changelog.includes("## 0.4.0")) fail("CHANGELOG 缺少 0.4.0");
 if (!changelog.includes("## 0.3.0")) fail("CHANGELOG 缺少 0.3.0");
