@@ -3,8 +3,8 @@
  * Refresh vendor: `./scripts/sync-translate-core.sh`
  *
  * Settings (chrome.storage.local): provider openai|anthropic, baseUrl, model, apiKey,
- * paragraphHotkey, denyOrigins, allowOrigins, translationFontSize,
- * translationContrast, displayMode. Empty apiKey stays on mockTranslate.
+ * pageHotkey, paragraphHotkey, denyOrigins, allowOrigins, translationFontSize,
+ * translationContrast, displayMode, ballEnabled. Empty apiKey stays on mockTranslate.
  * Defaults: OpenAI-compatible DeepSeek. Paragraph hotkey canonical default
  * is Alt+T (Option on macOS, Alt on Windows and Linux). The service worker
  * reads chrome.runtime.getPlatformInfo and, on macOS, stores that default as
@@ -38,12 +38,14 @@ const DEFAULTS = {
   apiKey: "",
   sourceLang: "auto",
   targetLang: "zh-CN",
+  pageHotkey: "Alt+A",
   paragraphHotkey: "Alt+T",
   denyOrigins: [],
   allowOrigins: [],
   translationFontSize: "md",
   translationContrast: "normal",
   displayMode: "bilingual",
+  ballEnabled: true,
 };
 
 function getSettings() {
@@ -213,7 +215,9 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
             baseUrl: settings.baseUrl,
             model: settings.model,
             hasApiKey: Boolean((settings.apiKey || "").trim()),
+            pageHotkey: settings.pageHotkey || DEFAULTS.pageHotkey,
             paragraphHotkey: settings.paragraphHotkey || DEFAULTS.paragraphHotkey,
+            ballEnabled: settings.ballEnabled !== false,
             platformOs,
             denyOrigins: Array.isArray(settings.denyOrigins) ? settings.denyOrigins : [],
             allowOrigins: Array.isArray(settings.allowOrigins) ? settings.allowOrigins : [],
