@@ -213,8 +213,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.3.0") {
-  fail(`manifest version 应为 0.3.0，实际 ${manifest.version}`);
+if (manifest.version !== "1.0.0") {
+  fail(`manifest version 应为 1.0.0，实际 ${manifest.version}`);
 }
 if (manifest.manifest_version !== 3) fail("manifest_version 必须为 3");
 if (!manifest.background?.service_worker) fail("缺少 service_worker");
@@ -416,9 +416,15 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.3.0") || !readme.includes("denyOrigins")) {
-  fail("README 未记录 0.3.0 站点名单");
+if (!readme.includes("1.0.0") || !readme.includes("dev-1.0.0")) {
+  fail("README 未记录 1.0.0 / dev-1.0.0");
 }
+if (!readme.includes("denyOrigins")) fail("README 未记录 denyOrigins");
+if (!readme.includes("本机验收清单")) fail("README 缺少本机验收清单");
+if (!readme.includes("Load unpacked") || !readme.toLowerCase().includes("pin")) {
+  fail("README 未写明本机 unpacked 加载与固定工具栏");
+}
+if (!changelog.includes("## 1.0.0")) fail("CHANGELOG 缺少 1.0.0");
 if (!changelog.includes("## 0.3.0")) fail("CHANGELOG 缺少 0.3.0");
 ok("黑名单默认放行，样式开关可在已打开页面生效");
 
