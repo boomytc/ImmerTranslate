@@ -3,8 +3,11 @@
  * Refresh vendor: `./scripts/sync-translate-core.sh`
  *
  * Settings (chrome.storage.local): provider openai|anthropic, baseUrl, model, apiKey,
- * paragraphHotkey. Empty apiKey stays on mockTranslate. Defaults: OpenAI-compatible
- * DeepSeek. Paragraph hotkey default is Alt+T (content script matches it).
+ * paragraphHotkey, denyOrigins, allowOrigins, translationFontSize,
+ * translationContrast, displayMode. Empty apiKey stays on mockTranslate.
+ * Defaults: OpenAI-compatible DeepSeek. Paragraph hotkey default is Alt+T
+ * (content script matches it). Site lists default to empty (every origin
+ * eligible). The content script enforces deny before inserting nodes.
  * The selected engine is wrapped once with createPipelineEngine (TransPipe).
  */
 
@@ -23,6 +26,11 @@ const DEFAULTS = {
   sourceLang: "auto",
   targetLang: "zh-CN",
   paragraphHotkey: "Alt+T",
+  denyOrigins: [],
+  allowOrigins: [],
+  translationFontSize: "md",
+  translationContrast: "normal",
+  displayMode: "bilingual",
 };
 
 function getSettings() {
@@ -111,6 +119,11 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
             model: settings.model,
             hasApiKey: Boolean((settings.apiKey || "").trim()),
             paragraphHotkey: settings.paragraphHotkey || DEFAULTS.paragraphHotkey,
+            denyOrigins: Array.isArray(settings.denyOrigins) ? settings.denyOrigins : [],
+            allowOrigins: Array.isArray(settings.allowOrigins) ? settings.allowOrigins : [],
+            translationFontSize: settings.translationFontSize || DEFAULTS.translationFontSize,
+            translationContrast: settings.translationContrast || DEFAULTS.translationContrast,
+            displayMode: settings.displayMode || DEFAULTS.displayMode,
           },
         })
       );
