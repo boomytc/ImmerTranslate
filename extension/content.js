@@ -18,6 +18,10 @@
  * nodes (icon toggle and hotkey). allowOrigins may auto-translate on load.
  * Empty deny list keeps every origin eligible. Deny wins over allow.
  * Style keys apply on this page through a storage listener, no reload.
+ *
+ * First run: a three-step card (ImmerOnboarding) sits at the top left until
+ * `onboardingDone` is set. It does not cover the page. The one-time ball tip
+ * stays down while that card is pending, visible, or was just dismissed here.
  */
 
 const ATTR_ID = "data-immer-id";
@@ -97,6 +101,16 @@ let ballHintTimer = 0;
 let pageReady = false;
 let ballTipChecked = false;
 const BALL_TIP_TEXT = "点此可翻译或显示原文。拖到左右边缘后会贴边，并记住上下位置。";
+/** @type {HTMLElement | null} */
+let onboardingHost = null;
+/** @type {{ index: number, done: boolean, ballIntroduced: boolean } | null} */
+let onboardingState = null;
+/** Storage has been read. Until then the ball tip stays down. */
+let onboardingKnown = false;
+/** Permanent flag `onboardingDone`. */
+let onboardingDone = false;
+/** This document already closed the guide, so the ball tip does not chain. */
+let onboardingDismissedHere = false;
 /** Bumped on each storage change so a stale boot read cannot overwrite it. */
 let policyEpoch = 0;
 
@@ -227,7 +241,11 @@ function isTranslatableParagraph(el, root) {
   if (!el.matches(PARAGRAPH_SELECTOR)) return false;
   const scope = root || mainRoot();
   if (!scope || !scope.contains(el)) return false;
-  if (el.closest(`.${CLASS_WRAPPER}, .${CLASS_TRANS}, #immer-ball-host, script, style, noscript`))
+  if (
+    el.closest(
+      `.${CLASS_WRAPPER}, .${CLASS_TRANS}, #immer-ball-host, #immer-onboarding-host, script, style, noscript`
+    )
+  )
     return false;
   const text = (el.innerText || "").trim();
   if (text.length < 8) return false;
@@ -272,11 +290,11 @@ function translateBatch(payload) {
 function getPageSettings() {
   return new Promise((resolve) => {
     if (!chrome?.storage?.local) {
-      resolve({ ...PAGE_DEFAULTS, denyOrigins: [], allowOrigins: [] });
+      resolve({ ...PAGE_DEFAULTS, onboardingDone: true, denyOrigins: [], allowOrigins: [] });
       return;
     }
-    chrome.storage.local.get(PAGE_DEFAULTS, (data) => {
-      resolve({ ...PAGE_DEFAULTS, ...(data || {}) });
+    chrome.storage.local.get({ ...PAGE_DEFAULTS, onboardingDone: false }, (data) => {
+      resolve({ ...PAGE_DEFAULTS, onboardingDone: false, ...(data || {}) });
     });
   });
 }
@@ -443,12 +461,28 @@ function positionBallTip() {
   ballTip.classList.toggle("flip-up", ballTop > window.innerHeight - 120);
 }
 
+/**
+ * In-memory gate. Storage `ballTipSeen` is applied in the callback.
+ * @param {boolean} ballTipSeen
+ */
+function ballTipAllowed(ballTipSeen) {
+  const api = globalThis.ImmerOnboarding;
+  if (!api) return ballTipSeen !== true && onboardingKnown && onboardingDone && !onboardingDismissedHere && !onboardingHost;
+  return api.allowBallTip({
+    ballTipSeen,
+    guideVisible: Boolean(onboardingHost),
+    dismissedOnThisDocument: onboardingDismissedHere,
+    guidePending: !onboardingKnown || !onboardingDone,
+  });
+}
+
 function maybeShowBallTip() {
-  if (!pageReady || ballTipChecked || !ballTip || originDenied()) return;
+  if (!pageReady || ballTipChecked || !ballTip || originDenied() || !ballEnabled) return;
   if (!chrome?.storage?.local) return;
+  if (!ballTipAllowed(false)) return;
   ballTipChecked = true;
   chrome.storage.local.get({ ballTipSeen: false }, (data) => {
-    if (data?.ballTipSeen || originDenied() || !ballTip) return;
+    if (!ballTipAllowed(data?.ballTipSeen === true) || originDenied() || !ballEnabled || !ballTip) return;
     positionBallTip();
     ballTip.hidden = false;
     chrome.storage.local.set({ ballTipSeen: true });
@@ -510,6 +544,194 @@ function adoptBallPosition(value) {
   ballPinned = true;
   ballAnchor = { side: pos.side, top: pos.top };
   placeBall(pos);
+}
+
+function unmountOnboarding() {
+  if (onboardingHost) {
+    onboardingHost.remove();
+    onboardingHost = null;
+  }
+  onboardingState = null;
+}
+
+/**
+ * @param {ShadowRoot} shadow
+ * @param {NonNullable<typeof globalThis.ImmerOnboarding>} api
+ */
+function renderOnboardingCard(shadow, api) {
+  const state = onboardingState;
+  if (!state) return;
+  const step = api.STEPS[state.index];
+  if (!step) return;
+  const kicker = shadow.querySelector(".kicker");
+  const title = shadow.querySelector("h2");
+  const body = shadow.querySelector(".body");
+  const primary = shadow.querySelector(".primary");
+  const skipAll = shadow.querySelector(".skip-all");
+  if (kicker) kicker.textContent = `${state.index + 1} / ${api.STEPS.length}`;
+  if (title) title.textContent = step.title;
+  if (body) body.textContent = step.body;
+  if (primary) primary.textContent = api.primaryLabel(state.index);
+  if (skipAll instanceof HTMLElement) skipAll.hidden = !api.showSkipAll(state.index);
+}
+
+/**
+ * @param {"next" | "skip" | "skip-all"} action
+ */
+function applyOnboardingAction(action) {
+  const api = globalThis.ImmerOnboarding;
+  if (!api || !onboardingState) return;
+  onboardingState = api.reduce(onboardingState, action);
+  if (!onboardingState.done) {
+    if (onboardingHost?.shadowRoot) renderOnboardingCard(onboardingHost.shadowRoot, api);
+    return;
+  }
+  const patch = api.storagePatch(onboardingState);
+  onboardingDone = true;
+  onboardingDismissedHere = true;
+  if (patch?.ballTipSeen) {
+    ballTipChecked = true;
+    if (ballTip) ballTip.hidden = true;
+  }
+  unmountOnboarding();
+  if (patch && chrome?.storage?.local) chrome.storage.local.set(patch);
+}
+
+/**
+ * @param {{ onboardingDone?: unknown } | null | undefined} settings
+ */
+function bootOnboarding(settings) {
+  const api = globalThis.ImmerOnboarding;
+  onboardingKnown = true;
+  onboardingDone = api ? !api.guidePending(settings?.onboardingDone) : settings?.onboardingDone === true;
+  if (!onboardingDone) mountOnboarding();
+}
+
+function mountOnboarding() {
+  if (onboardingDone || onboardingHost || !document.documentElement) return;
+  if (document.getElementById("immer-onboarding-host")) return;
+  const api = globalThis.ImmerOnboarding;
+  if (!api) return;
+  onboardingState = api.initialState();
+  const host = document.createElement("div");
+  host.id = "immer-onboarding-host";
+  host.style.setProperty("position", "fixed", "important");
+  host.style.setProperty("z-index", "2147483645", "important");
+  host.style.setProperty("top", "16px", "important");
+  host.style.setProperty("left", "16px", "important");
+  host.style.setProperty("width", "min(320px, calc(100vw - 32px))", "important");
+  host.style.setProperty("margin", "0", "important");
+  host.style.setProperty("padding", "0", "important");
+  host.style.setProperty("border", "0", "important");
+  host.style.setProperty("background", "transparent", "important");
+  host.style.setProperty("pointer-events", "none", "important");
+  host.style.setProperty("overflow", "visible", "important");
+  const shadow = host.attachShadow({ mode: "open" });
+  const glassUrl = chrome?.runtime?.getURL ? chrome.runtime.getURL("glass.css") : "glass.css";
+  shadow.innerHTML = `
+    <link rel="stylesheet" href="${glassUrl}" />
+    <style>
+      .card {
+        pointer-events: auto;
+        box-sizing: border-box;
+        width: 100%;
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+        padding: var(--immer-glass-pad, 16px);
+        font: 13px/1.45 system-ui, sans-serif;
+        color: var(--immer-glass-text, #1c2430);
+      }
+      .kicker {
+        margin: 0;
+        color: var(--immer-glass-muted, #5c6b7a);
+        font-size: 12px;
+        letter-spacing: 0.02em;
+      }
+      h2 {
+        margin: 4px 0 0;
+        font: 650 16px/1.3 system-ui, sans-serif;
+      }
+      .body {
+        margin: var(--immer-glass-space, 8px) 0 0;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: var(--immer-glass-space, 8px);
+        margin-top: var(--immer-glass-gap, 12px);
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+      }
+      button:focus-visible {
+        outline: 2px solid var(--immer-cta-bg, #1f4e9a);
+        outline-offset: 2px;
+      }
+      .primary {
+        appearance: none;
+        -webkit-appearance: none;
+        border: 0;
+        border-radius: var(--immer-glass-radius, 14px);
+        padding: 8px 14px;
+        background: var(--immer-cta-bg, #1f4e9a);
+        color: var(--immer-cta-fg, #ffffff);
+        font-weight: 650;
+      }
+      .primary:hover { background: var(--immer-cta-bg-pressed, #183e7a); }
+      .ghost, .skip-all {
+        appearance: none;
+        -webkit-appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--immer-cta-bg, #1f4e9a);
+        font-weight: 600;
+        padding: 8px 10px;
+      }
+      .skip-all {
+        margin-top: 2px;
+        padding-left: 0;
+        color: var(--immer-glass-muted, #5c6b7a);
+        font-weight: 500;
+      }
+    </style>
+    <section class="card immer-glass" aria-labelledby="immer-onboarding-title">
+      <p class="kicker"></p>
+      <h2 id="immer-onboarding-title"></h2>
+      <p class="body"></p>
+      <div class="row">
+        <button class="primary" type="button" data-action="next"></button>
+        <button class="ghost" type="button" data-action="skip">跳过</button>
+      </div>
+      <button class="skip-all" type="button" data-action="skip-all">全部跳过</button>
+    </section>
+  `;
+  shadow.addEventListener("click", (event) => {
+    const node = event.target;
+    const element = node instanceof Element ? node : node instanceof Node ? node.parentElement : null;
+    const button = element?.closest("button") ?? null;
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const action = button.getAttribute("data-action");
+    if (action === "next" || action === "skip" || action === "skip-all") applyOnboardingAction(action);
+  });
+  const glassLink = shadow.querySelector('link[rel="stylesheet"]');
+  if (glassLink && !glassLink.sheet) {
+    host.style.setProperty("visibility", "hidden", "important");
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      host.style.removeProperty("visibility");
+    };
+    glassLink.addEventListener("load", reveal);
+    glassLink.addEventListener("error", reveal);
+    setTimeout(reveal, 600);
+  }
+  renderOnboardingCard(shadow, api);
+  onboardingHost = host;
+  document.documentElement.appendChild(host);
 }
 
 function mountBall() {
@@ -1000,6 +1222,23 @@ function onStorageChanged(changes, area) {
     rememberBallEnabled(changes.ballEnabled.newValue);
     syncBall();
   }
+  if (Object.prototype.hasOwnProperty.call(changes, "onboardingDone")) {
+    const api = globalThis.ImmerOnboarding;
+    const done = api
+      ? !api.guidePending(changes.onboardingDone.newValue)
+      : changes.onboardingDone.newValue === true;
+    onboardingKnown = true;
+    onboardingDone = done;
+    if (done) {
+      onboardingDismissedHere = true;
+      ballTipChecked = true;
+      if (ballTip) ballTip.hidden = true;
+      unmountOnboarding();
+    } else if (!onboardingHost) {
+      onboardingDismissedHere = false;
+      mountOnboarding();
+    }
+  }
   let listsChanged = false;
   if (Object.prototype.hasOwnProperty.call(changes, "denyOrigins")) {
     denyOrigins = normalizeStoredList(changes.denyOrigins.newValue);
@@ -1140,6 +1379,7 @@ getPageSettings()
   .then((settings) => {
     adoptSettings(settings);
     pageReady = true;
+    bootOnboarding(settings);
     if (originDenied()) {
       active = false;
       setHovered(null);
