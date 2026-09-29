@@ -6,7 +6,7 @@ Inspired by immersive bilingual-translate extensions; this repo is an independen
 
 ## Status
 
-Early MVP. Current dev version is **0.2.0** (`dev-0.2.0`). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Hover a main-content paragraph and press **Alt+T** (changeable on the options page, stored as `paragraphHotkey`) to translate that one segment. The extension action icon still toggles the whole page. Node and cloud acceptance read a gitignored local YAML file plus environment variables. The service worker wraps the selected engine once with translate-core `createPipelineEngine`; cache, retry, and rate limit are not reimplemented in the shell.
+Early MVP. Current dev version is **0.2.1** (`dev-0.2.1`). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Hover a main-content paragraph and press **Alt+T** (changeable on the options page, stored as `paragraphHotkey`) to translate that one segment. The extension action icon still toggles the whole page. Node and cloud acceptance read a gitignored local YAML file plus environment variables. The service worker wraps the selected engine once with translate-core `createPipelineEngine`; cache, retry, and rate limit are not reimplemented in the shell.
 
 ## Layout
 
@@ -29,8 +29,9 @@ scripts/sync-translate-core.sh
 1. Open `chrome://extensions` (Edge: `edge://extensions`)
 2. Enable Developer mode
 3. **Load unpacked** → select the `extension/` directory in this repo
-4. Open an article page → click the extension icon to toggle bilingual mock output
-5. Hover a main-content paragraph (it picks up a blue outline) → press **Alt+T** to translate only that segment. The line under the original uses the same bilingual style as the full-page toggle. Pressing the hotkey again on an already translated paragraph does nothing. Change the hotkey on the options page (focus the field, press a combo that includes Alt, Ctrl, or Meta, then save). Default is `Alt+T`.
+4. First-time users should **pin the extension icon to the Chrome toolbar**. Known quirk: otherwise open it from the Extensions menu (puzzle icon).
+5. Open an article page → click the extension icon to toggle bilingual mock output
+6. Hover a main-content paragraph (it picks up a blue outline) → press **Alt+T** to translate only that segment. The line under the original uses the same bilingual style as the full-page toggle. Pressing the hotkey again on an already translated paragraph does nothing. Change the hotkey on the options page (focus the field, press a combo that includes Alt, Ctrl, or Meta, then save). Default is `Alt+T`.
 
 Options: extension details → Extension options. Protocol, base URL, model, API key, languages, and `paragraphHotkey` are stored only in `chrome.storage.local`. Leave the key empty to keep the mock engine. The extension does not read `config.yaml`.
 
@@ -55,7 +56,7 @@ Then reload the extension.
 
 ## MVP acceptance (`release-0.1.0` gate)
 
-Current extension version is **0.2.0**. The checklist keeps the 0.1.0 gate and adds the hover hotkey.
+Current extension version is **0.2.1**. The checklist keeps the 0.1.0 gate and adds the hover hotkey.
 
 ```bash
 npm run accept
@@ -105,7 +106,7 @@ Pass `cfg.sourceLang` / `cfg.targetLang` on the translate request. The engine fa
 
 - No API keys in the repository
 - See [SECURITY.md](SECURITY.md)
-- Branching: current dev is `dev-0.2.0` (extension `0.2.0`). Push on `dev-*` (started at `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
+- Branching: current dev is `dev-0.2.1` (extension `0.2.1`). Push on `dev-*` (started at `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
 
 ## License
 

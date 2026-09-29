@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Version and docs alignment only: `extension/manifest.json` version is `0.2.1`
+- Root README notes the current dev version `0.2.1`, and that first-time users should pin the extension icon to the Chrome toolbar (otherwise open it from the Extensions menu)
+- No functional change
+
 ## 0.2.0
 
 - Hover a main-content paragraph to mark it; default hotkey **Alt+T** translates that single segment through `TRANSLATE_BATCH`
