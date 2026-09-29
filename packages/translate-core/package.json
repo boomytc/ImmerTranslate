@@ -10,5 +10,5 @@
   "scripts": {
     "smoke": "node ./scripts/smoke.mjs"
   },
-  "description": "TranslateRequest/Response contract + mock (and later real) engines"
+  "description": "TranslateRequest/Response contract, mock engine, and OpenAI/Anthropic-compatible engines"
 }
