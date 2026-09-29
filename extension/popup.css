@@ -69,6 +69,11 @@ button:focus-visible {
   display: none;
 }
 
+.hint.is-fail {
+  color: var(--immer-glass-text);
+  font-weight: 600;
+}
+
 .origin {
   margin: var(--immer-glass-space) 0 0;
   color: var(--immer-glass-muted);
