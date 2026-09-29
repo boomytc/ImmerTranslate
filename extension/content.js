@@ -1,7 +1,9 @@
 /**
  * Main-content paragraphs → bilingual nodes under originals.
- * Full page: popup TRANSLATE_PAGE / RESTORE_PAGE, or the floating ball,
- * both through the same setTranslated() state. TOGGLE_TRANSLATE remains.
+ * Full page: popup TRANSLATE_PAGE / RESTORE_PAGE and the floating ball's
+ * primary click share dispatchPageCta(). Untranslated runs TRANSLATE_PAGE,
+ * translated runs RESTORE_PAGE. Both read the same `active` flag that
+ * GET_PAGE_STATE and the ball indicator already use. TOGGLE_TRANSLATE remains.
  * One segment: hover marks the paragraph; the options hotkey (canonical
  * Alt+T, shown as ⌥T on macOS) sends TRANSLATE_BATCH with a single {id,text}.
  * Whole-page Option/Alt+A toggles the same state as the popup and the ball.
@@ -68,6 +70,8 @@ let hoverMemoryAt = 0;
 let paragraphHotkey = DEFAULT_HOTKEY;
 /** @type {string} */
 let pageHotkey = PAGE_HOTKEY;
+/** Target language for the ball hover title. Default matches options. */
+let targetLang = "zh-CN";
 /** Options can hide the ball without clearing ballPosition. Default on. */
 let ballEnabled = true;
 /** @type {string[]} */
@@ -94,6 +98,8 @@ let ballHint = null;
 let ballTip = null;
 /** @type {HTMLButtonElement | null} */
 let ballSites = null;
+/** @type {HTMLButtonElement | null} */
+let ballEntry = null;
 /** @type {HTMLElement | null} */
 let ballMenu = null;
 let ballLeft = 0;
@@ -234,6 +240,7 @@ function applyPageStyle() {
 function adoptSettings(settings) {
   rememberHotkey(settings?.paragraphHotkey);
   rememberPageHotkey(settings?.pageHotkey);
+  rememberTargetLang(settings?.targetLang);
   rememberBallEnabled(settings?.ballEnabled);
   denyOrigins = normalizeStoredList(settings?.denyOrigins);
   allowOrigins = normalizeStoredList(settings?.allowOrigins);
@@ -521,6 +528,43 @@ function rememberPageHotkey(value) {
 }
 
 /**
+ * @param {unknown} value
+ */
+function rememberTargetLang(value) {
+  const next = String(value || "").trim();
+  targetLang = next || "zh-CN";
+}
+
+/**
+ * Names match the options page labels.
+ * @param {string} code
+ * @returns {string}
+ */
+function targetLanguageName(code) {
+  const key = String(code || "zh-CN").trim() || "zh-CN";
+  if (key === "zh-CN" || key === "zh") return "简体中文";
+  if (key === "en") return "English";
+  return key;
+}
+
+/**
+ * Hover title follows `active` and the saved page chord. The chord uses the
+ * same formatter as the popup CTA (macOS ⌥A, Windows/Linux Alt+A).
+ * @returns {string}
+ */
+function ballHoverTitle() {
+  const api = globalThis.ImmerHotkey;
+  const spec = pageHotkey || api?.DEFAULT_PAGE_HOTKEY || PAGE_HOTKEY;
+  if (api?.formatBallHoverTitle) {
+    return api.formatBallHoverTitle(Boolean(active), targetLanguageName(targetLang), spec);
+  }
+  const chord = api?.formatHotkeyDisplay ? api.formatHotkeyDisplay(spec) : "";
+  const suffix = chord ? ` (${chord})` : "";
+  if (active) return `已翻译 · 点击显示原文${suffix}`;
+  return `点击翻译为${targetLanguageName(targetLang)}${suffix}`;
+}
+
+/**
  * Missing or any value other than false keeps the ball. Only an explicit
  * false from the options page hides it.
  * @param {unknown} value
@@ -636,7 +680,31 @@ function applyListPolicy(preset) {
   }
 }
 
+/**
+ * Tell an open popup that `active` changed. The flag is the same one
+ * GET_PAGE_STATE returns; the popup re-reads it instead of keeping a copy.
+ */
+function publishPageState() {
+  if (!chrome?.runtime?.sendMessage) return;
+  try {
+    chrome.runtime.sendMessage(
+      {
+        type: "PAGE_STATE",
+        active: Boolean(active) && !originDenied(),
+        denied: originDenied(),
+        onAllow: originAllowed(),
+      },
+      () => {
+        void chrome.runtime.lastError;
+      }
+    );
+  } catch {
+    // The extension context can be gone after a reload.
+  }
+}
+
 function syncBall() {
+  publishPageState();
   if (!ballHost || !ballButton) return;
   const denied = originDenied() || !ballEnabled;
   ballHost.style.setProperty("display", denied ? "none" : "block", "important");
@@ -651,7 +719,9 @@ function syncBall() {
   if (mark) mark.textContent = active ? "原" : "译";
   const badge = ballButton.querySelector(".badge");
   if (badge) badge.hidden = !active;
-  ballButton.setAttribute("aria-label", active ? "显示原文" : "翻译");
+  const title = ballHoverTitle();
+  ballButton.title = title;
+  ballButton.setAttribute("aria-label", title);
   ballButton.setAttribute("aria-pressed", active ? "true" : "false");
   maybeShowBallTip();
 }
@@ -667,6 +737,11 @@ function positionBallTip() {
 function positionSiteMenu() {
   const nearTop = ballTop < 28;
   if (ballSites) ballSites.classList.toggle("below", nearTop);
+  if (ballEntry) {
+    const onRight = ballSide !== "left";
+    ballEntry.classList.toggle("on-right", onRight);
+    ballEntry.classList.toggle("on-left", !onRight);
+  }
   if (!ballMenu) return;
   const onRight = ballSide !== "left";
   ballMenu.classList.toggle("on-right", onRight);
@@ -1084,6 +1159,23 @@ function mountBall() {
         cursor: pointer;
       }
       .sites.below { top: auto; bottom: -22px; }
+      .entry {
+        all: unset;
+        position: absolute;
+        top: 15px;
+        box-sizing: border-box;
+        height: 18px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: var(--immer-glass-fill-strong, rgba(255, 255, 255, 0.8));
+        box-shadow: var(--immer-glass-shadow, 0 8px 24px rgba(28, 36, 48, 0.12));
+        color: var(--immer-cta-bg, #1f4e9a);
+        font: 600 11px/18px system-ui, sans-serif;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      .entry.on-right { right: 56px; }
+      .entry.on-left { left: 56px; }
       .menu {
         position: absolute;
         top: 0;
@@ -1114,6 +1206,7 @@ function mountBall() {
       <span class="mark">译</span>
       <span class="badge" hidden></span>
     </button>
+    <button id="immer-open" class="entry on-right" type="button">打开弹层</button>
     <button id="immer-sites" class="sites" type="button">站点</button>
     <div class="menu immer-glass" hidden>
       <button type="button" data-site="deny">本页加入永不翻译</button>
@@ -1127,12 +1220,20 @@ function mountBall() {
   `;
   ballHost = host;
   ballButton = shadow.querySelector("#immer-ball");
+  ballEntry = shadow.querySelector("#immer-open");
   ballSites = shadow.querySelector("#immer-sites");
   ballMenu = shadow.querySelector(".menu");
   ballHint = shadow.querySelector(".hint");
   ballTip = shadow.querySelector(".tip");
   /** The opening click can reach document after the menu is shown. */
   let suppressSiteClose = false;
+  ballEntry?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (originDenied() || !ballEnabled) return;
+    if (ballMenu) ballMenu.hidden = true;
+    openShellEntry();
+  });
   ballSites?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1275,7 +1376,7 @@ function bindBallDrag() {
     }
     if (originDenied()) return;
     if (ballTip) ballTip.hidden = true;
-    toggle().catch(() => {});
+    ballPrimaryAction().catch(() => {});
   });
 
   window.addEventListener("resize", () => {
@@ -1329,6 +1430,39 @@ async function setTranslated(next) {
 
 async function toggle() {
   await setTranslated(!active);
+}
+
+/**
+ * Popup CTA and the ball share this. TRANSLATE_PAGE turns the page on,
+ * RESTORE_PAGE turns it off. Both land in setTranslated, which paints the
+ * ball from the same `active` flag GET_PAGE_STATE returns.
+ * @param {"TRANSLATE_PAGE" | "RESTORE_PAGE" | string} type
+ */
+function dispatchPageCta(type) {
+  return type === "RESTORE_PAGE" ? setTranslated(false) : setTranslated(true);
+}
+
+/**
+ * Untranslated → TRANSLATE_PAGE. Translated → RESTORE_PAGE.
+ * Same branch the popup uses from pageActive.
+ */
+function ballPrimaryAction() {
+  return dispatchPageCta(active ? "RESTORE_PAGE" : "TRANSLATE_PAGE");
+}
+
+/**
+ * Opens the toolbar popup when the browser allows it, otherwise the options
+ * page the popup already opens with chrome.runtime.openOptionsPage.
+ */
+function openShellEntry() {
+  if (!chrome?.runtime?.sendMessage) return;
+  try {
+    chrome.runtime.sendMessage({ type: "OPEN_SHELL_ENTRY" }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch {
+    // The extension context can be gone after a reload.
+  }
 }
 
 /**
@@ -1480,8 +1614,8 @@ let paragraphChordSource = "";
  * One physical Alt+A / ⌥A must toggle once. The page listener and
  * chrome.commands can both observe that press; a cold service worker may
  * deliver the command after the page already handled the keydown.
- * A later keydown still toggles. Popup and the ball call setTranslated / toggle
- * directly and are not gated here.
+ * A later keydown still toggles. Popup messages and the ball call
+ * dispatchPageCta directly and are not gated here.
  * @param {"page" | "command"} source
  * @returns {Promise<void>}
  */
@@ -1579,6 +1713,11 @@ function onStorageChanged(changes, area) {
   }
   if (Object.prototype.hasOwnProperty.call(changes, "pageHotkey")) {
     rememberPageHotkey(changes.pageHotkey.newValue);
+    syncBall();
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, "targetLang")) {
+    rememberTargetLang(changes.targetLang.newValue);
+    syncBall();
   }
   if (Object.prototype.hasOwnProperty.call(changes, "ballEnabled")) {
     rememberBallEnabled(changes.ballEnabled.newValue);
@@ -1716,11 +1855,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     message?.type === "RESTORE_PAGE"
   ) {
     const job =
-      message.type === "TRANSLATE_PAGE"
-        ? setTranslated(true)
-        : message.type === "RESTORE_PAGE"
-          ? setTranslated(false)
-          : toggleFromChord("command");
+      message.type === "TRANSLATE_PAGE" || message.type === "RESTORE_PAGE"
+        ? dispatchPageCta(message.type)
+        : toggleFromChord("command");
     job
       .then(() => sendResponse({ ok: true, active, denied: originDenied() }))
       .catch((err) =>
@@ -1732,6 +1869,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 mountBall();
+
+globalThis.ImmerHotkey?.detectPlatform?.().then(() => syncBall()).catch(() => {});
 
 const seenAtBoot = policyEpoch;
 getPageSettings()
