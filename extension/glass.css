@@ -1,6 +1,6 @@
 /*
  * Shared frosted-glass tokens for the toolbar popup, the options page,
- * and the in-page ball.
+ * the first-run card, and the in-page ball.
  * One sheet, no Mac/Windows fork. Loaded on :root in the popup and on :host
  * inside the ball shadow root.
  */
