@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0
+
+- Seal of the shipped MVP (P0–P2 already in tree). `extension/manifest.json` version is `1.0.0`. Root status lines name `dev-1.0.0`.
+- Documents local unpacked load, pinning the toolbar icon, and a 本机验收清单: empty-key icon toggle shows bilingual `⟦⟧` then restores; hover + Alt+T translates one segment; options can change the hotkey; a deny-list origin blocks translate; style switches apply live without reload; an optional real DeepSeek key; no login or upgrade wall.
+- No new features. `packages/translate-core` is already `1.0.0` and is not modified here. Empty API key still uses the mock `⟦…⟧` engine. The service worker still wraps the selected engine once with `createPipelineEngine`.
+
 ## 0.3.0
 
 - Per-origin site lists in `chrome.storage.local`: `denyOrigins` (never translate; default empty, so every site stays eligible) and optional `allowOrigins` (always translate on load). The icon toggle and Alt+T do not insert bilingual nodes on a denied origin. Deny wins if an origin is on both lists.

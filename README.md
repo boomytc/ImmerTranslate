@@ -6,7 +6,7 @@ Inspired by immersive bilingual-translate extensions; this repo is an independen
 
 ## Status
 
-Early MVP. Current dev version is **0.3.0** (`dev-0.3.0`). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Hover a main-content paragraph and press **Alt+T** (changeable on the options page, stored as `paragraphHotkey`) to translate that one segment. The extension action icon still toggles the whole page. Options can mark an origin as **never translate** (`denyOrigins`, default empty so every site stays eligible) or **always translate** (`allowOrigins`). A denied origin does not get bilingual nodes from the icon or the hotkey; deny wins if an origin is on both lists. Reading style (`translationFontSize` `sm`/`md`/`lg`, `translationContrast` `normal`/`high`, `displayMode` `bilingual` or `translation-only`) is stored in `chrome.storage.local` and applies to an already open page without a reload. Node and cloud acceptance read a gitignored local YAML file plus environment variables. The service worker wraps the selected engine once with translate-core `createPipelineEngine`; cache, retry, and rate limit are not reimplemented in the shell. translate-core itself is unchanged in 0.3.0.
+Early MVP. Current dev version is **1.0.0** (`dev-1.0.0`). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Hover a main-content paragraph and press **Alt+T** (changeable on the options page, stored as `paragraphHotkey`) to translate that one segment. The extension action icon still toggles the whole page. Options can mark an origin as **never translate** (`denyOrigins`, default empty so every site stays eligible) or **always translate** (`allowOrigins`). A denied origin does not get bilingual nodes from the icon or the hotkey; deny wins if an origin is on both lists. Reading style (`translationFontSize` `sm`/`md`/`lg`, `translationContrast` `normal`/`high`, `displayMode` `bilingual` or `translation-only`) is stored in `chrome.storage.local` and applies to an already open page without a reload. Node and cloud acceptance read a gitignored local YAML file plus environment variables. The service worker wraps the selected engine once with translate-core `createPipelineEngine`; cache, retry, and rate limit are not reimplemented in the shell. `packages/translate-core` is already `1.0.0` on this branch; this seal does not change that package. `TranslateRequest` / `TranslateResponse` stay the same, and an empty key still selects the mock engine.
 
 ## Layout
 
@@ -26,6 +26,8 @@ scripts/sync-translate-core.sh
 ```
 
 ## Load unpacked
+
+Local load for extension **1.0.0**:
 
 1. Open `chrome://extensions` (Edge: `edge://extensions`)
 2. Enable Developer mode
@@ -59,7 +61,7 @@ Then reload the extension.
 
 ## MVP acceptance (`release-0.1.0` gate)
 
-Current extension version is **0.3.0**. The checklist keeps the 0.1.0 gate, the hover hotkey, and the 0.3.0 site lists plus reading-style switches.
+Current extension version is **1.0.0** (`dev-1.0.0`). The checklist keeps the 0.1.0 gate, the hover hotkey, and the 0.3.0 site lists plus reading-style switches. This seal adds no features.
 
 ```bash
 npm run accept
@@ -67,7 +69,18 @@ npm run accept
 
 Checks: vendor sync with `packages/translate-core`, background imports that vendor and selects mock / OpenAI / Anthropic from options, mock batch `⟦…⟧`, package smoke, MV3 manifest, options fields without login/paywall copy, paragraph hotkey default `Alt+T` with a single-segment `TRANSLATE_BATCH`, no absolute local paths or key-shaped secrets in git files, `config.yaml` has an empty `apiKey`, `config.local.yaml` is gitignored, YAML merge precedence, and `extension/` contains neither local YAML nor secrets.
 
-Manual after green: load unpacked `extension/` → open an article → click the action icon → bilingual `⟦…⟧` under paragraphs. Hover one paragraph and press Alt+T → only that segment gets a bilingual line. Empty API key still renders `⟦原文⟧`. Add that origin to 永不翻译 and click the icon again → no new bilingual nodes. Change 译文字号, 对比度, or 仅译文 on an already translated page → the open page updates without a reload.
+`npm run accept` 通过后，按下面的清单在本机点一遍。加载方式见上文 [Load unpacked](#load-unpacked)（须把图标固定到工具栏）。
+
+### 本机验收清单
+
+除最后一项外，API Key 留空。设置页应写明无强制登录、无升级弹窗。
+
+- [ ] **固定工具栏 + 空密钥整页开关**：文章页点击图标，段落下出现双语 `⟦原文⟧`；再点一次，译文节点消失，页面还原。
+- [ ] **悬停 + Alt+T 单段**：悬停主内容一段（蓝色描边），按 **Alt+T**，只有该段出现双语行。
+- [ ] **设置页改快捷键**：选项页聚焦「段落快捷键」，按下含 Alt、Ctrl 或 Meta 的组合并保存；悬停另一段用新组合只译该段。可点「恢复默认 Alt+T」回到默认。
+- [ ] **永不翻译拦截**：把当前来源加入永不翻译后，图标和 Alt+T 都不再插入译文；从名单移除后可以再译。
+- [ ] **样式即时生效**：已译页面上改译文字号、对比度，或双语对照 / 仅译文，当前页马上变样，不用刷新。
+- [ ] **可选真实 DeepSeek Key**：协议保持 OpenAI 兼容，填入自备 DeepSeek Key（默认 base / model 即可）翻译一页。密钥只在本机 `chrome.storage.local`。没有登录或升级墙。
 
 ## Node / cloud config (not the extension)
 
@@ -109,7 +122,7 @@ Pass `cfg.sourceLang` / `cfg.targetLang` on the translate request. The engine fa
 
 - No API keys in the repository
 - See [SECURITY.md](SECURITY.md)
-- Branching: current dev is `dev-0.3.0` (extension `0.3.0`). Push on `dev-*` (started at `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
+- Branching: current dev is `dev-1.0.0` (extension `1.0.0`). Push on `dev-*` (started at `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
 
 ## License
 
