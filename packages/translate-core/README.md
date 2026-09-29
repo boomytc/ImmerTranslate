@@ -145,7 +145,7 @@ MV3 service worker 不能引用扩展目录以外的文件。改完 `src/` 后�
 
 不要改 `TranslateRequest` / `TranslateResponse`。在 service worker 里对「最终那一个」引擎包一层并复用；不要在每条 `TRANSLATE_BATCH` 里新建 `createPipelineEngine`，否则缓存和限流每次都是空的。`provider` / `model` / 是否有密钥变化时再重建。mock、OpenAI 兼容、Anthropic 兼容走同一包装。
 
-上游失败是 **rejection**，不是 `ok: true` 的响应。请读 `err.message` 给用户看，并用 `err.kind`、`err.code`、`err.status` 决定提示，不要只吞掉 `catch`。当前壳若只转发 `String(err.message)`，句子已经可用；要区分网络、HTTP、供应商和模型正文，把这三个字段一并传出：
+上游失败是 **rejection**，不是 `ok: true` 的响应。扩展壳 0.8.0 在 `TRANSLATE_BATCH` 的失败回包里带上 `message`（字段名 `error`）、`kind`、`code`、`status`，并在页面、悬浮球和弹窗上显示同一句不挡操作的毛玻璃提示。不要只吞掉 `catch`。回包形状：
 
 ```js
 } catch (err) {

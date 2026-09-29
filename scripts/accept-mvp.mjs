@@ -89,7 +89,7 @@ if (res.segments[0].text !== "⟦Hello⟧" || res.segments[1].text !== "⟦World
 ok("extension/vendor mockTranslate 批次输出 ⟦…⟧");
 
 // 3b) options → buildEngine → vendor factories (stub fetch, no network / no real key)
-const { buildEngine, engineFor } = await import(
+const { buildEngine, engineFor, failureResponse } = await import(
   pathToFileURL(join(root, "extension/background.js")).href
 );
 const sample = {
@@ -212,6 +212,37 @@ const pipedOther = engineFor({
 if (pipedOther === pipedA) fail("apiKey 变化应重建管道");
 ok("TRANSLATE_BATCH 复用一条 createPipelineEngine，空 key 仍是 ⟦…⟧");
 
+const rejected = failureResponse(
+  Object.assign(new Error("translate HTTP 401: invalid"), {
+    kind: "provider",
+    code: "invalid_api_key",
+    status: 401,
+  })
+);
+if (
+  rejected.ok !== false ||
+  rejected.error !== "translate HTTP 401: invalid" ||
+  rejected.kind !== "provider" ||
+  rejected.code !== "invalid_api_key" ||
+  rejected.status !== 401
+) {
+  fail(`TRANSLATE_BATCH 失败回包应带上 message/kind/code/status: ${JSON.stringify(rejected)}`);
+}
+const networkRejected = failureResponse(
+  Object.assign(new Error("translate network: connect ECONNREFUSED"), {
+    kind: "network",
+    code: "network",
+  })
+);
+if (networkRejected.kind !== "network" || networkRejected.code !== "network" || networkRejected.status != null) {
+  fail(`网络失败应带 kind/code 且没有 status: ${JSON.stringify(networkRejected)}`);
+}
+if (!bg.includes("kind: err?.kind") || !bg.includes("code: err?.code") || !bg.includes("status: err?.status")) {
+  fail("background.js 未把 kind/code/status 放进失败回包");
+}
+if (!bg.includes("failureResponse(err)")) fail("TRANSLATE_BATCH 失败须走 failureResponse");
+ok("TRANSLATE_BATCH 失败回包带上 kind、code、status");
+
 // 4) package smoke
 run("npm", ["run", "smoke"]);
 ok("packages/translate-core smoke");
@@ -220,8 +251,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.7.0") {
-  fail(`manifest version 应为 0.7.0，实际 ${manifest.version}`);
+if (manifest.version !== "0.8.0") {
+  fail(`manifest version 应为 0.8.0，实际 ${manifest.version}`);
 }
 if (manifest.action?.default_popup !== "popup.html") {
   fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
@@ -886,8 +917,11 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.7.0") || !readme.includes("dev-0.7.0")) {
-  fail("README 未记录 0.7.0 / dev-0.7.0");
+if (!readme.includes("0.8.0") || !readme.includes("dev-0.8.0")) {
+  fail("README 未记录 0.8.0 / dev-0.8.0");
+}
+if (readme.includes("当前开发版本为 **0.7.0**") || readme.includes("当前开发线是 `dev-0.7.0`")) {
+  fail("README 仍把 0.7.0 写成当前版本");
 }
 if (readme.includes("当前开发版本为 **0.6.0**") || readme.includes("当前开发线是 `dev-0.6.0`")) {
   fail("README 仍把 0.6.0 写成当前版本");
@@ -926,8 +960,14 @@ const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
 if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
   fail("README.en.md 未写明 Load unpacked 与 pin");
 }
-if (!readmeEn.includes("0.7.0") || !readmeEn.includes("dev-0.7.0")) {
-  fail("README.en.md 未记录 0.7.0 / dev-0.7.0");
+if (!readmeEn.includes("0.8.0") || !readmeEn.includes("dev-0.8.0")) {
+  fail("README.en.md 未记录 0.8.0 / dev-0.8.0");
+}
+if (readmeEn.includes("The current dev version is **0.7.0**") || readmeEn.includes("currently `dev-0.7.0`")) {
+  fail("README.en.md 仍把 0.7.0 写成当前版本");
+}
+if (readmeEn.includes("The current development line is `dev-0.7.0`")) {
+  fail("README.en.md 仍把 dev-0.7.0 写成当前开发线");
 }
 if (readmeEn.includes("The current dev version is **0.6.0**") || readmeEn.includes("currently `dev-0.6.0`")) {
   fail("README.en.md 仍把 0.6.0 写成当前版本");
@@ -944,6 +984,7 @@ if (readmeEn.includes("The current dev version is **0.4.1**") || readmeEn.includ
 if (readmeEn.includes("The current dev version is **0.4.0**") || readmeEn.includes("currently `dev-0.4.0`")) {
   fail("README.en.md 仍把 0.4.0 写成当前版本");
 }
+if (!changelog.includes("## 0.8.0")) fail("CHANGELOG 缺少 0.8.0");
 if (!changelog.includes("## 0.7.0")) fail("CHANGELOG 缺少 0.7.0");
 if (!changelog.includes("## 0.6.0")) fail("CHANGELOG 缺少 0.6.0");
 if (!changelog.includes("## 0.5.0")) fail("CHANGELOG 缺少 0.5.0");
@@ -1431,6 +1472,65 @@ for (const file of walk(join(root, "extension"))) {
   }
 }
 ok("extension/vendor 无 config.local.yaml 与密钥");
+
+const failIdx = contentScripts.indexOf("failtip.js");
+if (failIdx < 0 || failIdx > contentIdx) {
+  fail(`content_scripts 须在 content.js 之前加载 failtip.js: ${contentScripts.join(",")}`);
+}
+if (!popupHtml.includes('src="failtip.js"')) fail("弹窗未加载 failtip.js");
+if (!contentJs.includes("immer-fail-host") || !contentJs.includes("showTranslateFailure")) {
+  fail("content.js 未展示页面失败提示");
+}
+if (!contentJs.includes("kind: err?.kind") || !contentJs.includes("code: err?.code") || !contentJs.includes("status: err?.status")) {
+  fail("content.js 未把 kind/code/status 交回弹窗");
+}
+if (!contentJs.includes("pointer-events: none")) fail("页面失败提示必须不挡住点击");
+if (!contentCss.includes("#immer-fail-host")) fail("content.css 缺少失败提示宿主");
+if (!popupJs.includes("ImmerFail") || !popupJs.includes("formatFailureTip")) {
+  fail("弹窗未使用失败提示");
+}
+if (!popupCss.includes(".hint.is-fail")) fail("弹窗失败提示未标出");
+const failSandbox = {};
+createContext(failSandbox);
+runInContext(readFileSync(join(root, "extension/failtip.js"), "utf8"), failSandbox);
+const failApi = failSandbox.ImmerFail;
+if (!failApi?.formatFailureTip || !failApi?.failureError) fail("failtip.js 未挂上 ImmerFail");
+const netTip = failApi.formatFailureTip({
+  message: "translate network: connect ECONNREFUSED",
+  kind: "network",
+  code: "network",
+});
+if (!netTip.kicker.includes("network") || !netTip.text.includes("translate network: connect ECONNREFUSED")) {
+  fail(`失败提示应同时有 kind 和说明: ${JSON.stringify(netTip)}`);
+}
+const providerTip = failApi.formatFailureTip({
+  error: "translate HTTP 401: invalid",
+  kind: "provider",
+  code: "invalid_api_key",
+  status: 401,
+});
+if (
+  !providerTip.text.includes("provider") ||
+  !providerTip.text.includes("invalid_api_key") ||
+  !providerTip.text.includes("401") ||
+  !providerTip.text.includes("translate HTTP 401: invalid")
+) {
+  fail(`失败提示应带上 kind/code/status 和说明: ${providerTip.text}`);
+}
+const carried = failApi.failureError(
+  { error: "translate HTTP 502: bad gateway", kind: "http", code: "http_502", status: 502 },
+  "translate failed"
+);
+if (carried.message !== "translate HTTP 502: bad gateway" || carried.kind !== "http" || carried.code !== "http_502" || carried.status !== 502) {
+  fail("failureError 应保留 message/kind/code/status");
+}
+if (!readme.includes("127.0.0.1:9") || !readme.includes("kind") || !readme.includes("not-a-real-key")) {
+  fail("README 未写明失败提示的本机验收（假密钥、不可达地址、kind）");
+}
+if (!readmeEn.includes("127.0.0.1:9") || !readmeEn.includes("not-a-real-key")) {
+  fail("README.en.md 未写明失败提示的本机验收");
+}
+ok("翻译失败把 kind/code/status 和说明显示到页面、悬浮球和弹窗");
 
 console.log(
   "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 未翻译时主按钮为「翻译 (⌥A)」或「翻译 (Alt+A)」，已翻译为「显示原文」；空 key 标明 Mock；文章页焦点不在输入框时 Alt+A（Windows/Linux）或 ⌥A（macOS）切换整页，Alt+T / ⌥T 仍只译悬停段；热键被系统抢走时弹窗和悬浮球仍能切换；右侧悬浮球拖完贴边，刷新后竖直位置还在；首次出现一次提示；永不翻译的来源不显示球"
