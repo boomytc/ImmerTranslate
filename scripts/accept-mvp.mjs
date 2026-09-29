@@ -4,10 +4,10 @@
  * Does not launch a browser — manual: load unpacked → article → toggle.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fail = (msg) => {
@@ -228,5 +228,130 @@ for (const file of tracked.split("\n").filter(Boolean)) {
   }
 }
 ok("仓内无本机路径 / 疑似密钥");
+
+// 7) Node/cloud YAML template + merge. Extension stays on chrome.storage.
+const configYamlPath = join(root, "config.yaml");
+if (!existsSync(configYamlPath)) fail("缺少 config.yaml 模板");
+const configRaw = readFileSync(configYamlPath, "utf8");
+const apiKeyLine = configRaw.split(/\r?\n/).find((line) => /^\s*apiKey\s*:/.test(line));
+if (!apiKeyLine) fail("config.yaml 缺少 apiKey");
+const apiKeyValue = apiKeyLine.slice(apiKeyLine.indexOf(":") + 1).trim();
+if (apiKeyValue !== '""' && apiKeyValue !== "''" && apiKeyValue !== "") {
+  fail("config.yaml 的 apiKey 必须为空");
+}
+const gitignore = readFileSync(join(root, ".gitignore"), "utf8");
+for (const pattern of ["config.local.yaml", "config.local.yml", "*.local.yaml", "*.local.yml"]) {
+  if (!gitignore.includes(pattern)) fail(`.gitignore 缺少 ${pattern}`);
+}
+const ignoreLocal = spawnSync("git", ["check-ignore", "-q", "config.local.yaml"], {
+  cwd: root,
+});
+if (ignoreLocal.status !== 0) fail("config.local.yaml 未被 gitignore");
+for (const sample of ["config.local.yml", "notes.local.yaml"]) {
+  const sampleIgnore = spawnSync("git", ["check-ignore", "-q", sample], { cwd: root });
+  if (sampleIgnore.status !== 0) fail(`${sample} 未被 gitignore`);
+}
+const ignoreTemplate = spawnSync("git", ["check-ignore", "-q", "config.yaml"], { cwd: root });
+if (ignoreTemplate.status === 0) fail("config.yaml 不应被 gitignore");
+const trackedLocal = run("git", ["ls-files", "--", "config.local.yaml", "config.local.yml"]).trim();
+if (trackedLocal) fail(`本地配置被跟踪: ${trackedLocal}`);
+
+const { loadMergedEngineConfig, createEngineFromMergedConfig } = await import(
+  pathToFileURL(join(root, "packages/translate-core/config/load.js")).href
+);
+const templateCfg = loadMergedEngineConfig({
+  cwd: root,
+  env: {},
+  readFile(filePath) {
+    if (basename(filePath) === "config.local.yaml") return null;
+    return readFileSync(filePath, "utf8");
+  },
+});
+if (templateCfg.apiKey !== "") fail("config.yaml 合并后 apiKey 必须为空");
+if (templateCfg.provider !== "openai") fail(`模板 provider 异常: ${templateCfg.provider}`);
+if (templateCfg.baseUrl !== "https://api.deepseek.com/v1") fail("模板 baseUrl 异常");
+if (templateCfg.model !== "deepseek-flash") fail("模板 model 异常");
+if (templateCfg.sourceLang !== "auto" || templateCfg.targetLang !== "zh-CN") {
+  fail("模板 sourceLang/targetLang 异常");
+}
+const templateEngine = createEngineFromMergedConfig(templateCfg);
+const templateOut = await templateEngine({
+  sourceLang: "auto",
+  targetLang: "zh-CN",
+  segments: [{ id: "a", text: "Hi" }],
+});
+if (templateOut.segments[0].text !== "⟦Hi⟧") fail("空 apiKey 未走 mockTranslate");
+
+const mergeDir = mkdtempSync(join(tmpdir(), "immer-accept-config-"));
+try {
+  writeFileSync(
+    join(mergeDir, "config.yaml"),
+    'provider: openai\nbaseUrl: https://base.example/v1\nmodel: base-model\napiKey: ""\nsourceLang: auto\ntargetLang: zh-CN\n'
+  );
+  writeFileSync(
+    join(mergeDir, "config.local.yaml"),
+    "provider: anthropic\nbaseUrl: https://local.example/v1\nmodel: local-model\napiKey: local-test-key\nsourceLang: en\n"
+  );
+  const merged = loadMergedEngineConfig({
+    cwd: mergeDir,
+    env: {
+      DEEPSEEK_API_KEY: "env-test-key",
+      DEEPSEEK_BASE_URL: "https://env.example/v1",
+    },
+  });
+  if (merged.apiKey !== "env-test-key") fail("env apiKey 未覆盖 local yaml");
+  if (merged.baseUrl !== "https://env.example/v1") fail("env baseUrl 未覆盖 local yaml");
+  if (merged.model !== "local-model") fail("local yaml model 应保留（env 未设置 model）");
+  if (merged.provider !== "anthropic") fail("local yaml provider 应保留");
+  if (merged.sourceLang !== "en" || merged.targetLang !== "zh-CN") fail("语言合并优先级异常");
+} finally {
+  rmSync(mergeDir, { recursive: true, force: true });
+}
+ok("config.yaml 空密钥模板 + local gitignore + 合并优先级");
+
+if (bg.includes("loadMergedEngineConfig") || bg.includes("config.yaml") || bg.includes("config.local")) {
+  fail("background.js 不应读取 YAML");
+}
+const optionsJs = readFileSync(join(root, "extension/options.js"), "utf8");
+if (optionsJs.includes("config.yaml") || optionsJs.includes("config.local")) {
+  fail("options.js 不应读取 YAML");
+}
+
+/**
+ * @param {string} dir
+ * @returns {string[]}
+ */
+function walk(dir) {
+  if (!existsSync(dir)) return [];
+  /** @type {string[]} */
+  const out = [];
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, ent.name);
+    if (ent.isDirectory()) out.push(...walk(p));
+    else out.push(p);
+  }
+  return out;
+}
+
+for (const file of walk(join(root, "extension"))) {
+  const name = basename(file);
+  if (
+    name === "config.yaml" ||
+    name === "config.yml" ||
+    name === "config.local.yaml" ||
+    name === "config.local.yml" ||
+    name.endsWith(".local.yaml") ||
+    name.endsWith(".local.yml")
+  ) {
+    fail(`extension 树不应包含配置文件 ${file}`);
+  }
+  if (name.endsWith(".png") || name.endsWith(".jpg")) continue;
+  const text = readFileSync(file, "utf8");
+  if (/sk-[a-zA-Z0-9]{20,}/.test(text)) fail(`${file} 疑似含 API key`);
+  if (text.includes("config.local.yaml") || text.includes("config.local.yml")) {
+    fail(`${file} 不应引用本地 YAML`);
+  }
+}
+ok("extension/vendor 无 config.local.yaml 与密钥");
 
 console.log("\naccept-mvp ok — 浏览器手测: 加载 extension/ → 文章页点图标应出现 ⟦原文⟧");

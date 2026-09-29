@@ -1,3 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   mockTranslate,
   translate,
@@ -5,6 +9,7 @@ import {
   createAnthropicCompatibleEngine,
   deepSeekOptionsFromEnv,
 } from "../src/index.js";
+import { createEngineFromMergedConfig, loadMergedEngineConfig } from "../config/load.js";
 
 function assert(cond, msg) {
   if (!cond) {
@@ -187,4 +192,176 @@ if (typeof process.env.DEEPSEEK_API_KEY === "string" && process.env.DEEPSEEK_API
   assert(live === null, "未设置 DEEPSEEK_API_KEY 时默认 env 应为 null");
 }
 
-console.log("smoke ok: batch mockTranslate / translate + openai/anthropic/deepseek env");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const template = loadMergedEngineConfig({
+  cwd: repoRoot,
+  env: {},
+  readFile(filePath) {
+    if (filePath.endsWith("config.local.yaml")) return null;
+    return readFileSync(filePath, "utf8");
+  },
+});
+assert(template.apiKey === "", "仓库 config.yaml apiKey 应为空");
+assert(template.provider === "openai", "模板 provider");
+assert(template.baseUrl === "https://api.deepseek.com/v1", "模板 baseUrl");
+assert(template.model === "deepseek-flash", "模板 model");
+assert(template.sourceLang === "auto" && template.targetLang === "zh-CN", "模板语言");
+
+const configDir = mkdtempSync(join(tmpdir(), "immer-config-"));
+try {
+  writeFileSync(
+    join(configDir, "config.yaml"),
+    [
+      "provider: openai",
+      "baseUrl: https://api.deepseek.com/v1",
+      "model: deepseek-flash",
+      'apiKey: ""',
+      "sourceLang: auto",
+      "targetLang: zh-CN",
+      "",
+    ].join("\n")
+  );
+  writeFileSync(
+    join(configDir, "config.local.yaml"),
+    [
+      "provider: anthropic",
+      "baseUrl: https://local.example/v1",
+      "model: local-model",
+      'apiKey: "local-test-key"',
+      "sourceLang: en",
+      "targetLang: ja",
+      "",
+    ].join("\n")
+  );
+
+  const fromFiles = loadMergedEngineConfig({ cwd: configDir, env: {} });
+  assert(fromFiles.provider === "anthropic", "local yaml 应覆盖 provider");
+  assert(fromFiles.baseUrl === "https://local.example/v1", "local yaml 应覆盖 baseUrl");
+  assert(fromFiles.model === "local-model", "local yaml 应覆盖 model");
+  assert(fromFiles.apiKey === "local-test-key", "local yaml 应覆盖 apiKey");
+  assert(fromFiles.sourceLang === "en" && fromFiles.targetLang === "ja", "local yaml 应覆盖语言");
+
+  const envWins = loadMergedEngineConfig({
+    cwd: configDir,
+    env: {
+      IMMER_TRANSLATE_PROVIDER: "openai",
+      IMMER_TRANSLATE_MODEL: "generic-model",
+      IMMER_TRANSLATE_API_KEY: "generic-test-key",
+      IMMER_TRANSLATE_TARGET_LANG: "zh-CN",
+      DEEPSEEK_API_KEY: " env-test-key ",
+      DEEPSEEK_BASE_URL: " https://env.example/v1/ ",
+    },
+  });
+  assert(envWins.provider === "openai", "IMMER_TRANSLATE_PROVIDER 应覆盖 local yaml");
+  assert(envWins.model === "generic-model", "IMMER_TRANSLATE_MODEL 应覆盖 local yaml");
+  assert(envWins.targetLang === "zh-CN", "IMMER_TRANSLATE_TARGET_LANG 应覆盖 local yaml");
+  assert(envWins.sourceLang === "en", "未设置的 env 不应清掉 local sourceLang");
+  assert(envWins.baseUrl === "https://env.example/v1/", "DEEPSEEK_BASE_URL 应覆盖 yaml（只 trim，不去掉末尾 /）");
+  assert(envWins.apiKey === "env-test-key", "DEEPSEEK_API_KEY 应压过 IMMER_TRANSLATE_API_KEY");
+
+  const blankEnv = loadMergedEngineConfig({
+    cwd: configDir,
+    env: { DEEPSEEK_API_KEY: "   ", DEEPSEEK_BASE_URL: "" },
+  });
+  assert(blankEnv.apiKey === "local-test-key", "空白 DEEPSEEK_API_KEY 不应覆盖 yaml");
+  assert(blankEnv.baseUrl === "https://local.example/v1", "空白 DEEPSEEK_BASE_URL 不应覆盖 yaml");
+
+  const baseOnlyDir = mkdtempSync(join(tmpdir(), "immer-config-base-"));
+  try {
+    writeFileSync(join(baseOnlyDir, "config.yaml"), 'provider: openai\nmodel: base-model\napiKey: ""\n');
+    const baseOnly = loadMergedEngineConfig({ cwd: baseOnlyDir, env: {} });
+    assert(baseOnly.model === "base-model", "仅 base yaml 时 model");
+    assert(baseOnly.apiKey === "", "仅 base yaml 时 apiKey 为空");
+    assert(baseOnly.baseUrl === "https://api.deepseek.com/v1", "缺省 baseUrl 来自默认值");
+  } finally {
+    rmSync(baseOnlyDir, { recursive: true, force: true });
+  }
+} finally {
+  rmSync(configDir, { recursive: true, force: true });
+}
+
+const injected = loadMergedEngineConfig({
+  cwd: "/cfg",
+  env: { DEEPSEEK_API_KEY: "injected-test-key" },
+  readFile(filePath) {
+    if (filePath.endsWith("config.local.yaml")) return null;
+    if (filePath.endsWith("config.yaml")) return "model: from-readFile\napiKey: \"\"\nbaseUrl: https://yaml.example/v1\n";
+    throw new Error(`unexpected path ${filePath}`);
+  },
+});
+assert(injected.model === "from-readFile", "readFile 应提供 base yaml");
+assert(injected.apiKey === "injected-test-key", "env 应覆盖 readFile yaml");
+assert(injected.baseUrl === "https://yaml.example/v1", "未设置的 DEEPSEEK_BASE_URL 应保留 yaml");
+
+let badYaml = false;
+try {
+  loadMergedEngineConfig({
+    cwd: "/cfg",
+    env: {},
+    readFile: () => "not-yaml\n",
+  });
+} catch (err) {
+  badYaml = err instanceof Error && /unsupported YAML/.test(err.message);
+}
+assert(badYaml, "非法 YAML 行应抛错");
+
+const emptyCfg = loadMergedEngineConfig({
+  cwd: "/missing",
+  env: {},
+  readFile() {
+    const err = new Error("missing");
+    /** @type {NodeJS.ErrnoException} */ (err).code = "ENOENT";
+    throw err;
+  },
+});
+assert(emptyCfg.apiKey === "" && emptyCfg.provider === "openai", "缺文件时用默认值");
+assert(createEngineFromMergedConfig(emptyCfg) === mockTranslate, "空 apiKey 应返回 mockTranslate");
+const mocked = await createEngineFromMergedConfig(template)({
+  sourceLang: "auto",
+  targetLang: "zh-CN",
+  segments: [{ id: "a", text: "Hi" }],
+});
+assert(mocked.segments[0].text === "⟦Hi⟧", "空 key 引擎应走 mock 包装");
+
+/** @type {string} */
+let pickedUrl = "";
+const openaiFromCfg = createEngineFromMergedConfig(
+  { provider: "openai", apiKey: "cfg-test-key", baseUrl: "https://api.deepseek.com/v1/", model: "deepseek-flash" },
+  {
+    fetchImpl: async (url) => {
+      pickedUrl = String(url);
+      return jsonResponse({
+        choices: [{ message: { content: JSON.stringify([{ id: "a", text: "你好" }]) } }],
+      });
+    },
+  }
+);
+const openaiFromCfgRes = await openaiFromCfg({
+  sourceLang: "auto",
+  targetLang: "zh-CN",
+  segments: [{ id: "a", text: "Hi" }],
+});
+assert(pickedUrl === "https://api.deepseek.com/v1/chat/completions", `openai 配置 URL: ${pickedUrl}`);
+assert(openaiFromCfgRes.segments[0].text === "你好", "openai 配置映射");
+
+pickedUrl = "";
+const anthropicFromCfg = createEngineFromMergedConfig(
+  { provider: "Anthropic", apiKey: "cfg-test-key", baseUrl: "https://api.anthropic.com", model: "claude-test" },
+  {
+    fetchImpl: async (url) => {
+      pickedUrl = String(url);
+      return jsonResponse({
+        content: [{ type: "text", text: JSON.stringify([{ id: "a", text: "你好" }]) }],
+      });
+    },
+  }
+);
+const anthropicFromCfgRes = await anthropicFromCfg({
+  sourceLang: "en",
+  targetLang: "zh-CN",
+  segments: [{ id: "a", text: "Hi" }],
+});
+assert(pickedUrl === "https://api.anthropic.com/v1/messages", `anthropic 配置 URL: ${pickedUrl}`);
+assert(anthropicFromCfgRes.segments[0].text === "你好", "anthropic 配置映射");
+
+console.log("smoke ok: batch mockTranslate / translate + openai/anthropic/deepseek env + yaml merge");
