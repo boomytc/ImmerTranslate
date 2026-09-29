@@ -4,16 +4,16 @@
 
 Branch names: `dev-MAJOR.FEATURE.FIX` and `release-MAJOR.FEATURE.FIX`.
 
-- Digit width is flexible (`dev-0.0.1`, `dev-1.12.03`, …)
+- Digit width is flexible (`dev-0.1.0`, `dev-1.12.03`, …)
 - **MAJOR** — breaking / large version
 - **FEATURE** — feature delivery version
 - **FIX** — patch / bugfix version
 
 Workflow:
 
-1. Develop and push on the current `dev-*` (start: `dev-0.0.1`)
+1. Develop and push on the current `dev-*` (start: `dev-0.1.0`)
 2. When that stage closes, merge into the matching `release-*`
-3. Delete the closed `dev-*`, then open the next number (`dev-0.0.2`, …)
+3. Delete the closed `dev-*`, then open the next number (`dev-0.1.1`, …)
 4. Keep `main` aligned with the latest stable release when cutting a public milestone
 
 Do not push unfinished work to `release-*` or `main`.

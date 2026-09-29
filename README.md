@@ -53,7 +53,7 @@ Then reload the extension.
 
 - No API keys in the repository
 - See [SECURITY.md](SECURITY.md)
-- Branching: push on `dev-*` (from `dev-0.0.1`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
+- Branching: push on `dev-*` (from `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
 
 ## License
 
