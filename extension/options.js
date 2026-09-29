@@ -27,6 +27,8 @@ const siteApi = globalThis.ImmerSites;
 let denyOrigins = [];
 /** @type {string[]} */
 let allowOrigins = [];
+/** @type {{ which: "deny" | "allow", item: string } | null} */
+let editing = null;
 let statusTimer = 0;
 
 /**
@@ -195,6 +197,60 @@ window.addEventListener("hashchange", () => {
 showSection(location.hash.replace(/^#/, ""));
 
 /**
+ * @param {"deny" | "allow"} which
+ * @param {string} item
+ */
+function startEdit(which, item) {
+  editing = { which, item };
+  renderLists();
+  const input = document.querySelector(".site-edit");
+  if (input instanceof HTMLInputElement) {
+    input.focus();
+    input.select();
+  }
+}
+
+function cancelEdit() {
+  editing = null;
+  renderLists();
+}
+
+/**
+ * @param {"deny" | "allow"} which
+ * @param {string} previous
+ * @param {string} raw
+ */
+function replaceEntry(which, previous, raw) {
+  const normalized = siteApi.normalizeSiteEntry(raw);
+  if (!normalized) {
+    setStatus("无法识别该来源，请填域名或 http(s) 网址");
+    return;
+  }
+  const list = which === "deny" ? denyOrigins : allowOrigins;
+  if (normalized === previous) {
+    cancelEdit();
+    return;
+  }
+  if (list.includes(normalized)) {
+    setStatus(`已在名单中：${normalized}`);
+    return;
+  }
+  const next = list.map((item) => (item === previous ? normalized : item));
+  if (which === "deny") denyOrigins = next;
+  else allowOrigins = next;
+  editing = null;
+  renderLists();
+  persistLists();
+  if (which === "deny") {
+    const coversAllow = allowOrigins.some((item) => allowEntryCovered(item, new Set([normalized])));
+    setStatus(coversAllow ? `已改为 ${normalized}（优先于始终翻译）` : `已改为 ${normalized}`);
+    return;
+  }
+  const covered = allowEntryCovered(normalized, new Set(denyOrigins));
+  setStatus(covered ? `已改为 ${normalized}（仍被永不翻译覆盖）` : `已改为 ${normalized}`);
+}
+
+/**
  * @param {HTMLElement} ul
  * @param {"deny" | "allow"} which
  * @param {string[]} items
@@ -211,6 +267,39 @@ function renderOneList(ul, which, items) {
   const denied = new Set(denyOrigins);
   for (const item of items) {
     const li = document.createElement("li");
+    const rowEditing = editing && editing.which === which && editing.item === item;
+    if (rowEditing) {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "site-edit";
+      input.value = item;
+      input.spellcheck = false;
+      input.autocomplete = "off";
+      input.setAttribute("aria-label", `编辑 ${item}`);
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          replaceEntry(which, item, input.value);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          cancelEdit();
+        }
+      });
+      const done = document.createElement("button");
+      done.type = "button";
+      done.textContent = "完成";
+      done.addEventListener("click", () => replaceEntry(which, item, input.value));
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.textContent = "取消";
+      cancel.addEventListener("click", () => cancelEdit());
+      const actions = document.createElement("span");
+      actions.className = "row-actions";
+      actions.append(done, cancel);
+      li.append(input, actions);
+      ul.appendChild(li);
+      continue;
+    }
     const span = document.createElement("span");
     span.textContent = item;
     if (which === "allow" && allowEntryCovered(item, denied)) {
@@ -221,17 +310,27 @@ function renderOneList(ul, which, items) {
     } else {
       li.append(span);
     }
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "移除";
-    btn.addEventListener("click", () => {
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "编辑";
+    edit.setAttribute("aria-label", `编辑 ${item}`);
+    edit.addEventListener("click", () => startEdit(which, item));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "移除";
+    remove.setAttribute("aria-label", `移除 ${item}`);
+    remove.addEventListener("click", () => {
+      if (editing && editing.which === which && editing.item === item) editing = null;
       if (which === "deny") denyOrigins = denyOrigins.filter((entry) => entry !== item);
       else allowOrigins = allowOrigins.filter((entry) => entry !== item);
       renderLists();
       persistLists();
       setStatus(`已移除 ${item}`);
     });
-    li.append(btn);
+    const actions = document.createElement("span");
+    actions.className = "row-actions";
+    actions.append(edit, remove);
+    li.append(actions);
     ul.appendChild(li);
   }
 }
