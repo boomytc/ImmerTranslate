@@ -8,7 +8,10 @@
  * The chord is handled on window and document keydown in the capture phase
  * (preventDefault + stopPropagation) when focus is outside editable fields.
  * If the browser eats that keydown, the matching keyup or the extension
- * command still calls the same toggle. Cache/retry stays in
+ * command still calls the same toggle. Paragraph Alt+T uses the same capture
+ * path, plus TRANSLATE_HOVERED_PARAGRAPH when the paragraph command shortcut
+ * still matches the saved chord. A deny-listed origin skips the paragraph
+ * chord before preventDefault. Cache/retry stays in
  * translate-core (TransPipe); this shell only renders the response.
  *
  * Site policy (chrome.storage.local): denyOrigins never inserts bilingual
@@ -43,6 +46,13 @@ const PAGE_DEFAULTS = {
 let active = false;
 /** @type {HTMLElement | null} */
 let hovered = null;
+/**
+ * Last paragraph the pointer actually entered. The paragraph command uses it
+ * when a browser menu clears `hovered` before the command message arrives.
+ * @type {HTMLElement | null}
+ */
+let hoverMemory = null;
+let hoverMemoryAt = 0;
 /** @type {string} */
 let paragraphHotkey = DEFAULT_HOTKEY;
 /** @type {string[]} */
@@ -346,24 +356,22 @@ async function translateSegment(el) {
   if (!el.isConnected || !isTranslatableParagraph(el)) return;
   if (el.getAttribute(ATTR_DONE) === "1" || el.getAttribute(ATTR_PENDING) === "1")
     return;
+  el.setAttribute(ATTR_PENDING, "1");
 
   const run = runId;
-  const settings = await getPageSettings();
-  if (run !== runId) return;
-  adoptSettings(settings);
-  if (originDenied()) return;
-  if (!el.isConnected || !isTranslatableParagraph(el)) return;
-  if (el.getAttribute(ATTR_DONE) === "1" || el.getAttribute(ATTR_PENDING) === "1")
-    return;
-
-  const id =
-    el.getAttribute(ATTR_ID) ||
-    `seg-${Date.now().toString(36)}-${(el.innerText || "").length}`;
-  el.setAttribute(ATTR_ID, id);
-  el.setAttribute(ATTR_PENDING, "1");
-  const text = (el.innerText || "").trim();
-
   try {
+    const settings = await getPageSettings();
+    if (run !== runId) return;
+    adoptSettings(settings);
+    if (originDenied()) return;
+    if (!el.isConnected || !isTranslatableParagraph(el)) return;
+    if (el.getAttribute(ATTR_DONE) === "1") return;
+
+    const id =
+      el.getAttribute(ATTR_ID) ||
+      `seg-${Date.now().toString(36)}-${(el.innerText || "").length}`;
+    el.setAttribute(ATTR_ID, id);
+    const text = (el.innerText || "").trim();
     const response = await translateBatch({
       sourceLang: settings.sourceLang || "auto",
       targetLang: settings.targetLang || "zh-CN",
@@ -376,7 +384,7 @@ async function translateSegment(el) {
     if (!hit || hit.error) return;
     placeTranslation(el, hit.text, settings.targetLang || "zh-CN");
   } finally {
-    el.removeAttribute(ATTR_PENDING);
+    if (el.isConnected) el.removeAttribute(ATTR_PENDING);
   }
 }
 
@@ -784,8 +792,34 @@ function paragraphFromEventTarget(target) {
 function setHovered(el) {
   if (hovered === el) return;
   if (hovered) hovered.classList.remove(CLASS_HOVER);
+  const previous = hovered;
   hovered = el;
-  if (hovered) hovered.classList.add(CLASS_HOVER);
+  if (hovered) {
+    hovered.classList.add(CLASS_HOVER);
+    hoverMemory = hovered;
+    hoverMemoryAt = Date.now();
+  } else if (previous) {
+    hoverMemory = previous;
+    hoverMemoryAt = Date.now();
+  }
+}
+
+/**
+ * Paragraph for the extension command. Prefer the live hover. If the chord
+ * opened a menu and the pointer event cleared it, keep the paragraph that
+ * was under the pointer a moment ago.
+ * @returns {HTMLElement | null}
+ */
+function commandParagraphTarget() {
+  if (hovered && hovered.isConnected) return hovered;
+  if (
+    hoverMemory &&
+    hoverMemory.isConnected &&
+    Date.now() - hoverMemoryAt < 1200
+  ) {
+    return hoverMemory;
+  }
+  return null;
 }
 
 /**
@@ -828,6 +862,10 @@ let keydownCode = "";
 let chordToggleAt = 0;
 /** @type {"page" | "command" | ""} */
 let chordSource = "";
+/** Last paragraph chord, so a late command does not translate a new hover. */
+let paragraphChordAt = 0;
+/** @type {"page" | "command" | ""} */
+let paragraphChordSource = "";
 
 /**
  * One physical Alt+A / ⌥A must toggle once. The page listener and
@@ -850,9 +888,40 @@ function toggleFromChord(source) {
 }
 
 /**
+ * Extension command for the paragraph chord. Translates the paragraph that
+ * was hovered when the command arrived. A saved hotkey that no longer matches
+ * the command shortcut is left to the in-page listener. Deny-list origins,
+ * editable focus, and a missing hover do nothing — this never toggles the page.
+ * @param {string} shortcut
+ * @returns {Promise<{ ok: boolean, reason?: string, deduped?: boolean }>}
+ */
+async function onParagraphFromCommand(shortcut) {
+  const target = commandParagraphTarget();
+  const typing = focusIsTyping(document.activeElement);
+  const settings = await getPageSettings();
+  adoptSettings(settings);
+  const api = globalThis.ImmerHotkey;
+  const matches = api?.sameHotkey
+    ? api.sameHotkey(shortcut, paragraphHotkey)
+    : false;
+  if (!matches) return { ok: false, reason: "mismatch" };
+  if (typing || originDenied() || !target) return { ok: false, reason: "inert" };
+  const now = Date.now();
+  if (paragraphChordSource === "page" && now - paragraphChordAt < 1200) {
+    return { ok: true, deduped: true };
+  }
+  if (now - paragraphChordAt < 100) return { ok: true, deduped: true };
+  paragraphChordAt = now;
+  paragraphChordSource = "command";
+  await translateSegment(target);
+  return { ok: true };
+}
+
+/**
  * Capture-phase listener. preventDefault runs only after the chord matches
  * and focus is outside an editable field, so browser menu/accelerator
- * defaults for Alt+A / ⌥A are cancelled when the event still reaches the page.
+ * defaults for Alt+A / ⌥A and Alt+T / ⌥T are cancelled when the event still
+ * reaches the page. A deny-listed origin leaves the paragraph chord alone.
  * @param {KeyboardEvent} event
  */
 function onChordKey(event) {
@@ -872,12 +941,17 @@ function onChordKey(event) {
   });
   keydownCode = decision.keydownCode;
   if (!decision.prevent || !decision.action) return;
-  event.preventDefault();
-  event.stopPropagation();
   if (decision.action === "paragraph") {
+    if (originDenied()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    paragraphChordAt = Date.now();
+    paragraphChordSource = "page";
     if (hovered) translateSegment(hovered).catch(() => {});
     return;
   }
+  event.preventDefault();
+  event.stopPropagation();
   toggleFromChord("page").catch(() => {});
 }
 
@@ -989,6 +1063,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       )
       .catch((err) =>
         sendResponse({ ok: false, error: String(err?.message || err), active, denied: originDenied() })
+      );
+    return true;
+  }
+  if (message?.type === "TRANSLATE_HOVERED_PARAGRAPH") {
+    onParagraphFromCommand(typeof message.shortcut === "string" ? message.shortcut : "")
+      .then((result) => sendResponse({ ...result, denied: originDenied() }))
+      .catch((err) =>
+        sendResponse({ ok: false, error: String(err?.message || err), denied: originDenied() })
       );
     return true;
   }

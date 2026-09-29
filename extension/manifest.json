@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ImmerTranslate",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "网页主内容双语对照阅读（MVP 壳）",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
@@ -23,6 +23,16 @@
         "chromeos": "Alt+A"
       },
       "description": "切换整页翻译或显示原文"
+    },
+    "translate-hovered-paragraph": {
+      "suggested_key": {
+        "default": "Alt+T",
+        "mac": "Alt+T",
+        "windows": "Alt+T",
+        "linux": "Alt+T",
+        "chromeos": "Alt+T"
+      },
+      "description": "翻译当前悬停的段落"
     }
   },
   "options_ui": {

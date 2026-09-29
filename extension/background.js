@@ -11,7 +11,11 @@
  * ⌥T so the saved value matches the options page. Whole-page translate stays
  * Alt+A in the content script (⌥A on macOS), never Command+T. The same
  * chord is also a chrome.commands shortcut so a browser that eats the page
- * keydown still messages the active tab with TOGGLE_TRANSLATE. Site lists
+ * keydown still messages the active tab with TOGGLE_TRANSLATE. Paragraph
+ * Alt+T is a separate command (translate-hovered-paragraph). It messages
+ * TRANSLATE_HOVERED_PARAGRAPH with the command's current shortcut; the
+ * content script translates the hovered paragraph only when that shortcut
+ * still matches the saved paragraphHotkey. Site lists
  * default to empty (every origin eligible). The content script enforces deny
  * before inserting nodes.
  * The selected engine is wrapped once with createPipelineEngine (TransPipe).
@@ -118,18 +122,57 @@ function refreshPlatformOs() {
   });
 }
 
+/**
+ * @param {Record<string, unknown>} payload
+ */
+function messageActiveTab(payload) {
+  if (!chrome.tabs?.query) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tabId = tabs && tabs[0] && tabs[0].id;
+    if (!tabId || !chrome.tabs?.sendMessage) return;
+    chrome.tabs.sendMessage(tabId, payload, () => {
+      // Article pages have the content script. chrome:// and other
+      // unsupported tabs report lastError; there is nothing to do.
+      void chrome.runtime.lastError;
+    });
+  });
+}
+
+/**
+ * Shortcut currently bound to the paragraph command. Falls back to the
+ * manifest suggestion Alt+T when the query has no string; the content script
+ * still ignores it unless it matches the saved paragraphHotkey.
+ * @returns {Promise<string>}
+ */
+function paragraphCommandShortcut() {
+  const fallback = "Alt+T";
+  if (!chrome.commands?.getAll) return Promise.resolve(fallback);
+  return new Promise((resolve) => {
+    try {
+      chrome.commands.getAll((commands) => {
+        void chrome.runtime.lastError;
+        const found = (commands || []).find(
+          (item) => item && item.name === "translate-hovered-paragraph"
+        );
+        const shortcut =
+          found && typeof found.shortcut === "string" ? found.shortcut.trim() : "";
+        resolve(shortcut || fallback);
+      });
+    } catch {
+      resolve(fallback);
+    }
+  });
+}
+
 if (typeof chrome !== "undefined" && chrome.commands?.onCommand) {
   chrome.commands.onCommand.addListener((command) => {
-    if (command !== "toggle-page-translate") return;
-    if (!chrome.tabs?.query) return;
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs && tabs[0] && tabs[0].id;
-      if (!tabId || !chrome.tabs?.sendMessage) return;
-      chrome.tabs.sendMessage(tabId, { type: "TOGGLE_TRANSLATE" }, () => {
-        // Article pages have the content script. chrome:// and other
-        // unsupported tabs report lastError; there is nothing to toggle.
-        void chrome.runtime.lastError;
-      });
+    if (command === "toggle-page-translate") {
+      messageActiveTab({ type: "TOGGLE_TRANSLATE" });
+      return;
+    }
+    if (command !== "translate-hovered-paragraph") return;
+    paragraphCommandShortcut().then((shortcut) => {
+      messageActiveTab({ type: "TRANSLATE_HOVERED_PARAGRAPH", shortcut });
     });
   });
 }
