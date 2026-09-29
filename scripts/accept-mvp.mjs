@@ -39,10 +39,10 @@ ok("vendor 与 translate-core/src 一致");
 const corePkg = JSON.parse(
   readFileSync(join(root, "packages/translate-core/package.json"), "utf8")
 );
-if (corePkg.version !== "0.4.0") {
-  fail(`translate-core 版本应为 0.4.0，实际 ${corePkg.version}`);
+if (corePkg.version !== "0.8.0") {
+  fail(`translate-core 版本应为 0.8.0，实际 ${corePkg.version}`);
 }
-ok("translate-core 包版本 0.4.0，vendor 已与 src 对齐");
+ok("translate-core 包版本 0.8.0，vendor 已与 src 对齐");
 
 // 2) background imports vendor (not inline mock)
 const bg = readFileSync(join(root, "extension/background.js"), "utf8");
