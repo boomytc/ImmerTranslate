@@ -220,8 +220,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.4.2") {
-  fail(`manifest version 应为 0.4.2，实际 ${manifest.version}`);
+if (manifest.version !== "0.5.0") {
+  fail(`manifest version 应为 0.5.0，实际 ${manifest.version}`);
 }
 if (manifest.action?.default_popup !== "popup.html") {
   fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
@@ -256,6 +256,44 @@ const coercive = [
 ];
 for (const re of coercive) {
   if (re.test(optionsHtml)) fail(`设置页出现逼付费/登录文案: ${re}`);
+}
+if (!optionsHtml.includes('href="glass.css"') || !optionsHtml.includes("immer-glass")) {
+  fail("选项页未使用共享毛玻璃样式");
+}
+const navLabels = ["基本", "快捷键", "悬浮球", "站点名单", "引擎与密钥"];
+let navCursor = 0;
+for (const label of navLabels) {
+  const at = optionsHtml.indexOf(`>${label}<`, navCursor);
+  if (at < 0) fail(`选项页导航缺少或顺序不对: ${label}`);
+  navCursor = at + label.length;
+}
+if (!optionsHtml.includes('id="pageHotkey"') || !optionsHtml.includes('id="ballEnabled"')) {
+  fail("选项页缺少整页快捷键或悬浮球开关");
+}
+if (!optionsHtml.includes("⟦原文⟧") || !optionsHtml.includes("⟦…⟧")) {
+  fail("选项页未标明空密钥的 mock 译文");
+}
+if (!optionsHtml.includes("无强制登录") || !optionsHtml.includes("无升级弹窗")) {
+  fail("选项页未写明无强制登录、无升级弹窗");
+}
+const optionsCss = readFileSync(join(root, "extension/options.css"), "utf8");
+if (!optionsCss.includes("var(--immer-glass-") || !optionsCss.includes("var(--immer-cta-bg)")) {
+  fail("选项页样式未复用毛玻璃令牌");
+}
+if (/#(?:ff69b4|ec4899|ff5c8a|f43f7a|ff4d8d|ff6b9d)/i.test(optionsCss)) {
+  fail("选项页不应使用沉浸式翻译的粉色");
+}
+if (/navigator\.platform|MacIntel|Win32|@supports\s*\(\s*-moz/.test(optionsCss)) {
+  fail("选项页布局不应按操作系统分叉");
+}
+if (/background:\s*#fff\b|background:\s*white\b|background:\s*#ffffff\b/i.test(optionsCss)) {
+  fail("选项页不应使用整页纯白底");
+}
+if (!optionsJs.includes('pageHotkey: "Alt+A"') || !optionsJs.includes("ballEnabled: true")) {
+  fail("options.js 未保留整页快捷键与悬浮球默认值");
+}
+if (!optionsJs.includes("formatHotkeyDisplay") || !optionsJs.includes("modifierHint")) {
+  fail("选项页快捷键未走共享的平台格式函数");
 }
 ok("设置页可填本地 key，无登录/逼付费文案");
 
@@ -803,8 +841,11 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.4.2") || !readme.includes("dev-0.4.2")) {
-  fail("README 未记录 0.4.2 / dev-0.4.2");
+if (!readme.includes("0.5.0") || !readme.includes("dev-0.5.0")) {
+  fail("README 未记录 0.5.0 / dev-0.5.0");
+}
+if (readme.includes("当前开发版本为 **0.4.2**") || readme.includes("当前开发线是 `dev-0.4.2`")) {
+  fail("README 仍把 0.4.2 写成当前版本");
 }
 if (readme.includes("当前开发版本为 **0.4.1**") || readme.includes("当前开发线是 `dev-0.4.1`")) {
   fail("README 仍把 0.4.1 写成当前版本");
@@ -834,8 +875,11 @@ const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
 if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
   fail("README.en.md 未写明 Load unpacked 与 pin");
 }
-if (!readmeEn.includes("0.4.2") || !readmeEn.includes("dev-0.4.2")) {
-  fail("README.en.md 未记录 0.4.2 / dev-0.4.2");
+if (!readmeEn.includes("0.5.0") || !readmeEn.includes("dev-0.5.0")) {
+  fail("README.en.md 未记录 0.5.0 / dev-0.5.0");
+}
+if (readmeEn.includes("The current dev version is **0.4.2**") || readmeEn.includes("currently `dev-0.4.2`")) {
+  fail("README.en.md 仍把 0.4.2 写成当前版本");
 }
 if (readmeEn.includes("The current dev version is **0.4.1**") || readmeEn.includes("currently `dev-0.4.1`")) {
   fail("README.en.md 仍把 0.4.1 写成当前版本");
@@ -843,6 +887,7 @@ if (readmeEn.includes("The current dev version is **0.4.1**") || readmeEn.includ
 if (readmeEn.includes("The current dev version is **0.4.0**") || readmeEn.includes("currently `dev-0.4.0`")) {
   fail("README.en.md 仍把 0.4.0 写成当前版本");
 }
+if (!changelog.includes("## 0.5.0")) fail("CHANGELOG 缺少 0.5.0");
 if (!changelog.includes("## 0.4.2")) fail("CHANGELOG 缺少 0.4.2");
 if (!changelog.includes("## 0.4.1")) fail("CHANGELOG 缺少 0.4.1");
 if (!changelog.includes("## 0.4.0")) fail("CHANGELOG 缺少 0.4.0");
@@ -971,6 +1016,12 @@ for (const needle of [
 }
 if (!contentJs.includes('display", denied ? "none"')) {
   fail("永不翻译的来源应隐藏悬浮球");
+}
+if (!contentJs.includes("ballEnabled") || !contentJs.includes("pageHotkey")) {
+  fail("content.js 未读取悬浮球开关或整页快捷键");
+}
+if (!readme.includes("基本") || !readme.includes("引擎与密钥") || !readme.includes("ballEnabled")) {
+  fail("README 未记录选项页五个分区或悬浮球开关");
 }
 if (/登录|升级|会员|Subscribe|Upgrade to Pro/i.test(contentJs)) {
   fail("悬浮球提示不应引导登录或付费");

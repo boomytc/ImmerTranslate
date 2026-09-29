@@ -34,12 +34,14 @@ const PAGE_HOTKEY = globalThis.ImmerHotkey?.DEFAULT_PAGE_HOTKEY || "Alt+A";
 const PAGE_DEFAULTS = {
   sourceLang: "auto",
   targetLang: "zh-CN",
+  pageHotkey: PAGE_HOTKEY,
   paragraphHotkey: DEFAULT_HOTKEY,
   denyOrigins: [],
   allowOrigins: [],
   translationFontSize: "md",
   translationContrast: "normal",
   displayMode: "bilingual",
+  ballEnabled: true,
 };
 
 /** @type {boolean} */
@@ -55,6 +57,10 @@ let hoverMemory = null;
 let hoverMemoryAt = 0;
 /** @type {string} */
 let paragraphHotkey = DEFAULT_HOTKEY;
+/** @type {string} */
+let pageHotkey = PAGE_HOTKEY;
+/** Options can hide the ball without clearing ballPosition. Default on. */
+let ballEnabled = true;
 /** @type {string[]} */
 let denyOrigins = [];
 /** @type {string[]} */
@@ -181,6 +187,8 @@ function applyPageStyle() {
  */
 function adoptSettings(settings) {
   rememberHotkey(settings?.paragraphHotkey);
+  rememberPageHotkey(settings?.pageHotkey);
+  rememberBallEnabled(settings?.ballEnabled);
   denyOrigins = normalizeStoredList(settings?.denyOrigins);
   allowOrigins = normalizeStoredList(settings?.allowOrigins);
   pageStyle = {
@@ -313,6 +321,23 @@ function rememberHotkey(value) {
 }
 
 /**
+ * @param {string | undefined} value
+ */
+function rememberPageHotkey(value) {
+  const normalized = globalThis.ImmerHotkey?.normalizeHotkey(value) || "";
+  pageHotkey = normalized || PAGE_HOTKEY;
+}
+
+/**
+ * Missing or any value other than false keeps the ball. Only an explicit
+ * false from the options page hides it.
+ * @param {unknown} value
+ */
+function rememberBallEnabled(value) {
+  ballEnabled = value !== false;
+}
+
+/**
  * @param {Partial<typeof PAGE_DEFAULTS>} [preset]
  */
 async function applyTranslations(preset) {
@@ -394,7 +419,7 @@ function currentViewport() {
 
 function syncBall() {
   if (!ballHost || !ballButton) return;
-  const denied = originDenied();
+  const denied = originDenied() || !ballEnabled;
   ballHost.style.setProperty("display", denied ? "none" : "block", "important");
   if (denied) {
     if (ballTip) ballTip.hidden = true;
@@ -932,7 +957,7 @@ function onChordKey(event) {
   if (marked.duplicate) return;
   const decision = api.resolveChord(event, {
     paragraphSpec: paragraphHotkey,
-    pageSpec: PAGE_HOTKEY,
+    pageSpec: pageHotkey,
     typing: focusIsTyping(event.target),
     hovered: Boolean(hovered),
     keydownCode,
@@ -967,6 +992,13 @@ function onStorageChanged(changes, area) {
   }
   if (Object.prototype.hasOwnProperty.call(changes, "paragraphHotkey")) {
     rememberHotkey(changes.paragraphHotkey.newValue);
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, "pageHotkey")) {
+    rememberPageHotkey(changes.pageHotkey.newValue);
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, "ballEnabled")) {
+    rememberBallEnabled(changes.ballEnabled.newValue);
+    syncBall();
   }
   let listsChanged = false;
   if (Object.prototype.hasOwnProperty.call(changes, "denyOrigins")) {

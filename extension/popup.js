@@ -70,10 +70,13 @@ const LABEL_RESTORE = "显示原文";
  * the options-page chord formatter.
  * @returns {string}
  */
+/** Saved page chord, or "" until storage returns. Display still uses DEFAULT_PAGE_HOTKEY. */
+let pageChord = "";
+
 function translateLabel() {
   const api = globalThis.ImmerHotkey;
   if (!api) return LABEL_TRANSLATE;
-  return api.formatActionLabel(LABEL_TRANSLATE, api.DEFAULT_PAGE_HOTKEY);
+  return api.formatActionLabel(LABEL_TRANSLATE, pageChord || api.DEFAULT_PAGE_HOTKEY);
 }
 
 /**
@@ -107,7 +110,9 @@ async function refresh() {
     provider: "openai",
     sourceLang: "auto",
     targetLang: "zh-CN",
+    pageHotkey: "",
   });
+  pageChord = String(stored.pageHotkey || "");
   paintEngine(stored);
 
   const supported = Boolean(tab?.id) && /^https?:/i.test(tab.url || "");
