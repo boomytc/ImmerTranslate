@@ -59,6 +59,15 @@ Checks: vendor sync with `packages/translate-core`, background imports that vend
 
 Manual after green: load unpacked `extension/` → open an article → click the action icon → bilingual `⟦…⟧` under paragraphs.
 
+## Local engine smoke (no keys in git)
+
+Shell-only for Node smoke / TransPipe scripts — never commit values:
+
+- `DEEPSEEK_BASE_URL`
+- `DEEPSEEK_API_KEY`
+
+Extension runtime reads key / base / model from `chrome.storage.local` (options page). Defaults: OpenAI-compatible DeepSeek, model `deepseek-flash`, base `https://api.deepseek.com/v1`.
+
 ## Security
 
 - No API keys in the repository

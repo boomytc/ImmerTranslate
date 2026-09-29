@@ -41,6 +41,9 @@ const bg = readFileSync(join(root, "extension/background.js"), "utf8");
 if (!bg.includes('from "./vendor/translate-core/index.js"')) {
   fail("background.js 未从 vendor/translate-core 导入");
 }
+if (!bg.includes("buildEngine") && !bg.includes("createOpenAICompatibleEngine")) {
+  fail("background.js 未按设置选择引擎");
+}
 if (/async function mockTranslate/.test(bg)) {
   fail("background.js 仍内联 mockTranslate");
 }
@@ -98,8 +101,12 @@ for (const file of tracked.split("\n").filter(Boolean)) {
   if (!existsSync(join(root, file))) continue;
   if (file.endsWith(".png") || file.endsWith(".jpg")) continue;
   const text = readFileSync(join(root, file), "utf8");
-  if (text.includes("/Users/") || text.includes("/home/boom/")) {
-    fail(`${file} 含本机绝对路径`);
+  const homeUsers = "/" + "Users" + "/";
+  const homeBoom = "/" + "home" + "/" + "boom" + "/";
+  if (file !== "scripts/accept-mvp.mjs") {
+    if (text.includes(homeUsers) || text.includes(homeBoom)) {
+      fail(`${file} 含本机绝对路径`);
+    }
   }
   if (/sk-[a-zA-Z0-9]{20,}/.test(text)) {
     fail(`${file} 疑似含 API key`);

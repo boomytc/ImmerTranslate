@@ -1,17 +1,30 @@
 const $ = (id) => document.getElementById(id);
 
-chrome.storage.local.get(
-  { apiKey: "", sourceLang: "auto", targetLang: "zh-CN" },
-  (data) => {
-    $("apiKey").value = data.apiKey || "";
-    $("sourceLang").value = data.sourceLang || "auto";
-    $("targetLang").value = data.targetLang || "zh-CN";
-  }
-);
+/** Defaults: DeepSeek OpenAI-compatible */
+const DEFAULTS = {
+  provider: "openai",
+  baseUrl: "https://api.deepseek.com/v1",
+  model: "deepseek-flash",
+  apiKey: "",
+  sourceLang: "auto",
+  targetLang: "zh-CN",
+};
+
+chrome.storage.local.get(DEFAULTS, (data) => {
+  $("provider").value = data.provider || DEFAULTS.provider;
+  $("baseUrl").value = data.baseUrl || DEFAULTS.baseUrl;
+  $("model").value = data.model || DEFAULTS.model;
+  $("apiKey").value = data.apiKey || "";
+  $("sourceLang").value = data.sourceLang || DEFAULTS.sourceLang;
+  $("targetLang").value = data.targetLang || DEFAULTS.targetLang;
+});
 
 $("save").addEventListener("click", () => {
   chrome.storage.local.set(
     {
+      provider: $("provider").value,
+      baseUrl: $("baseUrl").value.trim() || DEFAULTS.baseUrl,
+      model: $("model").value.trim() || DEFAULTS.model,
       apiKey: $("apiKey").value.trim(),
       sourceLang: $("sourceLang").value,
       targetLang: $("targetLang").value,
