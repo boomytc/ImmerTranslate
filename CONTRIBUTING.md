@@ -1,12 +1,12 @@
 # Contributing
 
-## Branches
+## Branching
 
-- `main` — stable default
-- `dev-*` — feature / experiment work (e.g. `dev-paragraph-cache`)
-- `release-*` — release prep / tags (e.g. `release-0.1.0`)
+- `dev-*` — active development and push (start from `dev-0.0.1`)
+- `release-*` — merge from a closed `dev-*` milestone when a stage is done
+- `main` — keep aligned with the latest stable release when cutting a public milestone
 
-Open PRs into `main` from a `dev-*` or `release-*` branch.
+Do not push unfinished work to `release-*` or `main`.
 
 ## Setup
 
@@ -15,8 +15,6 @@ Open PRs into `main` from a `dev-*` or `release-*` branch.
 3. Optional: `cd packages/translate-core && npm run smoke`
 
 ## Sync translate-core into the extension
-
-After changing `packages/translate-core/src/`:
 
 ```bash
 ./scripts/sync-translate-core.sh
