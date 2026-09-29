@@ -256,7 +256,10 @@ async function applyPageList(which) {
   setHint(describeListChange(res));
 }
 
+let refreshGen = 0;
+
 async function refresh() {
+  const gen = ++refreshGen;
   const tab = await activeTab();
   const stored = await storageGet({
     apiKey: "",
@@ -289,6 +292,7 @@ async function refresh() {
   const live = Boolean(state?.ok);
   const denied = live ? Boolean(state.denied) : storedDenied;
   const onAllow = live && typeof state.onAllow === "boolean" ? state.onAllow : storedAllow;
+  if (gen !== refreshGen) return;
   paint({
     supported: live,
     listable,
@@ -350,5 +354,13 @@ function bootPopup() {
   if (!api?.detectPlatform) return;
   api.detectPlatform().then(() => refresh()).catch(() => {});
 }
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (message?.type !== "PAGE_STATE" || busy) return;
+  activeTab().then((tab) => {
+    if (!tab?.id || sender?.tab?.id !== tab.id) return;
+    refresh().catch(() => {});
+  });
+});
 
 bootPopup();
