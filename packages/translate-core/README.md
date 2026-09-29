@@ -1,6 +1,6 @@
 # @immer-translate/translate-core
 
-翻译契约、mock 引擎、OpenAI / Anthropic 兼容引擎，以及可选的段落缓存、重试和限流。包版本 `0.2.0`（对齐 `dev-0.2.0` 的 FEATURE 位）。密钥只在调用时传入（扩展本地存储或进程环境），不写入本包。扩展 manifest 不在本包里升级。
+翻译契约、mock 引擎、OpenAI / Anthropic 兼容引擎，以及可选的段落缓存、重试和限流。包版本 `0.2.1`（对齐 `dev-0.2.1` 的 FIX 位）。密钥只在调用时传入（扩展本地存储或进程环境），不写入本包。扩展 manifest 不在本包里升级。
 
 ## 契约
 
