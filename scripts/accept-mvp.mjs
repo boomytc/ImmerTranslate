@@ -36,6 +36,13 @@ if (diff.status !== 0) {
   fail(`vendor 与 packages/translate-core/src 不一致\n${diff.stdout}${diff.stderr}`);
 }
 ok("vendor 与 translate-core/src 一致");
+const corePkg = JSON.parse(
+  readFileSync(join(root, "packages/translate-core/package.json"), "utf8")
+);
+if (corePkg.version !== "0.4.0") {
+  fail(`translate-core 版本应为 0.4.0，实际 ${corePkg.version}`);
+}
+ok("translate-core 包版本 0.4.0，vendor 已与 src 对齐");
 
 // 2) background imports vendor (not inline mock)
 const bg = readFileSync(join(root, "extension/background.js"), "utf8");
@@ -430,10 +437,15 @@ if (readme.includes("当前开发版本为 **1.0.0**") || readme.includes("当�
 }
 if (!readme.includes("denyOrigins")) fail("README 未记录 denyOrigins");
 if (!readme.includes("本机验收清单")) fail("README 缺少本机验收清单");
-const mentionsUnpacked = readme.includes("Load unpacked") || readme.includes("加载已解压的扩展程序");
-const mentionsPin = readme.toLowerCase().includes("pin") || readme.includes("钉到工具栏");
-if (!mentionsUnpacked || !mentionsPin) {
-  fail("README 未写明本机 unpacked 加载与固定工具栏");
+if (!readme.includes("加载已解压的扩展程序") || !readme.includes("钉到工具栏")) {
+  fail("README 未用中文写明加载已解压的扩展程序，以及把图标钉到工具栏");
+}
+const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
+if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
+  fail("README.en.md 未写明 Load unpacked 与 pin");
+}
+if (!readmeEn.includes("0.4.0") || !readmeEn.includes("dev-0.4.0")) {
+  fail("README.en.md 未记录 0.4.0 / dev-0.4.0");
 }
 if (!changelog.includes("## 0.4.0")) fail("CHANGELOG 缺少 0.4.0");
 if (!changelog.includes("## 0.3.0")) fail("CHANGELOG 缺少 0.3.0");

@@ -16,7 +16,7 @@
 
 悬停主内容段落，按 **Alt+T**（可在选项页修改，存储键 `paragraphHotkey`）只翻译这一段。选项页可以把某个来源标成 **永不翻译**（`denyOrigins`，默认空，因此所有站点都可译）或 **始终翻译**（`allowOrigins`）。列入永不翻译的来源，弹窗、悬浮球和快捷键都不会插入双语节点；同一来源两边都有时，以永不翻译为准。阅读样式（`translationFontSize`：`sm` / `md` / `lg`；`translationContrast`：`normal` / `high`；`displayMode`：`bilingual` 或 `translation-only`）存在 `chrome.storage.local`，对已经打开的页面立即生效，不用刷新。
 
-Node 与云端验收读取已 gitignore 的本地 YAML，以及环境变量。Service worker 用 translate-core 的 `createPipelineEngine` 把所选引擎包一层；缓存、重试和限流不在扩展壳里另写一套。`packages/translate-core` 的包版本仍是 `1.0.0`（由 TransPipe 维护，本功能不改该包）。扩展壳版本是 `0.4.0`。`TranslateRequest` / `TranslateResponse` 保持不变；密钥为空时仍走 mock 引擎。
+Node 与云端验收读取已 gitignore 的本地 YAML，以及环境变量。Service worker 用 translate-core 的 `createPipelineEngine` 把所选引擎包一层；缓存、重试和限流不在扩展壳里另写一套。`packages/translate-core` 的包版本是 `0.4.0`（与扩展壳同一 FEATURE 位）。契约和 `src` 没有改动，`extension/vendor` 由 `scripts/sync-translate-core.sh` 从该 `src` 同步。`TranslateRequest` / `TranslateResponse` 保持不变；密钥为空时仍走 mock 引擎。
 
 ## 目录
 
