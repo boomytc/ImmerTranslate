@@ -272,6 +272,23 @@
   }
 
   /**
+   * Floating-ball hover title. Uses the same chord display as the popup CTA
+   * and the options page: macOS ⌥A, Windows/Linux Alt+A, or the saved page chord.
+   * @param {boolean} translated
+   * @param {string} langName
+   * @param {string} spec
+   * @param {"mac" | "windows" | "linux" | "other"} [platform]
+   * @returns {string}
+   */
+  function formatBallHoverTitle(translated, langName, spec, platform) {
+    const chord = formatHotkeyDisplay(spec || DEFAULT_PAGE_HOTKEY, platform);
+    const suffix = chord ? ` (${chord})` : "";
+    if (translated) return `已翻译 · 点击显示原文${suffix}`;
+    const lang = String(langName || "").trim() || "简体中文";
+    return `点击翻译为${lang}${suffix}`;
+  }
+
+  /**
    * @param {"mac" | "windows" | "linux" | "other"} [platform]
    * @returns {string}
    */
@@ -393,6 +410,7 @@
     formatHotkeyEvent,
     formatHotkeyDisplay,
     formatActionLabel,
+    formatBallHoverTitle,
     eventMatchesHotkey,
     sameHotkey,
     hotkeyAction,
