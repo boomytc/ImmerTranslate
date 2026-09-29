@@ -316,6 +316,21 @@ if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "mac") !== "⌥A") fail("
 if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "windows") !== "Alt+A") {
   fail("Windows 整页应显示 Alt+A");
 }
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "linux") !== "Alt+A") {
+  fail("Linux 整页应显示 Alt+A");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_PAGE_HOTKEY, "mac") !== "翻译 (⌥A)") {
+  fail("macOS 弹窗文案应为「翻译 (⌥A)」");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_PAGE_HOTKEY, "windows") !== "翻译 (Alt+A)") {
+  fail("Windows 弹窗文案应为「翻译 (Alt+A)」");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_PAGE_HOTKEY, "linux") !== "翻译 (Alt+A)") {
+  fail("Linux 弹窗文案应为「翻译 (Alt+A)」");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_HOTKEY, "mac") !== "翻译 (⌥T)") {
+  fail("macOS 段落文案应为「翻译 (⌥T)」");
+}
 if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "mac") === "⌘T") {
   fail("整页快捷键不能显示成 ⌘T");
 }
@@ -335,6 +350,9 @@ if (!hotkeySrc.includes("userAgentData") || !hotkeySrc.includes("navigator.platf
 }
 if (!hotkeySrc.includes("getPlatformInfo")) {
   fail("扩展页面未回退到 chrome.runtime.getPlatformInfo");
+}
+if (!hotkeySrc.includes("function formatActionLabel") || !hotkeySrc.includes("formatHotkeyDisplay(spec, platform)")) {
+  fail("弹窗括号与设置页未共用 formatHotkeyDisplay");
 }
 ok("段落快捷键按平台显示，修饰键规则可测");
 
@@ -496,7 +514,9 @@ if (!readme.includes("⌥T") || !readme.includes("Alt+T")) {
 if (!readme.includes("⌥A") || !readme.includes("Alt+A")) {
   fail("README 应同时写明 macOS ⌥A 与 Windows/Linux 的 Alt+A");
 }
-if (readme.includes("翻译 (Alt+A)")) fail("README 不应写死「翻译 (Alt+A)」");
+if (!readme.includes("翻译 (⌥A)") || !readme.includes("翻译 (Alt+A)")) {
+  fail("README 应分别写明 macOS「翻译 (⌥A)」与 Windows/Linux「翻译 (Alt+A)」");
+}
 if (!readme.includes("本机验收清单")) fail("README 缺少本机验收清单");
 if (!readme.includes("加载已解压的扩展程序") || !readme.includes("钉到工具栏")) {
   fail("README 未用中文写明加载已解压的扩展程序，以及把图标钉到工具栏");
@@ -524,11 +544,17 @@ if (!popupHtml.includes('src="hotkey.js"')) fail("弹窗未加载 hotkey.js");
 if (!popupJs.includes("显示原文") || !popupJs.includes('"翻译"')) {
   fail("弹窗主按钮应在「翻译」和「显示原文」之间切换");
 }
-if (!popupJs.includes("formatHotkeyDisplay") || !popupJs.includes("DEFAULT_PAGE_HOTKEY")) {
+if (!popupJs.includes("formatActionLabel") || !popupJs.includes("DEFAULT_PAGE_HOTKEY")) {
   fail("弹窗主按钮未用与设置页相同的快捷键格式");
 }
-if (popupHtml.includes("翻译 (Alt+A)") || popupJs.includes("翻译 (Alt+A)")) {
-  fail("弹窗不应写死「翻译 (Alt+A)」");
+if (!optionsJs.includes("formatHotkeyDisplay")) {
+  fail("设置页未使用共享的 formatHotkeyDisplay");
+}
+if (popupHtml.includes("翻译 (Alt+A)") || popupJs.includes("翻译 (Alt+A)") || optionsHtml.includes("翻译 (Alt+A)")) {
+  fail("界面把「翻译 (Alt+A)」写死成所有平台的文案");
+}
+if (/默认 Alt\+|恢复默认 Alt\+|翻译 \(Alt\+/.test(optionsHtml + popupHtml)) {
+  fail("界面文案把 Alt+ 写死成所有平台");
 }
 if (popupHtml.includes('id="restore"') || popupHtml.includes("翻译本页")) {
   fail("弹窗主操作应是一个双态按钮，而不是分开的翻译/还原");
@@ -832,5 +858,5 @@ for (const file of walk(join(root, "extension"))) {
 ok("extension/vendor 无 config.local.yaml 与密钥");
 
 console.log(
-  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 弹窗主按钮在「翻译 / 显示原文」间切换，未翻译时带上 ⌥A 或 Alt+A；空 key 标明 Mock；右侧悬浮球拖完贴边，刷新后竖直位置还在；首次出现一次提示；永不翻译的来源不显示球；悬停一段按 ⌥T（macOS）或 Alt+T（Windows/Linux）只译该段"
+  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 未翻译时主按钮为「翻译 (⌥A)」或「翻译 (Alt+A)」，已翻译为「显示原文」；空 key 标明 Mock；右侧悬浮球拖完贴边，刷新后竖直位置还在；首次出现一次提示；永不翻译的来源不显示球；悬停一段按 ⌥T（macOS）或 Alt+T（Windows/Linux）只译该段"
 );

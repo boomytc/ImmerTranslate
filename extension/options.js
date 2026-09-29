@@ -30,9 +30,9 @@ function canonicalHotkey(spec) {
 }
 
 /**
- * The field, reset button, and hints show the platform chord (⌥T / Alt+T).
- * Saving writes that same display string. Matching still uses the canonical
- * Alt/Ctrl/Meta form.
+ * The field, reset button, and hints use formatHotkeyDisplay — the same
+ * function the popup wraps as 「翻译 (⌥T / Alt+T)」. Saving writes that
+ * display string. Matching still uses the canonical Alt/Ctrl/Meta form.
  * @param {string} spec
  */
 function paintHotkeyField(spec) {
