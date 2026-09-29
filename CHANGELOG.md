@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Per-origin site lists in `chrome.storage.local`: `denyOrigins` (never translate; default empty, so every site stays eligible) and optional `allowOrigins` (always translate on load). The icon toggle and Alt+T do not insert bilingual nodes on a denied origin. Deny wins if an origin is on both lists.
+- Reading style switches apply to an open page without reload: translation font size (`sm` / `md` / `lg`), contrast (`normal` / `high`), and `displayMode` (`bilingual` under the original, or `translation-only`).
+- Options page can add the current tab's origin and edit both lists. Empty API key still uses the mock `⟦…⟧` engine. translate-core is unchanged.
+
 ## 0.2.1
 
 - Version and docs alignment only: `extension/manifest.json` version is `0.2.1`
