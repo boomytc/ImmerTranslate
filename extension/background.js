@@ -21,7 +21,8 @@
  * The selected engine is wrapped once with createPipelineEngine (TransPipe).
  * The toolbar opens popup.html (default_popup). That card and the in-page
  * ball both message this worker only for TRANSLATE_BATCH / GET_SETTINGS;
- * page on/off state stays in the content script.
+ * page on/off state stays in the content script. OPEN_SHELL_ENTRY opens
+ * that popup when the browser allows it, otherwise the options page.
  * A rejected translate is not swallowed: TRANSLATE_BATCH answers with
  * ok:false plus error (message), kind, code, and status from TranslateFailure.
  * TranslateRequest / TranslateResponse are unchanged.
@@ -198,6 +199,29 @@ if (typeof chrome !== "undefined" && chrome.commands?.onCommand) {
   });
 }
 
+/**
+ * Ball "打开弹层" uses the shell entry the popup already has.
+ * openPopup needs a user gesture the content-script message may not carry,
+ * so a rejection falls through to openOptionsPage.
+ */
+function openShellEntry() {
+  const action = chrome.action;
+  if (action && typeof action.openPopup === "function") {
+    try {
+      const pending = action.openPopup();
+      if (pending && typeof pending.then === "function") {
+        pending.catch(() => {
+          if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
+        });
+        return;
+      }
+    } catch {
+      // Fall through to the options page.
+    }
+  }
+  if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
+}
+
 if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
   refreshPlatformOs();
   if (chrome.runtime.onInstalled) {
@@ -220,6 +244,11 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
         .then((res) => sendResponse({ ok: true, data: res }))
         .catch((err) => sendResponse(failureResponse(err)));
       return true;
+    }
+    if (message?.type === "OPEN_SHELL_ENTRY") {
+      openShellEntry();
+      sendResponse({ ok: true });
+      return false;
     }
     if (message?.type === "GET_SETTINGS") {
       getSettings().then((settings) =>
