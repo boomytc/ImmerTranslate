@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ImmerTranslate</title>
+    <link rel="stylesheet" href="glass.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="card immer-glass">
+      <p id="status" class="status">正在读取本页…</p>
+      <p id="mock" class="detail">Mock 模式：未填写 API Key，译文为 ⟦原文⟧</p>
+      <div class="actions">
+        <button id="toggle" type="button">翻译</button>
+      </div>
+      <p id="hint" class="hint"></p>
+      <div class="links">
+        <button id="options" type="button">打开设置</button>
+      </div>
+    </main>
+    <script src="hotkey.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

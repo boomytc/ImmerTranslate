@@ -56,3 +56,14 @@ html[data-immer-mode="translation-only"] [data-immer-translated="1"] {
   outline-offset: 2px;
   background-color: rgba(79, 140, 255, 0.08);
 }
+
+/* Host only. The button lives in a shadow root so page CSS cannot restyle it. */
+#immer-ball-host {
+  position: fixed !important;
+  z-index: 2147483646 !important;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
