@@ -400,6 +400,30 @@ if (hotkeyApi.formatActionLabel("翻译", DEFAULT_PAGE_HOTKEY, "linux") !== "翻
 if (hotkeyApi.formatActionLabel("翻译", DEFAULT_HOTKEY, "mac") !== "翻译 (⌥T)") {
   fail("macOS 段落文案应为「翻译 (⌥T)」");
 }
+if (hotkeyApi.formatBallHoverTitle(false, "简体中文", DEFAULT_PAGE_HOTKEY, "mac") !== "点击翻译为简体中文 (⌥A)") {
+  fail("macOS 未翻译时悬浮球悬停应为「点击翻译为简体中文 (⌥A)」");
+}
+if (hotkeyApi.formatBallHoverTitle(false, "简体中文", DEFAULT_PAGE_HOTKEY, "windows") !== "点击翻译为简体中文 (Alt+A)") {
+  fail("Windows 未翻译时悬浮球悬停应为「点击翻译为简体中文 (Alt+A)」");
+}
+if (hotkeyApi.formatBallHoverTitle(false, "简体中文", DEFAULT_PAGE_HOTKEY, "linux") !== "点击翻译为简体中文 (Alt+A)") {
+  fail("Linux 未翻译时悬浮球悬停应为「点击翻译为简体中文 (Alt+A)」");
+}
+if (hotkeyApi.formatBallHoverTitle(true, "简体中文", DEFAULT_PAGE_HOTKEY, "mac") !== "已翻译 · 点击显示原文 (⌥A)") {
+  fail("macOS 已翻译时悬浮球悬停应为「已翻译 · 点击显示原文 (⌥A)」");
+}
+if (hotkeyApi.formatBallHoverTitle(true, "简体中文", DEFAULT_PAGE_HOTKEY, "windows") !== "已翻译 · 点击显示原文 (Alt+A)") {
+  fail("Windows 已翻译时悬浮球悬停应为「已翻译 · 点击显示原文 (Alt+A)」");
+}
+if (hotkeyApi.formatBallHoverTitle(true, "简体中文", DEFAULT_PAGE_HOTKEY, "linux") !== "已翻译 · 点击显示原文 (Alt+A)") {
+  fail("Linux 已翻译时悬浮球悬停应为「已翻译 · 点击显示原文 (Alt+A)」");
+}
+if (hotkeyApi.formatBallHoverTitle(false, "English", "Ctrl+B", "windows") !== "点击翻译为English (Ctrl+B)") {
+  fail("悬浮球悬停应跟随目标语言和已保存的整页快捷键");
+}
+if (typeof hotkeyApi.formatBallHoverTitle !== "function") {
+  fail("hotkey.js 未导出 formatBallHoverTitle");
+}
 if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "mac") === "⌘T") {
   fail("整页快捷键不能显示成 ⌘T");
 }
@@ -1133,8 +1157,27 @@ for (const needle of [
   "显示原文",
   "ballTipSeen",
   "知道了",
+  "dispatchPageCta",
+  "formatBallHoverTitle",
+  "PAGE_STATE",
+  "打开弹层",
+  "点击翻译为",
+  "已翻译 · 点击显示原文",
 ]) {
   if (!contentJs.includes(needle)) fail(`content.js 缺少 ${needle}`);
+}
+if (!contentJs.includes('active ? "RESTORE_PAGE" : "TRANSLATE_PAGE"')) {
+  fail("悬浮球主点击应与弹层一样在 TRANSLATE_PAGE 与 RESTORE_PAGE 之间切换");
+}
+const ballTagStart = contentJs.indexOf('id="immer-ball"');
+const ballTagEnd = contentJs.indexOf('id="immer-sites"');
+const ballTag = ballTagStart >= 0 && ballTagEnd > ballTagStart ? contentJs.slice(ballTagStart, ballTagEnd) : "";
+if (!ballTag || ballTag.includes(">翻译<") || ballTag.includes(">显示原文<")) {
+  fail("悬浮球本体不应放「翻译」或「显示原文」文字按钮");
+}
+if (!popupJs.includes("PAGE_STATE")) fail("弹层应订阅内容脚本的页面翻译状态");
+if (!bg.includes("OPEN_SHELL_ENTRY") || !bg.includes("openOptionsPage")) {
+  fail("打开弹层应走扩展已有的弹层或选项入口");
 }
 if (!contentJs.includes('display", denied ? "none"')) {
   fail("永不翻译的来源应隐藏悬浮球");
