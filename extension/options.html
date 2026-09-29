@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ImmerTranslate 设置</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 520px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        color: #0f172a;
+      }
+      label { display: block; margin-top: 1rem; font-weight: 600; }
+      input, select {
+        width: 100%;
+        margin-top: 0.35rem;
+        padding: 0.5rem;
+        box-sizing: border-box;
+      }
+      .hint {
+        margin-top: 0.35rem;
+        font-size: 0.85rem;
+        color: #64748b;
+      }
+      .notice {
+        margin-top: 1.5rem;
+        padding: 0.75rem 1rem;
+        background: #f1f5f9;
+        border-radius: 8px;
+        font-size: 0.9rem;
+      }
+      button {
+        margin-top: 1.25rem;
+        padding: 0.55rem 1rem;
+        cursor: pointer;
+      }
+      #status { margin-left: 0.75rem; color: #16a34a; }
+    </style>
+  </head>
+  <body>
+    <h1>ImmerTranslate</h1>
+    <p>本地密钥即可用，无强制登录、无升级弹窗。</p>
+
+    <label for="apiKey">API Key（仅存本机）</label>
+    <input id="apiKey" type="password" autocomplete="off" placeholder="paste key locally only" />
+    <p class="hint">密钥只写入 chrome.storage.local，不会进仓库。</p>
+
+    <label for="sourceLang">源语言</label>
+    <select id="sourceLang">
+      <option value="auto">auto</option>
+      <option value="en">en</option>
+      <option value="zh-CN">zh-CN</option>
+    </select>
+
+    <label for="targetLang">目标语言</label>
+    <select id="targetLang">
+      <option value="zh-CN">zh-CN</option>
+      <option value="en">en</option>
+    </select>
+
+    <div class="notice">
+      <strong>额度 / 引擎说明（明文）</strong>
+      <ul>
+        <li>当前壳：假引擎，译文形如 ⟦原文⟧，无额度限制。</li>
+        <li>接真引擎后：消耗与限流以你自备 API 提供商账单为准；本扩展不设日限墙、不逼付费。</li>
+      </ul>
+    </div>
+
+    <button id="save" type="button">保存</button>
+    <span id="status"></span>
+    <script src="options.js"></script>
+  </body>
+</html>

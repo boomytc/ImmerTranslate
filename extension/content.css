@@ -1,0 +1,10 @@
+.immer-translation {
+  margin: 0.25em 0 0.75em;
+  padding: 0.35em 0.5em;
+  border-left: 3px solid #4f8cff;
+  color: #334155;
+  background: rgba(79, 140, 255, 0.06);
+  font-size: 0.95em;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}

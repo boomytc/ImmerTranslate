@@ -1,0 +1,14 @@
+{
+  "name": "@immer-translate/translate-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "smoke": "node ./scripts/smoke.mjs"
+  },
+  "description": "TranslateRequest/Response contract + mock (and later real) engines"
+}

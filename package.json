@@ -1,0 +1,14 @@
+{
+  "name": "immer-translate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MV3 bilingual webpage translate MVP (extension + translate-core)",
+  "license": "MIT",
+  "scripts": {
+    "smoke": "npm --prefix packages/translate-core run smoke",
+    "sync:translate-core": "./scripts/sync-translate-core.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
