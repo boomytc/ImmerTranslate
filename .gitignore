@@ -13,6 +13,12 @@ build/
 credentials.json
 secrets/
 
+# Local YAML overrides (copy config.yaml → config.local.yaml; never commit)
+config.local.yaml
+config.local.yml
+*.local.yaml
+*.local.yml
+
 # OS / editor
 .DS_Store
 Thumbs.db

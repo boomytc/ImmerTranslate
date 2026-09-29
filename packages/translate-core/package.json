@@ -5,10 +5,11 @@
   "type": "module",
   "main": "./src/index.js",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./config": "./config/load.js"
   },
   "scripts": {
     "smoke": "node ./scripts/smoke.mjs"
   },
-  "description": "TranslateRequest/Response contract + mock (and later real) engines"
+  "description": "TranslateRequest/Response contract, mock engine, and OpenAI/Anthropic-compatible engines"
 }
