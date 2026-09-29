@@ -16,7 +16,9 @@
  *
  * Site policy (chrome.storage.local): denyOrigins never inserts bilingual
  * nodes (icon toggle and hotkey). allowOrigins may auto-translate on load.
- * Empty deny list keeps every origin eligible. Deny wins over allow.
+ * Empty deny list keeps every origin eligible. Deny wins over allow
+ * (ImmerSites.sitePolicy: blocked when denied, auto only when allowed
+ * and not denied). SET_PAGE_LIST adds or removes this page's origin.
  * Style keys apply on this page through a storage listener, no reload.
  *
  * First run: a three-step card (ImmerOnboarding) sits at the top left until
@@ -87,6 +89,10 @@ let ballButton = null;
 let ballHint = null;
 /** @type {HTMLElement | null} */
 let ballTip = null;
+/** @type {HTMLButtonElement | null} */
+let ballSites = null;
+/** @type {HTMLElement | null} */
+let ballMenu = null;
 let ballLeft = 0;
 let ballTop = 0;
 /** @type {"left" | "right"} */
@@ -160,6 +166,20 @@ function originAllowed() {
   const api = globalThis.ImmerSites;
   if (!api) return false;
   return api.siteListMatches(allowOrigins, pageRef());
+}
+
+/**
+ * Deny wins: `blocked` when the page matches denyOrigins, `auto` only when
+ * it matches allowOrigins and does not match deny.
+ * @returns {{ denied: boolean, onAllow: boolean, blocked: boolean, auto: boolean }}
+ */
+function pagePolicy() {
+  const api = globalThis.ImmerSites;
+  const page = pageRef();
+  if (api?.sitePolicy) return api.sitePolicy(denyOrigins, allowOrigins, page);
+  const denied = Boolean(api && api.siteListMatches(denyOrigins, page));
+  const onAllow = Boolean(api && api.siteListMatches(allowOrigins, page));
+  return { denied, onAllow, blocked: denied, auto: !denied && onAllow };
 }
 
 function syncPolicyFlag() {
@@ -435,14 +455,39 @@ function currentViewport() {
   return { width: window.innerWidth, height: window.innerHeight };
 }
 
+/**
+ * Apply the current lists to this document. Deny clears any translation.
+ * Allow auto-starts only when the page is not denied.
+ * @param {Partial<typeof PAGE_DEFAULTS>} [preset]
+ */
+function applyListPolicy(preset) {
+  syncPolicyFlag();
+  const policy = pagePolicy();
+  if (policy.blocked) {
+    active = false;
+    setHovered(null);
+    clearTranslations();
+    syncBall();
+    return;
+  }
+  syncBall();
+  if (policy.auto && !active) {
+    active = true;
+    syncBall();
+    applyTranslations(preset).catch(() => {});
+  }
+}
+
 function syncBall() {
   if (!ballHost || !ballButton) return;
   const denied = originDenied() || !ballEnabled;
   ballHost.style.setProperty("display", denied ? "none" : "block", "important");
   if (denied) {
     if (ballTip) ballTip.hidden = true;
+    if (ballMenu) ballMenu.hidden = true;
     return;
   }
+  paintSiteMenu();
   ballButton.classList.toggle("is-on", active);
   const mark = ballButton.querySelector(".mark");
   if (mark) mark.textContent = active ? "原" : "译";
@@ -459,6 +504,42 @@ function positionBallTip() {
   ballTip.classList.toggle("on-right", onRight);
   ballTip.classList.toggle("on-left", !onRight);
   ballTip.classList.toggle("flip-up", ballTop > window.innerHeight - 120);
+}
+
+function positionSiteMenu() {
+  const nearTop = ballTop < 28;
+  if (ballSites) ballSites.classList.toggle("below", nearTop);
+  if (!ballMenu) return;
+  const onRight = ballSide !== "left";
+  ballMenu.classList.toggle("on-right", onRight);
+  ballMenu.classList.toggle("on-left", !onRight);
+  ballMenu.classList.toggle("flip-up", ballTop > window.innerHeight - 120);
+}
+
+function paintSiteMenu() {
+  if (!ballMenu) return;
+  const policy = pagePolicy();
+  const deny = ballMenu.querySelector('[data-site="deny"]');
+  const allow = ballMenu.querySelector('[data-site="allow"]');
+  if (deny) deny.textContent = policy.denied ? "本页移出永不翻译" : "本页加入永不翻译";
+  if (allow) allow.textContent = policy.onAllow ? "本页移出始终翻译" : "本页加入始终翻译";
+}
+
+/**
+ * @param {{ ok?: boolean, which?: string, mode?: string, changed?: boolean, onAllow?: boolean, denied?: boolean, error?: string }} res
+ */
+function siteMenuHint(res) {
+  if (!res?.ok) return res?.error || "操作失败";
+  if (res.which === "deny" && res.mode === "add") {
+    if (!res.changed) return "已在永不翻译中";
+    return res.onAllow ? "已加入永不翻译，优先于始终翻译" : "已加入永不翻译";
+  }
+  if (res.which === "deny") return res.changed ? "已移出永不翻译" : "本页不在永不翻译中";
+  if (res.mode === "add") {
+    if (!res.changed) return "已在始终翻译中";
+    return res.denied ? "已加入始终翻译，仍以永不翻译为准" : "已加入始终翻译";
+  }
+  return res.changed ? "已移出始终翻译" : "本页不在始终翻译中";
 }
 
 /**
@@ -517,6 +598,7 @@ function placeBall(pos) {
   ballHost.style.setProperty("left", `${pos.left}px`, "important");
   ballHost.style.setProperty("top", `${pos.top}px`, "important");
   positionBallTip();
+  positionSiteMenu();
 }
 
 function restoreBallPosition() {
@@ -821,11 +903,58 @@ function mountBall() {
         font: 600 12px/1 system-ui, sans-serif;
         cursor: pointer;
       }
+      .sites {
+        all: unset;
+        position: absolute;
+        left: 0;
+        top: -22px;
+        box-sizing: border-box;
+        width: 48px;
+        height: 18px;
+        border-radius: 999px;
+        background: var(--immer-glass-fill-strong, rgba(255, 255, 255, 0.8));
+        box-shadow: var(--immer-glass-shadow, 0 8px 24px rgba(28, 36, 48, 0.12));
+        color: var(--immer-cta-bg, #1f4e9a);
+        font: 600 11px/18px system-ui, sans-serif;
+        text-align: center;
+        cursor: pointer;
+      }
+      .sites.below { top: auto; bottom: -22px; }
+      .menu {
+        position: absolute;
+        top: 0;
+        box-sizing: border-box;
+        width: 168px;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .menu.on-right { right: 56px; }
+      .menu.on-left { left: 56px; }
+      .menu.flip-up { top: auto; bottom: 0; }
+      .menu button {
+        all: unset;
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        padding: 6px 8px;
+        border-radius: 8px;
+        color: var(--immer-glass-text, #1c2430);
+        font: 600 12px/1.35 system-ui, sans-serif;
+        cursor: pointer;
+      }
+      .menu button:hover { background: rgba(31, 78, 154, 0.1); }
     </style>
     <button id="immer-ball" class="immer-glass" type="button" aria-pressed="false">
       <span class="mark">译</span>
       <span class="badge" hidden></span>
     </button>
+    <button id="immer-sites" class="sites" type="button">站点</button>
+    <div class="menu immer-glass" hidden>
+      <button type="button" data-site="deny">本页加入永不翻译</button>
+      <button type="button" data-site="allow">本页加入始终翻译</button>
+    </div>
     <div class="hint immer-glass" hidden></div>
     <div class="tip immer-glass" hidden>
       <p></p>
@@ -834,8 +963,46 @@ function mountBall() {
   `;
   ballHost = host;
   ballButton = shadow.querySelector("#immer-ball");
+  ballSites = shadow.querySelector("#immer-sites");
+  ballMenu = shadow.querySelector(".menu");
   ballHint = shadow.querySelector(".hint");
   ballTip = shadow.querySelector(".tip");
+  /** The opening click can reach document after the menu is shown. */
+  let suppressSiteClose = false;
+  ballSites?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!ballMenu || originDenied() || !ballEnabled) return;
+    paintSiteMenu();
+    positionSiteMenu();
+    ballMenu.hidden = !ballMenu.hidden;
+    if (!ballMenu.hidden && ballTip) ballTip.hidden = true;
+    suppressSiteClose = !ballMenu.hidden;
+    if (suppressSiteClose) {
+      setTimeout(() => {
+        suppressSiteClose = false;
+      }, 0);
+    }
+  });
+  ballMenu?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const button = event.target instanceof Element ? event.target.closest("[data-site]") : null;
+    if (!button) return;
+    const which = button.getAttribute("data-site") === "allow" ? "allow" : "deny";
+    const policy = pagePolicy();
+    const mode = (which === "deny" ? policy.denied : policy.onAllow) ? "remove" : "add";
+    if (ballMenu) ballMenu.hidden = true;
+    setPageList(which, mode)
+      .then((res) => showBallHint(siteMenuHint(res)))
+      .catch((err) => showBallHint(String(err?.message || err || "操作失败")));
+  });
+  document.addEventListener("click", (event) => {
+    if (!ballMenu || ballMenu.hidden || suppressSiteClose) return;
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+    if (ballHost && path.includes(ballHost)) return;
+    ballMenu.hidden = true;
+  });
   const tipText = ballTip?.querySelector("p");
   if (tipText) tipText.textContent = BALL_TIP_TEXT;
   const dismissTip = (event) => {
@@ -875,6 +1042,7 @@ function bindBallDrag() {
 
   button.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
+    if (ballMenu) ballMenu.hidden = true;
     suppressClick = false;
     drag = {
       id: event.pointerId,
@@ -996,29 +1164,55 @@ async function toggle() {
 }
 
 /**
- * @returns {Promise<{ ok: boolean, entry?: string, error?: string }>}
+ * @param {Record<string, unknown>} patch
  */
-async function denyThisOrigin() {
-  const api = globalThis.ImmerSites;
-  const entry = api?.normalizeSiteEntry(location.href) || "";
-  if (!entry) return { ok: false, error: "无法识别来源" };
-  const settings = await getPageSettings();
-  const list = normalizeStoredList(settings.denyOrigins);
-  if (!list.includes(entry)) list.push(entry);
-  denyOrigins = list;
-  await new Promise((resolve) => {
+function storageSet(patch) {
+  return new Promise((resolve) => {
     if (!chrome?.storage?.local) {
       resolve();
       return;
     }
-    chrome.storage.local.set({ denyOrigins: list }, () => resolve());
+    chrome.storage.local.set(patch, () => resolve());
   });
-  active = false;
-  setHovered(null);
-  clearTranslations();
-  syncPolicyFlag();
-  syncBall();
-  return { ok: true, entry };
+}
+
+/**
+ * Add or remove this page on denyOrigins / allowOrigins. Remove drops every
+ * stored row that matches the page (bare host and exact origin).
+ * @param {"deny" | "allow"} which
+ * @param {"add" | "remove"} mode
+ */
+async function setPageList(which, mode) {
+  const api = globalThis.ImmerSites;
+  const page = pageRef();
+  const entry = api?.normalizeSiteEntry(location.href) || "";
+  if (!api?.pageListChange || !entry) return { ok: false, error: "无法识别来源" };
+  const listKey = which === "allow" ? "allowOrigins" : "denyOrigins";
+  const settings = await getPageSettings();
+  const current = which === "allow" ? settings.allowOrigins : settings.denyOrigins;
+  const next = api.pageListChange(current, page, entry, mode === "remove" ? "remove" : "add");
+  if (which === "allow") allowOrigins = next.list;
+  else denyOrigins = next.list;
+  await storageSet({ [listKey]: next.list });
+  applyListPolicy();
+  return {
+    ok: true,
+    entry: next.entry || entry,
+    which: which === "allow" ? "allow" : "deny",
+    mode: mode === "remove" ? "remove" : "add",
+    changed: next.changed,
+    removed: next.removed,
+    active: Boolean(active) && !originDenied(),
+    denied: originDenied(),
+    onAllow: originAllowed(),
+  };
+}
+
+/**
+ * @returns {Promise<{ ok: boolean, entry?: string, error?: string }>}
+ */
+async function denyThisOrigin() {
+  return setPageList("deny", "add");
 }
 
 /**
@@ -1267,20 +1461,7 @@ function onStorageChanged(changes, area) {
   }
   if (styleChanged) applyPageStyle();
   if (!listsChanged) return;
-  syncPolicyFlag();
-  if (originDenied()) {
-    active = false;
-    setHovered(null);
-    clearTranslations();
-    syncBall();
-    return;
-  }
-  syncBall();
-  if (originAllowed() && !active) {
-    active = true;
-    syncBall();
-    applyTranslations().catch(() => {});
-  }
+  applyListPolicy();
 }
 
 document.addEventListener("mouseover", (event) => {
@@ -1320,8 +1501,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       ok: true,
       active: Boolean(active) && !originDenied(),
       denied: originDenied(),
+      onAllow: originAllowed(),
+      entry: globalThis.ImmerSites?.normalizeSiteEntry(location.href) || "",
     });
     return false;
+  }
+  if (message?.type === "SET_PAGE_LIST") {
+    const which = message.which === "allow" ? "allow" : "deny";
+    const mode = message.mode === "remove" ? "remove" : "add";
+    setPageList(which, mode)
+      .then((result) => sendResponse(result))
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          error: String(err?.message || err),
+          active,
+          denied: originDenied(),
+          onAllow: originAllowed(),
+        })
+      );
+    return true;
   }
   if (message?.type === "DENY_THIS_ORIGIN") {
     denyThisOrigin()
@@ -1380,7 +1579,8 @@ getPageSettings()
     adoptSettings(settings);
     pageReady = true;
     bootOnboarding(settings);
-    if (originDenied()) {
+    const policy = pagePolicy();
+    if (policy.blocked) {
       active = false;
       setHovered(null);
       clearTranslations();
@@ -1388,7 +1588,7 @@ getPageSettings()
       return;
     }
     syncBall();
-    if (!originAllowed()) return;
+    if (!policy.auto) return;
     active = true;
     syncBall();
     return applyTranslations(settings);

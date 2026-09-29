@@ -61,6 +61,12 @@ function paintEngine(stored) {
 let busy = false;
 /** @type {boolean} */
 let pageActive = false;
+/** @type {boolean} */
+let pageDenied = false;
+/** @type {boolean} */
+let pageOnAllow = false;
+
+const siteApi = globalThis.ImmerSites;
 
 const LABEL_TRANSLATE = "翻译";
 const LABEL_RESTORE = "显示原文";
@@ -80,27 +86,151 @@ function translateLabel() {
 }
 
 /**
- * Dual-state primary CTA: translate label when the page is original, 「显示原文」 when translated.
- * @param {{ supported: boolean, denied: boolean, active: boolean }} view
+ * Dual-state primary CTA, plus the current-page deny / allow buttons.
+ * `supported` is whether this tab can translate. `listable` is whether its
+ * origin can be written into a site list (any http(s) page).
+ * @param {{ supported: boolean, listable: boolean, denied: boolean, onAllow: boolean, active: boolean, entry: string }} view
  */
 function paint(view) {
   const button = $("toggle");
+  pageDenied = Boolean(view.denied);
+  pageOnAllow = Boolean(view.onAllow);
+  const denyBtn = $("addPageDeny");
+  const allowBtn = $("addPageAllow");
+  denyBtn.textContent = pageDenied ? "本页移出永不翻译" : "本页加入永不翻译";
+  allowBtn.textContent = pageOnAllow ? "本页移出始终翻译" : "本页加入始终翻译";
+  denyBtn.disabled = !view.listable || busy;
+  allowBtn.disabled = !view.listable || busy;
+  $("pageOrigin").textContent = view.entry ? `本页来源：${view.entry}` : "";
   if (!view.supported) {
     $("status").textContent = "此页面无法翻译";
     button.textContent = translateLabel();
     button.disabled = true;
+    pageActive = false;
     return;
   }
   if (view.denied) {
     $("status").textContent = "本站永不翻译";
     button.textContent = translateLabel();
     button.disabled = true;
+    pageActive = false;
     return;
   }
   pageActive = view.active;
   $("status").textContent = view.active ? "已翻译" : "未翻译";
   button.textContent = view.active ? LABEL_RESTORE : translateLabel();
   button.disabled = busy;
+}
+
+/**
+ * @param {chrome.tabs.Tab | null} tab
+ * @returns {{ entry: string, page: { origin: string, hostname: string } } | null}
+ */
+function pageRefFromTab(tab) {
+  const url = tab?.url || "";
+  if (!/^https?:/i.test(url) || !siteApi) return null;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const entry = siteApi.normalizeSiteEntry(url);
+  if (!entry) return null;
+  return {
+    entry,
+    page: { origin: parsed.origin, hostname: parsed.hostname },
+  };
+}
+
+/**
+ * @param {Record<string, unknown>} patch
+ */
+function storageSet(patch) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set(patch, () => resolve());
+  });
+}
+
+/**
+ * @param {{ changed?: boolean, entry?: string, removed?: string[], which?: string, mode?: string, denied?: boolean, onAllow?: boolean }} res
+ */
+function describeListChange(res) {
+  const entry = res.entry || "";
+  const removed = Array.isArray(res.removed) && res.removed.length ? res.removed.join("、") : entry;
+  if (res.which === "deny" && res.mode === "add") {
+    if (!res.changed) return `已在永不翻译中：${entry}`;
+    return res.onAllow
+      ? `已加入永不翻译：${entry}（优先于始终翻译）`
+      : `已加入永不翻译：${entry}`;
+  }
+  if (res.which === "deny" && res.mode === "remove") {
+    if (!res.changed) return "本页不在永不翻译中";
+    return `已移出永不翻译：${removed}`;
+  }
+  if (res.which === "allow" && res.mode === "add") {
+    if (!res.changed) return `已在始终翻译中：${entry}`;
+    return res.denied
+      ? `已加入始终翻译：${entry}。本页仍不翻译，以永不翻译为准`
+      : `已加入始终翻译：${entry}`;
+  }
+  if (!res.changed) return "本页不在始终翻译中";
+  return `已移出始终翻译：${removed}`;
+}
+
+/**
+ * @param {"deny" | "allow"} which
+ * @param {"add" | "remove"} mode
+ * @param {{ entry: string, page: { origin: string, hostname: string } }} ref
+ */
+async function writePageList(which, mode, ref) {
+  const data = await storageGet({ denyOrigins: [], allowOrigins: [] });
+  const deny = siteApi.normalizeSiteList(data.denyOrigins);
+  const allow = siteApi.normalizeSiteList(data.allowOrigins);
+  const current = which === "allow" ? allow : deny;
+  const next = siteApi.pageListChange(current, ref.page, ref.entry, mode);
+  const patch = which === "allow" ? { allowOrigins: next.list } : { denyOrigins: next.list };
+  await storageSet(patch);
+  const denyList = which === "deny" ? next.list : deny;
+  const allowList = which === "allow" ? next.list : allow;
+  const policy = siteApi.sitePolicy(denyList, allowList, ref.page);
+  return {
+    ok: true,
+    entry: next.entry || ref.entry,
+    which,
+    mode,
+    changed: next.changed,
+    removed: next.removed,
+    denied: policy.denied,
+    onAllow: policy.onAllow,
+  };
+}
+
+/**
+ * @param {"deny" | "allow"} which
+ */
+async function applyPageList(which) {
+  const tab = await activeTab();
+  const ref = pageRefFromTab(tab);
+  if (!ref || !tab?.id) {
+    setHint("此页面无法加入站点名单");
+    return;
+  }
+  const onList = which === "deny" ? pageDenied : pageOnAllow;
+  const mode = onList ? "remove" : "add";
+  /** @type {Record<string, unknown> | null} */
+  let res = null;
+  try {
+    res = await send(tab.id, { type: "SET_PAGE_LIST", which, mode });
+  } catch {
+    res = null;
+  }
+  if (!res?.ok) {
+    const written = await writePageList(which, mode, ref);
+    setHint(`${describeListChange(written)} 若页面没有马上变化，刷新一次即可。`);
+    return;
+  }
+  setHint(describeListChange(res));
 }
 
 async function refresh() {
@@ -111,32 +241,38 @@ async function refresh() {
     sourceLang: "auto",
     targetLang: "zh-CN",
     pageHotkey: "",
+    denyOrigins: [],
+    allowOrigins: [],
   });
   pageChord = String(stored.pageHotkey || "");
   paintEngine(stored);
 
-  const supported = Boolean(tab?.id) && /^https?:/i.test(tab.url || "");
-  if (!supported) {
-    paint({ supported: false, denied: false, active: false });
-    return;
-  }
+  const ref = pageRefFromTab(tab);
+  const denyList = siteApi ? siteApi.normalizeSiteList(stored.denyOrigins) : [];
+  const allowList = siteApi ? siteApi.normalizeSiteList(stored.allowOrigins) : [];
+  const storedDenied = Boolean(ref && siteApi.siteListMatches(denyList, ref.page));
+  const storedAllow = Boolean(ref && siteApi.siteListMatches(allowList, ref.page));
+  const listable = Boolean(ref);
 
-  /** @type {{ ok?: boolean, active?: boolean, denied?: boolean } | null} */
+  /** @type {{ ok?: boolean, active?: boolean, denied?: boolean, onAllow?: boolean } | null} */
   let state = null;
-  try {
-    state = await send(tab.id, { type: "GET_PAGE_STATE" });
-  } catch {
-    state = null;
+  if (listable && tab?.id) {
+    try {
+      state = await send(tab.id, { type: "GET_PAGE_STATE" });
+    } catch {
+      state = null;
+    }
   }
-  if (!state?.ok) {
-    paint({ supported: false, denied: false, active: false });
-    return;
-  }
-  const denied = Boolean(state.denied);
+  const live = Boolean(state?.ok);
+  const denied = live ? Boolean(state.denied) : storedDenied;
+  const onAllow = live && typeof state.onAllow === "boolean" ? state.onAllow : storedAllow;
   paint({
-    supported: true,
+    supported: live,
+    listable,
     denied,
-    active: Boolean(state.active) && !denied,
+    onAllow,
+    active: live && Boolean(state.active) && !denied,
+    entry: ref?.entry || "",
   });
 }
 
@@ -147,6 +283,8 @@ async function run(action) {
   if (busy) return;
   busy = true;
   $("toggle").disabled = true;
+  $("addPageDeny").disabled = true;
+  $("addPageAllow").disabled = true;
   try {
     await action();
   } catch (err) {
@@ -169,13 +307,21 @@ $("toggle").addEventListener("click", () => {
   });
 });
 
+$("addPageDeny").addEventListener("click", () => {
+  run(() => applyPageList("deny"));
+});
+
+$("addPageAllow").addEventListener("click", () => {
+  run(() => applyPageList("allow"));
+});
+
 $("options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
 function bootPopup() {
   refresh().catch(() => {
-    paint({ supported: false, denied: false, active: false });
+    paint({ supported: false, listable: false, denied: false, onAllow: false, active: false, entry: "" });
   });
   const api = globalThis.ImmerHotkey;
   if (!api?.detectPlatform) return;
