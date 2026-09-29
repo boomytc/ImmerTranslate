@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- First install shows one lightweight card, at most three skippable steps, in order: 钉到工具栏, 点弹层译一页, 认识悬浮球. Each step has 下一步 / 跳过; the last step uses 完成. 全部跳过 dismisses the rest. Finishing or skipping through the end writes `chrome.storage.local` `onboardingDone`, and the card does not return until that key is removed or the extension storage is cleared (reinstall). The card is a frosted-glass overlay (`extension/glass.css`, primary button in the `#1f4e9a` family). It does not cover the page, so scrolling, the popup, and the floating ball keep working. There is no login, terms checkbox, Pro offer, feature catalog, or token gift, and no immersive-translate pink.
+- The card does not fight the existing one-time ball tip. While the guide is pending or visible, the tip stays hidden. Dismissing the guide on this document does not open the tip immediately. Reaching 认识悬浮球 and then finishing or skipping that step also sets `ballTipSeen`, so the tip does not repeat the same introduction. 全部跳过 before that step leaves `ballTipSeen` unset; the tip can still appear once on a later page.
+- `extension/manifest.json` version is `0.6.0`. Root status lines name `dev-0.6.0`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+
 ## 0.5.0
 
 - Options page is a left nav and a right content pane, one layout on macOS and Windows. Five sections, in order: 基本 (target language, bilingual or translation-only, font size, contrast), 快捷键 (whole-page and paragraph chords, labeled with the same platform formatters already used by the popup: ⌘/⌥ on macOS, Ctrl/Alt on Windows and Linux), 悬浮球 (enable toggle plus a short note: right edge, snap, remembered vertical position), 站点名单 (the existing allow/deny UI), 引擎与密钥 (OpenAI-compatible and Anthropic-compatible fields only). An empty API key stays on the labeled mock `⟦…⟧` engine. There is no login wall and no paywall.
@@ -26,7 +32,7 @@
 
 ## 1.0.0（已撤回，不是当前版本）
 
-- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.5.0` on `dev-0.5.0`.
+- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.6.0` on `dev-0.6.0`.
 
 ## 0.3.0
 
