@@ -6,7 +6,7 @@
     <style>
       body {
         font-family: system-ui, sans-serif;
-        max-width: 560px;
+        max-width: 640px;
         margin: 2rem auto;
         padding: 0 1rem;
         color: #0f172a;
@@ -37,6 +37,13 @@
       }
       #status { margin-left: 0.75rem; color: #16a34a; }
       .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+      h2 { font-size: 1.15rem; margin: 2rem 0 0.35rem; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .actions button { margin-top: 0.75rem; }
+      .site-list { padding-left: 1.2rem; margin: 0.35rem 0 0.75rem; }
+      .site-list li { margin: 0.35rem 0; }
+      .site-list button { margin-top: 0; margin-left: 0.5rem; padding: 0.15rem 0.5rem; }
+      .covered { color: #64748b; font-size: 0.85rem; }
       @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
     </style>
   </head>
@@ -84,18 +91,55 @@
     <p class="hint">默认 Alt+T。聚焦后按下新组合键（须含 Alt、Ctrl 或 Meta），再点保存。阅读页悬停主内容段落会标出当前段，按下该键只翻译这一段；译文节点样式与整页对照相同。已译过的段不会重复插入。</p>
     <button id="resetHotkey" type="button">恢复默认 Alt+T</button>
 
+    <h2>站点名单</h2>
+    <p class="hint">默认所有网站都可以翻译。永不翻译（黑名单）里的来源不会插入双语节点，扩展图标和段落快捷键都不会。始终翻译（白名单）可选：打开该来源时自动翻译。同一来源两边都有时，以永不翻译为准。只填域名则同时匹配 http 与 https；填完整网址则只匹配该协议和主机（含端口）。子域名不会跟着生效。</p>
+    <label for="siteEntry">来源（域名或完整网址）</label>
+    <input id="siteEntry" type="text" spellcheck="false" autocomplete="off" placeholder="example.com 或 https://example.com/path" />
+    <div class="actions">
+      <button id="addCurrentDeny" type="button">将当前标签页加入永不翻译</button>
+      <button id="addCurrentAllow" type="button">将当前标签页加入始终翻译</button>
+      <button id="addDeny" type="button">加入永不翻译</button>
+      <button id="addAllow" type="button">加入始终翻译</button>
+    </div>
+    <h3>永不翻译</h3>
+    <ul id="denyList" class="site-list"></ul>
+    <h3>始终翻译</h3>
+    <ul id="allowList" class="site-list"></ul>
+
+    <h2>阅读样式</h2>
+    <p class="hint">改字号、对比度或显示方式会立刻写入本机。已经打开、并且已经译过的页面会马上换样式，不用整页刷新。名单的加入和移除也同样立即保存。底部「保存」会再写一遍这些项，并保存上面的密钥和快捷键。</p>
+    <label for="translationFontSize">译文字号</label>
+    <select id="translationFontSize">
+      <option value="sm">小</option>
+      <option value="md">标准</option>
+      <option value="lg">大</option>
+    </select>
+    <label for="translationContrast">译文对比度</label>
+    <select id="translationContrast">
+      <option value="normal">标准</option>
+      <option value="high">高对比</option>
+    </select>
+    <label for="displayMode">显示方式</label>
+    <select id="displayMode">
+      <option value="bilingual">双语对照（译文在原文下方）</option>
+      <option value="translation-only">仅译文</option>
+    </select>
+
     <div class="notice">
       <strong>额度 / 引擎说明（明文）</strong>
       <ul>
         <li>未填 API Key 时走 mock，译文形如 ⟦原文⟧，无额度限制。</li>
         <li>填 Key 后走所选协议；消耗以你自备 API 提供商账单为准。本扩展不设日限墙、不逼付费。</li>
         <li>段落快捷键存在本机设置里，默认 Alt+T。</li>
+        <li>黑名单为空时所有网站都可以翻译。列入永不翻译的来源不会插入译文。</li>
+        <li>译文字号、对比度，以及双语对照或仅译文，都只存在本机。</li>
       </ul>
     </div>
 
     <button id="save" type="button">保存</button>
     <span id="status"></span>
     <script src="hotkey.js"></script>
+    <script src="sitelist.js"></script>
     <script src="options.js"></script>
   </body>
 </html>
