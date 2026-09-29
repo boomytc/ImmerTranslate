@@ -1,0 +1,10 @@
+# Node / cloud engine template. Committed with an empty apiKey — no secrets.
+# Copy to config.local.yaml (gitignored) and fill apiKey there.
+# Environment variables override this file when set; see README.
+# The browser extension does not read this file (chrome.storage / options only).
+provider: openai
+baseUrl: https://api.deepseek.com/v1
+model: deepseek-flash
+apiKey: ""
+sourceLang: auto
+targetLang: zh-CN

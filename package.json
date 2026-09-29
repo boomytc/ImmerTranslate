@@ -6,9 +6,11 @@
   "license": "MIT",
   "scripts": {
     "smoke": "npm --prefix packages/translate-core run smoke",
-    "sync:translate-core": "./scripts/sync-translate-core.sh"
+    "sync:translate-core": "./scripts/sync-translate-core.sh",
+    "accept": "node ./scripts/accept-mvp.mjs"
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "type": "module"
 }
