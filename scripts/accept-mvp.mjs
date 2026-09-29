@@ -220,8 +220,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.5.0") {
-  fail(`manifest version 应为 0.5.0，实际 ${manifest.version}`);
+if (manifest.version !== "0.6.0") {
+  fail(`manifest version 应为 0.6.0，实际 ${manifest.version}`);
 }
 if (manifest.action?.default_popup !== "popup.html") {
   fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
@@ -841,8 +841,11 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.5.0") || !readme.includes("dev-0.5.0")) {
-  fail("README 未记录 0.5.0 / dev-0.5.0");
+if (!readme.includes("0.6.0") || !readme.includes("dev-0.6.0")) {
+  fail("README 未记录 0.6.0 / dev-0.6.0");
+}
+if (readme.includes("当前开发版本为 **0.5.0**") || readme.includes("当前开发线是 `dev-0.5.0`")) {
+  fail("README 仍把 0.5.0 写成当前版本");
 }
 if (readme.includes("当前开发版本为 **0.4.2**") || readme.includes("当前开发线是 `dev-0.4.2`")) {
   fail("README 仍把 0.4.2 写成当前版本");
@@ -875,8 +878,11 @@ const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
 if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
   fail("README.en.md 未写明 Load unpacked 与 pin");
 }
-if (!readmeEn.includes("0.5.0") || !readmeEn.includes("dev-0.5.0")) {
-  fail("README.en.md 未记录 0.5.0 / dev-0.5.0");
+if (!readmeEn.includes("0.6.0") || !readmeEn.includes("dev-0.6.0")) {
+  fail("README.en.md 未记录 0.6.0 / dev-0.6.0");
+}
+if (readmeEn.includes("The current dev version is **0.5.0**") || readmeEn.includes("currently `dev-0.5.0`")) {
+  fail("README.en.md 仍把 0.5.0 写成当前版本");
 }
 if (readmeEn.includes("The current dev version is **0.4.2**") || readmeEn.includes("currently `dev-0.4.2`")) {
   fail("README.en.md 仍把 0.4.2 写成当前版本");
@@ -887,6 +893,7 @@ if (readmeEn.includes("The current dev version is **0.4.1**") || readmeEn.includ
 if (readmeEn.includes("The current dev version is **0.4.0**") || readmeEn.includes("currently `dev-0.4.0`")) {
   fail("README.en.md 仍把 0.4.0 写成当前版本");
 }
+if (!changelog.includes("## 0.6.0")) fail("CHANGELOG 缺少 0.6.0");
 if (!changelog.includes("## 0.5.0")) fail("CHANGELOG 缺少 0.5.0");
 if (!changelog.includes("## 0.4.2")) fail("CHANGELOG 缺少 0.4.2");
 if (!changelog.includes("## 0.4.1")) fail("CHANGELOG 缺少 0.4.1");
@@ -1081,6 +1088,134 @@ if (!readme.includes("悬浮球") || !readme.includes("弹窗") || !readme.inclu
   fail("README 未记录弹窗、双态按钮或悬浮球");
 }
 ok("悬浮球默认在右侧，松手贴左右边缘，并记住竖直位置");
+
+// 5e) first-run guide (0.6.0): three skippable steps, no chain with the ball tip.
+const onboardingJs = readFileSync(join(root, "extension/onboarding.js"), "utf8");
+const onboardIdx = contentScripts.indexOf("onboarding.js");
+if (onboardIdx < 0 || onboardIdx > contentIdx) {
+  fail(`content_scripts 须在 content.js 之前加载 onboarding.js: ${contentScripts.join(",")}`);
+}
+const obSandbox = {};
+createContext(obSandbox);
+runInContext(onboardingJs, obSandbox);
+const ob = obSandbox.ImmerOnboarding;
+if (!ob) fail("onboarding.js 未挂上 ImmerOnboarding");
+if (ob.STORAGE_KEY !== "onboardingDone") fail("引导永久标记应为 onboardingDone");
+if (!Array.isArray(ob.STEPS) || ob.STEPS.length !== 3) {
+  fail(`首次引导必须正好三步，实际 ${ob.STEPS?.length}`);
+}
+const stepIds = ob.STEPS.map((step) => step.id).join(",");
+const stepTitles = ob.STEPS.map((step) => step.title).join(",");
+if (stepIds !== "pin,popup,ball") fail(`步骤顺序应为 pin,popup,ball，实际 ${stepIds}`);
+if (stepTitles !== "钉到工具栏,点弹层译一页,认识悬浮球") {
+  fail(`步骤标题顺序不对: ${stepTitles}`);
+}
+for (const step of ob.STEPS) {
+  if (!step.body || step.body.length < 12) fail(`步骤 ${step.id} 缺少说明`);
+}
+const guideCopy = ob.STEPS.map((step) => `${step.title}\n${step.body}`).join("\n");
+for (const banned of ["登录", "升级", "会员", "Pro", "Token", "条款", "隐私", "促销", "订阅"]) {
+  if (guideCopy.includes(banned) || onboardingJs.includes(banned)) {
+    fail(`首次引导出现不应展示的文案: ${banned}`);
+  }
+}
+if (ob.primaryLabel(0) !== "下一步" || ob.primaryLabel(1) !== "下一步" || ob.primaryLabel(2) !== "完成") {
+  fail("前两步主按钮应为「下一步」，最后一步应为「完成」");
+}
+if (!ob.showSkipAll(0) || !ob.showSkipAll(1) || ob.showSkipAll(2)) {
+  fail("「全部跳过」只应出现在最后一步之前");
+}
+if (!ob.guidePending(undefined) || !ob.guidePending(false) || ob.guidePending(true)) {
+  fail("只有 onboardingDone === true 才算引导已结束");
+}
+let guide = ob.initialState();
+if (guide.index !== 0 || guide.done || guide.ballIntroduced) fail("引导应从第一步开始");
+guide = ob.reduce(guide, "next");
+guide = ob.reduce(guide, "skip");
+if (guide.index !== 2 || guide.done || !guide.ballIntroduced) {
+  fail(`走到第三步应已认识悬浮球且尚未结束: ${JSON.stringify(guide)}`);
+}
+const finished = ob.reduce(guide, "next");
+if (!finished.done || !finished.ballIntroduced) fail("最后一步「完成」应永久结束并记下悬浮球");
+const finishedPatch = ob.storagePatch(finished);
+if (!finishedPatch || finishedPatch.onboardingDone !== true || finishedPatch.ballTipSeen !== true) {
+  fail(`走完第三步应同时写下 onboardingDone 与 ballTipSeen: ${JSON.stringify(finishedPatch)}`);
+}
+const skippedLast = ob.reduce(guide, "skip");
+if (!skippedLast.done || ob.storagePatch(skippedLast)?.ballTipSeen !== true) {
+  fail("最后一步「跳过」也应结束，且不再紧接着弹球旁提示");
+}
+const skipAllEarly = ob.reduce(ob.initialState(), "skip-all");
+const skipAllPatch = ob.storagePatch(skipAllEarly);
+if (!skipAllEarly.done || skipAllEarly.ballIntroduced || !skipAllPatch || skipAllPatch.onboardingDone !== true) {
+  fail("第一步「全部跳过」应永久结束引导");
+}
+if (Object.prototype.hasOwnProperty.call(skipAllPatch, "ballTipSeen")) {
+  fail("未走到悬浮球那一步时，不应提前消耗 ballTipSeen");
+}
+if (ob.storagePatch(ob.initialState()) !== null) fail("未结束的引导不应写存储");
+const tipCtx = {
+  ballTipSeen: false,
+  guideVisible: false,
+  dismissedOnThisDocument: false,
+  guidePending: false,
+};
+if (!ob.allowBallTip(tipCtx)) fail("引导已结束且本页未刚关掉时，球旁提示仍可出现一次");
+if (ob.allowBallTip({ ...tipCtx, guidePending: true })) fail("引导未结束时不应弹出球旁提示");
+if (ob.allowBallTip({ ...tipCtx, guideVisible: true })) fail("引导卡片可见时不应弹出球旁提示");
+if (ob.allowBallTip({ ...tipCtx, dismissedOnThisDocument: true })) {
+  fail("刚关掉引导的这一页不应马上连弹球旁提示");
+}
+if (ob.allowBallTip({ ...tipCtx, ballTipSeen: true })) fail("ballTipSeen 之后不应再弹球旁提示");
+const onboardSrc = contentJs.slice(
+  contentJs.indexOf("function unmountOnboarding"),
+  contentJs.indexOf("function mountBall")
+);
+for (const needle of [
+  "immer-onboarding-host",
+  'setProperty("pointer-events", "none"',
+  "pointer-events: auto",
+  "immer-glass",
+  "--immer-cta-bg",
+  'data-action="next"',
+  'data-action="skip"',
+  'data-action="skip-all"',
+  "全部跳过",
+  "allowBallTip",
+  "bootOnboarding",
+]) {
+  if (!onboardSrc.includes(needle) && !contentJs.includes(needle)) {
+    fail(`content.js 引导缺少 ${needle}`);
+  }
+}
+if (
+  !onboardSrc.includes('setProperty("pointer-events", "none"') ||
+  !onboardSrc.includes("pointer-events: auto")
+) {
+  fail("引导卡片宿主应不接收页面点击，卡片本身仍可点");
+}
+if (onboardSrc.includes("aria-modal") || onboardSrc.includes('type="checkbox"')) {
+  fail("引导不应是模态框，也不应有条款勾选");
+}
+if (/#(?:ff69b4|ec4899|ff5c8a|f43f7a|ff4d8d|ff6b9d)/i.test(onboardingJs + onboardSrc)) {
+  fail("首次引导不应使用沉浸式翻译的粉色");
+}
+if (!contentJs.includes("ballTipAllowed") || !contentJs.includes("onboardingDismissedHere")) {
+  fail("悬浮球提示必须先经过引导互斥判断");
+}
+if (!contentCss.includes("#immer-onboarding-host") || !contentCss.includes("pointer-events: none")) {
+  fail("content.css 缺少不挡页面的引导宿主");
+}
+if (!readme.includes("onboardingDone") || !readme.includes("钉到工具栏") || !readme.includes("点弹层译一页") || !readme.includes("认识悬浮球")) {
+  fail("README 未记录三步引导与 onboardingDone");
+}
+if (!readme.includes('chrome.storage.local.remove(["onboardingDone", "ballTipSeen"])')) {
+  fail("README 未写明清除 onboardingDone 与 ballTipSeen 后可再次看到引导");
+}
+if (!readmeEn.includes("onboardingDone") || !readmeEn.includes("认识悬浮球")) {
+  fail("README.en.md 未记录首次引导");
+}
+ok("首次引导三步可跳过，结束前不与悬浮球提示连弹");
 
 // 6) no absolute local paths / obvious secrets in tracked tree
 const tracked = run("git", ["ls-files"]);
