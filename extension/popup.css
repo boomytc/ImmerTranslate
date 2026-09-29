@@ -1,0 +1,86 @@
+body {
+  margin: 0;
+  width: 280px;
+  color: #0f172a;
+  font: 14px/1.45 system-ui, sans-serif;
+  background: #f8fafc;
+}
+
+.card {
+  padding: 14px 14px 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.status {
+  margin: 8px 0 0;
+  font-weight: 650;
+}
+
+.mock {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+#translate {
+  background: #4f8cff;
+  color: #fff;
+}
+
+#restore {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.hint {
+  min-height: 1.2em;
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.links button {
+  background: transparent;
+  color: #1d4ed8;
+  text-align: left;
+  padding: 4px 0;
+}
+
+.links button:disabled {
+  color: #94a3b8;
+}

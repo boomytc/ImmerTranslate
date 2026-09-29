@@ -9,6 +9,9 @@
  * (content script matches it). Site lists default to empty (every origin
  * eligible). The content script enforces deny before inserting nodes.
  * The selected engine is wrapped once with createPipelineEngine (TransPipe).
+ * The toolbar opens popup.html (default_popup). That card and the in-page
+ * ball both message this worker only for TRANSLATE_BATCH / GET_SETTINGS;
+ * page on/off state stays in the content script.
  */
 
 import {
@@ -133,13 +136,3 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
   });
 }
 
-if (typeof chrome !== "undefined" && chrome.action?.onClicked) {
-  chrome.action.onClicked.addListener(async (tab) => {
-    if (!tab?.id) return;
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_TRANSLATE" });
-    } catch {
-      // Content script may not be injected yet (chrome:// etc.)
-    }
-  });
-}

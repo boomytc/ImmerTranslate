@@ -213,8 +213,14 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "1.0.0") {
-  fail(`manifest version 应为 1.0.0，实际 ${manifest.version}`);
+if (manifest.version !== "0.4.0") {
+  fail(`manifest version 应为 0.4.0，实际 ${manifest.version}`);
+}
+if (manifest.action?.default_popup !== "popup.html") {
+  fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
+}
+if (bg.includes("chrome.action.onClicked") || bg.includes("action.onClicked")) {
+  fail("已有 default_popup 时 background 不应再监听 action.onClicked");
 }
 if (manifest.manifest_version !== 3) fail("manifest_version 必须为 3");
 if (!manifest.background?.service_worker) fail("缺少 service_worker");
@@ -416,17 +422,123 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("1.0.0") || !readme.includes("dev-1.0.0")) {
-  fail("README 未记录 1.0.0 / dev-1.0.0");
+if (!readme.includes("0.4.0") || !readme.includes("dev-0.4.0")) {
+  fail("README 未记录 0.4.0 / dev-0.4.0");
+}
+if (readme.includes("当前开发版本为 **1.0.0**") || readme.includes("当前开发线是 `dev-1.0.0`")) {
+  fail("README 仍把 1.0.0 写成当前版本");
 }
 if (!readme.includes("denyOrigins")) fail("README 未记录 denyOrigins");
 if (!readme.includes("本机验收清单")) fail("README 缺少本机验收清单");
-if (!readme.includes("Load unpacked") || !readme.toLowerCase().includes("pin")) {
+const mentionsUnpacked = readme.includes("Load unpacked") || readme.includes("加载已解压的扩展程序");
+const mentionsPin = readme.toLowerCase().includes("pin") || readme.includes("钉到工具栏");
+if (!mentionsUnpacked || !mentionsPin) {
   fail("README 未写明本机 unpacked 加载与固定工具栏");
 }
-if (!changelog.includes("## 1.0.0")) fail("CHANGELOG 缺少 1.0.0");
+if (!changelog.includes("## 0.4.0")) fail("CHANGELOG 缺少 0.4.0");
 if (!changelog.includes("## 0.3.0")) fail("CHANGELOG 缺少 0.3.0");
+if (!changelog.includes("已撤回")) fail("CHANGELOG 未说明过早的 1.0.0 已撤回");
 ok("黑名单默认放行，样式开关可在已打开页面生效");
+
+// 5d) toolbar popup + draggable ball (0.4.0). Same on/off state, empty key stays mock.
+const popupHtml = readFileSync(join(root, "extension/popup.html"), "utf8");
+const popupJs = readFileSync(join(root, "extension/popup.js"), "utf8");
+for (const id of ["status", "mock", "translate", "restore", "options", "deny"]) {
+  if (!new RegExp(`id="${id}"`).test(popupHtml)) fail(`弹窗缺少 ${id}`);
+}
+if (!popupHtml.includes("翻译本页") || !popupHtml.includes("还原本页")) {
+  fail("弹窗缺少整页翻译或还原");
+}
+if (!popupHtml.includes("打开设置")) fail("弹窗缺少打开设置");
+if (!popupHtml.includes("永不翻译本站")) fail("弹窗缺少永不翻译本站");
+if (!popupHtml.includes("Mock 模式") || !popupHtml.includes("⟦原文⟧")) {
+  fail("弹窗未标明空 key 的 mock 模式");
+}
+for (const id of ["baseUrl", "model", "apiKey", "provider"]) {
+  if (new RegExp(`id="${id}"`).test(popupHtml)) fail(`弹窗不应包含完整设置字段 ${id}`);
+}
+for (const re of coercive) {
+  if (re.test(popupHtml)) fail(`弹窗出现逼付费/登录文案: ${re}`);
+}
+for (const needle of [
+  "GET_PAGE_STATE",
+  "TRANSLATE_PAGE",
+  "RESTORE_PAGE",
+  "openOptionsPage",
+  "apiKey",
+  "DENY_THIS_ORIGIN",
+  "chrome.storage.local",
+]) {
+  if (!popupJs.includes(needle)) fail(`popup.js 缺少 ${needle}`);
+}
+if (!popupJs.includes("已翻译") || !popupJs.includes("未翻译")) {
+  fail("popup.js 未区分已翻译 / 未翻译");
+}
+ok("工具栏弹窗可翻译、还原、打开设置，并标明 mock");
+
+for (const needle of [
+  "GET_PAGE_STATE",
+  "TRANSLATE_PAGE",
+  "RESTORE_PAGE",
+  "TOGGLE_TRANSLATE",
+  "ballPosition",
+  "immer-ball-host",
+  "ImmerBall",
+  "snapBallPosition",
+  "normalizeStoredBallPosition",
+  "DENY_THIS_ORIGIN",
+  "本站已设为永不翻译",
+]) {
+  if (!contentJs.includes(needle)) fail(`content.js 缺少 ${needle}`);
+}
+if (!contentCss.includes("#immer-ball-host")) fail("content.css 缺少悬浮球宿主");
+const ballIdx = contentScripts.indexOf("ballpos.js");
+if (ballIdx < 0 || ballIdx > contentIdx) {
+  fail(`content_scripts 须在 content.js 之前加载 ballpos.js: ${contentScripts.join(",")}`);
+}
+const ballSandbox = {};
+createContext(ballSandbox);
+runInContext(readFileSync(join(root, "extension/ballpos.js"), "utf8"), ballSandbox);
+const ballApi = ballSandbox.ImmerBall;
+if (!ballApi) fail("ballpos.js 未挂上 ImmerBall");
+const ballVp = { width: 1200, height: 800 };
+const ballDefault = ballApi.defaultBallPosition(ballVp);
+if (ballDefault.left !== 1200 - ballApi.BALL_SIZE - ballApi.EDGE_MARGIN) {
+  fail(`悬浮球默认应贴右缘: ${JSON.stringify(ballDefault)}`);
+}
+if (ballDefault.top !== 800 - ballApi.BALL_SIZE - ballApi.EDGE_MARGIN) {
+  fail(`悬浮球默认应贴底缘: ${JSON.stringify(ballDefault)}`);
+}
+const snapLeft = ballApi.snapBallPosition({ left: 10, top: 400 }, ballVp);
+if (snapLeft.left !== ballApi.EDGE_MARGIN) fail(`靠近左缘应吸附: ${JSON.stringify(snapLeft)}`);
+const snapRight = ballApi.snapBallPosition({ left: 1130, top: 400 }, ballVp);
+if (snapRight.left !== ballDefault.left) fail(`靠近右缘应吸附: ${JSON.stringify(snapRight)}`);
+const snapTop = ballApi.snapBallPosition({ left: 500, top: 20 }, ballVp);
+if (snapTop.top !== ballApi.EDGE_MARGIN) fail(`靠近上缘应吸附: ${JSON.stringify(snapTop)}`);
+const snapBottom = ballApi.snapBallPosition({ left: 500, top: 730 }, ballVp);
+if (snapBottom.top !== ballDefault.top) fail(`靠近下缘应吸附: ${JSON.stringify(snapBottom)}`);
+const stay = ballApi.snapBallPosition({ left: 500, top: 400 }, ballVp);
+if (stay.left !== 500 || stay.top !== 400) fail(`远离边缘不应吸附: ${JSON.stringify(stay)}`);
+const corner = ballApi.snapBallPosition({ left: 8, top: 740 }, ballVp);
+if (corner.left !== ballApi.EDGE_MARGIN || corner.top !== ballDefault.top) {
+  fail(`靠近角落应同时吸附两条边: ${JSON.stringify(corner)}`);
+}
+const clamped = ballApi.clampBallPosition({ left: -100, top: 99999 }, ballVp);
+if (clamped.left !== ballApi.EDGE_MARGIN || clamped.top !== ballDefault.top) {
+  fail(`位置应夹在视口内: ${JSON.stringify(clamped)}`);
+}
+if (ballApi.normalizeStoredBallPosition(null, ballVp) !== null) fail("空的 ballPosition 应忽略");
+if (ballApi.normalizeStoredBallPosition({ left: "nope", top: 10 }, ballVp) !== null) {
+  fail("非法 ballPosition 应忽略");
+}
+const stored = ballApi.normalizeStoredBallPosition({ left: 500, top: 400 }, ballVp);
+if (!stored || stored.left !== 500 || stored.top !== 400) fail("合法 ballPosition 应保留");
+const storedOff = ballApi.normalizeStoredBallPosition({ left: 5000, top: -20 }, ballVp);
+if (!storedOff || storedOff.left !== ballDefault.left || storedOff.top !== ballApi.EDGE_MARGIN) {
+  fail(`越界 ballPosition 应夹回视口: ${JSON.stringify(storedOff)}`);
+}
+if (!readme.includes("悬浮球") || !readme.includes("弹窗")) fail("README 未记录弹窗或悬浮球");
+ok("悬浮球默认为右下角，拖近边缘会吸附，位置可从 storage 还原");
 
 // 6) no absolute local paths / obvious secrets in tracked tree
 const tracked = run("git", ["ls-files"]);
@@ -572,5 +684,5 @@ for (const file of walk(join(root, "extension"))) {
 ok("extension/vendor 无 config.local.yaml 与密钥");
 
 console.log(
-  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 文章页点图标应出现 ⟦原文⟧；悬停一段按 Alt+T 只译该段；永不翻译名单内的来源点图标不插入译文；改字号/对比度/仅译文后已打开页面立即变样"
+  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 点工具栏应打开弹窗（空 key 标明 Mock）；翻译本页出现 ⟦原文⟧，还原后节点消失；右下角悬浮球可拖、刷新后位置还在，点一下与弹窗同一状态；永不翻译的来源点球只提示不插入；悬停一段按 Alt+T 只译该段；改字号/对比度/仅译文后已打开页面立即变样"
 );

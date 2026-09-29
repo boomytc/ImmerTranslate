@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ImmerTranslate</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>ImmerTranslate</h1>
+      <p id="status" class="status">正在读取本页…</p>
+      <p id="mock" class="mock" hidden>Mock 模式：未填写 API Key，译文为 ⟦原文⟧</p>
+      <div class="actions">
+        <button id="translate" type="button">翻译本页</button>
+        <button id="restore" type="button">还原本页</button>
+      </div>
+      <p id="hint" class="hint"></p>
+      <div class="links">
+        <button id="deny" type="button">永不翻译本站</button>
+        <button id="options" type="button">打开设置</button>
+      </div>
+    </main>
+    <script src="sitelist.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

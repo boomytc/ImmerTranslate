@@ -1,6 +1,7 @@
 /**
  * Main-content paragraphs → bilingual nodes under originals.
- * Full page: action icon TOGGLE_TRANSLATE (0.1.x).
+ * Full page: popup TRANSLATE_PAGE / RESTORE_PAGE, or the floating ball,
+ * both through the same setTranslated() state. TOGGLE_TRANSLATE remains.
  * One segment: hover marks the paragraph; the options hotkey (default Alt+T)
  * sends TRANSLATE_BATCH with a single {id,text}. Cache/retry stays in
  * translate-core (TransPipe); this shell only renders the response.
@@ -50,6 +51,20 @@ let pageStyle = {
 };
 /** Bumped when nodes are cleared so an in-flight batch cannot insert afterwards. */
 let runId = 0;
+/** Stops a second translate/restore from flipping `active` mid-flight. */
+let translateLock = false;
+/** @type {HTMLElement | null} */
+let ballHost = null;
+/** @type {HTMLButtonElement | null} */
+let ballButton = null;
+/** @type {HTMLElement | null} */
+let ballHint = null;
+let ballLeft = 0;
+let ballTop = 0;
+let ballDragging = false;
+/** True after a drag-save or a stored position, so resize keeps that spot. */
+let ballPinned = false;
+let ballHintTimer = 0;
 /** Bumped on each storage change so a stale boot read cannot overwrite it. */
 let policyEpoch = 0;
 
@@ -178,7 +193,7 @@ function isTranslatableParagraph(el, root) {
   if (!el.matches(PARAGRAPH_SELECTOR)) return false;
   const scope = root || mainRoot();
   if (!scope || !scope.contains(el)) return false;
-  if (el.closest(`.${CLASS_WRAPPER}, .${CLASS_TRANS}, script, style, noscript`))
+  if (el.closest(`.${CLASS_WRAPPER}, .${CLASS_TRANS}, #immer-ball-host, script, style, noscript`))
     return false;
   const text = (el.innerText || "").trim();
   if (text.length < 8) return false;
@@ -349,21 +364,301 @@ async function translateSegment(el) {
   }
 }
 
+function currentViewport() {
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
+function syncBall() {
+  if (!ballButton) return;
+  const denied = originDenied();
+  ballButton.classList.toggle("is-on", active && !denied);
+  ballButton.classList.toggle("is-denied", denied);
+  ballButton.textContent = denied ? "禁" : active ? "原" : "译";
+  ballButton.setAttribute(
+    "aria-label",
+    denied ? "本站已设为永不翻译" : active ? "还原本页" : "翻译本页"
+  );
+  ballButton.setAttribute("aria-pressed", active && !denied ? "true" : "false");
+}
+
+/**
+ * @param {string} text
+ */
+function showBallHint(text) {
+  if (!ballHint) return;
+  ballHint.textContent = text;
+  ballHint.hidden = false;
+  ballHint.classList.toggle("below", ballTop < 72);
+  clearTimeout(ballHintTimer);
+  ballHintTimer = setTimeout(() => {
+    ballHint.hidden = true;
+  }, 2200);
+}
+
+/**
+ * @param {{ left: number, top: number }} pos
+ */
+function placeBall(pos) {
+  ballLeft = pos.left;
+  ballTop = pos.top;
+  if (!ballHost) return;
+  ballHost.style.setProperty("left", `${pos.left}px`, "important");
+  ballHost.style.setProperty("top", `${pos.top}px`, "important");
+}
+
+function restoreBallPosition() {
+  if (!chrome?.storage?.local || !globalThis.ImmerBall) return;
+  chrome.storage.local.get({ ballPosition: null }, (data) => {
+    if (ballDragging) return;
+    const pos = globalThis.ImmerBall.normalizeStoredBallPosition(
+      data?.ballPosition,
+      currentViewport()
+    );
+    if (!pos) return;
+    ballPinned = true;
+    placeBall(pos);
+  });
+}
+
+/**
+ * @param {unknown} value
+ */
+function adoptBallPosition(value) {
+  if (ballDragging || !globalThis.ImmerBall) return;
+  const pos = globalThis.ImmerBall.normalizeStoredBallPosition(value, currentViewport());
+  if (!pos) return;
+  ballPinned = true;
+  placeBall(pos);
+}
+
+function mountBall() {
+  if (!document.documentElement || document.getElementById("immer-ball-host")) return;
+  const api = globalThis.ImmerBall;
+  const initial = api
+    ? api.defaultBallPosition(currentViewport())
+    : { left: 16, top: 16 };
+  const host = document.createElement("div");
+  host.id = "immer-ball-host";
+  host.style.setProperty("position", "fixed", "important");
+  host.style.setProperty("z-index", "2147483646", "important");
+  host.style.setProperty("width", "48px", "important");
+  host.style.setProperty("height", "48px", "important");
+  host.style.setProperty("margin", "0", "important");
+  host.style.setProperty("padding", "0", "important");
+  host.style.setProperty("display", "block", "important");
+  host.style.setProperty("overflow", "visible", "important");
+  const shadow = host.attachShadow({ mode: "open" });
+  shadow.innerHTML = `
+    <style>
+      button {
+        all: initial;
+        box-sizing: border-box;
+        display: block;
+        width: 48px;
+        height: 48px;
+        border-radius: 999px;
+        border: 2px solid #4f8cff;
+        background: #fff;
+        color: #1e3a8a;
+        font: 600 16px/44px system-ui, sans-serif;
+        text-align: center;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
+      }
+      button.is-on { background: #4f8cff; color: #fff; }
+      button.is-denied {
+        border-color: #94a3b8;
+        background: #f8fafc;
+        color: #64748b;
+      }
+      button.is-dragging { cursor: grabbing; }
+      .hint {
+        position: absolute;
+        left: 50%;
+        bottom: 56px;
+        transform: translateX(-50%);
+        width: max-content;
+        max-width: 196px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #fff;
+        font: 12px/1.4 system-ui, sans-serif;
+        text-align: center;
+        pointer-events: none;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
+      }
+      .hint.below { bottom: auto; top: 56px; }
+    </style>
+    <button id="immer-ball" type="button" aria-pressed="false">译</button>
+    <div class="hint" hidden></div>
+  `;
+  ballHost = host;
+  ballButton = shadow.querySelector("button");
+  ballHint = shadow.querySelector(".hint");
+  placeBall(initial);
+  document.documentElement.appendChild(host);
+  bindBallDrag();
+  syncBall();
+  restoreBallPosition();
+}
+
+function bindBallDrag() {
+  const button = ballButton;
+  const api = globalThis.ImmerBall;
+  if (!button || !api) return;
+  /** @type {{ id: number, x: number, y: number, left: number, top: number, moved: boolean } | null} */
+  let drag = null;
+  let suppressClick = false;
+
+  button.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    suppressClick = false;
+    drag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: ballLeft,
+      top: ballTop,
+      moved: false,
+    };
+    ballDragging = true;
+    button.classList.add("is-dragging");
+    try {
+      button.setPointerCapture(event.pointerId);
+    } catch {
+      // A pointer that is already gone cannot be captured.
+    }
+  });
+
+  button.addEventListener("pointermove", (event) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (Math.hypot(dx, dy) > 5) drag.moved = true;
+    placeBall(
+      api.clampBallPosition(
+        { left: drag.left + dx, top: drag.top + dy },
+        currentViewport()
+      )
+    );
+  });
+
+  /**
+   * @param {PointerEvent} event
+   * @param {boolean} fromUp
+   */
+  const finish = (event, fromUp) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const moved = drag.moved;
+    drag = null;
+    ballDragging = false;
+    button.classList.remove("is-dragging");
+    if (!moved) return;
+    if (fromUp) suppressClick = true;
+    ballPinned = true;
+    const snapped = api.snapBallPosition(
+      { left: ballLeft, top: ballTop },
+      currentViewport()
+    );
+    placeBall(snapped);
+    if (chrome?.storage?.local) {
+      chrome.storage.local.set({ ballPosition: { left: snapped.left, top: snapped.top } });
+    }
+  };
+
+  button.addEventListener("pointerup", (event) => finish(event, true));
+  button.addEventListener("pointercancel", (event) => finish(event, false));
+  button.addEventListener("click", (event) => {
+    if (suppressClick) {
+      suppressClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (originDenied()) {
+      showBallHint("本站已设为永不翻译");
+      return;
+    }
+    toggle().catch(() => {
+      showBallHint("翻译失败");
+    });
+  });
+
+  window.addEventListener("resize", () => {
+    if (ballDragging) return;
+    const viewport = currentViewport();
+    if (!ballPinned) {
+      placeBall(api.defaultBallPosition(viewport));
+      return;
+    }
+    placeBall(api.clampBallPosition({ left: ballLeft, top: ballTop }, viewport));
+  });
+}
+
+/**
+ * @param {boolean} next
+ */
+async function setTranslated(next) {
+  if (translateLock) return;
+  translateLock = true;
+  const want = Boolean(next);
+  try {
+    const settings = await getPageSettings();
+    adoptSettings(settings);
+    if (originDenied()) {
+      active = false;
+      setHovered(null);
+      clearTranslations();
+      return;
+    }
+    if (want === active) {
+      if (!want) clearTranslations();
+      return;
+    }
+    active = want;
+    if (!active) {
+      clearTranslations();
+      return;
+    }
+    await applyTranslations(settings);
+  } finally {
+    translateLock = false;
+    syncBall();
+  }
+}
+
 async function toggle() {
+  await setTranslated(!active);
+}
+
+/**
+ * @returns {Promise<{ ok: boolean, entry?: string, error?: string }>}
+ */
+async function denyThisOrigin() {
+  const api = globalThis.ImmerSites;
+  const entry = api?.normalizeSiteEntry(location.href) || "";
+  if (!entry) return { ok: false, error: "无法识别来源" };
   const settings = await getPageSettings();
-  adoptSettings(settings);
-  if (originDenied()) {
-    active = false;
-    setHovered(null);
-    clearTranslations();
-    return;
-  }
-  active = !active;
-  if (!active) {
-    clearTranslations();
-    return;
-  }
-  await applyTranslations(settings);
+  const list = normalizeStoredList(settings.denyOrigins);
+  if (!list.includes(entry)) list.push(entry);
+  denyOrigins = list;
+  await new Promise((resolve) => {
+    if (!chrome?.storage?.local) {
+      resolve();
+      return;
+    }
+    chrome.storage.local.set({ denyOrigins: list }, () => resolve());
+  });
+  active = false;
+  setHovered(null);
+  clearTranslations();
+  syncPolicyFlag();
+  syncBall();
+  showBallHint("本站已设为永不翻译");
+  return { ok: true, entry };
 }
 
 /**
@@ -406,6 +701,9 @@ function isTypingTarget(target) {
 function onStorageChanged(changes, area) {
   if (area !== "local" || !changes) return;
   policyEpoch += 1;
+  if (Object.prototype.hasOwnProperty.call(changes, "ballPosition")) {
+    adoptBallPosition(changes.ballPosition.newValue);
+  }
   if (Object.prototype.hasOwnProperty.call(changes, "paragraphHotkey")) {
     rememberHotkey(changes.paragraphHotkey.newValue);
   }
@@ -442,10 +740,13 @@ function onStorageChanged(changes, area) {
     active = false;
     setHovered(null);
     clearTranslations();
+    syncBall();
     return;
   }
+  syncBall();
   if (originAllowed() && !active) {
     active = true;
+    syncBall();
     applyTranslations().catch(() => {});
   }
 }
@@ -494,16 +795,55 @@ if (chrome?.storage?.onChanged) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "TOGGLE_TRANSLATE") {
-    toggle()
+  if (message?.type === "GET_PAGE_STATE") {
+    sendResponse({
+      ok: true,
+      active: Boolean(active) && !originDenied(),
+      denied: originDenied(),
+    });
+    return false;
+  }
+  if (message?.type === "DENY_THIS_ORIGIN") {
+    denyThisOrigin()
+      .then((result) =>
+        sendResponse({
+          ...result,
+          active: false,
+          denied: originDenied(),
+        })
+      )
+      .catch((err) =>
+        sendResponse({ ok: false, error: String(err?.message || err), active, denied: originDenied() })
+      );
+    return true;
+  }
+  if (
+    message?.type === "TOGGLE_TRANSLATE" ||
+    message?.type === "TRANSLATE_PAGE" ||
+    message?.type === "RESTORE_PAGE"
+  ) {
+    const job =
+      message.type === "TRANSLATE_PAGE"
+        ? setTranslated(true)
+        : message.type === "RESTORE_PAGE"
+          ? setTranslated(false)
+          : toggle();
+    job
       .then(() => sendResponse({ ok: true, active, denied: originDenied() }))
       .catch((err) =>
-        sendResponse({ ok: false, error: String(err?.message || err) })
+        sendResponse({
+          ok: false,
+          error: String(err?.message || err),
+          active,
+          denied: originDenied(),
+        })
       );
     return true;
   }
   return false;
 });
+
+mountBall();
 
 const seenAtBoot = policyEpoch;
 getPageSettings()
@@ -514,10 +854,13 @@ getPageSettings()
       active = false;
       setHovered(null);
       clearTranslations();
+      syncBall();
       return;
     }
+    syncBall();
     if (!originAllowed()) return;
     active = true;
+    syncBall();
     return applyTranslations(settings);
   })
   .catch(() => {});
