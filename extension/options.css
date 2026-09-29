@@ -248,8 +248,13 @@ h3 {
   border-bottom: 1px solid var(--immer-glass-hairline);
 }
 
-.site-list button {
+.site-list .row-actions {
+  display: flex;
+  gap: 4px;
   margin-left: auto;
+}
+
+.site-list button {
   border: 0;
   border-radius: 8px;
   padding: 4px 8px;
@@ -257,6 +262,13 @@ h3 {
   color: var(--immer-cta-bg);
   font-size: 13px;
   font-weight: 650;
+}
+
+.site-list input.site-edit {
+  flex: 1 1 140px;
+  width: auto;
+  min-width: 0;
+  padding: 6px 8px;
 }
 
 .covered {

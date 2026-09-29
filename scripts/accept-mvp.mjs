@@ -220,8 +220,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.6.0") {
-  fail(`manifest version 应为 0.6.0，实际 ${manifest.version}`);
+if (manifest.version !== "0.7.0") {
+  fail(`manifest version 应为 0.7.0，实际 ${manifest.version}`);
 }
 if (manifest.action?.default_popup !== "popup.html") {
   fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
@@ -766,6 +766,10 @@ for (const id of [
 if (!optionsHtml.includes("永不翻译") || !optionsHtml.includes("仅译文")) {
   fail("设置页未说明永不翻译或仅译文");
 }
+if (!optionsJs.includes("replaceEntry") || !optionsJs.includes("编辑") || !optionsJs.includes("完成")) {
+  fail("设置页站点名单应能编辑已有条目");
+}
+if (!optionsJs.includes("persistLists")) fail("设置页编辑名单后应写入 storage");
 if (!optionsHtml.includes('src="sitelist.js"')) fail("设置页未加载 sitelist.js");
 const siteSandbox = { URL };
 createContext(siteSandbox);
@@ -799,7 +803,48 @@ const deduped = siteApi.normalizeSiteList(["Example.COM", "https://example.com",
 if (!deduped.includes("example.com") || !deduped.includes("https://example.com") || deduped.includes("")) {
   fail(`名单去重失败: ${JSON.stringify(deduped)}`);
 }
-ok("站点名单按来源匹配，空名单不拦截");
+const bothExact = siteApi.sitePolicy(["example.com"], ["example.com"], page);
+if (!bothExact.denied || !bothExact.onAllow || bothExact.auto || !bothExact.blocked) {
+  fail("同一来源两边都有时，永不翻译优先，且不自动翻译");
+}
+const bareDeny = siteApi.sitePolicy(["example.com"], ["https://example.com"], page);
+if (!bareDeny.blocked || bareDeny.auto || !bareDeny.onAllow) {
+  fail("裸域名永不翻译应盖过该 origin 的始终翻译");
+}
+const originDeny = siteApi.sitePolicy(
+  ["https://example.com"],
+  ["example.com"],
+  page
+);
+if (!originDeny.blocked || originDeny.auto) {
+  fail("指定 origin 的永不翻译应盖过裸域名始终翻译");
+}
+const allowOnly = siteApi.sitePolicy([], ["example.com"], page);
+if (allowOnly.denied || !allowOnly.auto) fail("仅始终翻译时应自动翻译");
+const neither = siteApi.sitePolicy([], [], page);
+if (neither.denied || neither.auto || neither.blocked) fail("空名单不拦截也不自动翻译");
+const removed = siteApi.pageListChange(
+  ["example.com", "https://example.com", "other.test"],
+  page,
+  "https://example.com",
+  "remove"
+);
+if (
+  removed.list.includes("example.com") ||
+  removed.list.includes("https://example.com") ||
+  !removed.list.includes("other.test") ||
+  !removed.changed ||
+  removed.removed.length !== 2
+) {
+  fail(`移出本页应去掉所有命中该页的条目: ${JSON.stringify(removed)}`);
+}
+const added = siteApi.pageListChange(["other.test"], page, "https://example.com/path", "add");
+if (!added.changed || !added.list.includes("https://example.com") || added.entry !== "https://example.com") {
+  fail(`加入本页应写入 origin: ${JSON.stringify(added)}`);
+}
+const again = siteApi.pageListChange(added.list, page, "https://example.com", "add");
+if (again.changed || again.list.length !== added.list.length) fail("已命中时不应再追加一条");
+ok("站点名单按来源匹配，空名单不拦截，两边都有时永不翻译优先");
 
 for (const needle of [
   "originDenied",
@@ -841,8 +886,11 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.6.0") || !readme.includes("dev-0.6.0")) {
-  fail("README 未记录 0.6.0 / dev-0.6.0");
+if (!readme.includes("0.7.0") || !readme.includes("dev-0.7.0")) {
+  fail("README 未记录 0.7.0 / dev-0.7.0");
+}
+if (readme.includes("当前开发版本为 **0.6.0**") || readme.includes("当前开发线是 `dev-0.6.0`")) {
+  fail("README 仍把 0.6.0 写成当前版本");
 }
 if (readme.includes("当前开发版本为 **0.5.0**") || readme.includes("当前开发线是 `dev-0.5.0`")) {
   fail("README 仍把 0.5.0 写成当前版本");
@@ -878,8 +926,11 @@ const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
 if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
   fail("README.en.md 未写明 Load unpacked 与 pin");
 }
-if (!readmeEn.includes("0.6.0") || !readmeEn.includes("dev-0.6.0")) {
-  fail("README.en.md 未记录 0.6.0 / dev-0.6.0");
+if (!readmeEn.includes("0.7.0") || !readmeEn.includes("dev-0.7.0")) {
+  fail("README.en.md 未记录 0.7.0 / dev-0.7.0");
+}
+if (readmeEn.includes("The current dev version is **0.6.0**") || readmeEn.includes("currently `dev-0.6.0`")) {
+  fail("README.en.md 仍把 0.6.0 写成当前版本");
 }
 if (readmeEn.includes("The current dev version is **0.5.0**") || readmeEn.includes("currently `dev-0.5.0`")) {
   fail("README.en.md 仍把 0.5.0 写成当前版本");
@@ -893,6 +944,7 @@ if (readmeEn.includes("The current dev version is **0.4.1**") || readmeEn.includ
 if (readmeEn.includes("The current dev version is **0.4.0**") || readmeEn.includes("currently `dev-0.4.0`")) {
   fail("README.en.md 仍把 0.4.0 写成当前版本");
 }
+if (!changelog.includes("## 0.7.0")) fail("CHANGELOG 缺少 0.7.0");
 if (!changelog.includes("## 0.6.0")) fail("CHANGELOG 缺少 0.6.0");
 if (!changelog.includes("## 0.5.0")) fail("CHANGELOG 缺少 0.5.0");
 if (!changelog.includes("## 0.4.2")) fail("CHANGELOG 缺少 0.4.2");
@@ -929,8 +981,15 @@ if (popupHtml.includes('id="restore"') || popupHtml.includes("翻译本页")) {
   fail("弹窗主操作应是一个双态按钮，而不是分开的翻译/还原");
 }
 if (!popupHtml.includes("打开设置")) fail("弹窗缺少打开设置");
-if (popupHtml.includes("永不翻译本站") || popupHtml.includes('id="deny"')) {
-  fail("弹窗骨架不应再放永不翻译或其它站点操作");
+if (!popupHtml.includes("本页加入永不翻译") || !popupHtml.includes("本页加入始终翻译")) {
+  fail("弹窗应提供本页一键加入永不翻译和始终翻译");
+}
+if (!popupHtml.includes('id="addPageDeny"') || !popupHtml.includes('id="addPageAllow"')) {
+  fail("弹窗缺少本页站点按钮");
+}
+if (!popupHtml.includes('src="sitelist.js"')) fail("弹窗未加载 sitelist.js");
+if (popupHtml.includes('id="deny"') || popupHtml.includes('id="siteEntry"') || popupHtml.includes('id="denyList"')) {
+  fail("弹窗只放本页一键按钮，不展开整份名单编辑");
 }
 if (!popupHtml.includes("Mock 模式") || !popupHtml.includes("⟦原文⟧")) {
   fail("弹窗未标明空 key 的 mock 模式");
@@ -954,9 +1013,13 @@ for (const needle of [
 ]) {
   if (!popupJs.includes(needle)) fail(`popup.js 缺少 ${needle}`);
 }
-if (popupJs.includes("DENY_THIS_ORIGIN")) {
-  fail("弹窗不应再写入永不翻译名单");
+if (!popupJs.includes("SET_PAGE_LIST") || !popupJs.includes("pageListChange")) {
+  fail("弹窗应能把本页来源写入或移出名单");
 }
+if (!popupJs.includes("本页移出永不翻译") || !popupJs.includes("本页移出始终翻译")) {
+  fail("本页已在名单中时，弹窗按钮应改为移出");
+}
+if (!popupJs.includes("以永不翻译为准")) fail("弹窗应说明两边都有时以永不翻译为准");
 if (!popupJs.includes("已翻译") || !popupJs.includes("未翻译")) {
   fail("popup.js 未区分已翻译 / 未翻译");
 }
@@ -1015,6 +1078,10 @@ for (const needle of [
   "snapBallPosition",
   "normalizeStoredBallPosition",
   "DENY_THIS_ORIGIN",
+  "SET_PAGE_LIST",
+  "pagePolicy",
+  "immer-sites",
+  "本页加入永不翻译",
   "显示原文",
   "ballTipSeen",
   "知道了",
@@ -1024,6 +1091,11 @@ for (const needle of [
 if (!contentJs.includes('display", denied ? "none"')) {
   fail("永不翻译的来源应隐藏悬浮球");
 }
+const bootSrc = contentJs.slice(contentJs.indexOf("const seenAtBoot"));
+if (!bootSrc.includes("policy.blocked") || bootSrc.indexOf("policy.blocked") > bootSrc.indexOf("policy.auto")) {
+  fail("打开页面时须先判断永不翻译，再决定是否自动翻译");
+}
+if (!contentJs.includes("applyListPolicy")) fail("名单变化后应立刻套用永不翻译优先");
 if (!contentJs.includes("ballEnabled") || !contentJs.includes("pageHotkey")) {
   fail("content.js 未读取悬浮球开关或整页快捷键");
 }
