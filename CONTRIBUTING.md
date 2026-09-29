@@ -18,6 +18,22 @@ Workflow:
 
 Do not push unfinished work to `release-*` or `main`.
 
+
+## Commit messages
+
+Use short, structured **Chinese** subjects. State the key action only — no filler.
+
+Format: `<类型>: <一句话说明>`
+
+Types: `新增` · `修改` · `修复` · `文档` · `重构` · `构建`
+
+Examples:
+
+- `新增: MV3 扩展壳与假译对照渲染`
+- `修改: background 改为调用 vendor translate-core`
+- `修复: 同步脚本未覆盖 types.js`
+- `文档: 分支号段改为 MAJOR.FEATURE.FIX`
+
 ## Setup
 
 1. Clone this repository.
