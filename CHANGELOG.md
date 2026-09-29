@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0
+
+- Version alignment only. `extension/manifest.json` version is `1.0.0`. `packages/translate-core` package version is `1.0.0`. `TranslateRequest` / `TranslateResponse` and translate-core behavior are unchanged. No new engine, login, Pro, or banner. Knives already shipped in 0.4.2–0.8.0 stay as they are.
+- Root status lines name `dev-1.0.0`.
+- No functional change.
+
 ## 0.8.0
 
 - Shell version in `extension/manifest.json` is `0.8.0`. `extension/vendor/translate-core` is the copy of `packages/translate-core` `0.8.0` produced by `scripts/sync-translate-core.sh`. `TranslateRequest` / `TranslateResponse` are unchanged. An empty API key still uses the mock `⟦…⟧` engine. There is no new protocol family and no login or Pro.
@@ -43,9 +49,9 @@
 - A draggable floating ball starts on the lower right and shares the same translate/restore state as the popup. On release it snaps to the left or right edge and keeps the vertical position (`chrome.storage.local` `ballPosition`: `{ side, top }`). A small corner mark shows while the page is translated. The first time, one non-blocking card beside the ball explains it; dismiss with 知道了 or a click. It is not shown again and does not mention login or payment. On a deny-list origin the ball is hidden.
 - `extension/manifest.json` version is `0.4.0`. Root status lines name `dev-0.4.0`. Paragraph translate stays Option/Alt+T and whole-page translate is Option/Alt+A (not Command+T). macOS shows and stores **⌥T** / **⌥A**; Windows and Linux keep **Alt+T** / **Alt+A**. Deny/allow lists, style switches, and one `createPipelineEngine` wrapper stay. Empty API key still uses the mock `⟦…⟧` engine. `packages/translate-core` is package version `0.4.0`; its contract and `src` are unchanged, and `extension/vendor` is the synced copy of that `src`. Acceptance reads the Chinese README phrases 「加载已解压的扩展程序」 and 「钉到工具栏」.
 
-## 1.0.0（已撤回，不是当前版本）
+## 1.0.0（已撤回的过早标号）
 
-- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.8.0` on `dev-0.8.0`.
+- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. Latest published tag remains `v0.3.0`. The line then continued through `0.8.0` on `dev-0.8.0` before this alignment.
 
 ## 0.3.0
 
