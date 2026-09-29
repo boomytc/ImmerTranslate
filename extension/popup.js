@@ -1,7 +1,5 @@
 const $ = (id) => document.getElementById(id);
 
-const siteApi = globalThis.ImmerSites;
-
 /**
  * @param {number} tabId
  * @param {Record<string, unknown>} message
@@ -37,19 +35,27 @@ function storageGet(defaults) {
 }
 
 /**
- * @param {Record<string, unknown>} data
- */
-function storageSet(data) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(data, () => resolve());
-  });
-}
-
-/**
  * @param {string} text
  */
 function setHint(text) {
   $("hint").textContent = text || "";
+}
+
+/**
+ * Read-only engine / language line. Empty key stays on the mock label.
+ * @param {Record<string, unknown>} stored
+ */
+function paintEngine(stored) {
+  const key = String(stored.apiKey || "").trim();
+  const source = String(stored.sourceLang || "auto").trim() || "auto";
+  const target = String(stored.targetLang || "zh-CN").trim() || "zh-CN";
+  const langs = `${source} → ${target}`;
+  const provider = String(stored.provider || "openai").trim().toLowerCase();
+  const engine = provider === "anthropic" ? "Anthropic 兼容" : "OpenAI 兼容";
+  $("mock").hidden = false;
+  $("mock").textContent = key
+    ? `${engine} · ${langs}`
+    : `Mock 模式：未填写 API Key，译文为 ⟦原文⟧ · ${langs}`;
 }
 
 let busy = false;
@@ -66,28 +72,29 @@ function paint(view) {
     $("status").textContent = "此页面无法翻译";
     button.textContent = "翻译";
     button.disabled = true;
-    $("deny").disabled = true;
     return;
   }
   if (view.denied) {
     $("status").textContent = "本站永不翻译";
     button.textContent = "翻译";
     button.disabled = true;
-    $("deny").disabled = true;
     return;
   }
   pageActive = view.active;
   $("status").textContent = view.active ? "已翻译" : "未翻译";
   button.textContent = view.active ? "显示原文" : "翻译";
   button.disabled = busy;
-  $("deny").disabled = busy;
 }
 
 async function refresh() {
   const tab = await activeTab();
-  const stored = await storageGet({ apiKey: "" });
-  const mock = !String(stored.apiKey || "").trim();
-  $("mock").hidden = !mock;
+  const stored = await storageGet({
+    apiKey: "",
+    provider: "openai",
+    sourceLang: "auto",
+    targetLang: "zh-CN",
+  });
+  paintEngine(stored);
 
   const supported = Boolean(tab?.id) && /^https?:/i.test(tab.url || "");
   if (!supported) {
@@ -121,7 +128,6 @@ async function run(action) {
   if (busy) return;
   busy = true;
   $("toggle").disabled = true;
-  $("deny").disabled = true;
   try {
     await action();
   } catch (err) {
@@ -141,30 +147,6 @@ $("toggle").addEventListener("click", () => {
     if (!res?.ok) throw new Error(res?.error || "操作失败");
     if (res.denied) setHint("本站已设为永不翻译");
     else setHint("");
-  });
-});
-
-$("deny").addEventListener("click", () => {
-  run(async () => {
-    const tab = await activeTab();
-    if (!tab?.id || !/^https?:/i.test(tab.url || "")) {
-      setHint("此页面无法加入永不翻译");
-      return;
-    }
-    try {
-      const res = await send(tab.id, { type: "DENY_THIS_ORIGIN" });
-      if (!res?.ok) throw new Error(res?.error || "加入失败");
-      setHint(res.entry ? `已加入永不翻译：${res.entry}` : "已加入永不翻译");
-      return;
-    } catch (err) {
-      const entry = siteApi?.normalizeSiteEntry(tab.url || "") || "";
-      if (!entry) throw err;
-      const stored = await storageGet({ denyOrigins: [] });
-      const list = siteApi.normalizeSiteList(stored.denyOrigins);
-      if (!list.includes(entry)) list.push(entry);
-      await storageSet({ denyOrigins: list });
-      setHint(`已加入永不翻译：${entry}`);
-    }
   });
 });
 

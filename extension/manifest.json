@@ -24,5 +24,11 @@
       "css": ["content.css"],
       "run_at": "document_idle"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["glass.css"],
+      "matches": ["<all_urls>"]
+    }
   ]
 }

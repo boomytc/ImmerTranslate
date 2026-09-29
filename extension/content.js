@@ -387,7 +387,10 @@ function syncBall() {
     return;
   }
   ballButton.classList.toggle("is-on", active);
-  ballButton.textContent = active ? "原" : "译";
+  const mark = ballButton.querySelector(".mark");
+  if (mark) mark.textContent = active ? "原" : "译";
+  const badge = ballButton.querySelector(".badge");
+  if (badge) badge.hidden = !active;
   ballButton.setAttribute("aria-label", active ? "显示原文" : "翻译");
   ballButton.setAttribute("aria-pressed", active ? "true" : "false");
   maybeShowBallTip();
@@ -487,27 +490,43 @@ function mountBall() {
   host.style.setProperty("display", "block", "important");
   host.style.setProperty("overflow", "visible", "important");
   const shadow = host.attachShadow({ mode: "open" });
+  const glassUrl = chrome?.runtime?.getURL ? chrome.runtime.getURL("glass.css") : "glass.css";
   shadow.innerHTML = `
+    <link rel="stylesheet" href="${glassUrl}" />
     <style>
-      button {
-        all: initial;
+      #immer-ball {
+        appearance: none;
+        -webkit-appearance: none;
         box-sizing: border-box;
-        display: block;
+        display: grid;
+        place-items: center;
+        position: relative;
         width: 48px;
         height: 48px;
-        border-radius: 999px;
-        border: 2px solid #4f8cff;
-        background: #fff;
-        color: #1e3a8a;
-        font: 600 16px/44px system-ui, sans-serif;
-        text-align: center;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        margin: 0;
+        padding: 0;
+        color: var(--immer-glass-text, #1c2430);
+        font: 600 15px/1 system-ui, sans-serif;
         cursor: grab;
         user-select: none;
         touch-action: none;
       }
-      button.is-on { background: #4f8cff; color: #fff; }
-      button.is-dragging { cursor: grabbing; }
+      #immer-ball.is-on {
+        background: var(--immer-glass-fill-strong, rgba(255, 255, 255, 0.8));
+      }
+      #immer-ball.is-dragging { cursor: grabbing; }
+      .mark { pointer-events: none; }
+      .badge {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--immer-badge, #1f4e9a);
+        box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9);
+        pointer-events: none;
+      }
       .hint {
         position: absolute;
         left: 50%;
@@ -515,58 +534,69 @@ function mountBall() {
         transform: translateX(-50%);
         width: max-content;
         max-width: 196px;
-        padding: 6px 8px;
-        border-radius: 8px;
-        background: #0f172a;
-        color: #fff;
+        padding: var(--immer-glass-space, 8px);
         font: 12px/1.4 system-ui, sans-serif;
         text-align: center;
         pointer-events: none;
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
       }
       .hint.below { bottom: auto; top: 56px; }
       .tip {
         position: absolute;
         top: 0;
-        width: 188px;
-        padding: 8px 8px 6px;
-        border-radius: 10px;
-        background: #0f172a;
-        color: #fff;
+        box-sizing: border-box;
+        width: 200px;
+        padding: var(--immer-glass-gap, 12px);
         font: 12px/1.45 system-ui, sans-serif;
-        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
       }
       .tip.on-right { right: 56px; }
       .tip.on-left { left: 56px; }
       .tip.flip-up { top: auto; bottom: 0; }
       .tip p { margin: 0; }
       .tip button {
-        all: initial;
+        all: unset;
         display: inline-block;
-        margin-top: 6px;
-        color: #bfdbfe;
+        margin-top: var(--immer-glass-space, 8px);
+        color: var(--immer-cta-bg, #1f4e9a);
         font: 600 12px/1 system-ui, sans-serif;
         cursor: pointer;
       }
     </style>
-    <button id="immer-ball" type="button" aria-pressed="false">译</button>
-    <div class="hint" hidden></div>
-    <div class="tip" hidden>
+    <button id="immer-ball" class="immer-glass" type="button" aria-pressed="false">
+      <span class="mark">译</span>
+      <span class="badge" hidden></span>
+    </button>
+    <div class="hint immer-glass" hidden></div>
+    <div class="tip immer-glass" hidden>
       <p></p>
       <button type="button">知道了</button>
     </div>
   `;
   ballHost = host;
-  ballButton = shadow.querySelector("button");
+  ballButton = shadow.querySelector("#immer-ball");
   ballHint = shadow.querySelector(".hint");
   ballTip = shadow.querySelector(".tip");
   const tipText = ballTip?.querySelector("p");
   if (tipText) tipText.textContent = BALL_TIP_TEXT;
-  ballTip?.querySelector("button")?.addEventListener("click", (event) => {
+  const dismissTip = (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (ballTip) ballTip.hidden = true;
-  });
+  };
+  ballTip?.addEventListener("click", dismissTip);
+  ballTip?.querySelector("button")?.addEventListener("click", dismissTip);
+  const glassLink = shadow.querySelector('link[rel="stylesheet"]');
+  if (glassLink && !glassLink.sheet) {
+    host.style.setProperty("visibility", "hidden", "important");
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      host.style.removeProperty("visibility");
+    };
+    glassLink.addEventListener("load", reveal);
+    glassLink.addEventListener("error", reveal);
+    setTimeout(reveal, 600);
+  }
   placeBall(initial);
   document.documentElement.appendChild(host);
   bindBallDrag();
