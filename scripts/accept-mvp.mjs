@@ -39,10 +39,10 @@ ok("vendor 与 translate-core/src 一致");
 const corePkg = JSON.parse(
   readFileSync(join(root, "packages/translate-core/package.json"), "utf8")
 );
-if (corePkg.version !== "0.8.0") {
-  fail(`translate-core 版本应为 0.8.0，实际 ${corePkg.version}`);
+if (corePkg.version !== "1.0.0") {
+  fail(`translate-core 版本应为 1.0.0，实际 ${corePkg.version}`);
 }
-ok("translate-core 包版本 0.8.0，vendor 已与 src 对齐");
+ok("translate-core 包版本 1.0.0，vendor 已与 src 对齐");
 
 // 2) background imports vendor (not inline mock)
 const bg = readFileSync(join(root, "extension/background.js"), "utf8");
@@ -251,8 +251,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.8.0") {
-  fail(`manifest version 应为 0.8.0，实际 ${manifest.version}`);
+if (manifest.version !== "1.0.0") {
+  fail(`manifest version 应为 1.0.0，实际 ${manifest.version}`);
 }
 if (manifest.action?.default_popup !== "popup.html") {
   fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
@@ -917,8 +917,11 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.8.0") || !readme.includes("dev-0.8.0")) {
-  fail("README 未记录 0.8.0 / dev-0.8.0");
+if (!readme.includes("1.0.0") || !readme.includes("dev-1.0.0")) {
+  fail("README 未记录 1.0.0 / dev-1.0.0");
+}
+if (readme.includes("当前开发版本为 **0.8.0**") || readme.includes("当前开发线是 `dev-0.8.0`")) {
+  fail("README 仍把 0.8.0 写成当前版本");
 }
 if (readme.includes("当前开发版本为 **0.7.0**") || readme.includes("当前开发线是 `dev-0.7.0`")) {
   fail("README 仍把 0.7.0 写成当前版本");
@@ -937,9 +940,6 @@ if (readme.includes("当前开发版本为 **0.4.1**") || readme.includes("当�
 }
 if (readme.includes("当前开发版本为 **0.4.0**") || readme.includes("当前开发线是 `dev-0.4.0`")) {
   fail("README 仍把 0.4.0 写成当前版本");
-}
-if (readme.includes("当前开发版本为 **1.0.0**") || readme.includes("当前开发线是 `dev-1.0.0`")) {
-  fail("README 仍把 1.0.0 写成当前版本");
 }
 if (!readme.includes("捕获")) fail("README 未说明整页快捷键在捕获阶段处理");
 if (!readme.includes("denyOrigins")) fail("README 未记录 denyOrigins");
@@ -960,8 +960,14 @@ const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
 if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
   fail("README.en.md 未写明 Load unpacked 与 pin");
 }
-if (!readmeEn.includes("0.8.0") || !readmeEn.includes("dev-0.8.0")) {
-  fail("README.en.md 未记录 0.8.0 / dev-0.8.0");
+if (!readmeEn.includes("1.0.0") || !readmeEn.includes("dev-1.0.0")) {
+  fail("README.en.md 未记录 1.0.0 / dev-1.0.0");
+}
+if (readmeEn.includes("The current dev version is **0.8.0**") || readmeEn.includes("currently `dev-0.8.0`")) {
+  fail("README.en.md 仍把 0.8.0 写成当前版本");
+}
+if (readmeEn.includes("The current development line is `dev-0.8.0`")) {
+  fail("README.en.md 仍把 dev-0.8.0 写成当前开发线");
 }
 if (readmeEn.includes("The current dev version is **0.7.0**") || readmeEn.includes("currently `dev-0.7.0`")) {
   fail("README.en.md 仍把 0.7.0 写成当前版本");
@@ -984,6 +990,7 @@ if (readmeEn.includes("The current dev version is **0.4.1**") || readmeEn.includ
 if (readmeEn.includes("The current dev version is **0.4.0**") || readmeEn.includes("currently `dev-0.4.0`")) {
   fail("README.en.md 仍把 0.4.0 写成当前版本");
 }
+if (!changelog.includes("## 1.0.0\n")) fail("CHANGELOG 缺少 1.0.0");
 if (!changelog.includes("## 0.8.0")) fail("CHANGELOG 缺少 0.8.0");
 if (!changelog.includes("## 0.7.0")) fail("CHANGELOG 缺少 0.7.0");
 if (!changelog.includes("## 0.6.0")) fail("CHANGELOG 缺少 0.6.0");
