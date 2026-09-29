@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Version and docs alignment only: `extension/manifest.json` version is `0.1.1`
+- Root README notes the current dev version `0.1.1`
+- No functional change
+
 ## 0.1.0
 
 - Initial MVP shell: MV3 extension + translate-core mock engine
