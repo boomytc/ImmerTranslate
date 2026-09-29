@@ -57,6 +57,21 @@ html[data-immer-mode="translation-only"] [data-immer-translated="1"] {
   background-color: rgba(79, 140, 255, 0.08);
 }
 
+/* Host only. The card lives in a shadow root and does not take page clicks. */
+#immer-onboarding-host {
+  position: fixed !important;
+  z-index: 2147483645 !important;
+  top: 16px;
+  left: 16px;
+  width: min(320px, calc(100vw - 32px));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  overflow: visible;
+}
+
 /* Host only. The button lives in a shadow root so page CSS cannot restyle it. */
 #immer-ball-host {
   position: fixed !important;
