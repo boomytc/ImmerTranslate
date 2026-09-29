@@ -1,0 +1,38 @@
+/*
+ * Shared frosted-glass tokens for the toolbar popup and the in-page ball.
+ * One sheet, no Mac/Windows fork. Loaded on :root in the popup and on :host
+ * inside the ball shadow root.
+ */
+:root,
+:host {
+  --immer-glass-blur: 20px;
+  --immer-glass-radius: 14px;
+  --immer-glass-fill: rgba(255, 255, 255, 0.62);
+  --immer-glass-fill-strong: rgba(255, 255, 255, 0.8);
+  --immer-glass-border: rgba(255, 255, 255, 0.72);
+  --immer-glass-hairline: rgba(28, 36, 48, 0.12);
+  --immer-glass-shadow: 0 10px 28px rgba(28, 36, 48, 0.14);
+  --immer-glass-text: #1c2430;
+  --immer-glass-muted: #5c6b7a;
+  --immer-glass-pad: 16px;
+  --immer-glass-gap: 12px;
+  --immer-glass-space: 8px;
+  --immer-cta-bg: #1f4e9a;
+  --immer-cta-bg-pressed: #183e7a;
+  --immer-cta-fg: #ffffff;
+  --immer-badge: #1f4e9a;
+  color-scheme: light;
+}
+
+.immer-glass {
+  background: var(--immer-glass-fill);
+  border: 1px solid var(--immer-glass-border);
+  border-radius: var(--immer-glass-radius);
+  box-shadow:
+    var(--immer-glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 0 0 1px var(--immer-glass-hairline);
+  backdrop-filter: blur(var(--immer-glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--immer-glass-blur)) saturate(160%);
+  color: var(--immer-glass-text);
+}

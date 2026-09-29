@@ -25,11 +25,27 @@ let denyOrigins = [];
 let allowOrigins = [];
 let statusTimer = 0;
 
-function currentHotkey() {
-  return (
-    hotkeyApi.normalizeHotkey($("paragraphHotkey").value) ||
-    DEFAULTS.paragraphHotkey
-  );
+function canonicalHotkey(spec) {
+  return hotkeyApi.normalizeHotkey(spec) || hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY;
+}
+
+/**
+ * The field, reset button, and hints use formatHotkeyDisplay — the same
+ * function the popup wraps as 「翻译 (⌥T / Alt+T)」. Saving writes that
+ * display string. Matching still uses the canonical Alt/Ctrl/Meta form.
+ * @param {string} spec
+ */
+function paintHotkeyField(spec) {
+  const shown = hotkeyApi.formatHotkeyDisplay(canonicalHotkey(spec));
+  $("paragraphHotkey").value = shown;
+  $("resetHotkey").textContent = `恢复默认 ${hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY)}`;
+  $("hotkeyHint").textContent =
+    `默认 ${hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY)}。聚焦后按下新组合键（须含 ${hotkeyApi.modifierHint()}），再点保存。阅读页悬停主内容段落会标出当前段，按下该键只翻译这一段；译文节点样式与整页对照相同。已译过的段不会重复插入。`;
+  $("hotkeyNotice").textContent = `段落快捷键存在本机设置里，默认 ${hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY)}。`;
+}
+
+function storedHotkey(spec) {
+  return hotkeyApi.formatHotkeyDisplay(canonicalHotkey(spec));
 }
 
 function normalizeProvider(value) {
@@ -241,8 +257,7 @@ chrome.storage.local.get(DEFAULTS, (data) => {
   $("apiKey").value = data.apiKey || "";
   $("sourceLang").value = data.sourceLang || DEFAULTS.sourceLang;
   $("targetLang").value = data.targetLang || DEFAULTS.targetLang;
-  $("paragraphHotkey").value =
-    hotkeyApi.normalizeHotkey(data.paragraphHotkey) || DEFAULTS.paragraphHotkey;
+  paintHotkeyField(data.paragraphHotkey || DEFAULTS.paragraphHotkey);
   denyOrigins = siteApi.normalizeSiteList(data.denyOrigins);
   allowOrigins = siteApi.normalizeSiteList(data.allowOrigins);
   $("translationFontSize").value = normalizeFontSize(data.translationFontSize);
@@ -256,11 +271,16 @@ $("paragraphHotkey").addEventListener("keydown", (event) => {
   event.stopPropagation();
   const next = hotkeyApi.formatHotkeyEvent(event);
   if (!next) return;
-  $("paragraphHotkey").value = next;
+  paintHotkeyField(next);
 });
 
 $("resetHotkey").addEventListener("click", () => {
-  $("paragraphHotkey").value = DEFAULTS.paragraphHotkey;
+  paintHotkeyField(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY);
+});
+
+paintHotkeyField(DEFAULTS.paragraphHotkey);
+hotkeyApi.detectPlatform().then(() => {
+  paintHotkeyField($("paragraphHotkey").value || DEFAULTS.paragraphHotkey);
 });
 
 $("addDeny").addEventListener("click", () => {
@@ -313,7 +333,7 @@ $("save").addEventListener("click", () => {
       apiKey: $("apiKey").value.trim(),
       sourceLang: $("sourceLang").value,
       targetLang: $("targetLang").value,
-      paragraphHotkey: currentHotkey(),
+      paragraphHotkey: storedHotkey($("paragraphHotkey").value),
       ...listSnapshot(),
       ...styleSnapshot(),
     },

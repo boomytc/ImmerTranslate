@@ -36,6 +36,13 @@ if (diff.status !== 0) {
   fail(`vendor 与 packages/translate-core/src 不一致\n${diff.stdout}${diff.stderr}`);
 }
 ok("vendor 与 translate-core/src 一致");
+const corePkg = JSON.parse(
+  readFileSync(join(root, "packages/translate-core/package.json"), "utf8")
+);
+if (corePkg.version !== "0.4.0") {
+  fail(`translate-core 版本应为 0.4.0，实际 ${corePkg.version}`);
+}
+ok("translate-core 包版本 0.4.0，vendor 已与 src 对齐");
 
 // 2) background imports vendor (not inline mock)
 const bg = readFileSync(join(root, "extension/background.js"), "utf8");
@@ -213,8 +220,14 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "1.0.0") {
-  fail(`manifest version 应为 1.0.0，实际 ${manifest.version}`);
+if (manifest.version !== "0.4.0") {
+  fail(`manifest version 应为 0.4.0，实际 ${manifest.version}`);
+}
+if (manifest.action?.default_popup !== "popup.html") {
+  fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
+}
+if (bg.includes("chrome.action.onClicked") || bg.includes("action.onClicked")) {
+  fail("已有 default_popup 时 background 不应再监听 action.onClicked");
 }
 if (manifest.manifest_version !== 3) fail("manifest_version 必须为 3");
 if (!manifest.background?.service_worker) fail("缺少 service_worker");
@@ -246,11 +259,17 @@ for (const re of coercive) {
 }
 ok("设置页可填本地 key，无登录/逼付费文案");
 
-// 5b) hover paragraph + configurable hotkey (default Alt+T), single TRANSLATE_BATCH
+// 5b) hover paragraph + configurable hotkey.
+// Canonical chord stays Alt+T (Option on macOS). UI shows ⌥T on macOS and Alt+T on Windows/Linux.
 const DEFAULT_HOTKEY = "Alt+T";
+const DEFAULT_PAGE_HOTKEY = "Alt+A";
 if (!bg.includes('paragraphHotkey: "Alt+T"')) {
-  fail("background.js 未把段落快捷键默认设为 Alt+T");
+  fail("background.js 未把段落快捷键的规范默认设为 Alt+T");
 }
+if (!bg.includes("getPlatformInfo")) {
+  fail("service worker 未用 chrome.runtime.getPlatformInfo 识别平台");
+}
+if (!bg.includes("⌥T")) fail("macOS 未把段落默认存成 ⌥T");
 if (!bg.includes("paragraphHotkey")) fail("background.js 未保存 paragraphHotkey");
 const hotkeySandbox = {};
 createContext(hotkeySandbox);
@@ -258,9 +277,15 @@ runInContext(readFileSync(join(root, "extension/hotkey.js"), "utf8"), hotkeySand
 const hotkeyApi = hotkeySandbox.ImmerHotkey;
 if (!hotkeyApi) fail("hotkey.js 未挂上 ImmerHotkey");
 if (hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY !== DEFAULT_HOTKEY) {
-  fail(`快捷键默认值应为 ${DEFAULT_HOTKEY}`);
+  fail(`段落快捷键规范默认值应为 ${DEFAULT_HOTKEY}`);
 }
+if (hotkeyApi.DEFAULT_PAGE_HOTKEY !== DEFAULT_PAGE_HOTKEY) {
+  fail(`整页快捷键规范默认值应为 ${DEFAULT_PAGE_HOTKEY}`);
+}
+if (hotkeyApi.DEFAULT_PAGE_HOTKEY === "Meta+T") fail("整页快捷键不能默认 Command+T");
 if (hotkeyApi.normalizeHotkey("alt+t") !== DEFAULT_HOTKEY) fail("normalize alt+t");
+if (hotkeyApi.normalizeHotkey("⌥T") !== DEFAULT_HOTKEY) fail("⌥T 应规范为 Alt+T");
+if (hotkeyApi.normalizeHotkey("⌥A") !== DEFAULT_PAGE_HOTKEY) fail("⌥A 应规范为 Alt+A");
 if (hotkeyApi.normalizeHotkey("T") !== "") fail("无修饰键的快捷键必须拒绝");
 if (hotkeyApi.normalizeHotkey("Shift+T") !== "") fail("仅 Shift 的快捷键必须拒绝");
 if (hotkeyApi.normalizeHotkey("ctrl+shift+k") !== "Ctrl+Shift+K") {
@@ -268,17 +293,68 @@ if (hotkeyApi.normalizeHotkey("ctrl+shift+k") !== "Ctrl+Shift+K") {
 }
 const altT = { altKey: true, ctrlKey: false, shiftKey: false, metaKey: false, code: "KeyT", key: "t" };
 if (!hotkeyApi.eventMatchesHotkey(altT, DEFAULT_HOTKEY)) fail("Alt+T 未匹配 KeyT");
+if (!hotkeyApi.eventMatchesHotkey(altT, "⌥T")) fail("存储的 ⌥T 应匹配 Option+T");
 const macOptionT = { altKey: true, ctrlKey: false, shiftKey: false, metaKey: false, code: "KeyT", key: "†" };
 if (!hotkeyApi.eventMatchesHotkey(macOptionT, DEFAULT_HOTKEY)) {
   fail("macOS Option+T 应仍匹配 Alt+T");
 }
+const macOptionA = { altKey: true, ctrlKey: false, shiftKey: false, metaKey: false, code: "KeyA", key: "å" };
+if (!hotkeyApi.eventMatchesHotkey(macOptionA, "⌥A")) fail("macOS Option+A 应匹配整页快捷键");
 if (hotkeyApi.eventMatchesHotkey({ ...altT, altKey: false, key: "t", code: "KeyT" }, DEFAULT_HOTKEY)) {
   fail("单独 T 不应触发段落翻译");
 }
 if (hotkeyApi.formatHotkeyEvent(macOptionT) !== DEFAULT_HOTKEY) {
-  fail("录制 Option+T 应得到 Alt+T");
+  fail("录制 Option+T 的规范值应为 Alt+T");
 }
-ok("段落快捷键默认 Alt+T，修饰键规则可测");
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_HOTKEY, "mac") !== "⌥T") fail("macOS 应显示 ⌥T");
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_HOTKEY, "mac").includes("Alt")) {
+  fail("macOS 段落默认不应显示 Alt");
+}
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_HOTKEY, "windows") !== "Alt+T") fail("Windows 应显示 Alt+T");
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_HOTKEY, "linux") !== "Alt+T") fail("Linux 应显示 Alt+T");
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "mac") !== "⌥A") fail("macOS 整页应显示 ⌥A");
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "windows") !== "Alt+A") {
+  fail("Windows 整页应显示 Alt+A");
+}
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "linux") !== "Alt+A") {
+  fail("Linux 整页应显示 Alt+A");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_PAGE_HOTKEY, "mac") !== "翻译 (⌥A)") {
+  fail("macOS 弹窗文案应为「翻译 (⌥A)」");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_PAGE_HOTKEY, "windows") !== "翻译 (Alt+A)") {
+  fail("Windows 弹窗文案应为「翻译 (Alt+A)」");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_PAGE_HOTKEY, "linux") !== "翻译 (Alt+A)") {
+  fail("Linux 弹窗文案应为「翻译 (Alt+A)」");
+}
+if (hotkeyApi.formatActionLabel("翻译", DEFAULT_HOTKEY, "mac") !== "翻译 (⌥T)") {
+  fail("macOS 段落文案应为「翻译 (⌥T)」");
+}
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "mac") === "⌘T") {
+  fail("整页快捷键不能显示成 ⌘T");
+}
+if (hotkeyApi.formatHotkeyDisplay("Meta+K", "mac") !== "⌘K") fail("macOS 应将 Meta 显示为 ⌘");
+if (hotkeyApi.formatHotkeyDisplay("Meta+K", "windows") !== "Win+K") fail("Windows 应将 Meta 显示为 Win");
+if (hotkeyApi.platformFromUserAgentData("macOS") !== "mac") fail("userAgentData macOS");
+if (hotkeyApi.platformFromUserAgentData("Windows") !== "windows") fail("userAgentData Windows");
+if (hotkeyApi.platformFromNavigatorPlatform("MacIntel") !== "mac") fail("navigator.platform MacIntel");
+if (hotkeyApi.platformFromNavigatorPlatform("Win32") !== "windows") fail("navigator.platform Win32");
+if (hotkeyApi.platformFromChromeOs("mac") !== "mac") fail("getPlatformInfo mac");
+if (hotkeyApi.platformFromChromeOs("win") !== "windows") fail("getPlatformInfo win");
+if (hotkeyApi.platformFromChromeOs("linux") !== "linux") fail("getPlatformInfo linux");
+if (hotkeyApi.platformFromChromeOs("cros") !== "linux") fail("getPlatformInfo cros");
+const hotkeySrc = readFileSync(join(root, "extension/hotkey.js"), "utf8");
+if (!hotkeySrc.includes("userAgentData") || !hotkeySrc.includes("navigator.platform")) {
+  fail("hotkey.js 未用 userAgentData / navigator.platform 识别平台");
+}
+if (!hotkeySrc.includes("getPlatformInfo")) {
+  fail("扩展页面未回退到 chrome.runtime.getPlatformInfo");
+}
+if (!hotkeySrc.includes("function formatActionLabel") || !hotkeySrc.includes("formatHotkeyDisplay(spec, platform)")) {
+  fail("弹窗括号与设置页未共用 formatHotkeyDisplay");
+}
+ok("段落快捷键按平台显示，修饰键规则可测");
 
 const contentJs = readFileSync(join(root, "extension/content.js"), "utf8");
 for (const needle of [
@@ -305,10 +381,19 @@ if (contentScripts[0] !== "hotkey.js" || !contentScripts.includes("content.js"))
 if (!optionsHtml.includes('id="paragraphHotkey"') || !optionsHtml.includes('id="resetHotkey"')) {
   fail("设置页缺少段落快捷键字段");
 }
-if (!optionsHtml.includes("默认 Alt+T")) fail("设置页未写明默认 Alt+T");
+if (!optionsHtml.includes('id="hotkeyHint"')) fail("设置页缺少快捷键说明");
+if (optionsHtml.includes("默认 Alt+T") || optionsHtml.includes("恢复默认 Alt+T")) {
+  fail("设置页把 Alt+T 写死成各平台都看到的默认文案");
+}
 if (!optionsHtml.includes('src="hotkey.js"')) fail("设置页未加载 hotkey.js");
 if (!optionsJs.includes("paragraphHotkey") || !optionsJs.includes('paragraphHotkey: "Alt+T"')) {
-  fail("options.js 未把 paragraphHotkey 写入 chrome.storage.local 默认值");
+  fail("options.js 未把 paragraphHotkey 的规范默认写入 chrome.storage.local");
+}
+if (!optionsJs.includes("formatHotkeyDisplay") || !optionsJs.includes("detectPlatform")) {
+  fail("设置页未按平台格式化段落快捷键");
+}
+if (!contentJs.includes("DEFAULT_PAGE_HOTKEY") && !contentJs.includes("PAGE_HOTKEY")) {
+  fail("content.js 未绑定整页快捷键");
 }
 ok("悬停段落单段翻译走 TRANSLATE_BATCH，快捷键可在设置页更改");
 
@@ -416,17 +501,218 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("1.0.0") || !readme.includes("dev-1.0.0")) {
-  fail("README 未记录 1.0.0 / dev-1.0.0");
+if (!readme.includes("0.4.0") || !readme.includes("dev-0.4.0")) {
+  fail("README 未记录 0.4.0 / dev-0.4.0");
+}
+if (readme.includes("当前开发版本为 **1.0.0**") || readme.includes("当前开发线是 `dev-1.0.0`")) {
+  fail("README 仍把 1.0.0 写成当前版本");
 }
 if (!readme.includes("denyOrigins")) fail("README 未记录 denyOrigins");
-if (!readme.includes("本机验收清单")) fail("README 缺少本机验收清单");
-if (!readme.includes("Load unpacked") || !readme.toLowerCase().includes("pin")) {
-  fail("README 未写明本机 unpacked 加载与固定工具栏");
+if (!readme.includes("⌥T") || !readme.includes("Alt+T")) {
+  fail("README 应同时写明 macOS ⌥T 与 Windows/Linux 的 Alt+T");
 }
-if (!changelog.includes("## 1.0.0")) fail("CHANGELOG 缺少 1.0.0");
+if (!readme.includes("⌥A") || !readme.includes("Alt+A")) {
+  fail("README 应同时写明 macOS ⌥A 与 Windows/Linux 的 Alt+A");
+}
+if (!readme.includes("翻译 (⌥A)") || !readme.includes("翻译 (Alt+A)")) {
+  fail("README 应分别写明 macOS「翻译 (⌥A)」与 Windows/Linux「翻译 (Alt+A)」");
+}
+if (!readme.includes("本机验收清单")) fail("README 缺少本机验收清单");
+if (!readme.includes("加载已解压的扩展程序") || !readme.includes("钉到工具栏")) {
+  fail("README 未用中文写明加载已解压的扩展程序，以及把图标钉到工具栏");
+}
+const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
+if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
+  fail("README.en.md 未写明 Load unpacked 与 pin");
+}
+if (!readmeEn.includes("0.4.0") || !readmeEn.includes("dev-0.4.0")) {
+  fail("README.en.md 未记录 0.4.0 / dev-0.4.0");
+}
+if (!changelog.includes("## 0.4.0")) fail("CHANGELOG 缺少 0.4.0");
 if (!changelog.includes("## 0.3.0")) fail("CHANGELOG 缺少 0.3.0");
+if (!changelog.includes("已撤回")) fail("CHANGELOG 未说明过早的 1.0.0 已撤回");
 ok("黑名单默认放行，样式开关可在已打开页面生效");
+
+// 5d) toolbar popup + draggable ball (0.4.0). Same on/off state, empty key stays mock.
+const popupHtml = readFileSync(join(root, "extension/popup.html"), "utf8");
+const popupJs = readFileSync(join(root, "extension/popup.js"), "utf8");
+for (const id of ["status", "mock", "toggle", "options"]) {
+  if (!new RegExp(`id="${id}"`).test(popupHtml)) fail(`弹窗缺少 ${id}`);
+}
+if (!popupHtml.includes(">翻译<")) fail("弹窗主按钮默认应为「翻译」");
+if (!popupHtml.includes('src="hotkey.js"')) fail("弹窗未加载 hotkey.js");
+if (!popupJs.includes("显示原文") || !popupJs.includes('"翻译"')) {
+  fail("弹窗主按钮应在「翻译」和「显示原文」之间切换");
+}
+if (!popupJs.includes("formatActionLabel") || !popupJs.includes("DEFAULT_PAGE_HOTKEY")) {
+  fail("弹窗主按钮未用与设置页相同的快捷键格式");
+}
+if (!optionsJs.includes("formatHotkeyDisplay")) {
+  fail("设置页未使用共享的 formatHotkeyDisplay");
+}
+if (popupHtml.includes("翻译 (Alt+A)") || popupJs.includes("翻译 (Alt+A)") || optionsHtml.includes("翻译 (Alt+A)")) {
+  fail("界面把「翻译 (Alt+A)」写死成所有平台的文案");
+}
+if (/默认 Alt\+|恢复默认 Alt\+|翻译 \(Alt\+/.test(optionsHtml + popupHtml)) {
+  fail("界面文案把 Alt+ 写死成所有平台");
+}
+if (popupHtml.includes('id="restore"') || popupHtml.includes("翻译本页")) {
+  fail("弹窗主操作应是一个双态按钮，而不是分开的翻译/还原");
+}
+if (!popupHtml.includes("打开设置")) fail("弹窗缺少打开设置");
+if (popupHtml.includes("永不翻译本站") || popupHtml.includes('id="deny"')) {
+  fail("弹窗骨架不应再放永不翻译或其它站点操作");
+}
+if (!popupHtml.includes("Mock 模式") || !popupHtml.includes("⟦原文⟧")) {
+  fail("弹窗未标明空 key 的 mock 模式");
+}
+for (const id of ["baseUrl", "model", "apiKey", "provider", "avatar"]) {
+  if (new RegExp(`id="${id}"`).test(popupHtml)) fail(`弹窗不应包含完整设置字段 ${id}`);
+}
+for (const banned of ["登录", "升级", "会员", "Pro", "promo"]) {
+  if (popupHtml.includes(banned)) fail(`弹窗出现不应展示的骨架: ${banned}`);
+}
+for (const re of coercive) {
+  if (re.test(popupHtml)) fail(`弹窗出现逼付费/登录文案: ${re}`);
+}
+for (const needle of [
+  "GET_PAGE_STATE",
+  "TRANSLATE_PAGE",
+  "RESTORE_PAGE",
+  "openOptionsPage",
+  "apiKey",
+  "chrome.storage.local",
+]) {
+  if (!popupJs.includes(needle)) fail(`popup.js 缺少 ${needle}`);
+}
+if (popupJs.includes("DENY_THIS_ORIGIN")) {
+  fail("弹窗不应再写入永不翻译名单");
+}
+if (!popupJs.includes("已翻译") || !popupJs.includes("未翻译")) {
+  fail("popup.js 未区分已翻译 / 未翻译");
+}
+const glassCss = readFileSync(join(root, "extension/glass.css"), "utf8");
+const popupCss = readFileSync(join(root, "extension/popup.css"), "utf8");
+const blurDecl = glassCss.match(/--immer-glass-blur:\s*(\d+)px/);
+const radiusDecl = glassCss.match(/--immer-glass-radius:\s*(\d+)px/);
+if (!blurDecl || Number(blurDecl[1]) < 16 || Number(blurDecl[1]) > 24) {
+  fail("毛玻璃模糊应在 16–24px");
+}
+if (!radiusDecl || Number(radiusDecl[1]) < 12 || Number(radiusDecl[1]) > 16) {
+  fail("毛玻璃圆角应在 12–16px");
+}
+for (const token of [
+  "--immer-glass-fill",
+  "--immer-glass-border",
+  "--immer-glass-shadow",
+  "--immer-glass-pad",
+  "--immer-glass-gap",
+  "--immer-cta-bg",
+  "--immer-badge",
+  "backdrop-filter:",
+  "-webkit-backdrop-filter:",
+]) {
+  if (!glassCss.includes(token)) fail(`glass.css 缺少 ${token}`);
+}
+if (!popupHtml.includes('href="glass.css"') || !popupHtml.includes("immer-glass")) {
+  fail("弹窗未使用共享毛玻璃样式");
+}
+if (!popupCss.includes("var(--immer-cta-bg)") || !popupCss.includes("var(--immer-glass-pad)")) {
+  fail("弹窗主按钮或间距未走共享令牌");
+}
+if (/#(?:ff69b4|ec4899|ff5c8a|f43f7a|ff4d8d|ff6b9d)/i.test(glassCss + popupCss)) {
+  fail("主按钮不应使用沉浸式翻译的粉色");
+}
+if (/navigator\.platform|MacIntel|Win32|@supports\s*\(\s*-moz/.test(glassCss + popupCss + contentJs)) {
+  fail("毛玻璃样式不应按操作系统分叉");
+}
+if (!contentJs.includes("glass.css") || !contentJs.includes("immer-glass") || !contentJs.includes("badge")) {
+  fail("悬浮球未使用共享毛玻璃样式或译文标记");
+}
+const glassResource = manifest.web_accessible_resources?.some((entry) =>
+  (entry.resources || []).includes("glass.css")
+);
+if (!glassResource) fail("悬浮球阴影树需要把 glass.css 暴露给页面");
+ok("工具栏弹窗可翻译、还原、打开设置，并标明 mock");
+
+for (const needle of [
+  "GET_PAGE_STATE",
+  "TRANSLATE_PAGE",
+  "RESTORE_PAGE",
+  "TOGGLE_TRANSLATE",
+  "ballPosition",
+  "immer-ball-host",
+  "ImmerBall",
+  "snapBallPosition",
+  "normalizeStoredBallPosition",
+  "DENY_THIS_ORIGIN",
+  "显示原文",
+  "ballTipSeen",
+  "知道了",
+]) {
+  if (!contentJs.includes(needle)) fail(`content.js 缺少 ${needle}`);
+}
+if (!contentJs.includes('display", denied ? "none"')) {
+  fail("永不翻译的来源应隐藏悬浮球");
+}
+if (/登录|升级|会员|Subscribe|Upgrade to Pro/i.test(contentJs)) {
+  fail("悬浮球提示不应引导登录或付费");
+}
+if (!contentCss.includes("#immer-ball-host")) fail("content.css 缺少悬浮球宿主");
+const ballIdx = contentScripts.indexOf("ballpos.js");
+if (ballIdx < 0 || ballIdx > contentIdx) {
+  fail(`content_scripts 须在 content.js 之前加载 ballpos.js: ${contentScripts.join(",")}`);
+}
+const ballSandbox = {};
+createContext(ballSandbox);
+runInContext(readFileSync(join(root, "extension/ballpos.js"), "utf8"), ballSandbox);
+const ballApi = ballSandbox.ImmerBall;
+if (!ballApi) fail("ballpos.js 未挂上 ImmerBall");
+const ballVp = { width: 1200, height: 800 };
+const ballDefault = ballApi.defaultBallPosition(ballVp);
+const rightEdge = 1200 - ballApi.BALL_SIZE - ballApi.EDGE_MARGIN;
+if (ballDefault.side !== "right" || ballDefault.left !== rightEdge) {
+  fail(`悬浮球默认应贴右缘: ${JSON.stringify(ballDefault)}`);
+}
+if (ballDefault.top !== 800 - ballApi.BALL_SIZE - ballApi.EDGE_MARGIN) {
+  fail(`悬浮球默认竖直位置应靠下: ${JSON.stringify(ballDefault)}`);
+}
+const snapLeft = ballApi.snapBallPosition({ left: 200, top: 400 }, ballVp);
+if (snapLeft.side !== "left" || snapLeft.left !== ballApi.EDGE_MARGIN || snapLeft.top !== 400) {
+  fail(`松手应贴左缘并保留竖直位置: ${JSON.stringify(snapLeft)}`);
+}
+const snapRight = ballApi.snapBallPosition({ left: 700, top: 220 }, ballVp);
+if (snapRight.side !== "right" || snapRight.left !== rightEdge || snapRight.top !== 220) {
+  fail(`松手应贴右缘并保留竖直位置: ${JSON.stringify(snapRight)}`);
+}
+const keepVertical = ballApi.snapBallPosition({ left: 900, top: 20 }, ballVp);
+if (keepVertical.side !== "right" || keepVertical.top !== 20) {
+  fail(`贴边时不应改掉竖直位置: ${JSON.stringify(keepVertical)}`);
+}
+const clamped = ballApi.clampBallPosition({ left: -100, top: 99999 }, ballVp);
+if (clamped.left !== ballApi.EDGE_MARGIN || clamped.top !== ballDefault.top) {
+  fail(`拖动中的位置应夹在视口内: ${JSON.stringify(clamped)}`);
+}
+if (ballApi.normalizeStoredBallPosition(null, ballVp) !== null) fail("空的 ballPosition 应忽略");
+if (ballApi.normalizeStoredBallPosition({ side: "right", top: "nope" }, ballVp) !== null) {
+  fail("非法 ballPosition 应忽略");
+}
+const stored = ballApi.normalizeStoredBallPosition({ side: "left", top: 400 }, ballVp);
+if (!stored || stored.side !== "left" || stored.left !== ballApi.EDGE_MARGIN || stored.top !== 400) {
+  fail(`应记住左右边和竖直位置: ${JSON.stringify(stored)}`);
+}
+const storedOff = ballApi.normalizeStoredBallPosition({ side: "right", top: -20 }, ballVp);
+if (!storedOff || storedOff.side !== "right" || storedOff.left !== rightEdge || storedOff.top !== ballApi.EDGE_MARGIN) {
+  fail(`越界竖直位置应夹回视口: ${JSON.stringify(storedOff)}`);
+}
+const legacy = ballApi.normalizeStoredBallPosition({ left: 5000, top: 180 }, ballVp);
+if (!legacy || legacy.side !== "right" || legacy.top !== 180) {
+  fail(`旧的 left/top 应折成贴边位置: ${JSON.stringify(legacy)}`);
+}
+if (!readme.includes("悬浮球") || !readme.includes("弹窗") || !readme.includes("显示原文")) {
+  fail("README 未记录弹窗、双态按钮或悬浮球");
+}
+ok("悬浮球默认在右侧，松手贴左右边缘，并记住竖直位置");
 
 // 6) no absolute local paths / obvious secrets in tracked tree
 const tracked = run("git", ["ls-files"]);
@@ -572,5 +858,5 @@ for (const file of walk(join(root, "extension"))) {
 ok("extension/vendor 无 config.local.yaml 与密钥");
 
 console.log(
-  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 文章页点图标应出现 ⟦原文⟧；悬停一段按 Alt+T 只译该段；永不翻译名单内的来源点图标不插入译文；改字号/对比度/仅译文后已打开页面立即变样"
+  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 未翻译时主按钮为「翻译 (⌥A)」或「翻译 (Alt+A)」，已翻译为「显示原文」；空 key 标明 Mock；右侧悬浮球拖完贴边，刷新后竖直位置还在；首次出现一次提示；永不翻译的来源不显示球；悬停一段按 ⌥T（macOS）或 Alt+T（Windows/Linux）只译该段"
 );

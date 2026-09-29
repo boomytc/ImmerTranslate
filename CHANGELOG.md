@@ -1,10 +1,15 @@
 # Changelog
 
-## 1.0.0
+## 0.4.0
 
-- Seal of the shipped MVP (P0–P2 already in tree). `extension/manifest.json` version is `1.0.0`. Root status lines name `dev-1.0.0`.
-- Documents local unpacked load, pinning the toolbar icon, and a 本机验收清单: empty-key icon toggle shows bilingual `⟦⟧` then restores; hover + Alt+T translates one segment; options can change the hotkey; a deny-list origin blocks translate; style switches apply live without reload; an optional real DeepSeek key; no login or upgrade wall.
-- No new features. `packages/translate-core` is already `1.0.0` and is not modified here. Empty API key still uses the mock `⟦…⟧` engine. The service worker still wraps the selected engine once with `createPipelineEngine`.
+- Toolbar action opens `default_popup` (`extension/popup.html`) instead of a silent toggle. The skeleton is a status line, a dual-state primary button (**翻译** / **显示原文**), and **打开设置**. The status line names Mock mode when the API key is empty (`⟦原文⟧`) or the current engine plus languages when a key is set. The popup does not show login, Pro, a promo banner, a shortcut grid, or site-list edits. Never-translate stays on the options page; a denied origin still disables the button and reports that state.
+- The popup and the floating ball share one frosted-glass sheet (`extension/glass.css`): blur, radius, translucent fill, hairline, and shadow. There is no per-OS stylesheet. The primary button is a solid emphasis control and does not use the immersive-translate pink.
+- A draggable floating ball starts on the lower right and shares the same translate/restore state as the popup. On release it snaps to the left or right edge and keeps the vertical position (`chrome.storage.local` `ballPosition`: `{ side, top }`). A small corner mark shows while the page is translated. The first time, one non-blocking card beside the ball explains it; dismiss with 知道了 or a click. It is not shown again and does not mention login or payment. On a deny-list origin the ball is hidden.
+- `extension/manifest.json` version is `0.4.0`. Root status lines name `dev-0.4.0`. Paragraph translate stays Option/Alt+T and whole-page translate is Option/Alt+A (not Command+T). macOS shows and stores **⌥T** / **⌥A**; Windows and Linux keep **Alt+T** / **Alt+A**. Deny/allow lists, style switches, and one `createPipelineEngine` wrapper stay. Empty API key still uses the mock `⟦…⟧` engine. `packages/translate-core` is package version `0.4.0`; its contract and `src` are unchanged, and `extension/vendor` is the synced copy of that `src`. Acceptance reads the Chinese README phrases 「加载已解压的扩展程序」 and 「钉到工具栏」.
+
+## 1.0.0（已撤回，不是当前版本）
+
+- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.4.0` on `dev-0.4.0`.
 
 ## 0.3.0
 
