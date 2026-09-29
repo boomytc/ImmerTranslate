@@ -213,6 +213,9 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
+if (manifest.version !== "0.3.0") {
+  fail(`manifest version 应为 0.3.0，实际 ${manifest.version}`);
+}
 if (manifest.manifest_version !== 3) fail("manifest_version 必须为 3");
 if (!manifest.background?.service_worker) fail("缺少 service_worker");
 if (!manifest.content_scripts?.length) fail("缺少 content_scripts");
@@ -308,6 +311,116 @@ if (!optionsJs.includes("paragraphHotkey") || !optionsJs.includes('paragraphHotk
   fail("options.js 未把 paragraphHotkey 写入 chrome.storage.local 默认值");
 }
 ok("悬停段落单段翻译走 TRANSLATE_BATCH，快捷键可在设置页更改");
+
+// 5c) per-origin deny/allow + reading style (0.3.0). Default deny list stays empty.
+for (const needle of [
+  "denyOrigins: []",
+  "allowOrigins: []",
+  'translationFontSize: "md"',
+  'translationContrast: "normal"',
+  'displayMode: "bilingual"',
+]) {
+  if (!bg.includes(needle)) fail(`background.js 缺少默认值 ${needle}`);
+}
+if (!optionsJs.includes("denyOrigins") || !optionsJs.includes("allowOrigins")) {
+  fail("options.js 未把站点名单写入 chrome.storage.local");
+}
+if (!optionsJs.includes('translationFontSize: "md"') || !optionsJs.includes('displayMode: "bilingual"')) {
+  fail("options.js 未保存默认阅读样式");
+}
+for (const id of [
+  "siteEntry",
+  "addDeny",
+  "addAllow",
+  "addCurrentDeny",
+  "denyList",
+  "allowList",
+  "translationFontSize",
+  "translationContrast",
+  "displayMode",
+]) {
+  if (!new RegExp(`id="${id}"`).test(optionsHtml)) fail(`设置页缺少 ${id}`);
+}
+if (!optionsHtml.includes("永不翻译") || !optionsHtml.includes("仅译文")) {
+  fail("设置页未说明永不翻译或仅译文");
+}
+if (!optionsHtml.includes('src="sitelist.js"')) fail("设置页未加载 sitelist.js");
+const siteSandbox = { URL };
+createContext(siteSandbox);
+runInContext(readFileSync(join(root, "extension/sitelist.js"), "utf8"), siteSandbox);
+const siteApi = siteSandbox.ImmerSites;
+if (!siteApi) fail("sitelist.js 未挂上 ImmerSites");
+if (siteApi.normalizeSiteEntry("Example.COM") !== "example.com") fail("裸域名应规范为 hostname");
+if (siteApi.normalizeSiteEntry("https://Example.COM/a/b") !== "https://example.com") {
+  fail("完整网址应规范为 origin");
+}
+if (siteApi.normalizeSiteEntry("http://example.com:8080/x") !== "http://example.com:8080") {
+  fail("非默认端口应保留");
+}
+if (siteApi.normalizeSiteEntry("javascript:alert(1)") !== "") fail("非 http(s) 必须拒绝");
+if (siteApi.normalizeSiteEntry("") !== "") fail("空来源必须拒绝");
+const page = { origin: "https://example.com", hostname: "example.com" };
+if (siteApi.siteListMatches([], page)) fail("空名单不应命中（默认所有站点可译）");
+if (!siteApi.siteListMatches(["example.com"], page)) fail("裸域名应匹配 https 页");
+if (!siteApi.siteListMatches(["example.com"], { origin: "http://example.com", hostname: "example.com" })) {
+  fail("裸域名应匹配 http 页");
+}
+if (siteApi.siteListMatches(["https://example.com"], { origin: "http://example.com", hostname: "example.com" })) {
+  fail("指定 https origin 不应匹配 http 页");
+}
+if (!siteApi.siteListMatches(["https://example.com"], page)) fail("origin 应精确匹配");
+if (siteApi.siteListMatches(["example.com"], { origin: "https://www.example.com", hostname: "www.example.com" })) {
+  fail("子域名不应被父域名误伤");
+}
+if (siteApi.siteListMatches(["other.test"], page)) fail("其它域名不应命中");
+const deduped = siteApi.normalizeSiteList(["Example.COM", "https://example.com", "example.com", ""]);
+if (!deduped.includes("example.com") || !deduped.includes("https://example.com") || deduped.includes("")) {
+  fail(`名单去重失败: ${JSON.stringify(deduped)}`);
+}
+ok("站点名单按来源匹配，空名单不拦截");
+
+for (const needle of [
+  "originDenied",
+  "denyOrigins",
+  "allowOrigins",
+  "data-immer-font-size",
+  "data-immer-contrast",
+  "data-immer-mode",
+  "translation-only",
+  "chrome.storage.onChanged",
+  "paintTranslations",
+]) {
+  if (!contentJs.includes(needle)) fail(`content.js 缺少 ${needle}`);
+}
+const toggleSrc = contentJs.slice(contentJs.indexOf("async function toggle"));
+const denyAt = toggleSrc.indexOf("originDenied()");
+const applyAt = toggleSrc.indexOf("applyTranslations(");
+if (denyAt < 0 || applyAt < 0 || denyAt > applyAt) {
+  fail("toggle 必须在插入译文前检查黑名单");
+}
+const placeSrc = contentJs.slice(
+  contentJs.indexOf("function placeTranslation"),
+  contentJs.indexOf("function clearTranslations")
+);
+if (!placeSrc.includes("originDenied()")) fail("placeTranslation 必须拒绝黑名单来源");
+if (!contentCss.includes("data-immer-font-size") || !contentCss.includes("data-immer-contrast")) {
+  fail("content.css 缺少字号或对比度开关");
+}
+if (!contentCss.includes('data-immer-mode="translation-only"') || !contentCss.includes("data-immer-mode")) {
+  fail("content.css 缺少双语/仅译文模式");
+}
+const siteIdx = contentScripts.indexOf("sitelist.js");
+const contentIdx = contentScripts.indexOf("content.js");
+if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
+  fail(`content_scripts 须在 content.js 之前加载 sitelist.js: ${contentScripts.join(",")}`);
+}
+const readme = readFileSync(join(root, "README.md"), "utf8");
+const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
+if (!readme.includes("0.3.0") || !readme.includes("denyOrigins")) {
+  fail("README 未记录 0.3.0 站点名单");
+}
+if (!changelog.includes("## 0.3.0")) fail("CHANGELOG 缺少 0.3.0");
+ok("黑名单默认放行，样式开关可在已打开页面生效");
 
 // 6) no absolute local paths / obvious secrets in tracked tree
 const tracked = run("git", ["ls-files"]);
@@ -453,5 +566,5 @@ for (const file of walk(join(root, "extension"))) {
 ok("extension/vendor 无 config.local.yaml 与密钥");
 
 console.log(
-  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 文章页点图标应出现 ⟦原文⟧；悬停一段按 Alt+T 只译该段"
+  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 文章页点图标应出现 ⟦原文⟧；悬停一段按 Alt+T 只译该段；永不翻译名单内的来源点图标不插入译文；改字号/对比度/仅译文后已打开页面立即变样"
 );
