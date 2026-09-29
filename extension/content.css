@@ -1,12 +1,54 @@
 .immer-translation {
   margin: 0.25em 0 0.75em;
   padding: 0.35em 0.5em;
-  border-left: 3px solid #4f8cff;
-  color: #334155;
-  background: rgba(79, 140, 255, 0.06);
-  font-size: 0.95em;
+  border-left: 3px solid var(--immer-trans-border, #4f8cff);
+  color: var(--immer-trans-color, #334155);
+  background: var(--immer-trans-bg, rgba(79, 140, 255, 0.06));
+  font-size: var(--immer-trans-size, 0.95em);
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+html[data-immer-font-size="sm"] {
+  --immer-trans-size: 0.8em;
+}
+
+html[data-immer-font-size="md"] {
+  --immer-trans-size: 0.95em;
+}
+
+html[data-immer-font-size="lg"] {
+  --immer-trans-size: 1.35em;
+}
+
+html[data-immer-contrast="normal"] {
+  --immer-trans-color: #334155;
+  --immer-trans-bg: rgba(79, 140, 255, 0.06);
+  --immer-trans-border: #4f8cff;
+}
+
+html[data-immer-contrast="high"] {
+  --immer-trans-color: #0b1220;
+  --immer-trans-bg: #dbe7ff;
+  --immer-trans-border: #1e3a8a;
+}
+
+html[data-immer-contrast="high"] .immer-translation {
+  font-weight: 600;
+  border-left-width: 4px;
+  color: #0b1220;
+  background: #dbe7ff;
+  border-left-color: #1e3a8a;
+}
+
+/* bilingual: original stays visible; the translation node remains under it. */
+html[data-immer-mode="bilingual"] .immer-translation {
+  display: block;
+}
+
+/* translation-only: hide the original paragraph; the sibling line remains. */
+html[data-immer-mode="translation-only"] [data-immer-translated="1"] {
+  display: none !important;
 }
 
 .immer-hover {
