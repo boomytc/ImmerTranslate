@@ -4,4 +4,5 @@
 
 - Initial MVP shell: MV3 extension + translate-core mock engine
 - Bilingual paragraph overlay with toggle via extension action
-- Options page stores API key locally only (engine still mock)
+- Options page stores protocol, base URL, model, API key, and languages in `chrome.storage.local` only
+- Empty API key keeps the mock engine; a key selects the OpenAI-compatible or Anthropic-compatible engine (default DeepSeek `deepseek-flash`)

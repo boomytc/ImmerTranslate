@@ -6,7 +6,7 @@ Inspired by immersive bilingual-translate extensions; this repo is an independen
 
 ## Status
 
-Early MVP. Default engine is a **mock** that wraps text as `⟦…⟧`. Real engines can plug in behind the same contract later; keys stay in browser local storage only.
+Early MVP. With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Keys stay in browser local storage only.
 
 ## Layout
 
@@ -28,7 +28,7 @@ scripts/sync-translate-core.sh
 3. **Load unpacked** → select the `extension/` directory in this repo
 4. Open an article page → click the extension icon to toggle bilingual mock output
 
-Options: extension details → Extension options. API key field is stored only in `chrome.storage.local` and is unused while the mock engine is active.
+Options: extension details → Extension options. Protocol, base URL, model, API key, and languages are stored only in `chrome.storage.local`. Leave the key empty to keep the mock engine.
 
 ## translate-core smoke test
 

@@ -10,8 +10,12 @@ const DEFAULTS = {
   targetLang: "zh-CN",
 };
 
+function normalizeProvider(value) {
+  return value === "anthropic" ? "anthropic" : "openai";
+}
+
 chrome.storage.local.get(DEFAULTS, (data) => {
-  $("provider").value = data.provider || DEFAULTS.provider;
+  $("provider").value = normalizeProvider(data.provider);
   $("baseUrl").value = data.baseUrl || DEFAULTS.baseUrl;
   $("model").value = data.model || DEFAULTS.model;
   $("apiKey").value = data.apiKey || "";
@@ -22,7 +26,7 @@ chrome.storage.local.get(DEFAULTS, (data) => {
 $("save").addEventListener("click", () => {
   chrome.storage.local.set(
     {
-      provider: $("provider").value,
+      provider: normalizeProvider($("provider").value),
       baseUrl: $("baseUrl").value.trim() || DEFAULTS.baseUrl,
       model: $("model").value.trim() || DEFAULTS.model,
       apiKey: $("apiKey").value.trim(),
