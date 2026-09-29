@@ -1,11 +1,14 @@
 /**
  * OpenAI-compatible and Anthropic-compatible translate engines.
  * Callers pass apiKey / baseUrl / model at runtime. Nothing here is persisted.
+ * Upstream failures reject with TranslateFailure (message, kind, code, status).
  *
  * @typedef {import('./types.js').TranslateRequest} TranslateRequest
  * @typedef {import('./types.js').TranslateResponse} TranslateResponse
  * @typedef {import('./types.js').TranslateEngine} TranslateEngine
  */
+
+import { TranslateFailure } from "./errors.js";
 
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
@@ -97,7 +100,10 @@ function extractJsonArray(text) {
     const sliced = parseJsonArray(body.slice(start, end + 1));
     if (sliced) return sliced;
   }
-  throw new Error("model output is not a JSON array");
+  throw new TranslateFailure("model output is not a JSON array", {
+    kind: "output",
+    code: "invalid_output",
+  });
 }
 
 /**
@@ -162,20 +168,103 @@ function textFromContent(content) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function shortCode(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 80);
+}
+
+/**
+ * @param {unknown} err
+ * @returns {TranslateFailure}
+ */
+function networkFailure(err) {
+  const name = err && typeof err === "object" && "name" in err ? String(err.name) : "";
+  const message = err instanceof Error ? err.message : String(err ?? "request failed");
+  return new TranslateFailure(`translate network: ${message.slice(0, 300)}`, {
+    kind: "network",
+    code: name === "AbortError" ? "abort" : "network",
+    cause: err,
+  });
+}
+
+/**
+ * @param {Response} res
+ * @param {any} data
+ * @returns {TranslateFailure}
+ */
+function failureFromResponse(res, data) {
+  const status = res.status;
+  const errorBody = data && typeof data === "object" ? data.error : undefined;
+  const hasProvider = errorBody != null && errorBody !== "";
+  /** @type {string} */
+  let providerCode = "";
+  /** @type {string} */
+  let detail = "";
+
+  if (errorBody && typeof errorBody === "object") {
+    providerCode = shortCode(errorBody.code) || shortCode(errorBody.type);
+    if (typeof errorBody.message === "string" && errorBody.message.trim()) {
+      detail = errorBody.message.trim();
+    } else {
+      detail = JSON.stringify(errorBody);
+    }
+  } else if (typeof errorBody === "string" && errorBody.trim()) {
+    detail = errorBody.trim();
+  } else if (data && typeof data.raw === "string" && data.raw.trim()) {
+    detail = data.raw.trim();
+  } else if (typeof res.statusText === "string" && res.statusText.trim()) {
+    detail = res.statusText.trim();
+  } else {
+    detail = "request failed";
+  }
+
+  return new TranslateFailure(`translate HTTP ${status}: ${detail.slice(0, 300)}`, {
+    kind: hasProvider ? "provider" : "http",
+    code: providerCode || `http_${status}`,
+    status,
+  });
+}
+
+/**
  * @param {string} url
  * @param {{ headers: Record<string, string>, body: unknown, fetchImpl?: typeof fetch }} opts
  */
 async function postJson(url, opts) {
   const fetchFn = opts.fetchImpl || globalThis.fetch;
   if (typeof fetchFn !== "function") {
-    throw new Error("fetch is not available");
+    throw new TranslateFailure("fetch is not available", {
+      kind: "network",
+      code: "no_fetch",
+    });
   }
-  const res = await fetchFn(url, {
-    method: "POST",
-    headers: opts.headers,
-    body: JSON.stringify(opts.body),
-  });
-  const raw = await res.text();
+  let res;
+  try {
+    res = await fetchFn(url, {
+      method: "POST",
+      headers: opts.headers,
+      body: JSON.stringify(opts.body),
+    });
+  } catch (err) {
+    if (err instanceof TranslateFailure) throw err;
+    throw networkFailure(err);
+  }
+  let raw = "";
+  try {
+    raw = await res.text();
+  } catch (err) {
+    if (res && res.ok === false) {
+      throw new TranslateFailure(`translate HTTP ${res.status}: failed to read body`, {
+        kind: "http",
+        code: `http_${res.status}`,
+        status: res.status,
+        cause: err,
+      });
+    }
+    throw networkFailure(err);
+  }
   /** @type {any} */
   let data = {};
   if (raw) {
@@ -185,11 +274,7 @@ async function postJson(url, opts) {
       data = { raw };
     }
   }
-  if (!res.ok) {
-    const detail = data?.error?.message || data?.error || data?.raw || res.statusText || "request failed";
-    const message = typeof detail === "string" ? detail : JSON.stringify(detail);
-    throw new Error(`translate HTTP ${res.status}: ${message.slice(0, 300)}`);
-  }
+  if (!res.ok) throw failureFromResponse(res, data);
   return data;
 }
 
@@ -200,7 +285,10 @@ async function postJson(url, opts) {
  */
 function responseFromModelText(req, modelText) {
   if (!String(modelText || "").trim()) {
-    throw new Error("model output is empty");
+    throw new TranslateFailure("model output is empty", {
+      kind: "output",
+      code: "empty_output",
+    });
   }
   return mapSegments(req, extractJsonArray(modelText));
 }

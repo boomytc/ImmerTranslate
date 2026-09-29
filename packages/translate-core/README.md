@@ -1,6 +1,6 @@
 # @immer-translate/translate-core
 
-翻译契约、mock 引擎、OpenAI / Anthropic 兼容引擎，以及可选的段落缓存、重试和限流。包版本 `0.4.0`（对齐 `dev-0.4.0` 的 FEATURE 位）。密钥只在调用时传入（扩展本地存储或进程环境），不写入本包。扩展 manifest 不在本包里升级。
+翻译契约、mock 引擎、OpenAI / Anthropic 兼容引擎，以及可选的段落缓存、重试和限流。包版本 `0.8.0`。密钥只在调用时传入（扩展本地存储或进程环境），不写入本包。扩展 manifest 不在本包里升级。
 
 ## 契约
 
@@ -16,6 +16,8 @@
 | --- | --- |
 | `mockTranslate` | 假译，每段包成 `⟦原文⟧` |
 | `translate` | `mockTranslate` 的别名，默认引擎仍是 mock |
+| `TranslateFailure` | 上游失败的拒绝值。`Error` 子类，带 `message`、`kind`、`code`，HTTP 失败另有 `status` |
+| `isTranslateFailure(err)` | 是否为上述失败（跨副本时认 `name` + 字段，不要求同一个类） |
 | `createOpenAICompatibleEngine({ apiKey, baseUrl?, model?, fetchImpl? })` | `POST {baseUrl}/chat/completions`，`Authorization: Bearer` |
 | `createAnthropicCompatibleEngine({ apiKey, baseUrl?, model?, fetchImpl? })` | Anthropic Messages，解析 `type: "text"` 内容块 |
 | `deepSeekOptionsFromEnv(env?)` | 从进程环境读 DeepSeek 调用参数；没有密钥时返回 `null` |
@@ -34,10 +36,25 @@
 `createPipelineEngine` 从外到内是：段落缓存 → 失败重试 → 启动间隔限流 → 基础引擎。缓存命中不会重试，也不会发出请求。
 
 - 缓存键：段落 `text` + `sourceLang` + `targetLang`。`cache.provider` / `cache.model` 有值时一并计入，不同模型不共用译文。只缓存成功段落；抛错和段上的 `error` 不入库。同一键的并发未命中共用一次内层调用。
-- 重试：只在引擎抛错时进行。默认 2 次重试，退避 `50ms`、`100ms`（`baseDelayMs * factor^attempt`，上限 `400ms`）。
+- 重试：只在引擎抛错时进行。段上的 `error` 原样返回，不重试。默认 2 次重试，退避 `50ms`、`100ms`（`baseDelayMs * factor^attempt`，上限 `400ms`）。耗尽后抛出最后一次的同一个错误，不包一层、不改成成功响应。
 - 限流：默认两次启动至少间隔 `100ms`，同时最多 `2` 个调用。
 
 默认值见 `pipelineDefaults`，传入的字段会覆盖对应项，未写的字段保持默认。
+
+### 上游失败（`TranslateFailure`）
+
+网络错误、非 2xx、以及供应商错误正文都会 **reject**，不会变成空译文，也不会写入缓存。`TranslateRequest` / `TranslateResponse` 的字段不变。缺段仍是响应里的 `segments[].error` 字符串（例如 `"missing translation"`），不是抛错。
+
+| 字段 | 含义 |
+| --- | --- |
+| `message` | 给人看的句子。网络：`translate network: …`。HTTP / 供应商：`translate HTTP <status>: …`。模型正文空或不是 JSON 数组时，句子仍是 `model output is empty` / `model output is not a JSON array` |
+| `kind` | `network`、`http`、`provider`、`output` |
+| `code` | 稳定短码。有供应商正文时优先 `error.code`，否则 `error.type`；没有短码时为 `http_<status>`。网络为 `network`（中止为 `abort`，没有 `fetch` 为 `no_fetch`）。模型正文为 `empty_output` 或 `invalid_output` |
+| `status` | HTTP 状态码，仅 `kind` 为 `http` 或 `provider` 时有 |
+
+`kind: "provider"` 表示响应体里有 `error`（OpenAI 的 `error.code` / `error.message`，或 Anthropic 的 `error.type` / `error.message`）。没有这段正文、只有状态码或纯文本时，`kind` 为 `http`。
+
+空 `apiKey` 不走这条失败：工厂函数仍立即抛出普通 `Error`（`apiKey is required`），不会发请求。`createEngineFromMergedConfig` 在密钥为空时仍返回 `mockTranslate`（`⟦…⟧`）。
 
 `fetchImpl` 可选，签名与 `fetch(url, init)` 相同，便于测试时替换，不访问网络。
 
@@ -110,7 +127,7 @@ cd packages/translate-core
 npm run smoke
 ```
 
-`smoke` 覆盖 mock、两个工厂（注入假的 `fetchImpl`，不联网、不用真密钥）、`deepSeekOptionsFromEnv`、临时目录里的 YAML 合并（base ← local ← env，无真密钥），以及管道：缓存命中不再次 `fetch`、失败退避后成功、限流拉开调用间隔。期望：先打印 mock JSON（译文为 `⟦原文⟧`），末行 `smoke ok`。
+`smoke` 覆盖 mock、两个工厂（注入假的 `fetchImpl`，不联网、不用真密钥）、`deepSeekOptionsFromEnv`、临时目录里的 YAML 合并（base ← local ← env，无真密钥），以及管道：缓存命中不再次 `fetch`、瞬时失败退避后成功、限流拉开调用间隔、上游失败带 `kind` / `code` 且重试耗尽后仍原样抛出。期望：先打印 mock JSON（译文为 `⟦原文⟧`），末行 `smoke ok`。
 
 ## 给扩展用
 
@@ -126,7 +143,23 @@ MV3 service worker 不能引用扩展目录以外的文件。改完 `src/` 后�
 
 ### 给 ExtForge：引擎只包一次
 
-不要改 `TranslateRequest` / `TranslateResponse`。在 service worker 里对「最终那一个」引擎包一层并复用；不要在每条 `TRANSLATE_BATCH` 里新建 `createPipelineEngine`，否则缓存和限流每次都是空的。`provider` / `model` / 是否有密钥变化时再重建。mock、OpenAI 兼容、Anthropic 兼容走同一包装：
+不要改 `TranslateRequest` / `TranslateResponse`。在 service worker 里对「最终那一个」引擎包一层并复用；不要在每条 `TRANSLATE_BATCH` 里新建 `createPipelineEngine`，否则缓存和限流每次都是空的。`provider` / `model` / 是否有密钥变化时再重建。mock、OpenAI 兼容、Anthropic 兼容走同一包装。
+
+上游失败是 **rejection**，不是 `ok: true` 的响应。请读 `err.message` 给用户看，并用 `err.kind`、`err.code`、`err.status` 决定提示，不要只吞掉 `catch`。当前壳若只转发 `String(err.message)`，句子已经可用；要区分网络、HTTP、供应商和模型正文，把这三个字段一并传出：
+
+```js
+} catch (err) {
+  sendResponse({
+    ok: false,
+    error: String(err?.message || err),
+    kind: err?.kind,
+    code: err?.code,
+    status: err?.status,
+  });
+}
+```
+
+`pipelineDefaults` 仍是缓存条数、重试次数和限流间隔的默认值；调用方只覆盖需要改的字段。
 
 ```js
 import { createPipelineEngine } from "./vendor/translate-core/index.js";
