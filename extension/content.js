@@ -4,7 +4,11 @@
  * both through the same setTranslated() state. TOGGLE_TRANSLATE remains.
  * One segment: hover marks the paragraph; the options hotkey (canonical
  * Alt+T, shown as ⌥T on macOS) sends TRANSLATE_BATCH with a single {id,text}.
- * Whole-page Option/Alt+A toggles the same state as the popup. Cache/retry stays in
+ * Whole-page Option/Alt+A toggles the same state as the popup and the ball.
+ * The chord is handled on window and document keydown in the capture phase
+ * (preventDefault + stopPropagation) when focus is outside editable fields.
+ * If the browser eats that keydown, the matching keyup or the extension
+ * command still calls the same toggle. Cache/retry stays in
  * translate-core (TransPipe); this shell only renders the response.
  *
  * Site policy (chrome.storage.local): denyOrigins never inserts bilingual
@@ -792,7 +796,89 @@ function isTypingTarget(target) {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  const role = target.getAttribute("role");
+  return role === "textbox" || role === "searchbox" || role === "combobox";
+}
+
+/**
+ * event.target plus document.activeElement, including an open shadow root.
+ * @param {EventTarget | null} target
+ * @returns {boolean}
+ */
+function focusIsTyping(target) {
+  if (isTypingTarget(target)) return true;
+  let el = document.activeElement;
+  const seen = new Set();
+  while (el instanceof HTMLElement && !seen.has(el)) {
+    seen.add(el);
+    if (isTypingTarget(el)) return true;
+    const next = el.shadowRoot && el.shadowRoot.activeElement;
+    if (!(next instanceof HTMLElement)) break;
+    el = next;
+  }
+  return false;
+}
+
+/** @type {{ type: string, code: string, stamp: number } | null} */
+let chordSlot = null;
+/** Code of a keydown this page already handled, so its keyup does not flip again. */
+let keydownCode = "";
+/** Last whole-page toggle from the chord or the extension command. */
+let chordToggleAt = 0;
+/** @type {"page" | "command" | ""} */
+let chordSource = "";
+
+/**
+ * One physical Alt+A / ⌥A must toggle once. The page listener and
+ * chrome.commands can both observe that press; a cold service worker may
+ * deliver the command after the page already handled the keydown.
+ * A later keydown still toggles. Popup and the ball call setTranslated / toggle
+ * directly and are not gated here.
+ * @param {"page" | "command"} source
+ * @returns {Promise<void>}
+ */
+function toggleFromChord(source) {
+  const now = Date.now();
+  if (source === "command" && chordSource === "page" && now - chordToggleAt < 1200) {
+    return Promise.resolve();
+  }
+  if (now - chordToggleAt < 100) return Promise.resolve();
+  chordToggleAt = now;
+  chordSource = source === "command" ? "command" : "page";
+  return toggle();
+}
+
+/**
+ * Capture-phase listener. preventDefault runs only after the chord matches
+ * and focus is outside an editable field, so browser menu/accelerator
+ * defaults for Alt+A / ⌥A are cancelled when the event still reaches the page.
+ * @param {KeyboardEvent} event
+ */
+function onChordKey(event) {
+  const api = globalThis.ImmerHotkey;
+  if (!api?.resolveChord || !api?.markChordEvent) return;
+  const marked = api.markChordEvent(chordSlot, event);
+  chordSlot = marked.slot;
+  if (marked.duplicate) return;
+  const decision = api.resolveChord(event, {
+    paragraphSpec: paragraphHotkey,
+    pageSpec: PAGE_HOTKEY,
+    typing: focusIsTyping(event.target),
+    hovered: Boolean(hovered),
+    keydownCode,
+    lastToggleAt: chordToggleAt,
+    now: Date.now(),
+  });
+  keydownCode = decision.keydownCode;
+  if (!decision.prevent || !decision.action) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (decision.action === "paragraph") {
+    if (hovered) translateSegment(hovered).catch(() => {});
+    return;
+  }
+  toggleFromChord("page").catch(() => {});
 }
 
 /**
@@ -872,27 +958,10 @@ document.addEventListener("mouseout", (event) => {
   if (leaving) setHovered(null);
 });
 
-document.addEventListener(
-  "keydown",
-  (event) => {
-    if (event.repeat || event.isComposing) return;
-    if (isTypingTarget(event.target)) return;
-    const api = globalThis.ImmerHotkey;
-    const paragraphHit = Boolean(api?.eventMatchesHotkey(event, paragraphHotkey));
-    const pageHit = Boolean(api?.eventMatchesHotkey(event, PAGE_HOTKEY));
-    if (paragraphHit && hovered) {
-      event.preventDefault();
-      event.stopPropagation();
-      translateSegment(hovered).catch(() => {});
-      return;
-    }
-    if (!pageHit) return;
-    event.preventDefault();
-    event.stopPropagation();
-    toggle().catch(() => {});
-  },
-  true
-);
+window.addEventListener("keydown", onChordKey, { capture: true });
+window.addEventListener("keyup", onChordKey, { capture: true });
+document.addEventListener("keydown", onChordKey, { capture: true });
+document.addEventListener("keyup", onChordKey, { capture: true });
 
 applyPageStyle();
 
@@ -933,7 +1002,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         ? setTranslated(true)
         : message.type === "RESTORE_PAGE"
           ? setTranslated(false)
-          : toggle();
+          : toggleFromChord("command");
     job
       .then(() => sendResponse({ ok: true, active, denied: originDenied() }))
       .catch((err) =>

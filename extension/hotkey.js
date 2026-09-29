@@ -294,6 +294,81 @@
     return formatHotkeyEvent(event) === normalized;
   }
 
+  /**
+   * Page vs paragraph. Empty when the chord does not match, focus is in a
+   * field, or this is a key repeat / IME composition. Paragraph wins when the
+   * pointer is over a segment so Alt+T never toggles the whole page.
+   * @param {KeyboardEvent | { altKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean, metaKey?: boolean, code?: string, key?: string, repeat?: boolean, isComposing?: boolean }} event
+   * @param {{ paragraphSpec?: string, pageSpec?: string, typing?: boolean, hovered?: boolean }} [ctx]
+   * @returns {"" | "page" | "paragraph"}
+   */
+  function hotkeyAction(event, ctx) {
+    const info = ctx || {};
+    if (info.typing || event.repeat || event.isComposing) return "";
+    const paragraphSpec = info.paragraphSpec || DEFAULT_PARAGRAPH_HOTKEY;
+    const pageSpec = info.pageSpec || DEFAULT_PAGE_HOTKEY;
+    if (info.hovered && eventMatchesHotkey(event, paragraphSpec)) return "paragraph";
+    if (eventMatchesHotkey(event, pageSpec)) return "page";
+    return "";
+  }
+
+  /**
+   * Physical-key token shared by keydown and keyup. Empty code uses "*" so a
+   * swallowed keydown can still be paired when both events lack `code`.
+   * @param {{ code?: string }} event
+   * @returns {string}
+   */
+  function chordToken(event) {
+    const code = typeof event.code === "string" ? event.code : "";
+    return code || "*";
+  }
+
+  /**
+   * One physical chord: keydown is authoritative. keyup runs only when that
+   * keydown never arrived (browser ate it) and a toggle has not just run.
+   * A second keydown is not suppressed by the recent-toggle window.
+   * @param {{ type?: string, altKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean, metaKey?: boolean, code?: string, key?: string, repeat?: boolean, isComposing?: boolean }} event
+   * @param {{ paragraphSpec?: string, pageSpec?: string, typing?: boolean, hovered?: boolean, keydownCode?: string, lastToggleAt?: number, now?: number }} [ctx]
+   * @returns {{ action: "" | "page" | "paragraph", prevent: boolean, keydownCode: string }}
+   */
+  function resolveChord(event, ctx) {
+    const info = ctx || {};
+    const type = event.type || "keydown";
+    const prev = typeof info.keydownCode === "string" ? info.keydownCode : "";
+    const token = chordToken(event);
+    if (type === "keyup" && prev && prev === token) {
+      return { action: "", prevent: false, keydownCode: "" };
+    }
+    const action = hotkeyAction(event, info);
+    if (!action) return { action: "", prevent: false, keydownCode: prev };
+    if (type === "keyup") {
+      const last = Number(info.lastToggleAt) || 0;
+      const now = Number(info.now) || 0;
+      if (last && now && now - last < 500) {
+        return { action: "", prevent: false, keydownCode: "" };
+      }
+      return { action, prevent: true, keydownCode: "" };
+    }
+    return { action, prevent: true, keydownCode: token };
+  }
+
+  /**
+   * window and document capture both see one event. Same type, code, and
+   * timeStamp means the second dispatch must not toggle again.
+   * @param {{ type?: string, code?: string, stamp?: number } | null | undefined} slot
+   * @param {{ type?: string, code?: string, timeStamp?: number }} event
+   * @returns {{ duplicate: boolean, slot: { type: string, code: string, stamp: number } }}
+   */
+  function markChordEvent(slot, event) {
+    const code = typeof event.code === "string" ? event.code : "";
+    const stamp = typeof event.timeStamp === "number" ? event.timeStamp : 0;
+    const type = event.type || "";
+    if (slot && slot.type === type && slot.code === code && slot.stamp === stamp) {
+      return { duplicate: true, slot };
+    }
+    return { duplicate: false, slot: { type, code, stamp } };
+  }
+
   detectPlatformSync();
 
   root.ImmerHotkey = {
@@ -304,6 +379,9 @@
     formatHotkeyDisplay,
     formatActionLabel,
     eventMatchesHotkey,
+    hotkeyAction,
+    resolveChord,
+    markChordEvent,
     detectPlatformSync,
     detectPlatform,
     modifierHint,
