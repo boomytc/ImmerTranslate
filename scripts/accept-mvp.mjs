@@ -312,7 +312,6 @@ ok("config.yaml 空密钥模板 + local gitignore + 合并优先级");
 if (bg.includes("loadMergedEngineConfig") || bg.includes("config.yaml") || bg.includes("config.local")) {
   fail("background.js 不应读取 YAML");
 }
-const optionsJs = readFileSync(join(root, "extension/options.js"), "utf8");
 if (optionsJs.includes("config.yaml") || optionsJs.includes("config.local")) {
   fail("options.js 不应读取 YAML");
 }
