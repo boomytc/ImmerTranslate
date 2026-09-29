@@ -2,14 +2,13 @@
  * Floating-ball geometry for the content script.
  * Classic script (not an ES module): content.js reads globalThis.ImmerBall.
  *
- * Default is the bottom-right corner. Stored positions are viewport pixels
- * `{ left, top }` and are only clamped when read back. Snapping to an edge
- * happens when a drag ends near that edge, not on every reload.
+ * The ball lives on the left or right edge. Default is the right edge, low
+ * on the page. A drag may cross the page; on release it snaps to the nearer
+ * side and keeps the vertical position. Storage is `{ side, top }`.
  */
 (function initImmerBall(root) {
   const BALL_SIZE = 48;
   const EDGE_MARGIN = 16;
-  const SNAP_DISTANCE = 40;
 
   /**
    * @param {{ width?: number, height?: number } | null | undefined} viewport
@@ -28,18 +27,41 @@
   }
 
   /**
-   * @param {{ width?: number, height?: number }} viewport
-   * @returns {{ left: number, top: number }}
+   * @param {unknown} top
+   * @param {{ maxTop: number }} box
    */
-  function defaultBallPosition(viewport) {
-    const box = bounds(viewport);
-    return { left: box.maxLeft, top: box.maxTop };
+  function clampTop(top, box) {
+    const value = Number(top);
+    return Math.min(box.maxTop, Math.max(EDGE_MARGIN, Number.isFinite(value) ? value : EDGE_MARGIN));
   }
 
   /**
+   * @param {"left" | "right"} side
+   * @param {number} top
+   * @param {{ width?: number, height?: number }} viewport
+   */
+  function placeOnSide(side, top, viewport) {
+    const box = bounds(viewport);
+    const edge = side === "left" ? "left" : "right";
+    return {
+      side: edge,
+      top: clampTop(top, box),
+      left: edge === "left" ? EDGE_MARGIN : box.maxLeft,
+    };
+  }
+
+  /**
+   * @param {{ width?: number, height?: number }} viewport
+   */
+  function defaultBallPosition(viewport) {
+    const box = bounds(viewport);
+    return placeOnSide("right", box.maxTop, viewport);
+  }
+
+  /**
+   * Free movement while dragging. Does not snap.
    * @param {{ left?: number, top?: number } | null | undefined} pos
    * @param {{ width?: number, height?: number }} viewport
-   * @returns {{ left: number, top: number }}
    */
   function clampBallPosition(pos, viewport) {
     const box = bounds(viewport);
@@ -47,50 +69,46 @@
     const top = Number(pos?.top);
     return {
       left: Math.min(box.maxLeft, Math.max(EDGE_MARGIN, Number.isFinite(left) ? left : EDGE_MARGIN)),
-      top: Math.min(box.maxTop, Math.max(EDGE_MARGIN, Number.isFinite(top) ? top : EDGE_MARGIN)),
+      top: clampTop(top, box),
     };
   }
 
   /**
-   * Pull each axis to the nearest edge when the ball is within SNAP_DISTANCE
-   * of that edge (after the margin). A corner drag snaps both axes.
+   * On release, snap to the nearer vertical edge and keep `top`.
    * @param {{ left?: number, top?: number } | null | undefined} pos
    * @param {{ width?: number, height?: number }} viewport
-   * @returns {{ left: number, top: number }}
    */
   function snapBallPosition(pos, viewport) {
     const box = bounds(viewport);
-    let left = Number(pos?.left);
-    let top = Number(pos?.top);
+    const left = Number(pos?.left);
+    const top = Number(pos?.top);
     if (!Number.isFinite(left) || !Number.isFinite(top)) return defaultBallPosition(viewport);
-    const distLeft = left - EDGE_MARGIN;
-    const distRight = box.width - BALL_SIZE - EDGE_MARGIN - left;
-    const distTop = top - EDGE_MARGIN;
-    const distBottom = box.height - BALL_SIZE - EDGE_MARGIN - top;
-    if (distLeft <= SNAP_DISTANCE) left = EDGE_MARGIN;
-    else if (distRight <= SNAP_DISTANCE) left = box.maxLeft;
-    if (distTop <= SNAP_DISTANCE) top = EDGE_MARGIN;
-    else if (distBottom <= SNAP_DISTANCE) top = box.maxTop;
-    return clampBallPosition({ left, top }, viewport);
+    const center = left + BALL_SIZE / 2;
+    const side = center <= box.width / 2 ? "left" : "right";
+    return placeOnSide(side, top, viewport);
   }
 
   /**
    * @param {unknown} value
    * @param {{ width?: number, height?: number }} viewport
-   * @returns {{ left: number, top: number } | null}
+   * @returns {{ side: "left" | "right", top: number, left: number } | null}
    */
   function normalizeStoredBallPosition(value, viewport) {
     if (!value || typeof value !== "object") return null;
-    const left = Number(/** @type {{ left?: unknown }} */ (value).left);
-    const top = Number(/** @type {{ top?: unknown }} */ (value).top);
-    if (!Number.isFinite(left) || !Number.isFinite(top)) return null;
-    return clampBallPosition({ left, top }, viewport);
+    const record = /** @type {{ side?: unknown, left?: unknown, top?: unknown }} */ (value);
+    const top = Number(record.top);
+    if (!Number.isFinite(top)) return null;
+    if (record.side === "left" || record.side === "right") {
+      return placeOnSide(record.side, top, viewport);
+    }
+    const left = Number(record.left);
+    if (!Number.isFinite(left)) return null;
+    return snapBallPosition({ left, top }, viewport);
   }
 
   root.ImmerBall = {
     BALL_SIZE,
     EDGE_MARGIN,
-    SNAP_DISTANCE,
     defaultBallPosition,
     clampBallPosition,
     snapBallPosition,

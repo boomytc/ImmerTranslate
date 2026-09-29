@@ -59,12 +59,22 @@ let ballHost = null;
 let ballButton = null;
 /** @type {HTMLElement | null} */
 let ballHint = null;
+/** @type {HTMLElement | null} */
+let ballTip = null;
 let ballLeft = 0;
 let ballTop = 0;
+/** @type {"left" | "right"} */
+let ballSide = "right";
+/** @type {{ side: "left" | "right", top: number } | null} */
+let ballAnchor = null;
 let ballDragging = false;
-/** True after a drag-save or a stored position, so resize keeps that spot. */
+/** True after a drag-save or a stored position, so resize keeps that side and height. */
 let ballPinned = false;
 let ballHintTimer = 0;
+/** Settings have been read, so a deny-list page does not flash the first-use tip. */
+let pageReady = false;
+let ballTipChecked = false;
+const BALL_TIP_TEXT = "点此可翻译或显示原文。拖到左右边缘后会贴边，并记住上下位置。";
 /** Bumped on each storage change so a stale boot read cannot overwrite it. */
 let policyEpoch = 0;
 
@@ -369,16 +379,38 @@ function currentViewport() {
 }
 
 function syncBall() {
-  if (!ballButton) return;
+  if (!ballHost || !ballButton) return;
   const denied = originDenied();
-  ballButton.classList.toggle("is-on", active && !denied);
-  ballButton.classList.toggle("is-denied", denied);
-  ballButton.textContent = denied ? "禁" : active ? "原" : "译";
-  ballButton.setAttribute(
-    "aria-label",
-    denied ? "本站已设为永不翻译" : active ? "还原本页" : "翻译本页"
-  );
-  ballButton.setAttribute("aria-pressed", active && !denied ? "true" : "false");
+  ballHost.style.setProperty("display", denied ? "none" : "block", "important");
+  if (denied) {
+    if (ballTip) ballTip.hidden = true;
+    return;
+  }
+  ballButton.classList.toggle("is-on", active);
+  ballButton.textContent = active ? "原" : "译";
+  ballButton.setAttribute("aria-label", active ? "显示原文" : "翻译");
+  ballButton.setAttribute("aria-pressed", active ? "true" : "false");
+  maybeShowBallTip();
+}
+
+function positionBallTip() {
+  if (!ballTip) return;
+  const onRight = ballSide !== "left";
+  ballTip.classList.toggle("on-right", onRight);
+  ballTip.classList.toggle("on-left", !onRight);
+  ballTip.classList.toggle("flip-up", ballTop > window.innerHeight - 120);
+}
+
+function maybeShowBallTip() {
+  if (!pageReady || ballTipChecked || !ballTip || originDenied()) return;
+  if (!chrome?.storage?.local) return;
+  ballTipChecked = true;
+  chrome.storage.local.get({ ballTipSeen: false }, (data) => {
+    if (data?.ballTipSeen || originDenied() || !ballTip) return;
+    positionBallTip();
+    ballTip.hidden = false;
+    chrome.storage.local.set({ ballTipSeen: true });
+  });
 }
 
 /**
@@ -398,12 +430,17 @@ function showBallHint(text) {
 /**
  * @param {{ left: number, top: number }} pos
  */
+/**
+ * @param {{ left: number, top: number, side?: "left" | "right" }} pos
+ */
 function placeBall(pos) {
   ballLeft = pos.left;
   ballTop = pos.top;
+  if (pos.side === "left" || pos.side === "right") ballSide = pos.side;
   if (!ballHost) return;
   ballHost.style.setProperty("left", `${pos.left}px`, "important");
   ballHost.style.setProperty("top", `${pos.top}px`, "important");
+  positionBallTip();
 }
 
 function restoreBallPosition() {
@@ -416,6 +453,7 @@ function restoreBallPosition() {
     );
     if (!pos) return;
     ballPinned = true;
+    ballAnchor = { side: pos.side, top: pos.top };
     placeBall(pos);
   });
 }
@@ -428,6 +466,7 @@ function adoptBallPosition(value) {
   const pos = globalThis.ImmerBall.normalizeStoredBallPosition(value, currentViewport());
   if (!pos) return;
   ballPinned = true;
+  ballAnchor = { side: pos.side, top: pos.top };
   placeBall(pos);
 }
 
@@ -468,11 +507,6 @@ function mountBall() {
         touch-action: none;
       }
       button.is-on { background: #4f8cff; color: #fff; }
-      button.is-denied {
-        border-color: #94a3b8;
-        background: #f8fafc;
-        color: #64748b;
-      }
       button.is-dragging { cursor: grabbing; }
       .hint {
         position: absolute;
@@ -491,13 +525,48 @@ function mountBall() {
         box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
       }
       .hint.below { bottom: auto; top: 56px; }
+      .tip {
+        position: absolute;
+        top: 0;
+        width: 188px;
+        padding: 8px 8px 6px;
+        border-radius: 10px;
+        background: #0f172a;
+        color: #fff;
+        font: 12px/1.45 system-ui, sans-serif;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+      }
+      .tip.on-right { right: 56px; }
+      .tip.on-left { left: 56px; }
+      .tip.flip-up { top: auto; bottom: 0; }
+      .tip p { margin: 0; }
+      .tip button {
+        all: initial;
+        display: inline-block;
+        margin-top: 6px;
+        color: #bfdbfe;
+        font: 600 12px/1 system-ui, sans-serif;
+        cursor: pointer;
+      }
     </style>
     <button id="immer-ball" type="button" aria-pressed="false">译</button>
     <div class="hint" hidden></div>
+    <div class="tip" hidden>
+      <p></p>
+      <button type="button">知道了</button>
+    </div>
   `;
   ballHost = host;
   ballButton = shadow.querySelector("button");
   ballHint = shadow.querySelector(".hint");
+  ballTip = shadow.querySelector(".tip");
+  const tipText = ballTip?.querySelector("p");
+  if (tipText) tipText.textContent = BALL_TIP_TEXT;
+  ballTip?.querySelector("button")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (ballTip) ballTip.hidden = true;
+  });
   placeBall(initial);
   document.documentElement.appendChild(host);
   bindBallDrag();
@@ -563,9 +632,12 @@ function bindBallDrag() {
       { left: ballLeft, top: ballTop },
       currentViewport()
     );
+    ballAnchor = { side: snapped.side, top: snapped.top };
     placeBall(snapped);
     if (chrome?.storage?.local) {
-      chrome.storage.local.set({ ballPosition: { left: snapped.left, top: snapped.top } });
+      chrome.storage.local.set({
+        ballPosition: { side: snapped.side, top: snapped.top },
+      });
     }
   };
 
@@ -578,10 +650,8 @@ function bindBallDrag() {
       event.stopPropagation();
       return;
     }
-    if (originDenied()) {
-      showBallHint("本站已设为永不翻译");
-      return;
-    }
+    if (originDenied()) return;
+    if (ballTip) ballTip.hidden = true;
     toggle().catch(() => {
       showBallHint("翻译失败");
     });
@@ -590,11 +660,11 @@ function bindBallDrag() {
   window.addEventListener("resize", () => {
     if (ballDragging) return;
     const viewport = currentViewport();
-    if (!ballPinned) {
+    if (!ballPinned || !ballAnchor) {
       placeBall(api.defaultBallPosition(viewport));
       return;
     }
-    placeBall(api.clampBallPosition({ left: ballLeft, top: ballTop }, viewport));
+    placeBall(api.normalizeStoredBallPosition(ballAnchor, viewport) || api.defaultBallPosition(viewport));
   });
 }
 
@@ -657,7 +727,6 @@ async function denyThisOrigin() {
   clearTranslations();
   syncPolicyFlag();
   syncBall();
-  showBallHint("本站已设为永不翻译");
   return { ok: true, entry };
 }
 
@@ -850,6 +919,7 @@ getPageSettings()
   .then((first) => (policyEpoch === seenAtBoot ? first : getPageSettings()))
   .then((settings) => {
     adoptSettings(settings);
+    pageReady = true;
     if (originDenied()) {
       active = false;
       setHovered(null);
