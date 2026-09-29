@@ -1,43 +1,35 @@
 body {
   margin: 0;
-  width: 280px;
-  color: #0f172a;
+  width: 300px;
+  color: var(--immer-glass-text);
   font: 14px/1.45 system-ui, sans-serif;
-  background: #f8fafc;
+  background: transparent;
 }
 
 .card {
-  padding: 14px 14px 12px;
-}
-
-h1 {
-  margin: 0;
-  font-size: 15px;
-  letter-spacing: 0.01em;
+  box-sizing: border-box;
+  padding: var(--immer-glass-pad);
 }
 
 .status {
-  margin: 8px 0 0;
+  margin: 0;
+  font-size: 15px;
   font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
-.mock {
-  margin: 8px 0 0;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: #fff7ed;
-  color: #9a3412;
+.detail {
+  margin: var(--immer-glass-space) 0 0;
+  color: var(--immer-glass-muted);
   font-size: 12px;
+  line-height: 1.45;
 }
 
 .actions {
-  margin-top: 12px;
+  margin-top: var(--immer-glass-gap);
 }
 
 button {
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 10px;
   font: inherit;
   cursor: pointer;
 }
@@ -47,34 +39,47 @@ button:disabled {
   opacity: 0.45;
 }
 
+button:focus-visible {
+  outline: 2px solid var(--immer-cta-bg);
+  outline-offset: 2px;
+}
+
 #toggle {
   width: 100%;
-  background: #4f8cff;
-  color: #fff;
+  border: 0;
+  border-radius: var(--immer-glass-radius);
+  padding: 10px 12px;
+  background: var(--immer-cta-bg);
+  color: var(--immer-cta-fg);
   font-weight: 650;
+  box-shadow: 0 1px 2px rgba(28, 36, 48, 0.16);
+}
+
+#toggle:hover:not(:disabled) {
+  background: var(--immer-cta-bg-pressed);
 }
 
 .hint {
-  min-height: 1.2em;
-  margin: 8px 0 0;
-  color: #64748b;
+  margin: var(--immer-glass-space) 0 0;
+  color: var(--immer-glass-muted);
   font-size: 12px;
 }
 
+.hint:empty {
+  display: none;
+}
+
 .links {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
+  margin-top: var(--immer-glass-space);
 }
 
 .links button {
+  width: 100%;
+  border: 0;
+  border-radius: var(--immer-glass-radius);
+  padding: 6px 8px;
   background: transparent;
-  color: #1d4ed8;
-  text-align: left;
-  padding: 4px 0;
-}
-
-.links button:disabled {
-  color: #94a3b8;
+  color: var(--immer-cta-bg);
+  font-size: 13px;
+  font-weight: 600;
 }

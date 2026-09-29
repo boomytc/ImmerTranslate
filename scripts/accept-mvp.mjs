@@ -455,7 +455,7 @@ ok("黑名单默认放行，样式开关可在已打开页面生效");
 // 5d) toolbar popup + draggable ball (0.4.0). Same on/off state, empty key stays mock.
 const popupHtml = readFileSync(join(root, "extension/popup.html"), "utf8");
 const popupJs = readFileSync(join(root, "extension/popup.js"), "utf8");
-for (const id of ["status", "mock", "toggle", "options", "deny"]) {
+for (const id of ["status", "mock", "toggle", "options"]) {
   if (!new RegExp(`id="${id}"`).test(popupHtml)) fail(`弹窗缺少 ${id}`);
 }
 if (!popupHtml.includes(">翻译<")) fail("弹窗主按钮默认应为「翻译」");
@@ -466,12 +466,17 @@ if (popupHtml.includes('id="restore"') || popupHtml.includes("翻译本页")) {
   fail("弹窗主操作应是一个双态按钮，而不是分开的翻译/还原");
 }
 if (!popupHtml.includes("打开设置")) fail("弹窗缺少打开设置");
-if (!popupHtml.includes("永不翻译本站")) fail("弹窗缺少永不翻译本站");
+if (popupHtml.includes("永不翻译本站") || popupHtml.includes('id="deny"')) {
+  fail("弹窗骨架不应再放永不翻译或其它站点操作");
+}
 if (!popupHtml.includes("Mock 模式") || !popupHtml.includes("⟦原文⟧")) {
   fail("弹窗未标明空 key 的 mock 模式");
 }
-for (const id of ["baseUrl", "model", "apiKey", "provider"]) {
+for (const id of ["baseUrl", "model", "apiKey", "provider", "avatar"]) {
   if (new RegExp(`id="${id}"`).test(popupHtml)) fail(`弹窗不应包含完整设置字段 ${id}`);
+}
+for (const banned of ["登录", "升级", "会员", "Pro", "promo"]) {
+  if (popupHtml.includes(banned)) fail(`弹窗出现不应展示的骨架: ${banned}`);
 }
 for (const re of coercive) {
   if (re.test(popupHtml)) fail(`弹窗出现逼付费/登录文案: ${re}`);
@@ -482,14 +487,58 @@ for (const needle of [
   "RESTORE_PAGE",
   "openOptionsPage",
   "apiKey",
-  "DENY_THIS_ORIGIN",
   "chrome.storage.local",
 ]) {
   if (!popupJs.includes(needle)) fail(`popup.js 缺少 ${needle}`);
 }
+if (popupJs.includes("DENY_THIS_ORIGIN")) {
+  fail("弹窗不应再写入永不翻译名单");
+}
 if (!popupJs.includes("已翻译") || !popupJs.includes("未翻译")) {
   fail("popup.js 未区分已翻译 / 未翻译");
 }
+const glassCss = readFileSync(join(root, "extension/glass.css"), "utf8");
+const popupCss = readFileSync(join(root, "extension/popup.css"), "utf8");
+const blurDecl = glassCss.match(/--immer-glass-blur:\s*(\d+)px/);
+const radiusDecl = glassCss.match(/--immer-glass-radius:\s*(\d+)px/);
+if (!blurDecl || Number(blurDecl[1]) < 16 || Number(blurDecl[1]) > 24) {
+  fail("毛玻璃模糊应在 16–24px");
+}
+if (!radiusDecl || Number(radiusDecl[1]) < 12 || Number(radiusDecl[1]) > 16) {
+  fail("毛玻璃圆角应在 12–16px");
+}
+for (const token of [
+  "--immer-glass-fill",
+  "--immer-glass-border",
+  "--immer-glass-shadow",
+  "--immer-glass-pad",
+  "--immer-glass-gap",
+  "--immer-cta-bg",
+  "--immer-badge",
+  "backdrop-filter:",
+  "-webkit-backdrop-filter:",
+]) {
+  if (!glassCss.includes(token)) fail(`glass.css 缺少 ${token}`);
+}
+if (!popupHtml.includes('href="glass.css"') || !popupHtml.includes("immer-glass")) {
+  fail("弹窗未使用共享毛玻璃样式");
+}
+if (!popupCss.includes("var(--immer-cta-bg)") || !popupCss.includes("var(--immer-glass-pad)")) {
+  fail("弹窗主按钮或间距未走共享令牌");
+}
+if (/#(?:ff69b4|ec4899|ff5c8a|f43f7a|ff4d8d|ff6b9d)/i.test(glassCss + popupCss)) {
+  fail("主按钮不应使用沉浸式翻译的粉色");
+}
+if (/navigator\.platform|MacIntel|Win32|@supports\s*\(\s*-moz/.test(glassCss + popupCss + contentJs)) {
+  fail("毛玻璃样式不应按操作系统分叉");
+}
+if (!contentJs.includes("glass.css") || !contentJs.includes("immer-glass") || !contentJs.includes("badge")) {
+  fail("悬浮球未使用共享毛玻璃样式或译文标记");
+}
+const glassResource = manifest.web_accessible_resources?.some((entry) =>
+  (entry.resources || []).includes("glass.css")
+);
+if (!glassResource) fail("悬浮球阴影树需要把 glass.css 暴露给页面");
 ok("工具栏弹窗可翻译、还原、打开设置，并标明 mock");
 
 for (const needle of [
