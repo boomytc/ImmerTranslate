@@ -2,8 +2,9 @@
 
 ## Branching
 
-- `dev-*` — active development and push (start from `dev-0.0.1`)
-- `release-*` — merge from a closed `dev-*` milestone when a stage is done
+- `dev-X.Y.Z` — active development and push (current: start from `dev-0.0.1`)
+- `release-X.Y.Z` — when a `dev-*` stage is closed, merge into the matching `release-*`
+- After merge to `release-*`: **delete** that `dev-*` branch, then open the next (`dev-0.0.2`, …)
 - `main` — keep aligned with the latest stable release when cutting a public milestone
 
 Do not push unfinished work to `release-*` or `main`.
