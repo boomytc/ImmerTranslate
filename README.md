@@ -1,136 +1,138 @@
 # ImmerTranslate
 
-[中文](README.zh-CN.md)
+[English](README.en.md)
 
-Open-source MVP: bilingual (source + translation) reading for webpage main content. Chrome / Edge Manifest V3.
+## 简介
 
-Inspired by immersive bilingual-translate extensions. This repo is an independent implementation with a small core and keys kept on the machine (no login wall in the MVP).
+开源 MVP：网页主内容双语（原文 + 译文）阅读。适用于 Chrome / Edge Manifest V3。
 
-## Status
+受沉浸式双语翻译类扩展启发。本仓库是独立实现，核心保持小巧，密钥留在本机（MVP 没有登录墙）。
 
-Early MVP. The current dev version is **1.0.0** (branch `dev-1.0.0`, matching `extension/manifest.json`). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`.
+## 状态
 
-Hover a main-content paragraph and press **Alt+T** (changeable on the options page, stored as `paragraphHotkey`) to translate that one segment. The extension action icon still toggles the whole page. Options can mark an origin as **never translate** (`denyOrigins`, default empty so every site stays eligible) or **always translate** (`allowOrigins`). A denied origin does not get bilingual nodes from the icon or the hotkey; deny wins if an origin is on both lists. Reading style (`translationFontSize` `sm` / `md` / `lg`, `translationContrast` `normal` / `high`, `displayMode` `bilingual` or `translation-only`) is stored in `chrome.storage.local` and applies to an already open page without a reload.
+早期 MVP。当前开发版本为 **1.0.0**（分支 `dev-1.0.0`，与 `extension/manifest.json` 一致）。未填写 API Key 时，翻译是 **mock**：把原文包成 `⟦…⟧`。在选项页保存密钥后，会选用 OpenAI 兼容或 Anthropic 兼容引擎。默认：协议 `openai`，base `https://api.deepseek.com/v1`，模型 `deepseek-flash`。扩展里的密钥只存在 `chrome.storage.local`。
 
-Node and cloud acceptance read a gitignored local YAML file plus environment variables. The service worker wraps the selected engine once with translate-core `createPipelineEngine`; cache, retry, and rate limit are not reimplemented in the shell. `packages/translate-core` is already `1.0.0` on this branch; this alignment does not change that package. `TranslateRequest` / `TranslateResponse` stay the same, and an empty key still selects the mock engine.
+悬停主内容段落，按 **Alt+T**（可在选项页修改，存储键 `paragraphHotkey`）只翻译这一段。扩展图标仍用来开关整页。选项页可以把某个来源标成 **永不翻译**（`denyOrigins`，默认空，因此所有站点都可译）或 **始终翻译**（`allowOrigins`）。列入永不翻译的来源，图标和快捷键都不会插入双语节点；同一来源两边都有时，以永不翻译为准。阅读样式（`translationFontSize`：`sm` / `md` / `lg`；`translationContrast`：`normal` / `high`；`displayMode`：`bilingual` 或 `translation-only`）存在 `chrome.storage.local`，对已经打开的页面立即生效，不用刷新。
 
-## Layout
+Node 与云端验收读取已 gitignore 的本地 YAML，以及环境变量。Service worker 用 translate-core 的 `createPipelineEngine` 把所选引擎包一层；缓存、重试和限流不在扩展壳里另写一套。`packages/translate-core` 在本分支已经是 `1.0.0`，本次对齐不改该包。`TranslateRequest` / `TranslateResponse` 保持不变；密钥为空时仍走 mock 引擎。
+
+## 目录
 
 ```
-extension/                 # Load this folder as an unpacked extension
+extension/                 # 作为「已解压的扩展程序」加载这一目录
   manifest.json
-  background.js            # Message bus → translate engine
-  hotkey.js                # Alt+T codec (options + content script)
-  sitelist.js              # Per-origin allow / deny matching
-  content.js / content.css # Paragraph detection, hover, bilingual DOM, style attrs
+  background.js            # 消息总线 → 翻译引擎
+  hotkey.js                # Alt+T 编解码（选项页 + content script）
+  sitelist.js              # 按来源匹配始终翻译 / 永不翻译
+  content.js / content.css # 段落识别、悬停、双语 DOM、样式属性
   options.html / options.js
-  vendor/translate-core/   # Synced copy of packages/translate-core/src (MV3)
+  vendor/translate-core/   # packages/translate-core/src 的同步副本（MV3）
 packages/translate-core/   # TranslateRequest/Response + mockTranslate
-  config/load.js           # Node-only YAML merge (not synced into the extension)
-config.yaml                # Committed template, empty apiKey
+  config/load.js           # 仅 Node 的 YAML 合并（不会同步进扩展）
+config.yaml                # 已提交的模板，apiKey 为空
 scripts/sync-translate-core.sh
 ```
 
-## Install
+## 安装
 
-Extension version **1.0.0**. After you have the source, load it unpacked in Chrome or Edge.
+扩展版本 **1.0.0**。从本仓库拿到源码后，在 Chrome 或 Edge 里以未打包方式加载。
 
-1. Clone or download this repository.
-2. Open `chrome://extensions` (Edge: `edge://extensions`).
-3. Turn on **Developer mode**.
-4. Click **Load unpacked** and select the `extension/` directory in the repo.
-5. **Pin the extension icon to the toolbar.** If it is not pinned, open it from the Extensions menu (puzzle icon).
+1. 克隆或下载本仓库。
+2. 打开 `chrome://extensions`（Edge：`edge://extensions`）。
+3. 打开 **开发者模式**。
+4. 点击 **加载已解压的扩展程序**，选择仓库里的 `extension/` 目录。
+5. **把扩展图标钉到工具栏**。不钉的话，只能从扩展菜单（拼图图标）里点开。
 
-### From a GitHub Release (optional)
+### 从 GitHub Release 安装（可选）
 
-Versions are published as git tags and [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases). Existing tags: `v0.1.0`, `v0.1.1`, `v0.2.0`, `v0.2.1`, `v0.3.0`. Later versions (including `v1.0.0`) are tagged and released the same way.
+版本用 git tag 和 [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases) 发布，不维护长期 `release-*` 分支。已有 tag：`v0.1.0`、`v0.1.1`、`v0.2.0`、`v0.2.1`、`v0.3.0`。之后的版本（含 `v1.0.0`）同样打 tag 并建 Release。
 
-1. Open the tag you want on Releases and download that tag's source (Source code).
-2. Unpack it, then load its `extension/` folder with the steps above and pin the icon to the toolbar.
+1. 在 Releases 里打开要装的 tag，下载该 tag 的源码（Source code）。
+2. 解压后，按上面的步骤加载其中的 `extension/`，并把图标钉到工具栏。
 
-The current development line is `dev-1.0.0`. To follow that line, clone or download that branch and load its `extension/` folder.
+当前开发线是 `dev-1.0.0`。要跟这条线，克隆或下载该分支，再加载其中的 `extension/`。
 
-## Use
+## 使用
 
-1. Open an article page and click the toolbar icon to toggle whole-page bilingual text. With an empty API key the translation is a mock, shaped like `⟦原文⟧`. Click the icon again and the translation nodes go away; the page is restored.
-2. Hover a paragraph in the main content (it picks up a blue outline) and press the default **Alt+T** to translate only that segment. The line under the original uses the same bilingual style as the full-page toggle. Pressing the hotkey again on an already translated paragraph does nothing.
-3. On the options page (extension details → Extension options) you can:
-   - **Change the hotkey.** Focus “段落快捷键”, press a combo that includes Alt, Ctrl, or Meta, then save. The default is `Alt+T`. “恢复默认 Alt+T” restores the default.
-   - **Site lists.** A **never translate** origin does not get bilingual nodes from the icon or the hotkey. **Always translate** is optional and auto-translates that origin on load. Deny wins if an origin is on both lists. A bare host matches that hostname on both http and https; a full URL is stored as its origin only. Subdomains are not included.
-   - **Reading style.** Translation font size (small / standard / large), contrast (standard / high), and display (bilingual or translation-only). An already translated page updates without a reload.
+1. 打开一篇文章页，点击工具栏上的扩展图标，开关整页双语。未填 API Key 时，译文是 mock，形如 `⟦原文⟧`。再点一次图标，译文节点消失，页面还原。
+2. 悬停主内容里的一段（会出现蓝色描边），按默认 **Alt+T**，只翻译这一段。译文行的样式与整页对照相同。已经译过的段再按一次不会重复插入。
+3. 选项页（扩展详情 → 扩展选项）可以：
+   - **改热键**：聚焦「段落快捷键」，按下含 Alt、Ctrl 或 Meta 的组合，然后保存。默认 `Alt+T`。可点「恢复默认 Alt+T」。
+   - **站点名单**：**永不翻译** 的来源不会插入双语节点（图标和快捷键都不会）。**始终翻译** 可选，打开该来源时自动翻译。同一来源两边都有时，以永不翻译为准。只填域名则同时匹配 http 与 https；填完整网址则只保存其 origin。子域名不会跟着生效。
+   - **阅读样式**：译文字号（小 / 标准 / 大）、对比度（标准 / 高对比）、显示方式（双语对照或仅译文）。已经译过的页面会马上换样式，不用刷新。
 
-Protocol, base URL, model, API key, languages, `paragraphHotkey`, `denyOrigins`, `allowOrigins`, and the reading-style keys are stored only in `chrome.storage.local`. Leave the key empty to keep the mock engine. The extension does not read `config.yaml`.
+协议、Base URL、模型、API Key、语言、`paragraphHotkey`、`denyOrigins`、`allowOrigins` 和阅读样式都只存在 `chrome.storage.local`。密钥留空则继续用 mock。扩展不读取 `config.yaml`。
 
-## Configure keys
+## 配置密钥
 
-Do not commit keys to the repository.
+密钥不要提交进仓库。
 
-- **Browser extension:** enter the API key on the options page. It is written only to `chrome.storage.local` on this machine. Leave it empty to keep the mock (`⟦…⟧`). The extension does not read YAML.
-- **Local Node / cloud acceptance:** copy the template to `config.local.yaml` and fill it in, or set `DEEPSEEK_BASE_URL` and `DEEPSEEK_API_KEY`.
+- **浏览器扩展**：在选项页填写 API Key，只写入本机 `chrome.storage.local`。留空则继续 mock（`⟦…⟧`）。扩展不读 YAML。
+- **本机 Node / 云端验收**：把模板抄成 `config.local.yaml` 再填写，或设置环境变量 `DEEPSEEK_BASE_URL` 与 `DEEPSEEK_API_KEY`。
 
 ```bash
 cp config.yaml config.local.yaml
 ```
 
-`config.yaml` is the committed template with an empty key (`apiKey: ""`). `config.local.yaml` is gitignored. Blank or whitespace-only environment variables do not override YAML. Merge order and the other variable names are in [Node and cloud config](#node-and-cloud-config) below.
+`config.yaml` 是已提交的空密钥模板（`apiKey: ""`）。`config.local.yaml` 已被 gitignore。空白或只有空格的环境变量不会覆盖 YAML。合并顺序和其余变量名见下文 [Node 与云端配置](#node-与云端配置)。
 
-## translate-core smoke test
+## translate-core 冒烟测试
 
 ```bash
 cd packages/translate-core
 npm run smoke
 ```
 
-Expect JSON segments like `⟦原文⟧` and a final line `smoke ok`.
+期望输出里有形如 `⟦原文⟧` 的 JSON 段落，最后一行是 `smoke ok`。
 
-## Sync the vendor copy
+## 同步 vendor 副本
 
-MV3 service workers cannot import files outside the extension root. After editing `packages/translate-core/src/`:
+MV3 service worker 不能导入扩展根目录以外的文件。改完 `packages/translate-core/src/` 之后：
 
 ```bash
 ./scripts/sync-translate-core.sh
 ```
 
-Then reload the extension.
+然后在浏览器里重新加载扩展。
 
-## MVP acceptance
+## MVP 验收
 
-The current extension version is **1.0.0** (`dev-1.0.0`). The checklist still covers the original MVP checks, the hover hotkey, and the 0.3.0 site lists plus reading-style switches. This alignment adds no features.
+当前扩展版本是 **1.0.0**（`dev-1.0.0`）。清单仍覆盖最初的 MVP 检查、悬停热键，以及 0.3.0 的站点名单和阅读样式开关。本次对齐不新增功能。
 
 ```bash
 npm run accept
 ```
 
-Checks: vendor sync with `packages/translate-core`; background imports that vendor and selects mock / OpenAI / Anthropic from options; mock batch `⟦…⟧`; package smoke; MV3 manifest; options fields without login or paywall copy; paragraph hotkey default `Alt+T` with a single-segment `TRANSLATE_BATCH`; no absolute local paths or key-shaped secrets in git files; `config.yaml` has an empty `apiKey`; `config.local.yaml` is gitignored; YAML merge precedence; `extension/` contains neither local YAML nor secrets.
+检查内容：vendor 与 `packages/translate-core` 同步；background 导入该 vendor，并按选项在 mock / OpenAI / Anthropic 之间选择；mock 批量结果为 `⟦…⟧`；包内 smoke；MV3 manifest；选项页字段，且没有登录或付费墙文案；段落热键默认 `Alt+T`，单段走一次 `TRANSLATE_BATCH`；git 文件里没有本机绝对路径或形如密钥的秘密；`config.yaml` 的 `apiKey` 为空；`config.local.yaml` 已被 gitignore；YAML 合并优先级；`extension/` 里既没有本地 YAML，也没有密钥。
 
-After `npm run accept` passes, click through the list below on your machine. Load the extension as in [Install](#install) (the icon must be pinned to the toolbar).
+`npm run accept` 通过后，按下面的清单在本机点一遍。加载方式见上文 [安装](#安装)（须把图标钉到工具栏）。
 
-### Local acceptance checklist
+### 本机验收清单
 
-Leave the API key empty except for the last item. The options page should state that there is no forced login and no upgrade dialog.
+除最后一项外，API Key 留空。设置页应写明无强制登录、无升级弹窗。
 
-- [ ] **Pin + empty-key page toggle:** load `extension/` and pin the icon as in [Install](#install). On an article page, click the icon and bilingual `⟦原文⟧` appears under paragraphs. Click again: the translation nodes disappear and the page is restored.
-- [ ] **Hover + Alt+T, one segment:** hover one main-content paragraph (blue outline) and press **Alt+T**. Only that paragraph gets a bilingual line.
-- [ ] **Change the hotkey on the options page:** focus “段落快捷键”, press a combo that includes Alt, Ctrl, or Meta, and save. Hover another paragraph and use the new combo to translate only that segment. “恢复默认 Alt+T” returns to the default.
-- [ ] **Never-translate blocks insertion:** after the current origin is on the never-translate list, neither the icon nor Alt+T inserts a translation. Remove it and translation works again.
-- [ ] **Style applies immediately:** on an already translated page, change font size, contrast, or bilingual vs translation-only. The open page updates without a reload.
-- [ ] **Optional real DeepSeek key:** keep the OpenAI-compatible protocol, paste your own DeepSeek key (default base / model is enough), and translate one page. The key stays in `chrome.storage.local` on this machine. There is no login or upgrade wall.
+- [ ] **钉到工具栏 + 空密钥整页开关**：按 [安装](#安装) 加载 `extension/` 并钉到工具栏。文章页点击图标，段落下出现双语 `⟦原文⟧`；再点一次，译文节点消失，页面还原。
+- [ ] **悬停 + Alt+T 单段**：悬停主内容一段（蓝色描边），按 **Alt+T**，只有该段出现双语行。
+- [ ] **设置页改快捷键**：选项页聚焦「段落快捷键」，按下含 Alt、Ctrl 或 Meta 的组合并保存；悬停另一段用新组合只译该段。可点「恢复默认 Alt+T」回到默认。
+- [ ] **永不翻译拦截**：把当前来源加入永不翻译后，图标和 Alt+T 都不再插入译文；从名单移除后可以再译。
+- [ ] **样式即时生效**：已译页面上改译文字号、对比度，或双语对照 / 仅译文，当前页马上变样，不用刷新。
+- [ ] **可选真实 DeepSeek Key**：协议保持 OpenAI 兼容，填入自备 DeepSeek Key（默认 base / model 即可）翻译一页。密钥只在本机 `chrome.storage.local`。没有登录或升级墙。
 
-## Node and cloud config
+## Node 与云端配置
 
-The extension reads provider, base URL, model, and API key from `chrome.storage.local` (options page) only. It does not read YAML. Do not copy `config.yaml` or `config.local.yaml` into `extension/` or `extension/vendor/`.
+扩展只从 `chrome.storage.local`（选项页）读取协议、Base URL、模型和 API Key，不读 YAML。不要把 `config.yaml` 或 `config.local.yaml` 复制进 `extension/` 或 `extension/vendor/`。
 
-For Node scripts and cloud acceptance, copy the template and fill the key locally:
+Node 脚本和云端验收：复制模板，在本地填写密钥。
 
 ```bash
 cp config.yaml config.local.yaml
 ```
 
-`config.yaml` is the committed template (`apiKey: ""`). `config.local.yaml` is gitignored. Loader: `packages/translate-core/config/load.js` (`loadMergedEngineConfig`, `createEngineFromMergedConfig`). Empty `apiKey` selects `mockTranslate`. `provider: anthropic` selects the Anthropic-compatible engine; any other provider uses the OpenAI-compatible engine (DeepSeek included).
+`config.yaml` 是已提交模板（`apiKey: ""`）。`config.local.yaml` 已被 gitignore。加载器：`packages/translate-core/config/load.js`（`loadMergedEngineConfig`、`createEngineFromMergedConfig`）。`apiKey` 为空时选用 `mockTranslate`。`provider: anthropic` 选用 Anthropic 兼容引擎；其他 provider 用 OpenAI 兼容引擎（含 DeepSeek）。
 
-Merge order (later wins): defaults ← `config.yaml` ← `config.local.yaml` ← environment. YAML is a small subset: one `key: value` per line, optional quotes, `#` comments on their own line. No nesting.
+合并顺序（后者胜出）：默认值 ← `config.yaml` ← `config.local.yaml` ← 环境变量。YAML 只支持很小的子集：每行一个 `key: value`，可选引号，`#` 注释必须单独成行。不支持嵌套。
 
-| Variable | Overrides |
+| 变量 | 覆盖字段 |
 | --- | --- |
 | `IMMER_TRANSLATE_PROVIDER` | `provider` |
 | `IMMER_TRANSLATE_BASE_URL` | `baseUrl` |
@@ -138,10 +140,10 @@ Merge order (later wins): defaults ← `config.yaml` ← `config.local.yaml` ←
 | `IMMER_TRANSLATE_API_KEY` | `apiKey` |
 | `IMMER_TRANSLATE_SOURCE_LANG` | `sourceLang` |
 | `IMMER_TRANSLATE_TARGET_LANG` | `targetLang` |
-| `DEEPSEEK_BASE_URL` | `baseUrl` (after the generic variables) |
-| `DEEPSEEK_API_KEY` | `apiKey` (after the generic variables) |
+| `DEEPSEEK_BASE_URL` | `baseUrl`（在通用变量之后） |
+| `DEEPSEEK_API_KEY` | `apiKey`（在通用变量之后） |
 
-Blank or whitespace-only variables do not override YAML. `DEEPSEEK_API_KEY` therefore wins over both YAML and `IMMER_TRANSLATE_API_KEY` when it is non-empty.
+空白或只有空格的变量不会覆盖 YAML。因此非空的 `DEEPSEEK_API_KEY` 会压过 YAML 和 `IMMER_TRANSLATE_API_KEY`。
 
 ```js
 import { loadMergedEngineConfig, createEngineFromMergedConfig } from "./packages/translate-core/config/load.js";
@@ -150,23 +152,23 @@ const cfg = loadMergedEngineConfig({ cwd: process.cwd(), env: process.env });
 const engine = createEngineFromMergedConfig(cfg);
 ```
 
-Pass `cfg.sourceLang` / `cfg.targetLang` on the translate request. The engine factories only receive `apiKey`, `baseUrl`, and `model`.
+把 `cfg.sourceLang` / `cfg.targetLang` 放进翻译请求。引擎工厂只接收 `apiKey`、`baseUrl` 和 `model`。
 
-## Branches and releases
+## 分支与 Release
 
-Day-to-day remote branches are `main` and the current `dev-*`.
+日常远程分支是 `main` 和当前的 `dev-*`。
 
-- Develop on `dev-*` (currently `dev-1.0.0`, extension version `1.0.0`)
-- Merge into `main` when that stage is done
-- Publish with a git tag and a GitHub Release. `v0.1.0` through `v0.3.0` already exist; later tags (including `v1.0.0`) follow the same path
+- 开发在 `dev-*`（当前 `dev-1.0.0`，扩展版本 `1.0.0`）
+- 阶段完成后合入 `main`
+- 发布时打 tag，并创建 GitHub Release。已有 `v0.1.0` 至 `v0.3.0`；之后（含 `v1.0.0`）同样处理。没有长期 `release-*` 分支
 
-Unfinished work stays on the current `dev-*` until that stage is merged into `main`.
+未完成的工作留在当前 `dev-*`，该阶段合入 `main` 后再作为稳定线。
 
-## Security
+## 安全要点
 
-- No API keys in the repository
-- See [SECURITY.md](SECURITY.md)
+- 仓库里不放 API Key
+- 见 [SECURITY.md](SECURITY.md)
 
-## License
+## 许可证
 
 [MIT](LICENSE)
