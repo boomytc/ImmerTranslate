@@ -6,9 +6,11 @@
 import { mockTranslate } from "./mock.js";
 
 export { mockTranslate };
+export { createOpenAICompatibleEngine, createAnthropicCompatibleEngine } from "./engines.js";
+export { deepSeekOptionsFromEnv } from "./env.js";
 
 /**
- * Default engine for local / extension wiring until a real OpenAI-compatible
- * engine is plugged in. Callers pass secrets from chrome.storage / env at runtime.
+ * Default engine stays the mock. Real engines are opt-in via the factories;
+ * callers pass secrets from chrome.storage or the process environment.
  */
 export const translate = mockTranslate;
