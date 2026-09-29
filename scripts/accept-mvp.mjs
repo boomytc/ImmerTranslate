@@ -455,11 +455,15 @@ ok("黑名单默认放行，样式开关可在已打开页面生效");
 // 5d) toolbar popup + draggable ball (0.4.0). Same on/off state, empty key stays mock.
 const popupHtml = readFileSync(join(root, "extension/popup.html"), "utf8");
 const popupJs = readFileSync(join(root, "extension/popup.js"), "utf8");
-for (const id of ["status", "mock", "translate", "restore", "options", "deny"]) {
+for (const id of ["status", "mock", "toggle", "options", "deny"]) {
   if (!new RegExp(`id="${id}"`).test(popupHtml)) fail(`弹窗缺少 ${id}`);
 }
-if (!popupHtml.includes("翻译本页") || !popupHtml.includes("还原本页")) {
-  fail("弹窗缺少整页翻译或还原");
+if (!popupHtml.includes(">翻译<")) fail("弹窗主按钮默认应为「翻译」");
+if (!popupJs.includes("显示原文") || !popupJs.includes('"翻译"')) {
+  fail("弹窗主按钮应在「翻译」和「显示原文」之间切换");
+}
+if (popupHtml.includes('id="restore"') || popupHtml.includes("翻译本页")) {
+  fail("弹窗主操作应是一个双态按钮，而不是分开的翻译/还原");
 }
 if (!popupHtml.includes("打开设置")) fail("弹窗缺少打开设置");
 if (!popupHtml.includes("永不翻译本站")) fail("弹窗缺少永不翻译本站");
@@ -499,9 +503,17 @@ for (const needle of [
   "snapBallPosition",
   "normalizeStoredBallPosition",
   "DENY_THIS_ORIGIN",
-  "本站已设为永不翻译",
+  "显示原文",
+  "ballTipSeen",
+  "知道了",
 ]) {
   if (!contentJs.includes(needle)) fail(`content.js 缺少 ${needle}`);
+}
+if (!contentJs.includes('display", denied ? "none"')) {
+  fail("永不翻译的来源应隐藏悬浮球");
+}
+if (/登录|升级|会员|Subscribe|Upgrade to Pro/i.test(contentJs)) {
+  fail("悬浮球提示不应引导登录或付费");
 }
 if (!contentCss.includes("#immer-ball-host")) fail("content.css 缺少悬浮球宿主");
 const ballIdx = contentScripts.indexOf("ballpos.js");
@@ -515,42 +527,49 @@ const ballApi = ballSandbox.ImmerBall;
 if (!ballApi) fail("ballpos.js 未挂上 ImmerBall");
 const ballVp = { width: 1200, height: 800 };
 const ballDefault = ballApi.defaultBallPosition(ballVp);
-if (ballDefault.left !== 1200 - ballApi.BALL_SIZE - ballApi.EDGE_MARGIN) {
+const rightEdge = 1200 - ballApi.BALL_SIZE - ballApi.EDGE_MARGIN;
+if (ballDefault.side !== "right" || ballDefault.left !== rightEdge) {
   fail(`悬浮球默认应贴右缘: ${JSON.stringify(ballDefault)}`);
 }
 if (ballDefault.top !== 800 - ballApi.BALL_SIZE - ballApi.EDGE_MARGIN) {
-  fail(`悬浮球默认应贴底缘: ${JSON.stringify(ballDefault)}`);
+  fail(`悬浮球默认竖直位置应靠下: ${JSON.stringify(ballDefault)}`);
 }
-const snapLeft = ballApi.snapBallPosition({ left: 10, top: 400 }, ballVp);
-if (snapLeft.left !== ballApi.EDGE_MARGIN) fail(`靠近左缘应吸附: ${JSON.stringify(snapLeft)}`);
-const snapRight = ballApi.snapBallPosition({ left: 1130, top: 400 }, ballVp);
-if (snapRight.left !== ballDefault.left) fail(`靠近右缘应吸附: ${JSON.stringify(snapRight)}`);
-const snapTop = ballApi.snapBallPosition({ left: 500, top: 20 }, ballVp);
-if (snapTop.top !== ballApi.EDGE_MARGIN) fail(`靠近上缘应吸附: ${JSON.stringify(snapTop)}`);
-const snapBottom = ballApi.snapBallPosition({ left: 500, top: 730 }, ballVp);
-if (snapBottom.top !== ballDefault.top) fail(`靠近下缘应吸附: ${JSON.stringify(snapBottom)}`);
-const stay = ballApi.snapBallPosition({ left: 500, top: 400 }, ballVp);
-if (stay.left !== 500 || stay.top !== 400) fail(`远离边缘不应吸附: ${JSON.stringify(stay)}`);
-const corner = ballApi.snapBallPosition({ left: 8, top: 740 }, ballVp);
-if (corner.left !== ballApi.EDGE_MARGIN || corner.top !== ballDefault.top) {
-  fail(`靠近角落应同时吸附两条边: ${JSON.stringify(corner)}`);
+const snapLeft = ballApi.snapBallPosition({ left: 200, top: 400 }, ballVp);
+if (snapLeft.side !== "left" || snapLeft.left !== ballApi.EDGE_MARGIN || snapLeft.top !== 400) {
+  fail(`松手应贴左缘并保留竖直位置: ${JSON.stringify(snapLeft)}`);
+}
+const snapRight = ballApi.snapBallPosition({ left: 700, top: 220 }, ballVp);
+if (snapRight.side !== "right" || snapRight.left !== rightEdge || snapRight.top !== 220) {
+  fail(`松手应贴右缘并保留竖直位置: ${JSON.stringify(snapRight)}`);
+}
+const keepVertical = ballApi.snapBallPosition({ left: 900, top: 20 }, ballVp);
+if (keepVertical.side !== "right" || keepVertical.top !== 20) {
+  fail(`贴边时不应改掉竖直位置: ${JSON.stringify(keepVertical)}`);
 }
 const clamped = ballApi.clampBallPosition({ left: -100, top: 99999 }, ballVp);
 if (clamped.left !== ballApi.EDGE_MARGIN || clamped.top !== ballDefault.top) {
-  fail(`位置应夹在视口内: ${JSON.stringify(clamped)}`);
+  fail(`拖动中的位置应夹在视口内: ${JSON.stringify(clamped)}`);
 }
 if (ballApi.normalizeStoredBallPosition(null, ballVp) !== null) fail("空的 ballPosition 应忽略");
-if (ballApi.normalizeStoredBallPosition({ left: "nope", top: 10 }, ballVp) !== null) {
+if (ballApi.normalizeStoredBallPosition({ side: "right", top: "nope" }, ballVp) !== null) {
   fail("非法 ballPosition 应忽略");
 }
-const stored = ballApi.normalizeStoredBallPosition({ left: 500, top: 400 }, ballVp);
-if (!stored || stored.left !== 500 || stored.top !== 400) fail("合法 ballPosition 应保留");
-const storedOff = ballApi.normalizeStoredBallPosition({ left: 5000, top: -20 }, ballVp);
-if (!storedOff || storedOff.left !== ballDefault.left || storedOff.top !== ballApi.EDGE_MARGIN) {
-  fail(`越界 ballPosition 应夹回视口: ${JSON.stringify(storedOff)}`);
+const stored = ballApi.normalizeStoredBallPosition({ side: "left", top: 400 }, ballVp);
+if (!stored || stored.side !== "left" || stored.left !== ballApi.EDGE_MARGIN || stored.top !== 400) {
+  fail(`应记住左右边和竖直位置: ${JSON.stringify(stored)}`);
 }
-if (!readme.includes("悬浮球") || !readme.includes("弹窗")) fail("README 未记录弹窗或悬浮球");
-ok("悬浮球默认为右下角，拖近边缘会吸附，位置可从 storage 还原");
+const storedOff = ballApi.normalizeStoredBallPosition({ side: "right", top: -20 }, ballVp);
+if (!storedOff || storedOff.side !== "right" || storedOff.left !== rightEdge || storedOff.top !== ballApi.EDGE_MARGIN) {
+  fail(`越界竖直位置应夹回视口: ${JSON.stringify(storedOff)}`);
+}
+const legacy = ballApi.normalizeStoredBallPosition({ left: 5000, top: 180 }, ballVp);
+if (!legacy || legacy.side !== "right" || legacy.top !== 180) {
+  fail(`旧的 left/top 应折成贴边位置: ${JSON.stringify(legacy)}`);
+}
+if (!readme.includes("悬浮球") || !readme.includes("弹窗") || !readme.includes("显示原文")) {
+  fail("README 未记录弹窗、双态按钮或悬浮球");
+}
+ok("悬浮球默认在右侧，松手贴左右边缘，并记住竖直位置");
 
 // 6) no absolute local paths / obvious secrets in tracked tree
 const tracked = run("git", ["ls-files"]);
@@ -696,5 +715,5 @@ for (const file of walk(join(root, "extension"))) {
 ok("extension/vendor 无 config.local.yaml 与密钥");
 
 console.log(
-  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 点工具栏应打开弹窗（空 key 标明 Mock）；翻译本页出现 ⟦原文⟧，还原后节点消失；右下角悬浮球可拖、刷新后位置还在，点一下与弹窗同一状态；永不翻译的来源点球只提示不插入；悬停一段按 Alt+T 只译该段；改字号/对比度/仅译文后已打开页面立即变样"
+  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 弹窗主按钮在「翻译 / 显示原文」间切换，空 key 标明 Mock；右侧悬浮球拖完贴边，刷新后竖直位置还在；首次出现一次提示；永不翻译的来源不显示球；悬停一段按 Alt+T 只译该段"
 );

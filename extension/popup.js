@@ -53,6 +53,35 @@ function setHint(text) {
 }
 
 let busy = false;
+/** @type {boolean} */
+let pageActive = false;
+
+/**
+ * Dual-state primary CTA: 「翻译」 when the page is original, 「显示原文」 when translated.
+ * @param {{ supported: boolean, denied: boolean, active: boolean }} view
+ */
+function paint(view) {
+  const button = $("toggle");
+  if (!view.supported) {
+    $("status").textContent = "此页面无法翻译";
+    button.textContent = "翻译";
+    button.disabled = true;
+    $("deny").disabled = true;
+    return;
+  }
+  if (view.denied) {
+    $("status").textContent = "本站永不翻译";
+    button.textContent = "翻译";
+    button.disabled = true;
+    $("deny").disabled = true;
+    return;
+  }
+  pageActive = view.active;
+  $("status").textContent = view.active ? "已翻译" : "未翻译";
+  button.textContent = view.active ? "显示原文" : "翻译";
+  button.disabled = busy;
+  $("deny").disabled = busy;
+}
 
 async function refresh() {
   const tab = await activeTab();
@@ -62,10 +91,7 @@ async function refresh() {
 
   const supported = Boolean(tab?.id) && /^https?:/i.test(tab.url || "");
   if (!supported) {
-    $("status").textContent = "此页面无法翻译";
-    $("translate").disabled = true;
-    $("restore").disabled = true;
-    $("deny").disabled = true;
+    paint({ supported: false, denied: false, active: false });
     return;
   }
 
@@ -77,19 +103,15 @@ async function refresh() {
     state = null;
   }
   if (!state?.ok) {
-    $("status").textContent = "此页面无法翻译";
-    $("translate").disabled = true;
-    $("restore").disabled = true;
-    $("deny").disabled = true;
+    paint({ supported: false, denied: false, active: false });
     return;
   }
-
   const denied = Boolean(state.denied);
-  const active = Boolean(state.active) && !denied;
-  $("status").textContent = denied ? "本站永不翻译" : active ? "已翻译" : "未翻译";
-  $("translate").disabled = busy || denied || active;
-  $("restore").disabled = busy || !active;
-  $("deny").disabled = busy || denied;
+  paint({
+    supported: true,
+    denied,
+    active: Boolean(state.active) && !denied,
+  });
 }
 
 /**
@@ -98,8 +120,7 @@ async function refresh() {
 async function run(action) {
   if (busy) return;
   busy = true;
-  $("translate").disabled = true;
-  $("restore").disabled = true;
+  $("toggle").disabled = true;
   $("deny").disabled = true;
   try {
     await action();
@@ -111,24 +132,15 @@ async function run(action) {
   }
 }
 
-$("translate").addEventListener("click", () => {
+$("toggle").addEventListener("click", () => {
   run(async () => {
     const tab = await activeTab();
     if (!tab?.id) return;
-    const res = await send(tab.id, { type: "TRANSLATE_PAGE" });
-    if (!res?.ok) throw new Error(res?.error || "翻译失败");
+    const type = pageActive ? "RESTORE_PAGE" : "TRANSLATE_PAGE";
+    const res = await send(tab.id, { type });
+    if (!res?.ok) throw new Error(res?.error || "操作失败");
     if (res.denied) setHint("本站已设为永不翻译");
     else setHint("");
-  });
-});
-
-$("restore").addEventListener("click", () => {
-  run(async () => {
-    const tab = await activeTab();
-    if (!tab?.id) return;
-    const res = await send(tab.id, { type: "RESTORE_PAGE" });
-    if (!res?.ok) throw new Error(res?.error || "还原失败");
-    setHint("");
   });
 });
 
@@ -161,5 +173,5 @@ $("options").addEventListener("click", () => {
 });
 
 refresh().catch(() => {
-  $("status").textContent = "此页面无法翻译";
+  paint({ supported: false, denied: false, active: false });
 });

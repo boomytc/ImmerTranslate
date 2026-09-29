@@ -31,9 +31,6 @@ h1 {
 }
 
 .actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
   margin-top: 12px;
 }
 
@@ -50,14 +47,11 @@ button:disabled {
   opacity: 0.45;
 }
 
-#translate {
+#toggle {
+  width: 100%;
   background: #4f8cff;
   color: #fff;
-}
-
-#restore {
-  background: #e2e8f0;
-  color: #0f172a;
+  font-weight: 650;
 }
 
 .hint {
