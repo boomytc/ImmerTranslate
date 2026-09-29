@@ -79,16 +79,23 @@
       </div>
     </div>
 
+    <label for="paragraphHotkey">段落快捷键</label>
+    <input id="paragraphHotkey" type="text" readonly spellcheck="false" autocomplete="off" />
+    <p class="hint">默认 Alt+T。聚焦后按下新组合键（须含 Alt、Ctrl 或 Meta），再点保存。阅读页悬停主内容段落会标出当前段，按下该键只翻译这一段；译文节点样式与整页对照相同。已译过的段不会重复插入。</p>
+    <button id="resetHotkey" type="button">恢复默认 Alt+T</button>
+
     <div class="notice">
       <strong>额度 / 引擎说明（明文）</strong>
       <ul>
         <li>未填 API Key 时走 mock，译文形如 ⟦原文⟧，无额度限制。</li>
         <li>填 Key 后走所选协议；消耗以你自备 API 提供商账单为准。本扩展不设日限墙、不逼付费。</li>
+        <li>段落快捷键存在本机设置里，默认 Alt+T。</li>
       </ul>
     </div>
 
     <button id="save" type="button">保存</button>
     <span id="status"></span>
+    <script src="hotkey.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

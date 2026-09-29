@@ -2,14 +2,17 @@
  * Message bus → translate-core (vendored).
  * Refresh vendor: `./scripts/sync-translate-core.sh`
  *
- * Settings (chrome.storage.local): provider openai|anthropic, baseUrl, model, apiKey.
- * Empty apiKey stays on mockTranslate. Defaults: OpenAI-compatible DeepSeek.
+ * Settings (chrome.storage.local): provider openai|anthropic, baseUrl, model, apiKey,
+ * paragraphHotkey. Empty apiKey stays on mockTranslate. Defaults: OpenAI-compatible
+ * DeepSeek. Paragraph hotkey default is Alt+T (content script matches it).
+ * The selected engine is wrapped once with createPipelineEngine (TransPipe).
  */
 
 import {
   mockTranslate,
   createOpenAICompatibleEngine,
   createAnthropicCompatibleEngine,
+  createPipelineEngine,
 } from "./vendor/translate-core/index.js";
 
 const DEFAULTS = {
@@ -19,6 +22,7 @@ const DEFAULTS = {
   apiKey: "",
   sourceLang: "auto",
   targetLang: "zh-CN",
+  paragraphHotkey: "Alt+T",
 };
 
 function getSettings() {
@@ -48,12 +52,40 @@ export function buildEngine(settings = {}) {
   return createOpenAICompatibleEngine(opts);
 }
 
+/** @type {import("./vendor/translate-core/types.js").TranslateEngine | null} */
+let pipedEngine = null;
+let pipedStamp = "";
+
+/**
+ * Reuse one pipeline so paragraph cache and rate limit survive later batches.
+ * Rebuild only when provider, base URL, model, or apiKey changes.
+ * @param {Partial<typeof DEFAULTS>} settings
+ * @returns {import("./vendor/translate-core/types.js").TranslateEngine}
+ */
+export function engineFor(settings = {}) {
+  const base = buildEngine(settings);
+  const apiKey = (settings.apiKey || "").trim();
+  const provider = String(settings.provider || DEFAULTS.provider)
+    .trim()
+    .toLowerCase();
+  const model = (settings.model || "").trim() || DEFAULTS.model;
+  const baseUrl = (settings.baseUrl || "").trim() || DEFAULTS.baseUrl;
+  const stamp = [provider, baseUrl, model, apiKey].join("\0");
+  if (!pipedEngine || pipedStamp !== stamp) {
+    pipedStamp = stamp;
+    pipedEngine = createPipelineEngine(base, {
+      cache: { provider, model },
+    });
+  }
+  return pipedEngine;
+}
+
 if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "TRANSLATE_BATCH") {
       getSettings()
         .then((settings) => {
-          const engine = buildEngine(settings);
+          const engine = engineFor(settings);
           const payload = {
             sourceLang: message.payload?.sourceLang || settings.sourceLang,
             targetLang: message.payload?.targetLang || settings.targetLang,
@@ -78,6 +110,7 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
             baseUrl: settings.baseUrl,
             model: settings.model,
             hasApiKey: Boolean((settings.apiKey || "").trim()),
+            paragraphHotkey: settings.paragraphHotkey || DEFAULTS.paragraphHotkey,
           },
         })
       );
