@@ -1,5 +1,10 @@
 # Changelog
 
+## translate-core 0.2.0
+
+- Paragraph cache, retry with backoff, and rate limit via `withCache` / `withRetry` / `withRateLimit` / `createPipelineEngine`
+- `TranslateRequest` / `TranslateResponse` unchanged. Extension manifest stays `0.1.1`; ExtForge wraps the vendored engine once
+
 ## 0.1.1
 
 - Version and docs alignment only: `extension/manifest.json` version is `0.1.1`

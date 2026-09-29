@@ -8,6 +8,11 @@ import {
   createOpenAICompatibleEngine,
   createAnthropicCompatibleEngine,
   deepSeekOptionsFromEnv,
+  createPipelineEngine,
+  pipelineDefaults,
+  withCache,
+  withRetry,
+  withRateLimit,
 } from "../src/index.js";
 import { createEngineFromMergedConfig, loadMergedEngineConfig } from "../config/load.js";
 
@@ -364,4 +369,300 @@ const anthropicFromCfgRes = await anthropicFromCfg({
 assert(pickedUrl === "https://api.anthropic.com/v1/messages", `anthropic 配置 URL: ${pickedUrl}`);
 assert(anthropicFromCfgRes.segments[0].text === "你好", "anthropic 配置映射");
 
-console.log("smoke ok: batch mockTranslate / translate + openai/anthropic/deepseek env + yaml merge");
+assert(pipelineDefaults.cache.maxEntries === 500, "默认缓存条数");
+assert(pipelineDefaults.retry.retries === 2, "默认重试次数");
+assert(pipelineDefaults.retry.baseDelayMs === 50, "默认退避基数");
+assert(pipelineDefaults.retry.factor === 2, "默认退避倍数");
+assert(pipelineDefaults.retry.maxDelayMs === 400, "默认退避上限");
+assert(pipelineDefaults.rateLimit.minIntervalMs === 100, "默认最小间隔");
+assert(pipelineDefaults.rateLimit.maxConcurrent === 2, "默认并发上限");
+
+/**
+ * @param {RequestInit | undefined} init
+ */
+function segmentsFromOpenAIBody(init) {
+  const body = JSON.parse(String(init && init.body));
+  return JSON.parse(body.messages[1].content);
+}
+
+/** @type {string[][]} */
+const cacheBatches = [];
+let cacheFetches = 0;
+const cachedEngine = createPipelineEngine(
+  createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    baseUrl: "https://example.test/v1",
+    model: "cache-model",
+    fetchImpl: async (_url, init) => {
+      cacheFetches++;
+      const segs = segmentsFromOpenAIBody(init);
+      cacheBatches.push(segs.map((segment) => segment.text));
+      return jsonResponse({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(segs.map((segment) => ({ id: segment.id, text: `⟦${segment.text}⟧` }))),
+            },
+          },
+        ],
+      });
+    },
+  }),
+  {
+    retry: { retries: 0 },
+    rateLimit: { minIntervalMs: 0, maxConcurrent: 2 },
+    cache: { provider: "openai", model: "cache-model" },
+  }
+);
+
+const cachedFirst = await cachedEngine(req);
+const cachedSecond = await cachedEngine(req);
+assert(cacheFetches === 1, "相同段落第二次应命中缓存，不再 fetch");
+assert(cachedFirst.segments[0].text === "⟦Hello world⟧", "缓存包装应保留译文");
+assert(cachedSecond.segments[0].id === "p1" && cachedSecond.segments[1].id === "p2", "缓存命中应使用请求 id");
+assert(cachedSecond.segments[0].text === cachedFirst.segments[0].text, "缓存译文应稳定");
+assert(cacheBatches[0].length === 2, "首次应送出两段");
+
+const partial = await cachedEngine({
+  sourceLang: "auto",
+  targetLang: "zh-CN",
+  segments: [
+    { id: "x", text: "Hello world" },
+    { id: "y", text: "Only once" },
+  ],
+});
+assert(cacheFetches === 2, "只有未命中段落才应再次 fetch");
+assert(cacheBatches[1].length === 1 && cacheBatches[1][0] === "Only once", "已缓存段落不应进入第二次请求");
+assert(partial.segments[0].id === "x" && partial.segments[0].text === "⟦Hello world⟧", "部分命中应带回缓存译文");
+assert(partial.segments[1].id === "y" && partial.segments[1].text === "⟦Only once⟧", "新段落应映射回原 id");
+
+const duplicated = await cachedEngine({
+  sourceLang: "auto",
+  targetLang: "zh-CN",
+  segments: [
+    { id: "d1", text: "Same line" },
+    { id: "d2", text: "Same line" },
+  ],
+});
+assert(cacheBatches.at(-1)?.length === 1, "同批相同段落应只请求一次");
+assert(
+  duplicated.segments[0].id === "d1" &&
+    duplicated.segments[1].id === "d2" &&
+    duplicated.segments[0].text === "⟦Same line⟧" &&
+    duplicated.segments[1].text === "⟦Same line⟧",
+  "重复段落应各自保留 id"
+);
+
+const otherLang = await cachedEngine({
+  sourceLang: "auto",
+  targetLang: "ja",
+  segments: [{ id: "j", text: "Hello world" }],
+});
+assert(cacheFetches === 4, "targetLang 不同应视为未命中");
+assert(otherLang.segments[0].text === "⟦Hello world⟧", "其他目标语言仍应译出");
+
+const sharedStore = new Map();
+let modelCalls = 0;
+const modelBase = async (batch) => {
+  modelCalls++;
+  return { segments: batch.segments.map((segment) => ({ id: segment.id, text: `m${modelCalls}` })) };
+};
+const modelA = withCache(modelBase, { store: sharedStore, provider: "openai", model: "m1" });
+const modelB = withCache(modelBase, { store: sharedStore, provider: "openai", model: "m2" });
+const modelReq = {
+  sourceLang: "en",
+  targetLang: "zh-CN",
+  segments: [{ id: "s", text: "Hello world" }],
+};
+const fromA = await modelA(modelReq);
+await modelA(modelReq);
+const fromB = await modelB(modelReq);
+assert(modelCalls === 2, "provider/model 不同不应共用缓存");
+assert(fromA.segments[0].text === "m1" && fromB.segments[0].text === "m2", "模型键应隔离译文");
+
+let errorCalls = 0;
+const errorCached = withCache(async (batch) => {
+  errorCalls++;
+  return {
+    segments: batch.segments.map((segment) => ({ id: segment.id, text: "", error: "missing translation" })),
+  };
+});
+await errorCached(modelReq);
+await errorCached(modelReq);
+assert(errorCalls === 2, "带 error 的段落不应写入缓存");
+
+let inflightCalls = 0;
+const inflightCached = withCache(async (batch) => {
+  inflightCalls++;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  return { segments: batch.segments.map((segment) => ({ id: segment.id, text: "shared" })) };
+});
+const [inflightA, inflightB] = await Promise.all([inflightCached(modelReq), inflightCached(modelReq)]);
+assert(inflightCalls === 1, "并发相同段落应合并为一次内层调用");
+assert(inflightA.segments[0].text === "shared" && inflightB.segments[0].text === "shared", "合并调用应返回译文");
+
+let retryFetches = 0;
+const retried = withRetry(
+  createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    baseUrl: "https://example.test/v1",
+    fetchImpl: async (_url, init) => {
+      retryFetches++;
+      if (retryFetches < 3) return jsonResponse({ error: { message: "busy" } }, 503);
+      const segs = segmentsFromOpenAIBody(init);
+      return jsonResponse({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(segs.map((segment) => ({ id: segment.id, text: "retried" }))),
+            },
+          },
+        ],
+      });
+    },
+  }),
+  { retries: 2, baseDelayMs: 5, maxDelayMs: 20 }
+);
+const retriedRes = await retried(req);
+assert(retryFetches === 3, "失败后应重试并最终成功");
+assert(retriedRes.segments[0].text === "retried" && retriedRes.segments[1].text === "retried", "重试成功应映射译文");
+
+/** @type {number[]} */
+const backoff = [];
+let exhaustedCalls = 0;
+let exhaustedThrew = false;
+try {
+  await withRetry(
+    async () => {
+      exhaustedCalls++;
+      throw new Error("still down");
+    },
+    {
+      retries: 2,
+      baseDelayMs: 10,
+      factor: 2,
+      maxDelayMs: 100,
+      sleep: async (ms) => {
+        backoff.push(ms);
+      },
+    }
+  )(req);
+} catch (err) {
+  exhaustedThrew = err instanceof Error && /still down/.test(err.message);
+}
+assert(exhaustedThrew, "重试耗尽后应抛出原错误");
+assert(exhaustedCalls === 3, "retries: 2 应共调用 3 次");
+assert(backoff[0] === 10 && backoff[1] === 20, `退避应为 10, 20，实际 ${backoff.join(",")}`);
+
+/** @type {number[]} */
+const spacedAt = [];
+const spaced = withRateLimit(
+  async (batch) => {
+    spacedAt.push(Date.now());
+    return { segments: batch.segments.map((segment) => ({ id: segment.id, text: "spaced" })) };
+  },
+  { minIntervalMs: 50, maxConcurrent: 2 }
+);
+await Promise.all([
+  spaced({ sourceLang: "en", targetLang: "zh-CN", segments: [{ id: "1", text: "a" }] }),
+  spaced({ sourceLang: "en", targetLang: "zh-CN", segments: [{ id: "2", text: "b" }] }),
+  spaced({ sourceLang: "en", targetLang: "zh-CN", segments: [{ id: "3", text: "c" }] }),
+]);
+assert(spacedAt.length === 3, "限流应放行全部调用");
+assert(spacedAt[1] - spacedAt[0] >= 40, `第 2 次启动过早: ${spacedAt[1] - spacedAt[0]}ms`);
+assert(spacedAt[2] - spacedAt[1] >= 40, `第 3 次启动过早: ${spacedAt[2] - spacedAt[1]}ms`);
+
+/** @type {Array<{ start: number, end: number }>} */
+const serialSpans = [];
+const serial = withRateLimit(
+  async (batch) => {
+    const start = Date.now();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    serialSpans.push({ start, end: Date.now() });
+    return { segments: batch.segments.map((segment) => ({ id: segment.id, text: "serial" })) };
+  },
+  { minIntervalMs: 0, maxConcurrent: 1 }
+);
+await Promise.all([
+  serial({ sourceLang: "en", targetLang: "zh-CN", segments: [{ id: "1", text: "a" }] }),
+  serial({ sourceLang: "en", targetLang: "zh-CN", segments: [{ id: "2", text: "b" }] }),
+]);
+assert(serialSpans.length === 2, "并发上限应完成两次调用");
+assert(serialSpans[1].start >= serialSpans[0].end - 5, "maxConcurrent: 1 时第二次应等第一次结束");
+
+let pipeFetches = 0;
+/** @type {number[]} */
+const pipeTimes = [];
+const piped = createPipelineEngine(
+  createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    baseUrl: "https://example.test/v1",
+    model: "pipe",
+    fetchImpl: async (_url, init) => {
+      pipeFetches++;
+      pipeTimes.push(Date.now());
+      const segs = segmentsFromOpenAIBody(init);
+      if (pipeFetches === 1) return jsonResponse({ error: { message: "busy" } }, 503);
+      return jsonResponse({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(segs.map((segment) => ({ id: segment.id, text: `⟦${segment.text}⟧` }))),
+            },
+          },
+        ],
+      });
+    },
+  }),
+  {
+    retry: { retries: 2, baseDelayMs: 5, maxDelayMs: 20 },
+    rateLimit: { minIntervalMs: 50, maxConcurrent: 1 },
+    cache: { provider: "openai", model: "pipe" },
+  }
+);
+const pipeReq = {
+  sourceLang: "en",
+  targetLang: "zh-CN",
+  segments: [{ id: "a", text: "alpha" }],
+};
+const pipeFirst = await piped(pipeReq);
+assert(pipeFirst.segments[0].id === "a" && pipeFirst.segments[0].text === "⟦alpha⟧", "管道应在重试后返回译文");
+assert(pipeFetches === 2, "管道应失败一次后再成功");
+assert(pipeTimes[1] - pipeTimes[0] >= 40, "重试的下一次请求应受限流间隔约束");
+const pipeAgain = await piped(pipeReq);
+assert(pipeAgain.segments[0].text === "⟦alpha⟧", "管道缓存应命中");
+assert(pipeFetches === 2, "管道缓存命中不应再 fetch");
+const [pipeBeta, pipeGamma] = await Promise.all([
+  piped({ sourceLang: "en", targetLang: "zh-CN", segments: [{ id: "b", text: "beta" }] }),
+  piped({ sourceLang: "en", targetLang: "zh-CN", segments: [{ id: "c", text: "gamma" }] }),
+]);
+assert(pipeBeta.segments[0].text === "⟦beta⟧" && pipeGamma.segments[0].text === "⟦gamma⟧", "管道并发未命中应各自译出");
+assert(pipeFetches === 4, "两段新文本应各 fetch 一次");
+assert(pipeTimes.at(-1) - pipeTimes.at(-2) >= 40, "管道限流应拉开并发未命中");
+
+let failedPipeCalls = 0;
+const failedPipe = createPipelineEngine(
+  async () => {
+    failedPipeCalls++;
+    throw new Error("down");
+  },
+  {
+    retry: { retries: 1, baseDelayMs: 1, maxDelayMs: 1 },
+    rateLimit: { minIntervalMs: 0, maxConcurrent: 1 },
+  }
+);
+let failedPipeThrew = false;
+try {
+  await failedPipe(modelReq);
+} catch (err) {
+  failedPipeThrew = err instanceof Error && /down/.test(err.message);
+}
+assert(failedPipeThrew && failedPipeCalls === 2, "管道重试耗尽应抛错");
+try {
+  await failedPipe(modelReq);
+} catch {
+  // 失败不入库，下一次仍会打到内层
+}
+assert(failedPipeCalls === 4, "管道失败结果不应写入缓存");
+
+console.log("smoke ok: batch mockTranslate / translate + openai/anthropic/deepseek env + yaml merge + pipeline");

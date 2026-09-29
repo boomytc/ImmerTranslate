@@ -1,6 +1,6 @@
 # @immer-translate/translate-core
 
-翻译契约、mock 引擎，以及 OpenAI / Anthropic 兼容引擎。密钥只在调用时传入（扩展本地存储或进程环境），不写入本包。
+翻译契约、mock 引擎、OpenAI / Anthropic 兼容引擎，以及可选的段落缓存、重试和限流。包版本 `0.2.0`（对齐 `dev-0.2.0` 的 FEATURE 位）。密钥只在调用时传入（扩展本地存储或进程环境），不写入本包。扩展 manifest 不在本包里升级。
 
 ## 契约
 
@@ -19,8 +19,25 @@
 | `createOpenAICompatibleEngine({ apiKey, baseUrl?, model?, fetchImpl? })` | `POST {baseUrl}/chat/completions`，`Authorization: Bearer` |
 | `createAnthropicCompatibleEngine({ apiKey, baseUrl?, model?, fetchImpl? })` | Anthropic Messages，解析 `type: "text"` 内容块 |
 | `deepSeekOptionsFromEnv(env?)` | 从进程环境读 DeepSeek 调用参数；没有密钥时返回 `null` |
+| `withCache(engine, opts?)` | 段落缓存。命中则不再调用内层引擎 |
+| `withRetry(engine, opts?)` | 内层抛错时按退避重试 |
+| `withRateLimit(engine, opts?)` | 限制启动间隔与并发，避免突发打满接口 |
+| `createPipelineEngine(engine, opts?)` | 依次套上缓存、重试、限流 |
+| `pipelineDefaults` | 上述三项的默认参数 |
 
 空 `apiKey`（缺省、空串、纯空白）在工厂函数里立即抛错，不会发请求。
+
+## 管道（缓存 / 重试 / 限流）
+
+`translate` 默认仍是 `mockTranslate`。真引擎也不会自动包管道；由调用方包一次。`TranslateRequest` / `TranslateResponse` 形状不变。
+
+`createPipelineEngine` 从外到内是：段落缓存 → 失败重试 → 启动间隔限流 → 基础引擎。缓存命中不会重试，也不会发出请求。
+
+- 缓存键：段落 `text` + `sourceLang` + `targetLang`。`cache.provider` / `cache.model` 有值时一并计入，不同模型不共用译文。只缓存成功段落；抛错和段上的 `error` 不入库。同一键的并发未命中共用一次内层调用。
+- 重试：只在引擎抛错时进行。默认 2 次重试，退避 `50ms`、`100ms`（`baseDelayMs * factor^attempt`，上限 `400ms`）。
+- 限流：默认两次启动至少间隔 `100ms`，同时最多 `2` 个调用。
+
+默认值见 `pipelineDefaults`，传入的字段会覆盖对应项，未写的字段保持默认。
 
 `fetchImpl` 可选，签名与 `fetch(url, init)` 相同，便于测试时替换，不访问网络。
 
@@ -93,7 +110,7 @@ cd packages/translate-core
 npm run smoke
 ```
 
-`smoke` 覆盖 mock、两个工厂（注入假的 `fetchImpl`，不联网、不用真密钥）、`deepSeekOptionsFromEnv`，以及临时目录里的 YAML 合并（base ← local ← env，无真密钥）。期望：先打印 mock JSON（译文为 `⟦原文⟧`），末行 `smoke ok`。
+`smoke` 覆盖 mock、两个工厂（注入假的 `fetchImpl`，不联网、不用真密钥）、`deepSeekOptionsFromEnv`、临时目录里的 YAML 合并（base ← local ← env，无真密钥），以及管道：缓存命中不再次 `fetch`、失败退避后成功、限流拉开调用间隔。期望：先打印 mock JSON（译文为 `⟦原文⟧`），末行 `smoke ok`。
 
 ## 给扩展用
 
@@ -106,3 +123,26 @@ import {
 ```
 
 MV3 service worker 不能引用扩展目录以外的文件。改完 `src/` 后在仓库根目录执行 `./scripts/sync-translate-core.sh`，再从 `extension/vendor/translate-core/index.js` 导入。
+
+### 给 ExtForge：引擎只包一次
+
+不要改 `TranslateRequest` / `TranslateResponse`。在 service worker 里对「最终那一个」引擎包一层并复用；不要在每条 `TRANSLATE_BATCH` 里新建 `createPipelineEngine`，否则缓存和限流每次都是空的。`provider` / `model` / 是否有密钥变化时再重建。mock、OpenAI 兼容、Anthropic 兼容走同一包装：
+
+```js
+import { createPipelineEngine } from "./vendor/translate-core/index.js";
+
+// base = mockTranslate，或 createOpenAICompatibleEngine / createAnthropicCompatibleEngine 的返回值
+let wrapped = null;
+let wrappedStamp = "";
+
+function engineFor(settings, base) {
+  const stamp = [settings.provider, settings.model, settings.apiKey ? "key" : "mock"].join(":");
+  if (!wrapped || wrappedStamp !== stamp) {
+    wrappedStamp = stamp;
+    wrapped = createPipelineEngine(base, {
+      cache: { provider: settings.provider, model: settings.model },
+    });
+  }
+  return wrapped;
+}
+```
