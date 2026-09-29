@@ -36,9 +36,32 @@ function storageGet(defaults) {
 
 /**
  * @param {string} text
+ * @param {boolean} [failed]
  */
-function setHint(text) {
-  $("hint").textContent = text || "";
+function setHint(text, failed) {
+  const node = $("hint");
+  node.textContent = text || "";
+  node.classList.toggle("is-fail", Boolean(failed) && Boolean(text));
+}
+
+/**
+ * @param {unknown} source
+ * @param {string} fallback
+ */
+function asFailure(source, fallback) {
+  const api = globalThis.ImmerFail;
+  if (api?.failureError) return api.failureError(source, fallback);
+  const rec = source && typeof source === "object" ? source : {};
+  return new Error(String(rec.error || rec.message || source || fallback));
+}
+
+/**
+ * @param {unknown} err
+ */
+function failureText(err) {
+  const api = globalThis.ImmerFail;
+  if (api?.formatFailureTip) return api.formatFailureTip(err).text;
+  return String(err?.message || err || "操作失败");
 }
 
 /**
@@ -288,7 +311,7 @@ async function run(action) {
   try {
     await action();
   } catch (err) {
-    setHint(String(err?.message || err || "操作失败"));
+    setHint(failureText(err), true);
   } finally {
     busy = false;
     await refresh();
@@ -301,7 +324,7 @@ $("toggle").addEventListener("click", () => {
     if (!tab?.id) return;
     const type = pageActive ? "RESTORE_PAGE" : "TRANSLATE_PAGE";
     const res = await send(tab.id, { type });
-    if (!res?.ok) throw new Error(res?.error || "操作失败");
+    if (!res?.ok) throw asFailure(res, "操作失败");
     if (res.denied) setHint("本站已设为永不翻译");
     else setHint("");
   });
