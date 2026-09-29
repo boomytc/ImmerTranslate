@@ -66,15 +66,14 @@ const LABEL_TRANSLATE = "翻译";
 const LABEL_RESTORE = "显示原文";
 
 /**
- * Whole-page chord, formatted like the options page (⌥A on macOS, Alt+A on
- * Windows and Linux). The label is built from the shared formatter.
+ * Page-translate CTA. Parentheses come from formatActionLabel, shared with
+ * the options-page chord formatter.
  * @returns {string}
  */
 function translateLabel() {
   const api = globalThis.ImmerHotkey;
-  const chord = api ? api.formatHotkeyDisplay(api.DEFAULT_PAGE_HOTKEY) : "";
-  if (!chord) return LABEL_TRANSLATE;
-  return `${LABEL_TRANSLATE} ${chord}`;
+  if (!api) return LABEL_TRANSLATE;
+  return api.formatActionLabel(LABEL_TRANSLATE, api.DEFAULT_PAGE_HOTKEY);
 }
 
 /**

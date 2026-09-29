@@ -256,6 +256,22 @@
   }
 
   /**
+   * Popup CTA: action plus the same chord the options page shows, in parentheses.
+   * macOS → 「翻译 (⌥A)」; Windows/Linux → 「翻译 (Alt+A)」. Callers do not hard-code Alt+.
+   * @param {string} action
+   * @param {string} spec
+   * @param {"mac" | "windows" | "linux" | "other"} [platform]
+   * @returns {string}
+   */
+  function formatActionLabel(action, spec, platform) {
+    const name = String(action || "");
+    const chord = formatHotkeyDisplay(spec, platform);
+    if (!name) return chord;
+    if (!chord) return name;
+    return `${name} (${chord})`;
+  }
+
+  /**
    * @param {"mac" | "windows" | "linux" | "other"} [platform]
    * @returns {string}
    */
@@ -286,6 +302,7 @@
     normalizeHotkey,
     formatHotkeyEvent,
     formatHotkeyDisplay,
+    formatActionLabel,
     eventMatchesHotkey,
     detectPlatformSync,
     detectPlatform,
