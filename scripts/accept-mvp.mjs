@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createContext, runInContext } from "node:vm";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fail = (msg) => {
@@ -81,7 +82,7 @@ if (res.segments[0].text !== "⟦Hello⟧" || res.segments[1].text !== "⟦World
 ok("extension/vendor mockTranslate 批次输出 ⟦…⟧");
 
 // 3b) options → buildEngine → vendor factories (stub fetch, no network / no real key)
-const { buildEngine } = await import(
+const { buildEngine, engineFor } = await import(
   pathToFileURL(join(root, "extension/background.js")).href
 );
 const sample = {
@@ -172,6 +173,38 @@ if (anthropic.data?.segments?.[0]?.text !== "你好") {
 }
 ok("background 按设置选择 mock / OpenAI / Anthropic");
 
+if (!bg.includes("createPipelineEngine") || !bg.includes("engineFor")) {
+  fail("background.js 未复用 TransPipe createPipelineEngine");
+}
+const pipedA = engineFor({
+  provider: "openai",
+  apiKey: "",
+  baseUrl: "https://api.deepseek.com/v1",
+  model: "deepseek-flash",
+});
+const pipedB = engineFor({
+  provider: "openai",
+  apiKey: "   ",
+  baseUrl: "https://api.deepseek.com/v1",
+  model: "deepseek-flash",
+});
+if (pipedA !== pipedB) fail("相同设置应复用同一条管道");
+if (pipedA === mockTranslate) fail("管道应包在 mock 之外，buildEngine 仍返回 mock");
+const pipedOut = await pipedA(sample);
+if (pipedOut.segments[0].text !== "⟦Hello⟧") {
+  fail(`管道 mock 结果异常: ${JSON.stringify(pipedOut)}`);
+}
+const pipedAgain = await pipedA(sample);
+if (pipedAgain.segments[0].text !== "⟦Hello⟧") fail("管道缓存未返回同一译文");
+const pipedOther = engineFor({
+  provider: "openai",
+  apiKey: "test-key",
+  baseUrl: "https://api.deepseek.com/v1",
+  model: "deepseek-flash",
+});
+if (pipedOther === pipedA) fail("apiKey 变化应重建管道");
+ok("TRANSLATE_BATCH 复用一条 createPipelineEngine，空 key 仍是 ⟦…⟧");
+
 // 4) package smoke
 run("npm", ["run", "smoke"]);
 ok("packages/translate-core smoke");
@@ -209,6 +242,72 @@ for (const re of coercive) {
   if (re.test(optionsHtml)) fail(`设置页出现逼付费/登录文案: ${re}`);
 }
 ok("设置页可填本地 key，无登录/逼付费文案");
+
+// 5b) hover paragraph + configurable hotkey (default Alt+T), single TRANSLATE_BATCH
+const DEFAULT_HOTKEY = "Alt+T";
+if (!bg.includes('paragraphHotkey: "Alt+T"')) {
+  fail("background.js 未把段落快捷键默认设为 Alt+T");
+}
+if (!bg.includes("paragraphHotkey")) fail("background.js 未保存 paragraphHotkey");
+const hotkeySandbox = {};
+createContext(hotkeySandbox);
+runInContext(readFileSync(join(root, "extension/hotkey.js"), "utf8"), hotkeySandbox);
+const hotkeyApi = hotkeySandbox.ImmerHotkey;
+if (!hotkeyApi) fail("hotkey.js 未挂上 ImmerHotkey");
+if (hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY !== DEFAULT_HOTKEY) {
+  fail(`快捷键默认值应为 ${DEFAULT_HOTKEY}`);
+}
+if (hotkeyApi.normalizeHotkey("alt+t") !== DEFAULT_HOTKEY) fail("normalize alt+t");
+if (hotkeyApi.normalizeHotkey("T") !== "") fail("无修饰键的快捷键必须拒绝");
+if (hotkeyApi.normalizeHotkey("Shift+T") !== "") fail("仅 Shift 的快捷键必须拒绝");
+if (hotkeyApi.normalizeHotkey("ctrl+shift+k") !== "Ctrl+Shift+K") {
+  fail("Ctrl+Shift+K 规范化失败");
+}
+const altT = { altKey: true, ctrlKey: false, shiftKey: false, metaKey: false, code: "KeyT", key: "t" };
+if (!hotkeyApi.eventMatchesHotkey(altT, DEFAULT_HOTKEY)) fail("Alt+T 未匹配 KeyT");
+const macOptionT = { altKey: true, ctrlKey: false, shiftKey: false, metaKey: false, code: "KeyT", key: "†" };
+if (!hotkeyApi.eventMatchesHotkey(macOptionT, DEFAULT_HOTKEY)) {
+  fail("macOS Option+T 应仍匹配 Alt+T");
+}
+if (hotkeyApi.eventMatchesHotkey({ ...altT, altKey: false, key: "t", code: "KeyT" }, DEFAULT_HOTKEY)) {
+  fail("单独 T 不应触发段落翻译");
+}
+if (hotkeyApi.formatHotkeyEvent(macOptionT) !== DEFAULT_HOTKEY) {
+  fail("录制 Option+T 应得到 Alt+T");
+}
+ok("段落快捷键默认 Alt+T，修饰键规则可测");
+
+const contentJs = readFileSync(join(root, "extension/content.js"), "utf8");
+for (const needle of [
+  "TOGGLE_TRANSLATE",
+  "TRANSLATE_BATCH",
+  'CLASS_HOVER = "immer-hover"',
+  "placeTranslation",
+  "translateSegment",
+  "segments: [{ id, text }]",
+  "paragraphHotkey",
+  "ImmerHotkey",
+]) {
+  if (!contentJs.includes(needle)) fail(`content.js 缺少 ${needle}`);
+}
+if (!/function pickParagraphs/.test(contentJs)) fail("content.js 缺少整页段落选择");
+const contentCss = readFileSync(join(root, "extension/content.css"), "utf8");
+if (!contentCss.includes(".immer-translation") || !contentCss.includes(".immer-hover")) {
+  fail("content.css 缺少译文或悬停样式");
+}
+const contentScripts = manifest.content_scripts?.[0]?.js || [];
+if (contentScripts[0] !== "hotkey.js" || !contentScripts.includes("content.js")) {
+  fail(`content_scripts 须先加载 hotkey.js: ${contentScripts.join(",")}`);
+}
+if (!optionsHtml.includes('id="paragraphHotkey"') || !optionsHtml.includes('id="resetHotkey"')) {
+  fail("设置页缺少段落快捷键字段");
+}
+if (!optionsHtml.includes("默认 Alt+T")) fail("设置页未写明默认 Alt+T");
+if (!optionsHtml.includes('src="hotkey.js"')) fail("设置页未加载 hotkey.js");
+if (!optionsJs.includes("paragraphHotkey") || !optionsJs.includes('paragraphHotkey: "Alt+T"')) {
+  fail("options.js 未把 paragraphHotkey 写入 chrome.storage.local 默认值");
+}
+ok("悬停段落单段翻译走 TRANSLATE_BATCH，快捷键可在设置页更改");
 
 // 6) no absolute local paths / obvious secrets in tracked tree
 const tracked = run("git", ["ls-files"]);
@@ -353,4 +452,6 @@ for (const file of walk(join(root, "extension"))) {
 }
 ok("extension/vendor 无 config.local.yaml 与密钥");
 
-console.log("\naccept-mvp ok — 浏览器手测: 加载 extension/ → 文章页点图标应出现 ⟦原文⟧");
+console.log(
+  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 文章页点图标应出现 ⟦原文⟧；悬停一段按 Alt+T 只译该段"
+);
