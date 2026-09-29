@@ -1,5 +1,6 @@
 /*
- * Shared frosted-glass tokens for the toolbar popup and the in-page ball.
+ * Shared frosted-glass tokens for the toolbar popup, the options page,
+ * and the in-page ball.
  * One sheet, no Mac/Windows fork. Loaded on :root in the popup and on :host
  * inside the ball shadow root.
  */
