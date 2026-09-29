@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Options page is a left nav and a right content pane, one layout on macOS and Windows. Five sections, in order: 基本 (target language, bilingual or translation-only, font size, contrast), 快捷键 (whole-page and paragraph chords, labeled with the same platform formatters already used by the popup: ⌘/⌥ on macOS, Ctrl/Alt on Windows and Linux), 悬浮球 (enable toggle plus a short note: right edge, snap, remembered vertical position), 站点名单 (the existing allow/deny UI), 引擎与密钥 (OpenAI-compatible and Anthropic-compatible fields only). An empty API key stays on the labeled mock `⟦…⟧` engine. There is no login wall and no paywall.
+- The page uses `extension/glass.css` tokens (frosted fill, blur, radius, hairline, shadow) instead of a solid white sheet. The primary action stays in the `#1f4e9a` family.
+- Style switches still write through immediately and update an open translated page without reload. Site-list edits still save immediately. `pageHotkey` (default Alt+A, shown as ⌥A on macOS) is stored beside `paragraphHotkey` and drives the in-page chord. `ballEnabled` defaults to true; turning it off hides the ball and leaves `ballPosition` in place.
+- `extension/manifest.json` version is `0.5.0`. Root status lines name `dev-0.5.0`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+
 ## 0.4.2
 
 - Paragraph translate stays Option/Alt+T (macOS **⌥T**, Windows/Linux **Alt+T**). Hover a main-content paragraph and the chord still translates only that segment; a second press does not insert another block. The in-page listener remains capture-phase `keydown` / `keyup` on `window` and `document`. `chrome.commands` now also suggests Alt+T (`translate-hovered-paragraph`) so a browser that eats the key messages the active tab. The command translates that paragraph only when its shortcut still matches the saved `paragraphHotkey`, so an options-page change and 「恢复默认」 stay in effect. If the menu clears the hover before the message arrives, the paragraph the pointer was just on is still the target. The command does not toggle the page. On a deny-listed origin the paragraph chord does not insert a translation. Whole-page Alt+A, the popup, and the floating ball are unchanged.
@@ -19,7 +26,7 @@
 
 ## 1.0.0（已撤回，不是当前版本）
 
-- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.4.2` on `dev-0.4.2`.
+- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.5.0` on `dev-0.5.0`.
 
 ## 0.3.0
 

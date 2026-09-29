@@ -8,13 +8,17 @@ const DEFAULTS = {
   apiKey: "",
   sourceLang: "auto",
   targetLang: "zh-CN",
+  pageHotkey: "Alt+A",
   paragraphHotkey: "Alt+T",
   denyOrigins: [],
   allowOrigins: [],
   translationFontSize: "md",
   translationContrast: "normal",
   displayMode: "bilingual",
+  ballEnabled: true,
 };
+
+const NAV = ["basic", "hotkeys", "ball", "sites", "engine"];
 
 const hotkeyApi = globalThis.ImmerHotkey;
 const siteApi = globalThis.ImmerSites;
@@ -25,27 +29,65 @@ let denyOrigins = [];
 let allowOrigins = [];
 let statusTimer = 0;
 
-function canonicalHotkey(spec) {
-  return hotkeyApi.normalizeHotkey(spec) || hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY;
+/**
+ * @param {string} spec
+ * @param {string} fallback
+ */
+function canonicalHotkey(spec, fallback) {
+  return hotkeyApi.normalizeHotkey(spec) || fallback;
 }
 
 /**
- * The field, reset button, and hints use formatHotkeyDisplay — the same
- * function the popup wraps as 「翻译 (⌥T / Alt+T)」. Saving writes that
- * display string. Matching still uses the canonical Alt/Ctrl/Meta form.
+ * The field and reset button use formatHotkeyDisplay — the same function the
+ * popup wraps as 「翻译 (⌥A / Alt+A)」. Saving writes that display string.
+ * Matching still uses the canonical Alt/Ctrl/Meta form.
+ * @param {string} inputId
+ * @param {string} resetId
  * @param {string} spec
+ * @param {string} fallback
  */
-function paintHotkeyField(spec) {
-  const shown = hotkeyApi.formatHotkeyDisplay(canonicalHotkey(spec));
-  $("paragraphHotkey").value = shown;
-  $("resetHotkey").textContent = `恢复默认 ${hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY)}`;
-  $("hotkeyHint").textContent =
-    `默认 ${hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY)}。聚焦后按下新组合键（须含 ${hotkeyApi.modifierHint()}），再点保存。阅读页悬停主内容段落会标出当前段，按下该键只翻译这一段；译文节点样式与整页对照相同。已译过的段不会重复插入。`;
-  $("hotkeyNotice").textContent = `段落快捷键存在本机设置里，默认 ${hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY)}。`;
+function paintChord(inputId, resetId, spec, fallback) {
+  const shown = hotkeyApi.formatHotkeyDisplay(canonicalHotkey(spec, fallback));
+  $(inputId).value = shown;
+  $(resetId).textContent = `恢复默认 ${hotkeyApi.formatHotkeyDisplay(fallback)}`;
 }
 
-function storedHotkey(spec) {
-  return hotkeyApi.formatHotkeyDisplay(canonicalHotkey(spec));
+function paintHotkeyCopy() {
+  const page = hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PAGE_HOTKEY);
+  const para = hotkeyApi.formatHotkeyDisplay(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY);
+  const mods = hotkeyApi.modifierHint();
+  $("hotkeyIntro").textContent =
+    `组合键按本机显示（${mods}）。聚焦输入框后按下含修饰键的新组合，再点保存才会在阅读页生效。`;
+  $("pageHotkeyHint").textContent =
+    `默认 ${page}。焦点不在输入框时，该组合在翻译和显示原文之间切换，并与弹窗、悬浮球同一状态。`;
+  $("hotkeyHint").textContent =
+    `默认 ${para}。阅读页悬停主内容段落会标出当前段，按下该键只翻译这一段；译文节点样式与整页对照相同。已译过的段不会重复插入。`;
+  $("hotkeyNotice").textContent =
+    `整页与段落快捷键都存在本机设置里。默认整页 ${page}，段落 ${para}。`;
+}
+
+function repaintChordsFromFields() {
+  paintChord(
+    "pageHotkey",
+    "resetPageHotkey",
+    $("pageHotkey").value || DEFAULTS.pageHotkey,
+    hotkeyApi.DEFAULT_PAGE_HOTKEY
+  );
+  paintChord(
+    "paragraphHotkey",
+    "resetHotkey",
+    $("paragraphHotkey").value || DEFAULTS.paragraphHotkey,
+    hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY
+  );
+  paintHotkeyCopy();
+}
+
+/**
+ * @param {string} spec
+ * @param {string} fallback
+ */
+function storedHotkey(spec, fallback) {
+  return hotkeyApi.formatHotkeyDisplay(canonicalHotkey(spec, fallback));
 }
 
 function normalizeProvider(value) {
@@ -114,7 +156,46 @@ function persistStyles() {
   chrome.storage.local.set(styleSnapshot());
 }
 
+function paintKeyMode() {
+  const key = $("apiKey").value.trim();
+  $("keyMode").textContent = key
+    ? "已填写 API Key。保存后走所选协议，消耗以你自备的提供商账单为准。本扩展不设日限墙。"
+    : "未填写 API Key：使用 mock，译文为 ⟦原文⟧（⟦…⟧），无额度限制。";
+}
+
 /**
+ * @param {string} name
+ */
+function showSection(name) {
+  const id = NAV.includes(name) ? name : "basic";
+  for (const key of NAV) {
+    const panel = document.querySelector(`[data-panel="${key}"]`);
+    const button = document.querySelector(`[data-nav="${key}"]`);
+    const on = key === id;
+    if (panel) panel.hidden = !on;
+    if (!button) continue;
+    button.classList.toggle("is-active", on);
+    if (on) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  }
+}
+
+document.querySelector(".nav").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-nav]");
+  if (!button) return;
+  const id = button.getAttribute("data-nav") || "basic";
+  showSection(id);
+  history.replaceState(null, "", `#${id}`);
+});
+
+window.addEventListener("hashchange", () => {
+  showSection(location.hash.replace(/^#/, ""));
+});
+
+showSection(location.hash.replace(/^#/, ""));
+
+/**
+ * @param {HTMLElement} ul
  * @param {"deny" | "allow"} which
  * @param {string[]} items
  */
@@ -257,34 +338,68 @@ chrome.storage.local.get(DEFAULTS, (data) => {
   $("apiKey").value = data.apiKey || "";
   $("sourceLang").value = data.sourceLang || DEFAULTS.sourceLang;
   $("targetLang").value = data.targetLang || DEFAULTS.targetLang;
-  paintHotkeyField(data.paragraphHotkey || DEFAULTS.paragraphHotkey);
+  $("pageHotkey").value = data.pageHotkey || DEFAULTS.pageHotkey;
+  $("paragraphHotkey").value = data.paragraphHotkey || DEFAULTS.paragraphHotkey;
+  repaintChordsFromFields();
   denyOrigins = siteApi.normalizeSiteList(data.denyOrigins);
   allowOrigins = siteApi.normalizeSiteList(data.allowOrigins);
   $("translationFontSize").value = normalizeFontSize(data.translationFontSize);
   $("translationContrast").value = normalizeContrast(data.translationContrast);
   $("displayMode").value = normalizeMode(data.displayMode);
+  $("ballEnabled").checked = data.ballEnabled !== false;
   renderLists();
+  paintKeyMode();
 });
 
-$("paragraphHotkey").addEventListener("keydown", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  const next = hotkeyApi.formatHotkeyEvent(event);
-  if (!next) return;
-  paintHotkeyField(next);
+/**
+ * @param {string} inputId
+ * @param {string} resetId
+ * @param {string} fallback
+ */
+function bindChordCapture(inputId, resetId, fallback) {
+  $(inputId).addEventListener("keydown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const next = hotkeyApi.formatHotkeyEvent(event);
+    if (!next) return;
+    paintChord(inputId, resetId, next, fallback);
+  });
+}
+
+bindChordCapture("pageHotkey", "resetPageHotkey", hotkeyApi.DEFAULT_PAGE_HOTKEY);
+bindChordCapture("paragraphHotkey", "resetHotkey", hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY);
+
+$("resetPageHotkey").addEventListener("click", () => {
+  paintChord(
+    "pageHotkey",
+    "resetPageHotkey",
+    hotkeyApi.DEFAULT_PAGE_HOTKEY,
+    hotkeyApi.DEFAULT_PAGE_HOTKEY
+  );
+  paintHotkeyCopy();
+  chrome.storage.local.set(
+    { pageHotkey: storedHotkey($("pageHotkey").value, hotkeyApi.DEFAULT_PAGE_HOTKEY) },
+    () => setStatus("已恢复默认整页快捷键")
+  );
 });
 
 $("resetHotkey").addEventListener("click", () => {
-  paintHotkeyField(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY);
+  paintChord(
+    "paragraphHotkey",
+    "resetHotkey",
+    hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY,
+    hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY
+  );
+  paintHotkeyCopy();
   chrome.storage.local.set(
-    { paragraphHotkey: storedHotkey(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY) },
+    { paragraphHotkey: storedHotkey($("paragraphHotkey").value, hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY) },
     () => setStatus("已恢复默认快捷键")
   );
 });
 
-paintHotkeyField(DEFAULTS.paragraphHotkey);
+repaintChordsFromFields();
 hotkeyApi.detectPlatform().then(() => {
-  paintHotkeyField($("paragraphHotkey").value || DEFAULTS.paragraphHotkey);
+  repaintChordsFromFields();
 });
 
 $("addDeny").addEventListener("click", () => {
@@ -328,6 +443,17 @@ for (const id of ["translationFontSize", "translationContrast", "displayMode"]) 
   });
 }
 
+$("ballEnabled").addEventListener("change", () => {
+  const enabled = $("ballEnabled").checked;
+  chrome.storage.local.set({ ballEnabled: enabled }, () => {
+    setStatus(enabled ? "悬浮球已开启" : "悬浮球已关闭");
+  });
+});
+
+$("apiKey").addEventListener("input", () => {
+  paintKeyMode();
+});
+
 $("save").addEventListener("click", () => {
   chrome.storage.local.set(
     {
@@ -337,12 +463,15 @@ $("save").addEventListener("click", () => {
       apiKey: $("apiKey").value.trim(),
       sourceLang: $("sourceLang").value,
       targetLang: $("targetLang").value,
-      paragraphHotkey: storedHotkey($("paragraphHotkey").value),
+      pageHotkey: storedHotkey($("pageHotkey").value, hotkeyApi.DEFAULT_PAGE_HOTKEY),
+      paragraphHotkey: storedHotkey($("paragraphHotkey").value, hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY),
+      ballEnabled: $("ballEnabled").checked,
       ...listSnapshot(),
       ...styleSnapshot(),
     },
     () => {
       renderLists();
+      paintKeyMode();
       setStatus("已保存");
     }
   );
