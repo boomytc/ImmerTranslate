@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+- Shell version in `extension/manifest.json` is `0.8.0`. `extension/vendor/translate-core` is the copy of `packages/translate-core` `0.8.0` produced by `scripts/sync-translate-core.sh`. `TranslateRequest` / `TranslateResponse` are unchanged. An empty API key still uses the mock `⟦…⟧` engine. There is no new protocol family and no login or Pro.
+- When translate rejects, the service worker answers `TRANSLATE_BATCH` with `ok: false`, `error` (the message), `kind`, `code`, and `status`. The content script keeps those fields on the reply to the popup. A frosted-glass toast (`#immer-fail-host`, shared `extension/glass.css` tokens, no pointer events, auto-dismiss) shows the message and the kind on the page. The floating ball shows the same sentence, and the popup hint line does too. The page stays scrollable and clickable. Clearing the API key returns to mock `⟦…⟧`.
+- Root status lines name `dev-0.8.0`.
+
 ## 0.7.0
 
 - The options **站点名单** section can add, edit, and remove rows on both **永不翻译** (`denyOrigins`) and **始终翻译** (`allowOrigins`). Edit replaces one stored entry in place. Adds, edits, and removals write `chrome.storage.local` immediately and still apply on refresh. The five-section frosted-glass options layout is unchanged. There is no site-adapter catalog and no copied default rule dump.
@@ -39,7 +45,7 @@
 
 ## 1.0.0（已撤回，不是当前版本）
 
-- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.7.0` on `dev-0.7.0`.
+- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.8.0` on `dev-0.8.0`.
 
 ## 0.3.0
 

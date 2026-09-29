@@ -222,7 +222,9 @@ export function withCache(engine, options = {}) {
 }
 
 /**
- * Retry when the engine throws. Segment-level `error` fields are returned as-is.
+ * Retry when the engine throws. Segment-level `error` fields are returned as-is
+ * and do not retry. The last thrown value is rethrown unchanged, so a
+ * TranslateFailure keeps message, kind, code, and status.
  * Delay is baseDelayMs * factor^attempt, capped by maxDelayMs.
  *
  * @param {TranslateEngine} engine

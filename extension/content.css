@@ -72,6 +72,25 @@ html[data-immer-mode="translation-only"] [data-immer-translated="1"] {
   overflow: visible;
 }
 
+/* Host only. The failure toast lives in a shadow root and does not take clicks. */
+#immer-fail-host {
+  position: fixed !important;
+  z-index: 2147483644 !important;
+  top: 16px;
+  right: 16px;
+  width: min(360px, calc(100vw - 32px));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  overflow: visible;
+}
+
+#immer-fail-host[hidden] {
+  display: none !important;
+}
+
 /* Host only. The button lives in a shadow root so page CSS cannot restyle it. */
 #immer-ball-host {
   position: fixed !important;
