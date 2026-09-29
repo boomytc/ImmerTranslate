@@ -8,7 +8,17 @@ const DEFAULTS = {
   apiKey: "",
   sourceLang: "auto",
   targetLang: "zh-CN",
+  paragraphHotkey: "Alt+T",
 };
+
+const hotkeyApi = globalThis.ImmerHotkey;
+
+function currentHotkey() {
+  return (
+    hotkeyApi.normalizeHotkey($("paragraphHotkey").value) ||
+    DEFAULTS.paragraphHotkey
+  );
+}
 
 function normalizeProvider(value) {
   return value === "anthropic" ? "anthropic" : "openai";
@@ -21,6 +31,20 @@ chrome.storage.local.get(DEFAULTS, (data) => {
   $("apiKey").value = data.apiKey || "";
   $("sourceLang").value = data.sourceLang || DEFAULTS.sourceLang;
   $("targetLang").value = data.targetLang || DEFAULTS.targetLang;
+  $("paragraphHotkey").value =
+    hotkeyApi.normalizeHotkey(data.paragraphHotkey) || DEFAULTS.paragraphHotkey;
+});
+
+$("paragraphHotkey").addEventListener("keydown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  const next = hotkeyApi.formatHotkeyEvent(event);
+  if (!next) return;
+  $("paragraphHotkey").value = next;
+});
+
+$("resetHotkey").addEventListener("click", () => {
+  $("paragraphHotkey").value = DEFAULTS.paragraphHotkey;
 });
 
 $("save").addEventListener("click", () => {
@@ -32,6 +56,7 @@ $("save").addEventListener("click", () => {
       apiKey: $("apiKey").value.trim(),
       sourceLang: $("sourceLang").value,
       targetLang: $("targetLang").value,
+      paragraphHotkey: currentHotkey(),
     },
     () => {
       $("status").textContent = "已保存";

@@ -6,7 +6,7 @@ Inspired by immersive bilingual-translate extensions; this repo is an independen
 
 ## Status
 
-Early MVP. Current dev version is **0.1.1** (`dev-0.1.1`; extension manifest aligned, same behavior as 0.1.0). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Node and cloud acceptance read a gitignored local YAML file plus environment variables.
+Early MVP. Current dev version is **0.2.0** (`dev-0.2.0`). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Hover a main-content paragraph and press **Alt+T** (changeable on the options page, stored as `paragraphHotkey`) to translate that one segment. The extension action icon still toggles the whole page. Node and cloud acceptance read a gitignored local YAML file plus environment variables. The service worker wraps the selected engine once with translate-core `createPipelineEngine`; cache, retry, and rate limit are not reimplemented in the shell.
 
 ## Layout
 
@@ -14,7 +14,8 @@ Early MVP. Current dev version is **0.1.1** (`dev-0.1.1`; extension manifest ali
 extension/                 # Load this folder as an unpacked extension
   manifest.json
   background.js            # Message bus → translate engine
-  content.js / content.css # Paragraph detection + bilingual DOM
+  hotkey.js                # Alt+T codec (options + content script)
+  content.js / content.css # Paragraph detection, hover, bilingual DOM
   options.html / options.js
   vendor/translate-core/   # Synced copy of packages/translate-core/src (MV3)
 packages/translate-core/   # TranslateRequest/Response + mockTranslate
@@ -29,8 +30,9 @@ scripts/sync-translate-core.sh
 2. Enable Developer mode
 3. **Load unpacked** → select the `extension/` directory in this repo
 4. Open an article page → click the extension icon to toggle bilingual mock output
+5. Hover a main-content paragraph (it picks up a blue outline) → press **Alt+T** to translate only that segment. The line under the original uses the same bilingual style as the full-page toggle. Pressing the hotkey again on an already translated paragraph does nothing. Change the hotkey on the options page (focus the field, press a combo that includes Alt, Ctrl, or Meta, then save). Default is `Alt+T`.
 
-Options: extension details → Extension options. Protocol, base URL, model, API key, and languages are stored only in `chrome.storage.local`. Leave the key empty to keep the mock engine. The extension does not read `config.yaml`.
+Options: extension details → Extension options. Protocol, base URL, model, API key, languages, and `paragraphHotkey` are stored only in `chrome.storage.local`. Leave the key empty to keep the mock engine. The extension does not read `config.yaml`.
 
 ## translate-core smoke test
 
@@ -53,15 +55,15 @@ Then reload the extension.
 
 ## MVP acceptance (`release-0.1.0` gate)
 
-Current extension version is **0.1.1**. The checklist is the same 0.1.0 gate; this patch adds no behavior.
+Current extension version is **0.2.0**. The checklist keeps the 0.1.0 gate and adds the hover hotkey.
 
 ```bash
 npm run accept
 ```
 
-Checks: vendor sync with `packages/translate-core`, background imports that vendor and selects mock / OpenAI / Anthropic from options, mock batch `⟦…⟧`, package smoke, MV3 manifest, options fields without login/paywall copy, no absolute local paths or key-shaped secrets in git files, `config.yaml` has an empty `apiKey`, `config.local.yaml` is gitignored, YAML merge precedence, and `extension/` contains neither local YAML nor secrets.
+Checks: vendor sync with `packages/translate-core`, background imports that vendor and selects mock / OpenAI / Anthropic from options, mock batch `⟦…⟧`, package smoke, MV3 manifest, options fields without login/paywall copy, paragraph hotkey default `Alt+T` with a single-segment `TRANSLATE_BATCH`, no absolute local paths or key-shaped secrets in git files, `config.yaml` has an empty `apiKey`, `config.local.yaml` is gitignored, YAML merge precedence, and `extension/` contains neither local YAML nor secrets.
 
-Manual after green: load unpacked `extension/` → open an article → click the action icon → bilingual `⟦…⟧` under paragraphs.
+Manual after green: load unpacked `extension/` → open an article → click the action icon → bilingual `⟦…⟧` under paragraphs. Hover one paragraph and press Alt+T → only that segment gets a bilingual line. Empty API key still renders `⟦原文⟧`.
 
 ## Node / cloud config (not the extension)
 
@@ -103,7 +105,7 @@ Pass `cfg.sourceLang` / `cfg.targetLang` on the translate request. The engine fa
 
 - No API keys in the repository
 - See [SECURITY.md](SECURITY.md)
-- Branching: current dev is `dev-0.1.1` (extension `0.1.1`). Push on `dev-*` (started at `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
+- Branching: current dev is `dev-0.2.0` (extension `0.2.0`). Push on `dev-*` (started at `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
 
 ## License
 
