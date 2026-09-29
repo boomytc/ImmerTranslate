@@ -5,9 +5,13 @@
  * Settings (chrome.storage.local): provider openai|anthropic, baseUrl, model, apiKey,
  * paragraphHotkey, denyOrigins, allowOrigins, translationFontSize,
  * translationContrast, displayMode. Empty apiKey stays on mockTranslate.
- * Defaults: OpenAI-compatible DeepSeek. Paragraph hotkey default is Alt+T
- * (content script matches it). Site lists default to empty (every origin
- * eligible). The content script enforces deny before inserting nodes.
+ * Defaults: OpenAI-compatible DeepSeek. Paragraph hotkey canonical default
+ * is Alt+T (Option on macOS, Alt on Windows and Linux). The service worker
+ * reads chrome.runtime.getPlatformInfo and, on macOS, stores that default as
+ * ⌥T so the saved value matches the options page. Whole-page translate stays
+ * Alt+A in the content script (⌥A on macOS), never Command+T. Site lists
+ * default to empty (every origin eligible). The content script enforces deny
+ * before inserting nodes.
  * The selected engine is wrapped once with createPipelineEngine (TransPipe).
  * The toolbar opens popup.html (default_popup). That card and the in-page
  * ball both message this worker only for TRANSLATE_BATCH / GET_SETTINGS;
@@ -91,7 +95,34 @@ export function engineFor(settings = {}) {
   return pipedEngine;
 }
 
+/** @type {string} */
+let platformOs = "";
+
+/**
+ * Service worker has no reliable navigator.platform. getPlatformInfo is the
+ * extension API for this context. macOS rewrites a missing or literal Alt+T
+ * paragraph default to ⌥T; other chords are left alone.
+ */
+function refreshPlatformOs() {
+  if (typeof chrome === "undefined" || !chrome.runtime?.getPlatformInfo) return;
+  chrome.runtime.getPlatformInfo((info) => {
+    platformOs = info?.os || "";
+    if (platformOs !== "mac" || !chrome.storage?.local) return;
+    chrome.storage.local.get({ paragraphHotkey: "" }, (data) => {
+      const current = String(data?.paragraphHotkey || "").trim();
+      if (current && current !== "Alt+T") return;
+      chrome.storage.local.set({ paragraphHotkey: "⌥T" });
+    });
+  });
+}
+
 if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
+  refreshPlatformOs();
+  if (chrome.runtime.onInstalled) {
+    chrome.runtime.onInstalled.addListener(() => {
+      refreshPlatformOs();
+    });
+  }
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "TRANSLATE_BATCH") {
       getSettings()
@@ -122,6 +153,7 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
             model: settings.model,
             hasApiKey: Boolean((settings.apiKey || "").trim()),
             paragraphHotkey: settings.paragraphHotkey || DEFAULTS.paragraphHotkey,
+            platformOs,
             denyOrigins: Array.isArray(settings.denyOrigins) ? settings.denyOrigins : [],
             allowOrigins: Array.isArray(settings.allowOrigins) ? settings.allowOrigins : [],
             translationFontSize: settings.translationFontSize || DEFAULTS.translationFontSize,
