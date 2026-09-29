@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- The options **站点名单** section can add, edit, and remove rows on both **永不翻译** (`denyOrigins`) and **始终翻译** (`allowOrigins`). Edit replaces one stored entry in place. Adds, edits, and removals write `chrome.storage.local` immediately and still apply on refresh. The five-section frosted-glass options layout is unchanged. There is no site-adapter catalog and no copied default rule dump.
+- The toolbar popup adds two labeled controls for the current page origin: **本页加入永不翻译** and **本页加入始终翻译**. When that origin is already on the list, the same control reads **本页移出永不翻译** or **本页移出始终翻译**. The line above them shows the origin that will be stored. The popup still does not edit the full lists, and it still has no login, Pro, promo, or shortcut grid. The floating ball keeps its tap-to-translate behavior and adds a **站点** control. That opens the same two labels for this page. On a deny-listed origin the ball, including that control, stays hidden; removal stays available from the popup and the options page.
+- Deny still wins when a page matches both lists (`ImmerSites.sitePolicy`: `blocked` when denied, `auto` only when allowed and not denied). A bare host on the deny list covers an origin on the allow list, and the reverse. Removing the current page drops every stored row that matches it, so a bare host and an exact origin are both cleared. An empty deny list still leaves every site eligible. Empty API key stays on the mock `⟦…⟧` engine.
+- `extension/manifest.json` version is `0.7.0`. Root status lines name `dev-0.7.0`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+
 ## 0.6.0
 
 - First install shows one lightweight card, at most three skippable steps, in order: 钉到工具栏, 点弹层译一页, 认识悬浮球. Each step has 下一步 / 跳过; the last step uses 完成. 全部跳过 dismisses the rest. Finishing or skipping through the end writes `chrome.storage.local` `onboardingDone`, and the card does not return until that key is removed or the extension storage is cleared (reinstall). The card is a frosted-glass overlay (`extension/glass.css`, primary button in the `#1f4e9a` family). It does not cover the page, so scrolling, the popup, and the floating ball keep working. There is no login, terms checkbox, Pro offer, feature catalog, or token gift, and no immersive-translate pink.
@@ -32,7 +39,7 @@
 
 ## 1.0.0（已撤回，不是当前版本）
 
-- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.6.0` on `dev-0.6.0`.
+- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.7.0` on `dev-0.7.0`.
 
 ## 0.3.0
 
