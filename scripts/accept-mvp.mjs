@@ -220,8 +220,8 @@ ok("packages/translate-core smoke");
 const manifest = JSON.parse(
   readFileSync(join(root, "extension/manifest.json"), "utf8")
 );
-if (manifest.version !== "0.4.0") {
-  fail(`manifest version 应为 0.4.0，实际 ${manifest.version}`);
+if (manifest.version !== "0.4.1") {
+  fail(`manifest version 应为 0.4.1，实际 ${manifest.version}`);
 }
 if (manifest.action?.default_popup !== "popup.html") {
   fail("工具栏 action 必须设置 default_popup，而不是仅静默切换");
@@ -356,6 +356,161 @@ if (!hotkeySrc.includes("function formatActionLabel") || !hotkeySrc.includes("fo
 }
 ok("段落快捷键按平台显示，修饰键规则可测");
 
+// 5b2) Whole-page Alt+A / ⌥A must win in the capture phase. No Mac in CI:
+// these branches prove the macOS display (⌥A) and the Option+A match (key å, code KeyA).
+const winAltA = {
+  type: "keydown",
+  altKey: true,
+  ctrlKey: false,
+  shiftKey: false,
+  metaKey: false,
+  code: "KeyA",
+  key: "a",
+  repeat: false,
+  isComposing: false,
+};
+const macAltA = {
+  type: "keydown",
+  altKey: true,
+  ctrlKey: false,
+  shiftKey: false,
+  metaKey: false,
+  code: "KeyA",
+  key: "å",
+  repeat: false,
+  isComposing: false,
+};
+const altTDown = {
+  type: "keydown",
+  altKey: true,
+  ctrlKey: false,
+  shiftKey: false,
+  metaKey: false,
+  code: "KeyT",
+  key: "t",
+  repeat: false,
+  isComposing: false,
+};
+if (typeof hotkeyApi.hotkeyAction !== "function" || typeof hotkeyApi.resolveChord !== "function") {
+  fail("hotkey.js 未导出 hotkeyAction / resolveChord");
+}
+if (typeof hotkeyApi.markChordEvent !== "function") fail("hotkey.js 未导出 markChordEvent");
+let chord = hotkeyApi.resolveChord(winAltA, { typing: false, hovered: false, keydownCode: "" });
+if (chord.action !== "page" || !chord.prevent || chord.keydownCode !== "KeyA") {
+  fail(`Windows/Linux Alt+A 应在 keydown 切换整页: ${JSON.stringify(chord)}`);
+}
+chord = hotkeyApi.resolveChord(macAltA, { typing: false, hovered: true, keydownCode: "" });
+if (chord.action !== "page" || !chord.prevent) {
+  fail(`macOS ⌥A（key å / code KeyA）应切换整页: ${JSON.stringify(chord)}`);
+}
+chord = hotkeyApi.resolveChord(
+  { ...winAltA, type: "keyup" },
+  { typing: false, hovered: false, keydownCode: "KeyA" }
+);
+if (chord.action !== "" || chord.prevent || chord.keydownCode !== "") {
+  fail("已处理的 keydown 不应在 keyup 再触发");
+}
+chord = hotkeyApi.resolveChord(
+  { ...winAltA, type: "keyup" },
+  { typing: false, hovered: false, keydownCode: "", lastToggleAt: 0, now: 2000 }
+);
+if (chord.action !== "page" || !chord.prevent) {
+  fail("keydown 被吃掉时，keyup 应补上一次整页切换");
+}
+chord = hotkeyApi.resolveChord(
+  { ...winAltA, type: "keyup" },
+  { typing: false, hovered: false, keydownCode: "", lastToggleAt: 1000, now: 1200 }
+);
+if (chord.action !== "" || chord.prevent) {
+  fail("命令或 keydown 刚切换过时，keyup 不能再翻一次");
+}
+chord = hotkeyApi.resolveChord(winAltA, {
+  typing: false,
+  hovered: false,
+  keydownCode: "",
+  lastToggleAt: 1000,
+  now: 1200,
+});
+if (chord.action !== "page" || !chord.prevent) {
+  fail("第二次 keydown 不应被上一次切换的时间窗吃掉");
+}
+chord = hotkeyApi.resolveChord(altTDown, {
+  typing: false,
+  hovered: true,
+  keydownCode: "",
+  paragraphSpec: "Alt+T",
+});
+if (chord.action !== "paragraph" || !chord.prevent) fail("悬停时 Alt+T 应只译该段");
+chord = hotkeyApi.resolveChord(altTDown, { typing: false, hovered: false, keydownCode: "" });
+if (chord.action !== "") fail("未悬停时 Alt+T 不应切换整页");
+chord = hotkeyApi.resolveChord(
+  { ...macAltA, key: "†", code: "KeyT" },
+  { typing: false, hovered: true, keydownCode: "", paragraphSpec: "Alt+T" }
+);
+if (chord.action !== "paragraph") fail("macOS ⌥T 悬停时应译段落");
+chord = hotkeyApi.resolveChord(winAltA, { typing: true, hovered: false, keydownCode: "" });
+if (chord.action !== "" || chord.prevent) fail("输入框内不应拦截 Alt+A");
+chord = hotkeyApi.resolveChord(
+  { ...winAltA, repeat: true },
+  { typing: false, hovered: false, keydownCode: "" }
+);
+if (chord.action !== "") fail("按住 Alt+A 不应重复触发");
+const ctrlA = {
+  type: "keydown",
+  altKey: false,
+  ctrlKey: true,
+  shiftKey: false,
+  metaKey: false,
+  code: "KeyA",
+  key: "a",
+};
+if (hotkeyApi.resolveChord(ctrlA, { typing: false, hovered: false, keydownCode: "" }).action !== "") {
+  fail("Ctrl+A 必须留给全选");
+}
+const metaT = {
+  type: "keydown",
+  altKey: false,
+  ctrlKey: false,
+  shiftKey: false,
+  metaKey: true,
+  code: "KeyT",
+  key: "t",
+};
+if (hotkeyApi.resolveChord(metaT, { typing: false, hovered: false, keydownCode: "" }).action !== "") {
+  fail("⌘T 不能当成整页快捷键");
+}
+const altShiftA = {
+  type: "keydown",
+  altKey: true,
+  ctrlKey: false,
+  shiftKey: true,
+  metaKey: false,
+  code: "KeyA",
+  key: "A",
+};
+if (hotkeyApi.resolveChord(altShiftA, { typing: false, hovered: false, keydownCode: "" }).action !== "") {
+  fail("Alt+Shift+A 不是整页默认");
+}
+const sameEvent = { type: "keydown", code: "KeyA", timeStamp: 12.5 };
+const firstDispatch = hotkeyApi.markChordEvent(null, sameEvent);
+const secondDispatch = hotkeyApi.markChordEvent(firstDispatch.slot, sameEvent);
+if (firstDispatch.duplicate || !secondDispatch.duplicate) {
+  fail("同一按键在 window 与 document 上只能处理一次");
+}
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "mac") !== "⌥A") {
+  fail("macOS 整页显示分支应为 ⌥A");
+}
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "windows") !== "Alt+A") {
+  fail("Windows 整页显示分支应为 Alt+A");
+}
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_PAGE_HOTKEY, "linux") !== "Alt+A") {
+  fail("Linux 整页显示分支应为 Alt+A");
+}
+if (hotkeyApi.formatHotkeyDisplay(DEFAULT_HOTKEY, "mac") !== "⌥T") {
+  fail("macOS 段落显示分支应为 ⌥T");
+}
+ok("无 Mac 运行时，整页 ⌥A 与 Alt+A 的匹配和显示分支已覆盖");
+
 const contentJs = readFileSync(join(root, "extension/content.js"), "utf8");
 for (const needle of [
   "TOGGLE_TRANSLATE",
@@ -394,6 +549,47 @@ if (!optionsJs.includes("formatHotkeyDisplay") || !optionsJs.includes("detectPla
 }
 if (!contentJs.includes("DEFAULT_PAGE_HOTKEY") && !contentJs.includes("PAGE_HOTKEY")) {
   fail("content.js 未绑定整页快捷键");
+}
+for (const target of ["window", "document"]) {
+  for (const type of ["keydown", "keyup"]) {
+    const needle = `${target}.addEventListener("${type}", onChordKey, { capture: true })`;
+    if (!contentJs.includes(needle)) fail(`content.js 缺少捕获阶段监听 ${needle}`);
+  }
+}
+const chordStart = contentJs.indexOf("function onChordKey");
+const chordFn = contentJs.slice(chordStart, contentJs.indexOf("\napplyPageStyle();", chordStart));
+if (!chordFn.includes("event.preventDefault()") || !chordFn.includes("event.stopPropagation()")) {
+  fail("命中整页或段落快捷键时必须 preventDefault 并 stopPropagation");
+}
+if (!chordFn.includes("focusIsTyping") || !chordFn.includes("resolveChord")) {
+  fail("快捷键必须先判断焦点不在可编辑控件，再决定是否拦截");
+}
+if (chordFn.indexOf("decision.prevent") > chordFn.indexOf("event.preventDefault()")) {
+  fail("必须在确认命中之后才 preventDefault");
+}
+if (!contentJs.includes("toggleFromChord")) {
+  fail("整页热键与扩展命令必须走同一套 toggleFromChord");
+}
+const pageCommand = manifest.commands?.["toggle-page-translate"];
+if (!pageCommand?.description) fail("manifest 缺少整页命令 toggle-page-translate");
+const suggested = pageCommand.suggested_key || {};
+for (const platform of ["default", "mac", "windows", "linux", "chromeos"]) {
+  if (suggested[platform] !== "Alt+A") {
+    fail(`整页命令在 ${platform} 上应为 Alt+A，实际 ${suggested[platform] || ""}`);
+  }
+}
+const suggestedText = JSON.stringify(suggested);
+if (/Ctrl\+A|Command\+T|Ctrl\+T|Meta\+T/.test(suggestedText)) {
+  fail("整页命令不能改成 Ctrl+A 或 ⌘T");
+}
+if (!bg.includes("chrome.commands.onCommand") || !bg.includes("toggle-page-translate")) {
+  fail("service worker 未监听整页命令");
+}
+if (!bg.includes('type: "TOGGLE_TRANSLATE"')) {
+  fail("整页命令必须向当前页发送 TOGGLE_TRANSLATE");
+}
+if (bg.includes("chrome.action.onClicked") || bg.includes("action.onClicked")) {
+  fail("整页命令不能改回 action.onClicked");
 }
 ok("悬停段落单段翻译走 TRANSLATE_BATCH，快捷键可在设置页更改");
 
@@ -501,12 +697,16 @@ if (siteIdx < 0 || contentIdx < 0 || siteIdx > contentIdx) {
 }
 const readme = readFileSync(join(root, "README.md"), "utf8");
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-if (!readme.includes("0.4.0") || !readme.includes("dev-0.4.0")) {
-  fail("README 未记录 0.4.0 / dev-0.4.0");
+if (!readme.includes("0.4.1") || !readme.includes("dev-0.4.1")) {
+  fail("README 未记录 0.4.1 / dev-0.4.1");
+}
+if (readme.includes("当前开发版本为 **0.4.0**") || readme.includes("当前开发线是 `dev-0.4.0`")) {
+  fail("README 仍把 0.4.0 写成当前版本");
 }
 if (readme.includes("当前开发版本为 **1.0.0**") || readme.includes("当前开发线是 `dev-1.0.0`")) {
   fail("README 仍把 1.0.0 写成当前版本");
 }
+if (!readme.includes("捕获")) fail("README 未说明整页快捷键在捕获阶段处理");
 if (!readme.includes("denyOrigins")) fail("README 未记录 denyOrigins");
 if (!readme.includes("⌥T") || !readme.includes("Alt+T")) {
   fail("README 应同时写明 macOS ⌥T 与 Windows/Linux 的 Alt+T");
@@ -525,9 +725,13 @@ const readmeEn = readFileSync(join(root, "README.en.md"), "utf8");
 if (!readmeEn.includes("Load unpacked") || !readmeEn.toLowerCase().includes("pin")) {
   fail("README.en.md 未写明 Load unpacked 与 pin");
 }
-if (!readmeEn.includes("0.4.0") || !readmeEn.includes("dev-0.4.0")) {
-  fail("README.en.md 未记录 0.4.0 / dev-0.4.0");
+if (!readmeEn.includes("0.4.1") || !readmeEn.includes("dev-0.4.1")) {
+  fail("README.en.md 未记录 0.4.1 / dev-0.4.1");
 }
+if (readmeEn.includes("The current dev version is **0.4.0**") || readmeEn.includes("currently `dev-0.4.0`")) {
+  fail("README.en.md 仍把 0.4.0 写成当前版本");
+}
+if (!changelog.includes("## 0.4.1")) fail("CHANGELOG 缺少 0.4.1");
 if (!changelog.includes("## 0.4.0")) fail("CHANGELOG 缺少 0.4.0");
 if (!changelog.includes("## 0.3.0")) fail("CHANGELOG 缺少 0.3.0");
 if (!changelog.includes("已撤回")) fail("CHANGELOG 未说明过早的 1.0.0 已撤回");
@@ -858,5 +1062,5 @@ for (const file of walk(join(root, "extension"))) {
 ok("extension/vendor 无 config.local.yaml 与密钥");
 
 console.log(
-  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 未翻译时主按钮为「翻译 (⌥A)」或「翻译 (Alt+A)」，已翻译为「显示原文」；空 key 标明 Mock；右侧悬浮球拖完贴边，刷新后竖直位置还在；首次出现一次提示；永不翻译的来源不显示球；悬停一段按 ⌥T（macOS）或 Alt+T（Windows/Linux）只译该段"
+  "\naccept-mvp ok — 浏览器手测: 加载 extension/ → 未翻译时主按钮为「翻译 (⌥A)」或「翻译 (Alt+A)」，已翻译为「显示原文」；空 key 标明 Mock；文章页焦点不在输入框时 Alt+A（Windows/Linux）或 ⌥A（macOS）切换整页，Alt+T / ⌥T 仍只译悬停段；热键被系统抢走时弹窗和悬浮球仍能切换；右侧悬浮球拖完贴边，刷新后竖直位置还在；首次出现一次提示；永不翻译的来源不显示球"
 );

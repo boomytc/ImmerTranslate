@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Whole-page translate stays Option/Alt+A (macOS **⌥A**, Windows/Linux **Alt+A**). It is no longer only a `document` `keydown` listener. `window` and `document` both listen in the capture phase; when the chord matches and focus is outside an editable field, the handler calls `preventDefault` and `stopPropagation` so the browser does not keep the key as a menu or accelerator. If that `keydown` never arrives, the matching `keyup` toggles once. `chrome.commands` suggests Alt+A on every platform (Option+A on macOS) and messages the active tab with `TOGGLE_TRANSLATE`, the same path as the in-page chord. Paragraph Option/Alt+T is unchanged. The popup CTA and the floating ball still share `setTranslated` and work when the chord cannot fire. Default is not Ctrl+A or ⌘T.
+- `extension/manifest.json` version is `0.4.1`. Root status lines name `dev-0.4.1`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+
 ## 0.4.0
 
 - Toolbar action opens `default_popup` (`extension/popup.html`) instead of a silent toggle. The skeleton is a status line, a dual-state primary button (**翻译** / **显示原文**), and **打开设置**. The status line names Mock mode when the API key is empty (`⟦原文⟧`) or the current engine plus languages when a key is set. The popup does not show login, Pro, a promo banner, a shortcut grid, or site-list edits. Never-translate stays on the options page; a denied origin still disables the button and reports that state.
@@ -9,7 +14,7 @@
 
 ## 1.0.0（已撤回，不是当前版本）
 
-- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.4.0` on `dev-0.4.0`.
+- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. It is not the current version. Latest published tag remains `v0.3.0`. Current extension version is `0.4.1` on `dev-0.4.1`.
 
 ## 0.3.0
 
