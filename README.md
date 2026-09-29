@@ -49,6 +49,16 @@ MV3 service workers cannot import files outside the extension root. After editin
 
 Then reload the extension.
 
+## MVP acceptance (`release-0.1.0` gate)
+
+```bash
+npm run accept
+```
+
+Checks: vendor sync with `packages/translate-core`, background imports that vendor, mock batch `⟦…⟧`, package smoke, MV3 manifest, options key field without login/paywall copy, no absolute local paths or key-shaped secrets in git files.
+
+Manual after green: load unpacked `extension/` → open an article → click the action icon → bilingual `⟦…⟧` under paragraphs.
+
 ## Security
 
 - No API keys in the repository
