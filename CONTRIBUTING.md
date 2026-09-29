@@ -2,10 +2,19 @@
 
 ## Branching
 
-- `dev-X.Y.Z` — active development and push (current: start from `dev-0.0.1`)
-- `release-X.Y.Z` — when a `dev-*` stage is closed, merge into the matching `release-*`
-- After merge to `release-*`: **delete** that `dev-*` branch, then open the next (`dev-0.0.2`, …)
-- `main` — keep aligned with the latest stable release when cutting a public milestone
+Branch names: `dev-MAJOR.FEATURE.FIX` and `release-MAJOR.FEATURE.FIX`.
+
+- Digit width is flexible (`dev-0.0.1`, `dev-1.12.03`, …)
+- **MAJOR** — breaking / large version
+- **FEATURE** — feature delivery version
+- **FIX** — patch / bugfix version
+
+Workflow:
+
+1. Develop and push on the current `dev-*` (start: `dev-0.0.1`)
+2. When that stage closes, merge into the matching `release-*`
+3. Delete the closed `dev-*`, then open the next number (`dev-0.0.2`, …)
+4. Keep `main` aligned with the latest stable release when cutting a public milestone
 
 Do not push unfinished work to `release-*` or `main`.
 
