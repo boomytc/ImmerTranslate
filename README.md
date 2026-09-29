@@ -6,7 +6,7 @@ Inspired by immersive bilingual-translate extensions; this repo is an independen
 
 ## Status
 
-Early MVP. With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Node and cloud acceptance read a gitignored local YAML file plus environment variables.
+Early MVP. Current dev version is **0.1.1** (`dev-0.1.1`; extension manifest aligned, same behavior as 0.1.0). With no API key, translation is a **mock** that wraps text as `⟦…⟧`. Saving a key on the options page selects an OpenAI-compatible or Anthropic-compatible engine. Defaults: provider `openai`, base `https://api.deepseek.com/v1`, model `deepseek-flash`. Extension keys stay in `chrome.storage.local`. Node and cloud acceptance read a gitignored local YAML file plus environment variables.
 
 ## Layout
 
@@ -52,6 +52,8 @@ MV3 service workers cannot import files outside the extension root. After editin
 Then reload the extension.
 
 ## MVP acceptance (`release-0.1.0` gate)
+
+Current extension version is **0.1.1**. The checklist is the same 0.1.0 gate; this patch adds no behavior.
 
 ```bash
 npm run accept
@@ -101,7 +103,7 @@ Pass `cfg.sourceLang` / `cfg.targetLang` on the translate request. The engine fa
 
 - No API keys in the repository
 - See [SECURITY.md](SECURITY.md)
-- Branching: push on `dev-*` (from `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
+- Branching: current dev is `dev-0.1.1` (extension `0.1.1`). Push on `dev-*` (started at `dev-0.1.0`), merge to `release-*` when a stage closes — see CONTRIBUTING.md
 
 ## License
 
