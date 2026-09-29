@@ -4,7 +4,7 @@
 
 - Toolbar action opens `default_popup` (`extension/popup.html`) instead of a silent toggle. The card translates the whole page, restores (clears) translations, shows whether this page is translated, and opens the options page. An empty API key is labeled Mock mode (`⟦原文⟧`). One click can add the current origin to `denyOrigins` (永不翻译本站). The popup is not a full settings page.
 - A draggable floating ball on the page (default bottom-right) shares the same translate/restore state as the popup. Dragging near an edge snaps to that edge. The position is stored in `chrome.storage.local` as `ballPosition` and restored after refresh. On a deny-list origin the tap does not insert a translation and shows 「本站已设为永不翻译」.
-- `extension/manifest.json` version is `0.4.0`. Root status lines name `dev-0.4.0`. Hover + Alt+T, deny/allow lists, style switches, and one `createPipelineEngine` wrapper are unchanged. Empty API key still uses the mock `⟦…⟧` engine. `packages/translate-core` stays at `1.0.0` and is not modified here.
+- `extension/manifest.json` version is `0.4.0`. Root status lines name `dev-0.4.0`. Hover + Alt+T, deny/allow lists, style switches, and one `createPipelineEngine` wrapper are unchanged. Empty API key still uses the mock `⟦…⟧` engine. `packages/translate-core` is package version `0.4.0`; its contract and `src` are unchanged, and `extension/vendor` is the synced copy of that `src`. Acceptance reads the Chinese README phrases 「加载已解压的扩展程序」 and 「钉到工具栏」.
 
 ## 1.0.0（已撤回，不是当前版本）
 
