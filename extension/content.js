@@ -2,8 +2,9 @@
  * Main-content paragraphs → bilingual nodes under originals.
  * Full page: popup TRANSLATE_PAGE / RESTORE_PAGE, or the floating ball,
  * both through the same setTranslated() state. TOGGLE_TRANSLATE remains.
- * One segment: hover marks the paragraph; the options hotkey (default Alt+T)
- * sends TRANSLATE_BATCH with a single {id,text}. Cache/retry stays in
+ * One segment: hover marks the paragraph; the options hotkey (canonical
+ * Alt+T, shown as ⌥T on macOS) sends TRANSLATE_BATCH with a single {id,text}.
+ * Whole-page Option/Alt+A toggles the same state as the popup. Cache/retry stays in
  * translate-core (TransPipe); this shell only renders the response.
  *
  * Site policy (chrome.storage.local): denyOrigins never inserts bilingual
@@ -21,6 +22,7 @@ const CLASS_HOVER = "immer-hover";
 const PARAGRAPH_SELECTOR = "p, li, h1, h2, h3, h4, blockquote";
 const DEFAULT_HOTKEY =
   globalThis.ImmerHotkey?.DEFAULT_PARAGRAPH_HOTKEY || "Alt+T";
+const PAGE_HOTKEY = globalThis.ImmerHotkey?.DEFAULT_PAGE_HOTKEY || "Alt+A";
 
 const PAGE_DEFAULTS = {
   sourceLang: "auto",
@@ -875,14 +877,19 @@ document.addEventListener(
   (event) => {
     if (event.repeat || event.isComposing) return;
     if (isTypingTarget(event.target)) return;
-    const matches = globalThis.ImmerHotkey?.eventMatchesHotkey(
-      event,
-      paragraphHotkey
-    );
-    if (!matches || !hovered) return;
+    const api = globalThis.ImmerHotkey;
+    const paragraphHit = Boolean(api?.eventMatchesHotkey(event, paragraphHotkey));
+    const pageHit = Boolean(api?.eventMatchesHotkey(event, PAGE_HOTKEY));
+    if (paragraphHit && hovered) {
+      event.preventDefault();
+      event.stopPropagation();
+      translateSegment(hovered).catch(() => {});
+      return;
+    }
+    if (!pageHit) return;
     event.preventDefault();
     event.stopPropagation();
-    translateSegment(hovered).catch(() => {});
+    toggle().catch(() => {});
   },
   true
 );

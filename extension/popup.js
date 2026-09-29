@@ -62,27 +62,42 @@ let busy = false;
 /** @type {boolean} */
 let pageActive = false;
 
+const LABEL_TRANSLATE = "翻译";
+const LABEL_RESTORE = "显示原文";
+
 /**
- * Dual-state primary CTA: 「翻译」 when the page is original, 「显示原文」 when translated.
+ * Whole-page chord, formatted like the options page (⌥A on macOS, Alt+A on
+ * Windows and Linux). The label is built from the shared formatter.
+ * @returns {string}
+ */
+function translateLabel() {
+  const api = globalThis.ImmerHotkey;
+  const chord = api ? api.formatHotkeyDisplay(api.DEFAULT_PAGE_HOTKEY) : "";
+  if (!chord) return LABEL_TRANSLATE;
+  return `${LABEL_TRANSLATE} ${chord}`;
+}
+
+/**
+ * Dual-state primary CTA: translate label when the page is original, 「显示原文」 when translated.
  * @param {{ supported: boolean, denied: boolean, active: boolean }} view
  */
 function paint(view) {
   const button = $("toggle");
   if (!view.supported) {
     $("status").textContent = "此页面无法翻译";
-    button.textContent = "翻译";
+    button.textContent = translateLabel();
     button.disabled = true;
     return;
   }
   if (view.denied) {
     $("status").textContent = "本站永不翻译";
-    button.textContent = "翻译";
+    button.textContent = translateLabel();
     button.disabled = true;
     return;
   }
   pageActive = view.active;
   $("status").textContent = view.active ? "已翻译" : "未翻译";
-  button.textContent = view.active ? "显示原文" : "翻译";
+  button.textContent = view.active ? LABEL_RESTORE : translateLabel();
   button.disabled = busy;
 }
 
@@ -154,6 +169,13 @@ $("options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-refresh().catch(() => {
-  paint({ supported: false, denied: false, active: false });
-});
+function bootPopup() {
+  refresh().catch(() => {
+    paint({ supported: false, denied: false, active: false });
+  });
+  const api = globalThis.ImmerHotkey;
+  if (!api?.detectPlatform) return;
+  api.detectPlatform().then(() => refresh()).catch(() => {});
+}
+
+bootPopup();
