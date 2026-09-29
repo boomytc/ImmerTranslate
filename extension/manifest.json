@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ImmerTranslate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "网页主内容双语对照阅读（MVP 壳）",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
