@@ -276,6 +276,10 @@ $("paragraphHotkey").addEventListener("keydown", (event) => {
 
 $("resetHotkey").addEventListener("click", () => {
   paintHotkeyField(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY);
+  chrome.storage.local.set(
+    { paragraphHotkey: storedHotkey(hotkeyApi.DEFAULT_PARAGRAPH_HOTKEY) },
+    () => setStatus("已恢复默认快捷键")
+  );
 });
 
 paintHotkeyField(DEFAULTS.paragraphHotkey);
