@@ -13,6 +13,9 @@
  * still matches the saved chord. A deny-listed origin skips the paragraph
  * chord before preventDefault. Cache/retry stays in
  * translate-core (TransPipe); this shell only renders the response.
+ * A rejected batch is not swallowed: kind / code / status / message come back
+ * from the service worker and show as a non-blocking glass toast, a ball
+ * hint, and the same sentence on the popup. Empty API key stays on mock.
  *
  * Site policy (chrome.storage.local): denyOrigins never inserts bilingual
  * nodes (icon toggle and hotkey). allowOrigins may auto-translate on load.
@@ -107,6 +110,15 @@ let ballHintTimer = 0;
 let pageReady = false;
 let ballTipChecked = false;
 const BALL_TIP_TEXT = "点此可翻译或显示原文。拖到左右边缘后会贴边，并记住上下位置。";
+/** @type {HTMLElement | null} */
+let failHost = null;
+/** @type {HTMLElement | null} */
+let failKicker = null;
+/** @type {HTMLElement | null} */
+let failBody = null;
+let failTimer = 0;
+/** Ball hint is showing a translate failure, so a later success may clear it. */
+let ballHintIsFailure = false;
 /** @type {HTMLElement | null} */
 let onboardingHost = null;
 /** @type {{ index: number, done: boolean, ballIntroduced: boolean } | null} */
@@ -286,6 +298,139 @@ function pickParagraphs() {
 }
 
 /**
+ * @param {unknown} source
+ * @param {string} [fallback]
+ * @returns {Error & { kind?: string, code?: string, status?: number }}
+ */
+function asFailure(source, fallback) {
+  const api = globalThis.ImmerFail;
+  if (api?.failureError) return api.failureError(source, fallback);
+  const rec = source && typeof source === "object" ? source : {};
+  const err = /** @type {Error & { kind?: string, code?: string, status?: number }} */ (
+    new Error(String(rec.error || rec.message || source || fallback || "translate failed"))
+  );
+  if (typeof rec.kind === "string") err.kind = rec.kind;
+  if (typeof rec.code === "string") err.code = rec.code;
+  if (typeof rec.status === "number") err.status = rec.status;
+  return err;
+}
+
+/**
+ * Page toast plus the ball hint. Pointer events stay off the toast.
+ * @param {unknown} err
+ */
+function showTranslateFailure(err) {
+  const api = globalThis.ImmerFail;
+  const tip = api?.formatFailureTip
+    ? api.formatFailureTip(err)
+    : {
+        kicker: "翻译失败",
+        body: String(err?.message || err || "翻译失败"),
+        text: String(err?.message || err || "翻译失败"),
+      };
+  showPageToast(tip.kicker, tip.body);
+  if (ballHint && ballEnabled && !originDenied()) {
+    if (ballTip) ballTip.hidden = true;
+    showBallHint(tip.text, 5200);
+    ballHintIsFailure = true;
+  }
+}
+
+function hideTranslateFailure() {
+  if (failHost) failHost.hidden = true;
+  clearTimeout(failTimer);
+  if (!ballHintIsFailure || !ballHint) return;
+  ballHint.hidden = true;
+  clearTimeout(ballHintTimer);
+  ballHintIsFailure = false;
+}
+
+function ensureFailToast() {
+  if (failHost && failKicker && failBody) return;
+  if (!document.documentElement) return;
+  const existing = document.getElementById("immer-fail-host");
+  if (existing) existing.remove();
+  const host = document.createElement("div");
+  host.id = "immer-fail-host";
+  host.hidden = true;
+  const shadow = host.attachShadow({ mode: "open" });
+  const glassUrl = chrome?.runtime?.getURL ? chrome.runtime.getURL("glass.css") : "glass.css";
+  shadow.innerHTML = `
+    <link rel="stylesheet" href="${glassUrl}" />
+    <style>
+      .toast {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 12px 14px;
+        font: 13px/1.45 system-ui, sans-serif;
+        color: #1c2430;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        border-radius: 14px;
+        box-shadow:
+          0 10px 28px rgba(28, 36, 48, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.65),
+          inset 0 0 0 1px rgba(28, 36, 48, 0.12);
+        backdrop-filter: blur(20px) saturate(160%);
+        -webkit-backdrop-filter: blur(20px) saturate(160%);
+        pointer-events: none;
+      }
+      .kicker {
+        margin: 0;
+        font-weight: 650;
+        font-size: 12px;
+        letter-spacing: 0.01em;
+      }
+      .body {
+        margin: 4px 0 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+    <div class="toast immer-glass" role="status" aria-live="polite">
+      <p class="kicker"></p>
+      <p class="body"></p>
+    </div>
+  `;
+  failHost = host;
+  failKicker = shadow.querySelector(".kicker");
+  failBody = shadow.querySelector(".body");
+  document.documentElement.appendChild(host);
+}
+
+/**
+ * @param {string} kicker
+ * @param {string} body
+ */
+function showPageToast(kicker, body) {
+  ensureFailToast();
+  if (!failHost || !failKicker || !failBody) return;
+  failKicker.textContent = kicker;
+  failBody.textContent = body;
+  failHost.hidden = false;
+  clearTimeout(failTimer);
+  failTimer = setTimeout(() => {
+    if (failHost) failHost.hidden = true;
+  }, 5200);
+}
+
+/**
+ * Reply shape for the popup. kind / code / status pass through when present.
+ * @param {any} err
+ * @param {Record<string, unknown>} [extra]
+ */
+function translateFailureReply(err, extra) {
+  return {
+    ok: false,
+    error: String(err?.message || err),
+    kind: err?.kind,
+    code: err?.code,
+    status: err?.status,
+    ...(extra || {}),
+  };
+}
+
+/**
  * @param {{ sourceLang: string, targetLang: string, segments: {id:string,text:string}[] }} payload
  */
 function translateBatch(payload) {
@@ -294,17 +439,26 @@ function translateBatch(payload) {
       { type: "TRANSLATE_BATCH", payload },
       (res) => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          reject(asFailure({ error: chrome.runtime.lastError.message }));
           return;
         }
         if (!res?.ok) {
-          reject(new Error(res?.error || "translate failed"));
+          reject(asFailure(res, "translate failed"));
           return;
         }
         resolve(res.data);
       }
     );
-  });
+  }).then(
+    (data) => {
+      hideTranslateFailure();
+      return data;
+    },
+    (err) => {
+      showTranslateFailure(err);
+      throw err;
+    }
+  );
 }
 
 function getPageSettings() {
@@ -474,7 +628,11 @@ function applyListPolicy(preset) {
   if (policy.auto && !active) {
     active = true;
     syncBall();
-    applyTranslations(preset).catch(() => {});
+    applyTranslations(preset).catch(() => {
+      active = false;
+      clearTranslations();
+      syncBall();
+    });
   }
 }
 
@@ -572,16 +730,20 @@ function maybeShowBallTip() {
 
 /**
  * @param {string} text
+ * @param {number} [ms]
  */
-function showBallHint(text) {
+function showBallHint(text, ms) {
   if (!ballHint) return;
+  ballHintIsFailure = false;
   ballHint.textContent = text;
   ballHint.hidden = false;
   ballHint.classList.toggle("below", ballTop < 72);
   clearTimeout(ballHintTimer);
+  const wait = typeof ms === "number" && ms > 0 ? ms : 2200;
   ballHintTimer = setTimeout(() => {
-    ballHint.hidden = true;
-  }, 2200);
+    if (ballHint) ballHint.hidden = true;
+    ballHintIsFailure = false;
+  }, wait);
 }
 
 /**
@@ -876,11 +1038,13 @@ function mountBall() {
         bottom: 56px;
         transform: translateX(-50%);
         width: max-content;
-        max-width: 196px;
+        max-width: 240px;
         padding: var(--immer-glass-space, 8px);
         font: 12px/1.4 system-ui, sans-serif;
         text-align: center;
         pointer-events: none;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
       .hint.below { bottom: auto; top: 56px; }
       .tip {
@@ -1111,9 +1275,7 @@ function bindBallDrag() {
     }
     if (originDenied()) return;
     if (ballTip) ballTip.hidden = true;
-    toggle().catch(() => {
-      showBallHint("翻译失败");
-    });
+    toggle().catch(() => {});
   });
 
   window.addEventListener("resize", () => {
@@ -1152,7 +1314,13 @@ async function setTranslated(next) {
       clearTranslations();
       return;
     }
-    await applyTranslations(settings);
+    try {
+      await applyTranslations(settings);
+    } catch (err) {
+      active = false;
+      clearTranslations();
+      throw err;
+    }
   } finally {
     translateLock = false;
     syncBall();
@@ -1539,9 +1707,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "TRANSLATE_HOVERED_PARAGRAPH") {
     onParagraphFromCommand(typeof message.shortcut === "string" ? message.shortcut : "")
       .then((result) => sendResponse({ ...result, denied: originDenied() }))
-      .catch((err) =>
-        sendResponse({ ok: false, error: String(err?.message || err), denied: originDenied() })
-      );
+      .catch((err) => sendResponse(translateFailureReply(err, { denied: originDenied() })));
     return true;
   }
   if (
@@ -1558,12 +1724,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     job
       .then(() => sendResponse({ ok: true, active, denied: originDenied() }))
       .catch((err) =>
-        sendResponse({
-          ok: false,
-          error: String(err?.message || err),
-          active,
-          denied: originDenied(),
-        })
+        sendResponse(translateFailureReply(err, { active, denied: originDenied() }))
       );
     return true;
   }
@@ -1591,6 +1752,10 @@ getPageSettings()
     if (!policy.auto) return;
     active = true;
     syncBall();
-    return applyTranslations(settings);
+    return applyTranslations(settings).catch(() => {
+      active = false;
+      clearTranslations();
+      syncBall();
+    });
   })
   .catch(() => {});

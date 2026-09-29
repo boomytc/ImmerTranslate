@@ -6,6 +6,7 @@
 import { mockTranslate } from "./mock.js";
 
 export { mockTranslate };
+export { TranslateFailure, isTranslateFailure } from "./errors.js";
 export { createOpenAICompatibleEngine, createAnthropicCompatibleEngine } from "./engines.js";
 export { deepSeekOptionsFromEnv } from "./env.js";
 export {

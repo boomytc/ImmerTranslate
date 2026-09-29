@@ -13,6 +13,8 @@ import {
   withCache,
   withRetry,
   withRateLimit,
+  TranslateFailure,
+  isTranslateFailure,
 } from "../src/index.js";
 import { createEngineFromMergedConfig, loadMergedEngineConfig } from "../config/load.js";
 
@@ -118,7 +120,8 @@ const openaiMissing = await createOpenAICompatibleEngine({
 })(req);
 assert(openaiMissing.segments[1].error === "missing translation", "缺段应带 error");
 
-let openaiHttpThrew = false;
+/** @type {unknown} */
+let openaiHttpErr = null;
 try {
   await createOpenAICompatibleEngine({
     apiKey: "test-key",
@@ -126,9 +129,149 @@ try {
     fetchImpl: async () => jsonResponse({ error: { message: "unauthorized" } }, 401),
   })(req);
 } catch (err) {
-  openaiHttpThrew = err instanceof Error && /translate HTTP 401/.test(err.message);
+  openaiHttpErr = err;
 }
-assert(openaiHttpThrew, "OpenAI 非 2xx 应抛错");
+assert(openaiHttpErr instanceof TranslateFailure, "OpenAI 非 2xx 应为 TranslateFailure");
+assert(isTranslateFailure(openaiHttpErr), "isTranslateFailure 应认出上游失败");
+const openaiHttpFailure = /** @type {TranslateFailure} */ (openaiHttpErr);
+assert(openaiHttpFailure.kind === "provider", "有 error 正文时 kind 为 provider");
+assert(openaiHttpFailure.code === "http_401", "无供应商短码时 code 为 http_<status>");
+assert(openaiHttpFailure.status === 401, "HTTP status 应可读");
+assert(/translate HTTP 401: unauthorized/.test(openaiHttpFailure.message), "HTTP 失败 message 应可读");
+
+/** @type {unknown} */
+let openaiProviderErr = null;
+try {
+  await createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    baseUrl: "https://example.test/v1",
+    fetchImpl: async () =>
+      jsonResponse(
+        {
+          error: {
+            message: "Incorrect API key",
+            type: "invalid_request_error",
+            code: "invalid_api_key",
+          },
+        },
+        401
+      ),
+  })(req);
+} catch (err) {
+  openaiProviderErr = err;
+}
+const openaiProvider = /** @type {TranslateFailure} */ (openaiProviderErr);
+assert(openaiProvider.kind === "provider" && openaiProvider.code === "invalid_api_key", "供应商 error.code 应成为 code");
+assert(openaiProvider.status === 401, "供应商失败应带 status");
+assert(/translate HTTP 401: Incorrect API key/.test(openaiProvider.message), "供应商 message 应来自 error.message");
+
+/** @type {unknown} */
+let anthropicProviderErr = null;
+try {
+  await createAnthropicCompatibleEngine({
+    apiKey: "test-key",
+    baseUrl: "https://api.anthropic.com",
+    fetchImpl: async () =>
+      jsonResponse(
+        { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } },
+        401
+      ),
+  })(req);
+} catch (err) {
+  anthropicProviderErr = err;
+}
+const anthropicProvider = /** @type {TranslateFailure} */ (anthropicProviderErr);
+assert(
+  anthropicProvider.kind === "provider" && anthropicProvider.code === "authentication_error",
+  "Anthropic 无 error.code 时应使用 error.type"
+);
+assert(/translate HTTP 401: invalid x-api-key/.test(anthropicProvider.message), "Anthropic 失败 message");
+
+/** @type {unknown} */
+let httpOnlyErr = null;
+try {
+  await createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    baseUrl: "https://example.test/v1",
+    fetchImpl: async () => new Response("bad gateway", { status: 502 }),
+  })(req);
+} catch (err) {
+  httpOnlyErr = err;
+}
+const httpOnly = /** @type {TranslateFailure} */ (httpOnlyErr);
+assert(httpOnly.kind === "http" && httpOnly.code === "http_502" && httpOnly.status === 502, "无 error 正文时 kind 为 http");
+assert(/translate HTTP 502: bad gateway/.test(httpOnly.message), "纯文本 HTTP 失败应带上正文");
+
+/** @type {unknown} */
+let networkErr = null;
+try {
+  await createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    baseUrl: "https://example.test/v1",
+    fetchImpl: async () => {
+      throw new TypeError("fetch failed");
+    },
+  })(req);
+} catch (err) {
+  networkErr = err;
+}
+const networkFailure = /** @type {TranslateFailure} */ (networkErr);
+assert(networkFailure.kind === "network" && networkFailure.code === "network", "fetch 抛错应为 network");
+assert(/translate network: fetch failed/.test(networkFailure.message), "网络失败 message");
+assert(networkFailure.status == null, "网络失败不应编造 status");
+
+/** @type {unknown} */
+let abortErr = null;
+try {
+  await createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    fetchImpl: async () => {
+      const err = new Error("The operation was aborted");
+      err.name = "AbortError";
+      throw err;
+    },
+  })(req);
+} catch (err) {
+  abortErr = err;
+}
+assert(
+  /** @type {TranslateFailure} */ (abortErr).kind === "network" &&
+    /** @type {TranslateFailure} */ (abortErr).code === "abort",
+  "AbortError 的 code 应为 abort"
+);
+
+/** @type {unknown} */
+let emptyOutputErr = null;
+try {
+  await createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    fetchImpl: async () => jsonResponse({ choices: [{ message: { content: "  " } }] }),
+  })(req);
+} catch (err) {
+  emptyOutputErr = err;
+}
+assert(
+  /** @type {TranslateFailure} */ (emptyOutputErr).kind === "output" &&
+    /** @type {TranslateFailure} */ (emptyOutputErr).code === "empty_output",
+  "空模型正文应为 output/empty_output"
+);
+
+/** @type {unknown} */
+let invalidOutputErr = null;
+try {
+  await createOpenAICompatibleEngine({
+    apiKey: "test-key",
+    fetchImpl: async () => jsonResponse({ choices: [{ message: { content: "not json" } }] }),
+  })(req);
+} catch (err) {
+  invalidOutputErr = err;
+}
+assert(
+  /** @type {TranslateFailure} */ (invalidOutputErr).kind === "output" &&
+    /** @type {TranslateFailure} */ (invalidOutputErr).code === "invalid_output" &&
+    /** @type {TranslateFailure} */ (invalidOutputErr).message === "model output is not a JSON array",
+  "非 JSON 数组应为 output/invalid_output"
+);
 
 const emptyOpenAI = await createOpenAICompatibleEngine({
   apiKey: "test-key",
@@ -664,5 +807,90 @@ try {
   // 失败不入库，下一次仍会打到内层
 }
 assert(failedPipeCalls === 4, "管道失败结果不应写入缓存");
+
+const transientFailure = new TranslateFailure("translate HTTP 503: busy", {
+  kind: "provider",
+  code: "server_error",
+  status: 503,
+});
+let transientCalls = 0;
+/** @type {unknown} */
+let transientErr = null;
+try {
+  await withRetry(
+    async () => {
+      transientCalls++;
+      throw transientFailure;
+    },
+    { retries: 2, baseDelayMs: 0, maxDelayMs: 0 }
+  )(req);
+} catch (err) {
+  transientErr = err;
+}
+assert(transientCalls === 3, "瞬时失败应重试到耗尽（首次 + retries）");
+assert(transientErr === transientFailure, "重试耗尽应原样抛出最后一次错误");
+assert(
+  isTranslateFailure(transientErr) &&
+    /** @type {TranslateFailure} */ (transientErr).kind === "provider" &&
+    /** @type {TranslateFailure} */ (transientErr).code === "server_error" &&
+    /** @type {TranslateFailure} */ (transientErr).status === 503,
+  "重试后 kind/code/status 仍可读"
+);
+
+let pipe503Calls = 0;
+/** @type {unknown} */
+let pipe503Err = null;
+try {
+  await createPipelineEngine(
+    createOpenAICompatibleEngine({
+      apiKey: "test-key",
+      baseUrl: "https://example.test/v1",
+      fetchImpl: async () => {
+        pipe503Calls++;
+        return jsonResponse({ error: { message: "unavailable", type: "server_error" } }, 503);
+      },
+    }),
+    {
+      retry: { retries: 1, baseDelayMs: 0, maxDelayMs: 0 },
+      rateLimit: { minIntervalMs: 0, maxConcurrent: 1 },
+    }
+  )(modelReq);
+} catch (err) {
+  pipe503Err = err;
+}
+assert(pipe503Calls === 2, "管道对 503 应重试一次后再抛出");
+const pipe503 = /** @type {TranslateFailure} */ (pipe503Err);
+assert(
+  pipe503.kind === "provider" && pipe503.code === "server_error" && pipe503.status === 503,
+  "管道不得吞掉上游失败的 kind/code/status"
+);
+assert(/translate HTTP 503: unavailable/.test(pipe503.message), "管道抛出的 message 应可直接展示");
+
+let pipeNetCalls = 0;
+/** @type {unknown} */
+let pipeNetErr = null;
+try {
+  await createPipelineEngine(
+    createOpenAICompatibleEngine({
+      apiKey: "test-key",
+      fetchImpl: async () => {
+        pipeNetCalls++;
+        throw new TypeError("socket hang up");
+      },
+    }),
+    {
+      retry: { retries: 1, baseDelayMs: 0, maxDelayMs: 0 },
+      rateLimit: { minIntervalMs: 0, maxConcurrent: 1 },
+    }
+  )(modelReq);
+} catch (err) {
+  pipeNetErr = err;
+}
+assert(pipeNetCalls === 2, "管道对网络错误应重试");
+const pipeNet = /** @type {TranslateFailure} */ (pipeNetErr);
+assert(
+  pipeNet.kind === "network" && pipeNet.code === "network" && /translate network: socket hang up/.test(pipeNet.message),
+  "管道应抛出可读的网络失败"
+);
 
 console.log("smoke ok: batch mockTranslate / translate + openai/anthropic/deepseek env + yaml merge + pipeline");

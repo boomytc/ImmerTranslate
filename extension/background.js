@@ -22,6 +22,9 @@
  * The toolbar opens popup.html (default_popup). That card and the in-page
  * ball both message this worker only for TRANSLATE_BATCH / GET_SETTINGS;
  * page on/off state stays in the content script.
+ * A rejected translate is not swallowed: TRANSLATE_BATCH answers with
+ * ok:false plus error (message), kind, code, and status from TranslateFailure.
+ * TranslateRequest / TranslateResponse are unchanged.
  */
 
 import {
@@ -166,6 +169,22 @@ function paragraphCommandShortcut() {
   });
 }
 
+/**
+ * Rejection envelope for TRANSLATE_BATCH. A plain Error leaves kind, code,
+ * and status undefined; TranslateFailure fills them in.
+ * @param {any} err
+ * @returns {{ ok: false, error: string, kind?: string, code?: string, status?: number }}
+ */
+export function failureResponse(err) {
+  return {
+    ok: false,
+    error: String(err?.message || err),
+    kind: err?.kind,
+    code: err?.code,
+    status: err?.status,
+  };
+}
+
 if (typeof chrome !== "undefined" && chrome.commands?.onCommand) {
   chrome.commands.onCommand.addListener((command) => {
     if (command === "toggle-page-translate") {
@@ -199,9 +218,7 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
           return engine(payload);
         })
         .then((res) => sendResponse({ ok: true, data: res }))
-        .catch((err) =>
-          sendResponse({ ok: false, error: String(err?.message || err) })
-        );
+        .catch((err) => sendResponse(failureResponse(err)));
       return true;
     }
     if (message?.type === "GET_SETTINGS") {
