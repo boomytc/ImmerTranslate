@@ -9,7 +9,9 @@
  * is Alt+T (Option on macOS, Alt on Windows and Linux). The service worker
  * reads chrome.runtime.getPlatformInfo and, on macOS, stores that default as
  * ⌥T so the saved value matches the options page. Whole-page translate stays
- * Alt+A in the content script (⌥A on macOS), never Command+T. Site lists
+ * Alt+A in the content script (⌥A on macOS), never Command+T. The same
+ * chord is also a chrome.commands shortcut so a browser that eats the page
+ * keydown still messages the active tab with TOGGLE_TRANSLATE. Site lists
  * default to empty (every origin eligible). The content script enforces deny
  * before inserting nodes.
  * The selected engine is wrapped once with createPipelineEngine (TransPipe).
@@ -112,6 +114,22 @@ function refreshPlatformOs() {
       const current = String(data?.paragraphHotkey || "").trim();
       if (current && current !== "Alt+T") return;
       chrome.storage.local.set({ paragraphHotkey: "⌥T" });
+    });
+  });
+}
+
+if (typeof chrome !== "undefined" && chrome.commands?.onCommand) {
+  chrome.commands.onCommand.addListener((command) => {
+    if (command !== "toggle-page-translate") return;
+    if (!chrome.tabs?.query) return;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs && tabs[0] && tabs[0].id;
+      if (!tabId || !chrome.tabs?.sendMessage) return;
+      chrome.tabs.sendMessage(tabId, { type: "TOGGLE_TRANSLATE" }, () => {
+        // Article pages have the content script. chrome:// and other
+        // unsupported tabs report lastError; there is nothing to toggle.
+        void chrome.runtime.lastError;
+      });
     });
   });
 }
