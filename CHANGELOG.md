@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- The floating ball's primary click uses the same dual-state page machine as the popup CTA. Untranslated runs `TRANSLATE_PAGE`; translated runs `RESTORE_PAGE`. Both use the content script's `active` flag, which `GET_PAGE_STATE` and the ball indicator already use. An open popup listens for `PAGE_STATE` and re-reads that flag, so the CTA stays aligned with the ball. The ball does not show text buttons 「翻译」 or 「显示原文」.
+- The ball hover title follows that state and the saved page chord, with the same formatter as the popup and the options page. Untranslated macOS reads 「点击翻译为简体中文 (⌥A)」; Windows and Linux use Alt+A. Translated reads 「已翻译 · 点击显示原文」 plus that chord. A small 「打开弹层」 control opens the toolbar popup when the browser allows it, otherwise the options page the popup already opens. It does not embed the popup card.
+- `extension/manifest.json` version is `1.0.1`. Root status lines name `dev-1.0.1`. `packages/translate-core` stays `1.0.0`; `TranslateRequest` / `TranslateResponse` and engines are unchanged. No login, Pro, or banner.
+
 ## 1.0.0
 
 - Version alignment only. `extension/manifest.json` version is `1.0.0`. `packages/translate-core` package version is `1.0.0`. `TranslateRequest` / `TranslateResponse` and translate-core behavior are unchanged. No new engine, login, Pro, or banner. Knives already shipped in 0.4.2–0.8.0 stay as they are.
