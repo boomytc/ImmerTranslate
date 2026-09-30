@@ -176,7 +176,7 @@ const userscriptWebpack = (config, env) => {
   config.entry = {
     main: paths.appIndexJs,
     options: paths.appSrc + "/options.js",
-    "kiss-translator.user": paths.appSrc + "/userscript.js",
+    "immer-translate.user": paths.appSrc + "/userscript.js",
   };
 
   config.output.filename = "[name].js";
@@ -224,7 +224,7 @@ const userscriptWebpack = (config, env) => {
     //   banner,
     //   raw: true,
     //   entryOnly: true,
-    //   include: "kiss-translator.user",
+    //   include: "immer-translate.user",
     // })
   );
 
