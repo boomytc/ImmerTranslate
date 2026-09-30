@@ -117,6 +117,14 @@ describe("popup translation controls", () => {
     )?.[1];
 
     expect(headerRule).toContain("padding: 7px 14px");
+    const windowAction = POPUP_STYLES.match(
+      /\.kt-popup-header__window\s*\{([^}]*)\}/
+    )?.[1];
+    expect(windowAction).toContain("background: var(--kt-pri)");
+    expect(windowAction).toContain("color: var(--kt-onpri)");
+    expect(POPUP_STYLES).toMatch(
+      /\.kt-popup-shell--window \.kt-popup-window-title\s*\{[^}]*font-weight:\s*700/
+    );
     expect(moreServiceRule).toContain("padding-inline: 10px");
   });
 

@@ -298,14 +298,25 @@ export function Trantab({ isSeparate = false }) {
     [serializedTransApis]
   );
 
+  const separateWindowHeading = isSeparate ? (
+    <h1 className="kt-popup-window-title">{i18n("popup_text_translation")}</h1>
+  ) : null;
+
   if (!setting?.tranboxSetting) {
-    return (
+    const loading = (
       <div
         className="kt-popup-loading"
         role="status"
         aria-label={i18n("popup_loading")}
       >
         <AutorenewRoundedIcon />
+      </div>
+    );
+    if (!isSeparate) return loading;
+    return (
+      <div className="kt-popup-text-panel">
+        {separateWindowHeading}
+        {loading}
       </div>
     );
   }
@@ -329,6 +340,7 @@ export function Trantab({ isSeparate = false }) {
 
   return (
     <div className="kt-popup-text-panel" ref={panelRef}>
+      {separateWindowHeading}
       <TranslationPanelSurface embedded>
         <TranslationPanelContent
           configActions={
@@ -486,7 +498,10 @@ export default function Popup() {
 
   if (isSeparate) {
     return (
-      <main className="kt-popup-shell kt-popup-shell--window">
+      <main
+        className="kt-popup-shell kt-popup-shell--window"
+        aria-label={i18n("popup_text_translation")}
+      >
         <style>{POPUP_STYLES}</style>
         <Trantab isSeparate />
       </main>

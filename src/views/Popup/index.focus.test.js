@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import Popup from ".";
 import { getCurTab, sendBgMsg } from "../../libs/msg";
-import { MSG_OPEN_OPTIONS } from "../../config";
+import { MSG_OPEN_OPTIONS, MSG_OPEN_SEPARATE_WINDOW } from "../../config";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -39,7 +39,7 @@ jest.mock("../../hooks/Setting", () => ({
 
 jest.mock("./Header", () => {
   const React = require("react");
-  return ({ openSettings }) =>
+  return ({ openSettings, openSeparateWindow }) =>
     React.createElement(
       "div",
       null,
@@ -48,7 +48,14 @@ jest.mock("./Header", () => {
         "button",
         { type: "button", onClick: openSettings },
         "open-settings"
-      )
+      ),
+      openSeparateWindow
+        ? React.createElement(
+            "button",
+            { type: "button", onClick: openSeparateWindow },
+            "open-separate-window"
+          )
+        : null
     );
 });
 
@@ -104,6 +111,31 @@ describe("Popup focus", () => {
     });
 
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS);
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  test("opens the #tranbox window from the header action", async () => {
+    const closeWindow = jest
+      .spyOn(window, "close")
+      .mockImplementation(() => {});
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<Popup />);
+      await Promise.resolve();
+    });
+    act(() => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "open-separate-window")
+        .click();
+    });
+
+    expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_SEPARATE_WINDOW);
+    expect(closeWindow).toHaveBeenCalledTimes(1);
+    closeWindow.mockRestore();
     act(() => root.unmount());
     container.remove();
   });
