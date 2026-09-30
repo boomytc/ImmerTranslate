@@ -3,6 +3,7 @@ jest.mock("../../components/TouchTranslateControl", () => () => null);
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import ContentFab from "./ContentFab";
+import { configuredByokApis } from "./FabQuickOptions";
 import {
   EVENT_KISS_INNER,
   MSG_OPEN_OPTIONS,
@@ -542,7 +543,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(saved.transApis[0].key).toBe(secret);
   });
 
-  test("switches the page translator among configured BYOK services", async () => {
+  test("switches the page translator among configured services", async () => {
     mockFabSetting = {
       transApis: [
         {
@@ -589,6 +590,14 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
           isDisabled: true,
           sortOrder: 4,
         },
+        {
+          apiSlug: "Google",
+          apiType: "Google",
+          apiName: "Google",
+          key: "",
+          isDisabled: true,
+          sortOrder: 5,
+        },
       ],
     };
     const getFabPageState = jest.fn(async () => ({
@@ -619,13 +628,15 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       "translate_service"
     );
     expect(services().map((button) => button.textContent)).toEqual([
+      "Microsoft",
       "My Proxy",
       "DeepSeek",
     ]);
+    expect(services()[0].getAttribute("aria-pressed")).toBe("true");
     expect(
-      services().every(
-        (button) => button.getAttribute("aria-pressed") === "false"
-      )
+      services()
+        .slice(1)
+        .every((button) => button.getAttribute("aria-pressed") === "false")
     ).toBe(true);
     expect(
       container.querySelectorAll(".kt-content-fab-menu__model")
@@ -635,7 +646,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(container.textContent).not.toContain("sk-claude-secret");
 
     await act(async () => {
-      services()[1].click();
+      services()[2].click();
     });
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_TRANS_PUTRULE,
@@ -645,7 +656,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       expect.objectContaining({ action: MSG_TRANS_SET_MODEL })
     );
     expect(mockFabUpdateSetting).not.toHaveBeenCalled();
-    expect(services()[1].getAttribute("aria-pressed")).toBe("true");
+    expect(services()[2].getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector(".kt-content-fab-menu")).not.toBeNull();
     expect(
       container.querySelectorAll(".kt-content-fab-menu__model")
@@ -653,31 +664,24 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
 
     processActions.mockClear();
     await act(async () => {
-      services()[1].click();
+      services()[2].click();
     });
     expect(processActions).not.toHaveBeenCalled();
 
     await act(async () => {
-      services()[0].click();
+      services()[1].click();
     });
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_TRANS_PUTRULE,
       args: { apiSlug: "Custom_1" },
     });
-    expect(services()[0].getAttribute("aria-pressed")).toBe("true");
-    expect(services()[1].getAttribute("aria-pressed")).toBe("false");
+    expect(services()[1].getAttribute("aria-pressed")).toBe("true");
+    expect(services()[2].getAttribute("aria-pressed")).toBe("false");
   });
 
-  test("shows an empty service state when no provider has a key", async () => {
+  test("shows an empty service state when no enabled provider can be used", async () => {
     mockFabSetting = {
       transApis: [
-        {
-          apiSlug: "Microsoft",
-          apiType: "Microsoft",
-          apiName: "Microsoft",
-          key: "",
-          isDisabled: false,
-        },
         {
           apiSlug: "OpenAI",
           apiType: "OpenAI",
@@ -685,10 +689,24 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
           key: "  ",
           isDisabled: false,
         },
+        {
+          apiSlug: "DeepSeek",
+          apiType: "DeepSeek",
+          apiName: "DeepSeek",
+          key: "",
+          isDisabled: false,
+        },
+        {
+          apiSlug: "Google",
+          apiType: "Google",
+          apiName: "Google",
+          key: "",
+          isDisabled: true,
+        },
       ],
     };
     const getFabPageState = jest.fn(async () => ({
-      rule: { apiSlug: "Microsoft", transOnly: "false" },
+      rule: { apiSlug: "unused", transOnly: "false" },
     }));
     act(() =>
       root.render(
@@ -1018,5 +1036,63 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     );
 
     expect(menuItems()).toHaveLength(0);
+  });
+});
+
+describe("configuredByokApis", () => {
+  test("includes an enabled keyless engine with an empty key", () => {
+    const list = configuredByokApis([
+      {
+        apiSlug: "Microsoft",
+        apiType: "Microsoft",
+        key: "",
+        isDisabled: false,
+        sortOrder: 2,
+      },
+      {
+        apiSlug: "DeepSeek",
+        apiType: "DeepSeek",
+        key: "sk-deepseek",
+        isDisabled: false,
+        sortOrder: 1,
+      },
+    ]);
+
+    expect(list.map((api) => api.apiSlug)).toEqual(["DeepSeek", "Microsoft"]);
+  });
+
+  test("excludes a key-required engine with an empty key", () => {
+    const list = configuredByokApis([
+      {
+        apiSlug: "OpenAI",
+        apiType: "OpenAI",
+        key: "  ",
+        isDisabled: false,
+        sortOrder: 0,
+      },
+    ]);
+
+    expect(list).toEqual([]);
+  });
+
+  test("excludes a disabled keyless engine", () => {
+    const list = configuredByokApis([
+      {
+        apiSlug: "Google",
+        apiType: "Google",
+        key: "",
+        isDisabled: true,
+        sortOrder: 0,
+      },
+      {
+        apiSlug: "BuiltinAI",
+        apiType: "BuiltinAI",
+        key: "",
+        isDisabled: false,
+        sortOrder: 1,
+      },
+    ]);
+
+    expect(list.map((api) => api.apiSlug)).toEqual(["BuiltinAI"]);
   });
 });
