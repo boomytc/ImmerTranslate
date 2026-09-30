@@ -39,15 +39,6 @@ export default function About() {
           <Button
             component="a"
             variant="contained"
-            href={process.env.REACT_APP_RELEASES_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {i18n("settings_check_updates")}
-          </Button>
-          <Button
-            component="a"
-            variant="outlined"
             href={process.env.REACT_APP_HOMEPAGE}
             target="_blank"
             rel="noreferrer"

@@ -104,7 +104,7 @@ export default function Options() {
         <Divider>
           <Link
             href={process.env.REACT_APP_HOMEPAGE}
-          >{`KISS Translator v${process.env.REACT_APP_VERSION}`}</Link>
+          >{`${process.env.REACT_APP_NAME} v${process.env.REACT_APP_VERSION}`}</Link>
         </Divider>
         <Alert severity="error">{error}</Alert>
         {isGm && (

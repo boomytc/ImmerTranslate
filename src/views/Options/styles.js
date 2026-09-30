@@ -86,8 +86,6 @@ export const OPTIONS_STYLES = String.raw`
 .kt-options-page-header { margin: 0 0 26px; }
 .kt-options-page-header h1 { margin: 0; color: var(--kt-on); font-size: clamp(27px, 3vw, 31px); font-weight: 650; letter-spacing: -.035em; line-height: 1.2; }
 .kt-options-page-header p { margin: 8px 0 0; color: var(--kt-onv); font-size: 13.5px; line-height: 1.5; }
-.kt-options-version-alert { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 12px 16px; border-radius: var(--kt-radius-control, 16px); background: var(--kt-terc); color: var(--kt-onterc); font-size: 12px; }
-.kt-options-version-alert a { color: inherit; font-weight: 700; }
 .kt-options-page { min-width: 0; }
 
 .kt-options-page .MuiAlert-root { border: 0; border-radius: var(--kt-radius-lg, 16px); background: var(--kt-sf1); color: var(--kt-onv); }

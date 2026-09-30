@@ -175,7 +175,7 @@ describe("content action Popup integration", () => {
       ".kt-popup-shell"
     );
     expect(panel.getAttribute("aria-label")).toBe(
-      process.env.REACT_APP_NAME || "KISS Translator"
+      process.env.REACT_APP_NAME || "ImmerTranslate"
     );
     expect(panel.tabIndex).toBe(-1);
   });

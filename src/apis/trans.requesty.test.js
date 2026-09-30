@@ -125,8 +125,8 @@ describe("Requesty interface", () => {
     expect(init.headers).toMatchObject({
       Authorization: "Bearer requesty-test-key",
       "Content-type": "application/json",
-      "HTTP-Referer": "https://fishjar.github.io/kiss-translator/",
-      "X-Title": "KISS Translator",
+      "HTTP-Referer": "https://github.com/boomytc/ImmerTranslate",
+      "X-Title": "ImmerTranslate",
     });
 
     const body = JSON.parse(init.body);
