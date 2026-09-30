@@ -1262,6 +1262,7 @@ describe("PopupCont capability parity", () => {
         apiSlug,
         apiName: apiSlug,
         apiType: apiSlug,
+        key: "present",
       })),
       tranboxSetting: { transOpen: true },
       mouseHoverSetting: { useMouseHover: false },
@@ -1844,6 +1845,7 @@ describe("PopupCont capability parity", () => {
           transApis: ["google", "deepl"].map((apiSlug) => ({
             apiSlug,
             apiName: apiSlug,
+            key: "present",
           })),
         },
       },
@@ -1948,6 +1950,11 @@ describe("missing API key empty state", () => {
     expect(empty.textContent).toContain("missing_api_key_empty");
     expect(empty.textContent).toContain("missing_api_key_action");
     expect(view.container.textContent).not.toContain("popup_enabled");
+    expect(
+      Array.from(
+        view.container.querySelectorAll(".kt-popup-service__name")
+      ).map((node) => node.textContent)
+    ).toEqual(["Microsoft"]);
 
     act(() => empty.querySelector("button").click());
     expect(mockSendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS, {
@@ -1984,7 +1991,135 @@ describe("missing API key empty state", () => {
     expect(
       view.container.querySelector(".kt-popup-hero__subtitle").textContent
     ).toContain("popup_enabled");
+    expect(
+      Array.from(
+        view.container.querySelectorAll(".kt-popup-service__name")
+      ).map((node) => node.textContent)
+    ).toEqual(["Microsoft", "Google"]);
     view.cleanup();
+  });
+
+  test("lists enabled keyless engines with an empty key", async () => {
+    const view = renderPopupCont({
+      rule: { apiSlug: "Microsoft", transOpen: "true" },
+      setting: {
+        transApis: [
+          {
+            apiSlug: "BuiltinAI",
+            apiType: "BuiltinAI",
+            apiName: "BuiltinAI",
+            key: "",
+            isDisabled: false,
+            sortOrder: 0,
+          },
+          {
+            apiSlug: "Google",
+            apiType: "Google",
+            apiName: "Google",
+            key: "",
+            isDisabled: false,
+            sortOrder: 1,
+          },
+          {
+            apiSlug: "Google2",
+            apiType: "Google2",
+            apiName: "Google2",
+            key: "",
+            isDisabled: false,
+            sortOrder: 2,
+          },
+          {
+            apiSlug: "Microsoft",
+            apiType: "Microsoft",
+            apiName: "Microsoft",
+            key: "",
+            isDisabled: false,
+            sortOrder: 3,
+          },
+          {
+            apiSlug: "DeepSeek",
+            apiType: "DeepSeek",
+            apiName: "DeepSeek",
+            key: "",
+            isDisabled: false,
+            sortOrder: 4,
+          },
+          {
+            apiSlug: "OpenAI",
+            apiType: "OpenAI",
+            apiName: "OpenAI",
+            key: "sk-openai-secret",
+            isDisabled: true,
+            sortOrder: 5,
+          },
+        ],
+        shortcuts: { toggleTranslate: ["AltLeft", "KeyQ"] },
+      },
+    });
+    await flushEffects();
+
+    expect(view.container.querySelector(".kt-popup-key-empty")).toBeNull();
+    act(() => view.container.querySelector(".kt-popup-more-service").click());
+    expect(
+      Array.from(
+        view.container.querySelectorAll(".kt-popup-service__name")
+      ).map((node) => node.textContent)
+    ).toEqual(["BuiltinAI", "Google", "Google2", "Microsoft"]);
+    expect(view.container.textContent).not.toContain("DeepSeek");
+    expect(view.container.textContent).not.toContain("sk-openai-secret");
+    view.cleanup();
+  });
+
+  test("shows the no-service copy when nothing usable is enabled", async () => {
+    mockIsExt = true;
+    const view = renderPopupCont({
+      rule: { apiSlug: "DeepSeek", transOpen: "true" },
+      setting: {
+        transApis: [
+          {
+            apiSlug: "OpenAI",
+            apiType: "OpenAI",
+            apiName: "OpenAI",
+            key: "  ",
+            isDisabled: false,
+          },
+          {
+            apiSlug: "DeepSeek",
+            apiType: "DeepSeek",
+            apiName: "DeepSeek",
+            key: "",
+            isDisabled: false,
+          },
+          {
+            apiSlug: "Google",
+            apiType: "Google",
+            apiName: "Google",
+            key: "",
+            isDisabled: true,
+          },
+        ],
+        shortcuts: { toggleTranslate: ["AltLeft", "KeyQ"] },
+      },
+    });
+    await flushEffects();
+
+    expect(view.container.querySelector(".kt-popup-services")).toBeNull();
+    expect(view.container.querySelectorAll(".kt-popup-service")).toHaveLength(
+      0
+    );
+    const empty = view.container.querySelector(".kt-popup-key-empty");
+    expect(empty.textContent).toContain("fab_no_keyed_provider");
+    expect(empty.textContent).not.toContain("missing_api_key_empty");
+    expect(view.container.textContent).not.toContain("OpenAI");
+    expect(view.container.textContent).not.toContain("DeepSeek");
+    expect(view.container.textContent).not.toContain("Google");
+
+    act(() => empty.querySelector("button").click());
+    expect(mockSendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS, {
+      hash: "/apis",
+    });
+    view.cleanup();
+    mockIsExt = false;
   });
 
   test("drops the empty state once the current service has a key", async () => {

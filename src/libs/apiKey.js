@@ -50,3 +50,19 @@ export function isMissingRequiredApiKey(api) {
   if (!api) return false;
   return apiRequiresKey(api) && !String(api.key || "").trim();
 }
+
+/**
+ * Enabled providers a picker can switch to.
+ * A row qualifies when it has a non-empty key, or when it does not require
+ * one (keyless engines such as Microsoft, Google, and BuiltinAI).
+ * Disabled rows stay out. Key-required rows with a blank key stay out.
+ */
+export const configuredByokApis = (transApis = []) =>
+  transApis
+    .filter(
+      (api) =>
+        api &&
+        !api.isDisabled &&
+        (String(api.key || "").trim() || !apiRequiresKey(api))
+    )
+    .sort((left, right) => (left.sortOrder || 0) - (right.sortOrder || 0));

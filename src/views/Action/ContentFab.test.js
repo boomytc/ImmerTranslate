@@ -3,7 +3,7 @@ jest.mock("../../components/TouchTranslateControl", () => () => null);
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import ContentFab from "./ContentFab";
-import { configuredByokApis } from "./FabQuickOptions";
+import { configuredByokApis } from "../../libs/apiKey";
 import {
   EVENT_KISS_INNER,
   MSG_OPEN_OPTIONS,
