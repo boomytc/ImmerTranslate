@@ -233,14 +233,15 @@ export const OPT_MOUSE_HOVER_TRANS_DISPLAY_INLINE = "inline"; // 按住左键译
 export const OPT_MOUSE_HOVER_TRANS_DISPLAY_BLOCK = "block"; // 按住左键译文独立成块显示
 export const DEFAULT_MOUSE_HOVER_HOLD_DELAY = 800; // 按住鼠标左键多久后触发悬停翻译 (毫秒)
 export const DEFAULT_MOUSE_HOVER_BUBBLE_STYLE = `max-width: min(420px, calc(100vw - 32px));
-padding: 10px 12px;
-border-radius: 8px;
-background: rgb(25, 118, 210);
-color: #fff;
-font-size: 14px;
-line-height: 1.5;
-box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-backdrop-filter: blur(8px);`;
+padding: 12px 14px;
+border: 1px solid rgba(23, 24, 28, 0.14);
+border-radius: 20px;
+background: rgb(255, 255, 255);
+color: rgb(31, 31, 31);
+font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+font-size: 15px;
+line-height: 1.45;
+box-shadow: 0 1px 2px rgba(23, 24, 28, 0.08), 0 12px 32px rgba(23, 24, 28, 0.2);`;
 export const DEFAULT_MOUSE_HOVER_SETTING = {
   touchMode: "tap", // Preferred gesture; activation is document-local.
   touchDirection: "right",

@@ -186,7 +186,10 @@ export default function MouseHoverSetting() {
       </SettingsSection>
       <SettingsSection title={i18n("touch_mouse")}>
         <SettingsCard>
-          <SettingsRow label={i18n("use_mousehover_translation")}>
+          <SettingsRow
+            label={i18n("use_mousehover_translation")}
+            description={i18n("use_mousehover_translation_helper")}
+          >
             <SettingsSwitch
               checked={useMouseHover}
               label={i18n("use_mousehover_translation")}

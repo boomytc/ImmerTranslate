@@ -57,6 +57,20 @@ describe("MouseHover settings", () => {
     jest.clearAllMocks();
   });
 
+  test("explains that the hover switch shows or hides the hover entry", () => {
+    const view = renderMouseHover({ useMouseHover: false });
+
+    expect(view.container.textContent).toContain(
+      "use_mousehover_translation_helper"
+    );
+    expect(
+      view.container.querySelector(
+        "input[aria-label='use_mousehover_translation']"
+      )
+    ).not.toBeNull();
+    view.cleanup();
+  });
+
   test("hides the service selector in inline bilingual mode", () => {
     const view = renderMouseHover({
       useMouseHover: true,
