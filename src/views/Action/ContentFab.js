@@ -328,7 +328,7 @@ export function ContentFabContent({
         popperOptions={{ strategy: "fixed" }}
         modifiers={FAB_POPPER_MODIFIERS}
       >
-        <Paper ref={menuRef} className="kt-content-fab-menu" elevation={6}>
+        <Paper ref={menuRef} className="kt-content-fab-menu" elevation={0}>
           <MenuList
             id="kt-content-fab-menu"
             aria-labelledby="kt-content-fab-button"
