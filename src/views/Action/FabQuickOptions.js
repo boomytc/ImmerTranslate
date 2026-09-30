@@ -15,6 +15,8 @@ import { getPresetModels } from "../../config/presetModels";
 import { useI18n } from "../../hooks/I18n";
 import { useRules } from "../../hooks/Rules";
 import { useSetting } from "../../hooks/Setting";
+import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
+import { isMissingRequiredApiKey } from "../../libs/apiKey";
 import { isExt } from "../../libs/client";
 import { kissLog } from "../../libs/log";
 import { fetchModelCatalog } from "../../libs/modelList";
@@ -113,6 +115,7 @@ export default function FabQuickOptions({
       null,
     [rule?.apiSlug, setting?.transApis]
   );
+  const missingCurrentKey = isMissingRequiredApiKey(activeApi);
   const supportsModel = Boolean(
     activeApi &&
       (API_SPE_TYPES.ai.has(activeApi.apiType) ||
@@ -319,26 +322,45 @@ export default function FabQuickOptions({
           </select>
         </label>
       )}
-      {rule && configuredApis.length > 0 && (
+      {rule && (
         <div className="kt-content-fab-menu__field">
           <span id="kt-fab-service-label">{i18n("translate_service")}</span>
-          <div
-            className="kt-content-fab-menu__services"
-            role="group"
-            aria-labelledby="kt-fab-service-label"
-          >
-            {configuredApis.map((api) => (
-              <button
-                key={api.apiSlug}
-                type="button"
-                className="kt-content-fab-menu__mode"
-                aria-pressed={rule.apiSlug === api.apiSlug}
-                onClick={() => applyService(api.apiSlug)}
+          {configuredApis.length === 0 ? (
+            <ApiKeyEmptyState
+              className="kt-content-fab-menu__empty"
+              messageKey={
+                missingCurrentKey
+                  ? "missing_api_key_empty"
+                  : "fab_no_keyed_provider"
+              }
+            />
+          ) : (
+            <>
+              {missingCurrentKey && (
+                <ApiKeyEmptyState
+                  className="kt-content-fab-menu__empty"
+                  messageKey="missing_api_key_empty"
+                />
+              )}
+              <div
+                className="kt-content-fab-menu__services"
+                role="group"
+                aria-labelledby="kt-fab-service-label"
               >
-                {api.apiName || api.apiSlug}
-              </button>
-            ))}
-          </div>
+                {configuredApis.map((api) => (
+                  <button
+                    key={api.apiSlug}
+                    type="button"
+                    className="kt-content-fab-menu__mode"
+                    aria-pressed={rule.apiSlug === api.apiSlug}
+                    onClick={() => applyService(api.apiSlug)}
+                  >
+                    {api.apiName || api.apiSlug}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
       {rule && supportsModel && (
