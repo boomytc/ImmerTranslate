@@ -5647,6 +5647,15 @@ export const I18N = {
     tr: `Metin çevirisi`,
     vi: `Dịch văn bản`,
   },
+  popup_open_separate_window: {
+    zh: `打开独立窗`,
+    en: `Open separate window`,
+    zh_TW: `開啟獨立視窗`,
+    ja: `別ウィンドウで開く`,
+    ko: `별도 창 열기`,
+    tr: `Ayrı pencerede aç`,
+    vi: `Mở cửa sổ riêng`,
+  },
   popup_translating: {
     zh: `正在翻译…`,
     en: `Translating…`,

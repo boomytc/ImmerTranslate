@@ -329,6 +329,9 @@ describe("shared translation panel hosts", () => {
     ).not.toBeNull();
     expect(view.container.querySelector(".kt-tranbox-content")).not.toBeNull();
     expect(view.container.querySelector(".KT-draggable")).toBeNull();
+    expect(
+      view.container.querySelector(".kt-popup-window-title").textContent
+    ).toBe("popup_text_translation");
     expect(view.container.querySelector(".kt-tranbox-header__drag")).toBeNull();
     expect(
       view.container.querySelector(".kt-tranbox-header__brand")
@@ -372,6 +375,7 @@ describe("shared translation panel hosts", () => {
     ).not.toBeNull();
     expect(view.container.querySelector(".kt-tranbox-content")).not.toBeNull();
     expect(view.container.querySelector(".kt-tranbox-header")).toBeNull();
+    expect(view.container.querySelector(".kt-popup-window-title")).toBeNull();
     expect(
       view.container.querySelector('[data-testid="tran-form"]').dataset
         .simpleStyle
@@ -684,6 +688,9 @@ describe("separate window auto-fit", () => {
     act(() => rafCallbacks.forEach((callback) => callback()));
 
     expect(sendBgMsg).not.toHaveBeenCalled();
+    expect(container.querySelector(".kt-popup-window-title").textContent).toBe(
+      "popup_text_translation"
+    );
   });
 });
 
@@ -781,6 +788,12 @@ describe("Popup default view", () => {
     await renderPopup("page");
 
     expect(document.title).toBe("popup_text_translation · app_name");
+    expect(container.querySelector("main").getAttribute("aria-label")).toBe(
+      "popup_text_translation"
+    );
+    expect(container.querySelector(".kt-popup-window-title").textContent).toBe(
+      "popup_text_translation"
+    );
 
     act(() => root.render(null));
     expect(document.title).toBe("Original extension title");
@@ -791,6 +804,7 @@ describe("Popup default view", () => {
     await renderPopup("text");
 
     expect(document.title).toBe("Original extension title");
+    expect(container.querySelector(".kt-popup-window-title")).toBeNull();
   });
 
   test("separate text windows read the clipboard only once on mount", async () => {
