@@ -21,7 +21,27 @@ export function useConfirmedPopupUpdate({ value, setValue, onError }) {
     }
   }, [value]);
 
-  return useCallback(
+  const applyExternal = useCallback(
+    (next) => {
+      if (!next || typeof next !== "object") return;
+      setValue((previous) => {
+        const pending = pendingRef.current;
+        const merged = { ...(previous || {}), ...next };
+        for (const name of Object.keys(pending)) {
+          if (
+            previous &&
+            Object.prototype.hasOwnProperty.call(previous, name)
+          ) {
+            merged[name] = previous[name];
+          }
+        }
+        return merged;
+      });
+    },
+    [setValue]
+  );
+
+  const commit = useCallback(
     async (values, sendUpdate) => {
       const sequence = ++sequenceRef.current;
       const names = Object.keys(values);
@@ -78,4 +98,6 @@ export function useConfirmedPopupUpdate({ value, setValue, onError }) {
     },
     [onError, setValue]
   );
+  commit.applyExternal = applyExternal;
+  return commit;
 }

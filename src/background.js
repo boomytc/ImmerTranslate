@@ -39,6 +39,7 @@ import {
   MSG_SHA256,
   MSG_GET_FRAME_ID,
   MSG_VALIDATE_DOCUMENT,
+  MSG_TRANS_CURRULE,
 } from "./config";
 import {
   getSettingWithDefault,
@@ -812,6 +813,9 @@ const messageHandlers = {
       ? updateCacheFromActual(args.windowId)
       : undefined,
   [MSG_UPDATE_ICON]: (args, sender) => updateIcon(args, sender?.tab?.id), // 变更页面的插件高亮图标
+  // Content scripts publish the current page rule so an open toolbar popup can
+  // listen. The popup receives the same runtime message; nothing else to do.
+  [MSG_TRANS_CURRULE]: () => undefined,
 };
 
 /**

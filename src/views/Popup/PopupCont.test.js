@@ -27,6 +27,8 @@ import {
   MSG_SAVE_RULE,
   MSG_TRANS_GETRULE,
   MSG_TRANS_PUTRULE,
+  EVENT_KISS_INNER,
+  MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
   MSG_TOUCH_TRANSLATE_MODE_SET,
   MSG_TOUCH_TRANSLATE_STATE,
@@ -98,6 +100,25 @@ jest.mock("../../libs/rules", () => ({ saveRule: jest.fn() }));
 jest.mock("../../libs/popupDocument", () => ({
   isCurrentPopupDocument: jest.fn(async () => true),
 }));
+jest.mock("../../libs/browser", () => {
+  const listeners = [];
+  return {
+    browser: {
+      runtime: {
+        onMessage: {
+          addListener(listener) {
+            listeners.push(listener);
+          },
+          removeListener(listener) {
+            const index = listeners.indexOf(listener);
+            if (index >= 0) listeners.splice(index, 1);
+          },
+          listeners,
+        },
+      },
+    },
+  };
+});
 
 async function flushEffects() {
   await act(async () => {
@@ -921,6 +942,98 @@ describe("PopupCont capability parity", () => {
     });
     expect(mainSwitch.checked).toBe(false);
     expect(view.container.querySelector('[role="alert"]')).toBeNull();
+    view.cleanup();
+  });
+
+  test("applies a rule published by the floating controls", async () => {
+    const view = renderPopupCont({}, { statefulRule: true });
+    await flushEffects();
+    openAdvancedOptions(view.container);
+
+    act(() => {
+      document.dispatchEvent(
+        new CustomEvent(EVENT_KISS_INNER, {
+          detail: {
+            action: MSG_TRANS_CURRULE,
+            rule: {
+              transOpen: "false",
+              apiSlug: "google",
+              fromLang: "en",
+              toLang: "fr",
+              textStyle: "style_0",
+              autoScan: "true",
+              transOnly: "true",
+              hasRichText: "true",
+              scanAll: "false",
+              isPlainText: false,
+            },
+          },
+        })
+      );
+    });
+
+    expect(
+      view.container.querySelector('input[aria-label="popup_translate_page"]')
+        .checked
+    ).toBe(false);
+    expect(
+      [
+        ...view.container.querySelectorAll(".kt-popup-language-select input"),
+      ].map((input) => input.value)
+    ).toEqual(["en", "fr"]);
+    expect(
+      view.container.querySelector('input[aria-label="show_only_translations"]')
+        .checked
+    ).toBe(true);
+    expect(
+      view.container.querySelector('.kt-popup-style-chip[aria-pressed="true"]')
+        .textContent
+    ).toContain("Style 0");
+    view.cleanup();
+  });
+
+  test("applies a toolbar rule message for the captured tab only", async () => {
+    const { browser } = require("../../libs/browser");
+    const listeners = browser.runtime.onMessage.listeners;
+    const view = renderPopupCont(
+      { targetTab: { id: 4 } },
+      { statefulRule: true }
+    );
+    await flushEffects();
+
+    const publish = (toLang, tabId) => {
+      listeners.at(-1)?.(
+        {
+          action: MSG_TRANS_CURRULE,
+          args: {
+            isTopFrame: true,
+            rule: {
+              transOpen: "true",
+              apiSlug: "google",
+              fromLang: "auto",
+              toLang,
+              textStyle: "style_6",
+              autoScan: "true",
+              transOnly: "false",
+              hasRichText: "true",
+              scanAll: "false",
+              isPlainText: false,
+            },
+          },
+        },
+        { tab: { id: tabId } }
+      );
+    };
+    const targetLanguage = () =>
+      [
+        ...view.container.querySelectorAll(".kt-popup-language-select input"),
+      ].map((input) => input.value)[1];
+
+    act(() => publish("ja", 4));
+    expect(targetLanguage()).toBe("ja");
+    act(() => publish("de", 9));
+    expect(targetLanguage()).toBe("ja");
+
     view.cleanup();
   });
 

@@ -45,6 +45,11 @@ import {
 import { logger } from "./log";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { MSG_GET_FRAME_ID, MSG_VALIDATE_DOCUMENT } from "../config/msg";
+import {
+  persistSharedSiteRule,
+  pickSharedRulePatch,
+  publishPageRule,
+} from "./pageRuleSync";
 
 /**
  * 前台翻译业务的总生命周期管理器。
@@ -939,6 +944,8 @@ export default class TranslatorManager {
 
     logger.debug("process action:", action, args);
 
+    let publishRule = false;
+    let sharedPatch = null;
     switch (action) {
       case MSG_TRANS_TOGGLE:
         if (typeof args?.enabled === "boolean") {
@@ -948,17 +955,44 @@ export default class TranslatorManager {
         } else {
           this._translator?.toggle();
         }
+        publishRule = true;
+        // A binary toggle pins the site. Follow-mode applies runtime only.
+        if (args?.persistSite !== false) {
+          const transOpen =
+            typeof args?.enabled === "boolean"
+              ? args.enabled
+                ? "true"
+                : "false"
+              : this._translator?.rule?.transOpen;
+          if (transOpen === "true" || transOpen === "false") {
+            sharedPatch = { transOpen };
+          }
+        }
         break;
       case MSG_TRANS_TOGGLE_ONLY:
         this._translator?.toggleTransOnly();
+        publishRule = true;
+        if (
+          this._translator?.rule?.transOnly === "true" ||
+          this._translator?.rule?.transOnly === "false"
+        ) {
+          sharedPatch = { transOnly: this._translator.rule.transOnly };
+        }
         break;
       case MSG_TRANS_TOGGLE_STYLE:
         this._translator?.toggleStyle();
+        publishRule = true;
+        if (this._translator?.rule?.textStyle) {
+          sharedPatch = { textStyle: this._translator.rule.textStyle };
+        }
         break;
       case MSG_TRANS_GETRULE:
         break;
       case MSG_TRANS_PUTRULE:
         this._translator?.updateRule(args);
+        publishRule = true;
+        sharedPatch = pickSharedRulePatch(args);
+        if (!Object.keys(sharedPatch).length) sharedPatch = null;
         break;
       case MSG_TRANS_SET_MODEL:
         this._translator?.updateApiModel?.(args?.apiSlug, args?.model);
@@ -1031,6 +1065,13 @@ export default class TranslatorManager {
         logger.info(`Message action is unavailable: ${action}`);
         return { error: `Message action is unavailable: ${action}` };
     }
-    return this.#getRuntimeResponse();
+    const response = this.#getRuntimeResponse();
+    if (publishRule) {
+      publishPageRule(response);
+      // Iframes mirror the command. Only the top frame writes the site rule.
+      if (sharedPatch && !this.#isIframe)
+        void persistSharedSiteRule(sharedPatch);
+    }
+    return response;
   }
 }

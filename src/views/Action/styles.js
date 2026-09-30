@@ -23,5 +23,5 @@ export const ACTION_STYLES = String.raw`${FLOATING_BUTTON_STYLES}
 .kt-content-fab-menu__sites .kt-content-fab-menu__mode { flex: 1 1 30%; min-width: 4.75rem; padding: 6px 8px; line-height: 1.25; text-align: center; white-space: normal; }
 .kt-content-fab-menu__mode[aria-pressed="true"] { border-color: transparent; background: var(--kt-pric); color: var(--kt-onpric); }
 .kt-content-fab-menu__field { display: flex; flex-direction: column; gap: 4px; color: var(--kt-onv); font-size: 11px; font-weight: 650; }
-.kt-content-fab-menu__model { width: 100%; min-height: 36px; padding: 0 8px; border: 1px solid var(--kt-linev); border-radius: var(--kt-radius-md, 12px); background: var(--kt-sf0); color: var(--kt-on); font: inherit; font-size: 12px; font-weight: 650; }
+.kt-content-fab-menu__model, .kt-content-fab-menu__lang { width: 100%; min-height: 36px; padding: 0 8px; border: 1px solid var(--kt-linev); border-radius: var(--kt-radius-md, 12px); background: var(--kt-sf0); color: var(--kt-on); font: inherit; font-size: 12px; font-weight: 650; }
 `;

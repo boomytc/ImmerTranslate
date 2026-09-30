@@ -180,4 +180,25 @@ describe("useConfirmedPopupUpdate", () => {
     expect(current.value).toEqual({ fromLang: "it", toLang: "fr" });
     expect(onError).toHaveBeenCalledTimes(1);
   });
+
+  test("applies an external rule without clobbering a pending field", async () => {
+    const pending = startUpdate({ toLang: "ja" });
+    act(() => {
+      current.update.applyExternal({
+        toLang: "de",
+        apiSlug: "deepl",
+        transOpen: "false",
+      });
+    });
+    expect(current.value).toEqual({
+      fromLang: "en",
+      toLang: "ja",
+      apiSlug: "deepl",
+      transOpen: "false",
+    });
+
+    await pending.resolve({ toLang: "ja" });
+    expect(current.value).toMatchObject({ toLang: "ja", apiSlug: "deepl" });
+    expect(onError).not.toHaveBeenCalled();
+  });
 });
