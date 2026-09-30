@@ -508,11 +508,27 @@ browser.windows?.onRemoved?.addListener?.(async (windowId) => {
   }
 });
 
+// onInstalled、onStartup 与设置页可能同时重建菜单。后一次必须等前一次
+// 的 create 回调结束，否则 Chrome 会在 removeAll 之后叠上两套相同项。
+let contextMenusQueue = Promise.resolve();
+
 /**
  * 动态增删及配置右键快捷菜单。
  * @param {number} contextMenuType 菜单类型标识 (1: 简易模式, 2: 完整模式)
  */
 async function addContextMenus(contextMenuType = 1) {
+  const task = contextMenusQueue
+    .catch(() => {})
+    .then(() => rebuildContextMenus(contextMenuType));
+  contextMenusQueue = task;
+  return task;
+}
+
+/**
+ * 清空现有右键菜单后，按当前模式重新创建。调用方需保证不会并发进入。
+ * @param {number} contextMenuType 菜单类型标识 (1: 简易模式, 2: 完整模式)
+ */
+async function rebuildContextMenus(contextMenuType = 1) {
   try {
     // 添加右键菜单前，务必先全部清空，防止因为重复添加相同 ID 菜单导致插件崩溃
     await browser.contextMenus.removeAll();
@@ -520,55 +536,134 @@ async function addContextMenus(contextMenuType = 1) {
     kissLog("remove contextMenus", err);
   }
 
+  for (const item of contextMenuItems(contextMenuType)) {
+    try {
+      await createContextMenuItem(item);
+    } catch (err) {
+      kissLog("create contextMenus", err);
+    }
+  }
+}
+
+/**
+ * 按菜单模式返回要创建的项。文案与上下文和原先的 create 调用保持一致。
+ * @param {number} contextMenuType 菜单类型标识 (0: 禁用, 1: 简易模式, 2: 完整模式)
+ * @returns {Array<object>}
+ */
+function contextMenuItems(contextMenuType) {
   switch (contextMenuType) {
     case 1:
       // 简易模式：仅提供“双语对照翻译”与“翻译所选文本”
-      browser.contextMenus.create({
-        id: CMD_TOGGLE_TRANSLATE,
-        title: browser.i18n.getMessage("toggle_translate"),
-        contexts: ["page"],
-      });
-      browser.contextMenus.create({
-        id: CMD_OPEN_TRANBOX,
-        title: browser.i18n.getMessage("translate_selection"),
-        contexts: ["selection"],
-      });
-      break;
+      return [
+        {
+          id: CMD_TOGGLE_TRANSLATE,
+          title: browser.i18n.getMessage("toggle_translate"),
+          contexts: ["page"],
+        },
+        {
+          id: CMD_OPEN_TRANBOX,
+          title: browser.i18n.getMessage("translate_selection"),
+          contexts: ["selection"],
+        },
+      ];
     case 2:
       // 完整模式：额外提供“仅显示翻译”、样式切换、打开独立翻译面板以及进入选项设置页
-      browser.contextMenus.create({
-        id: CMD_TOGGLE_TRANSLATE,
-        title: browser.i18n.getMessage("toggle_translate"),
-        contexts: ["page", "selection"],
-      });
-      browser.contextMenus.create({
-        id: CMD_TOGGLE_TRANSLATE_ONLY,
-        title: browser.i18n.getMessage("toggle_translate_only"),
-        contexts: ["page", "selection"],
-      });
-      browser.contextMenus.create({
-        id: CMD_TOGGLE_STYLE,
-        title: browser.i18n.getMessage("toggle_style"),
-        contexts: ["page", "selection"],
-      });
-      browser.contextMenus.create({
-        id: CMD_OPEN_TRANBOX,
-        title: browser.i18n.getMessage("open_tranbox"),
-        contexts: ["page", "selection"],
-      });
-      browser.contextMenus.create({
-        id: "options_separator",
-        type: "separator",
-        contexts: ["page", "selection"],
-      });
-      browser.contextMenus.create({
-        id: CMD_OPEN_OPTIONS,
-        title: browser.i18n.getMessage("open_options"),
-        contexts: ["page", "selection"],
-      });
-      break;
+      return [
+        {
+          id: CMD_TOGGLE_TRANSLATE,
+          title: browser.i18n.getMessage("toggle_translate"),
+          contexts: ["page", "selection"],
+        },
+        {
+          id: CMD_TOGGLE_TRANSLATE_ONLY,
+          title: browser.i18n.getMessage("toggle_translate_only"),
+          contexts: ["page", "selection"],
+        },
+        {
+          id: CMD_TOGGLE_STYLE,
+          title: browser.i18n.getMessage("toggle_style"),
+          contexts: ["page", "selection"],
+        },
+        {
+          id: CMD_OPEN_TRANBOX,
+          title: browser.i18n.getMessage("open_tranbox"),
+          contexts: ["page", "selection"],
+        },
+        {
+          id: "options_separator",
+          type: "separator",
+          contexts: ["page", "selection"],
+        },
+        {
+          id: CMD_OPEN_OPTIONS,
+          title: browser.i18n.getMessage("open_options"),
+          contexts: ["page", "selection"],
+        },
+      ];
     default:
+      return [];
   }
+}
+
+/**
+ * 等右键项真正注册完成。
+ * Chrome 的 contextMenus.create 会立刻返回 id，polyfill 也没有把它包成 Promise；
+ * 菜单要等回调才落定。Firefox 则返回 Promise。两边都要等到完成信号。
+ * @param {object} item contextMenus.create 的参数
+ * @returns {Promise<void>}
+ */
+function createContextMenuItem(item) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const completion = { preferPromise: false };
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      if (error) reject(error);
+      else resolve();
+    };
+
+    let created;
+    try {
+      created = browser.contextMenus.create(item, () => {
+        // Firefox 的 Promise 会带上失败原因；这时不要让先到的空回调把失败吞掉。
+        if (completion.preferPromise) return;
+        const lastError = contextMenuLastError();
+        finish(
+          lastError ? new Error(lastError.message || String(lastError)) : null
+        );
+      });
+    } catch (callbackError) {
+      try {
+        created = browser.contextMenus.create(item);
+      } catch (error) {
+        finish(error || callbackError);
+        return;
+      }
+      // 不接受回调、也不返回 Promise 时，create 在返回前已经完成。
+      if (!created || typeof created.then !== "function") {
+        finish(null);
+        return;
+      }
+    }
+
+    if (created && typeof created.then === "function") {
+      completion.preferPromise = true;
+      created.then(
+        () => finish(null),
+        (error) => finish(error)
+      );
+    }
+  });
+}
+
+/**
+ * 在 create 回调里同步读取 lastError。优先用 chrome，避免 polyfill 把该属性缓存住。
+ * @returns {{message?: string}|undefined}
+ */
+function contextMenuLastError() {
+  const runtime = globalThis.chrome?.runtime ?? browser.runtime;
+  return runtime?.lastError;
 }
 
 /**
