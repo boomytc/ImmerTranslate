@@ -17,6 +17,8 @@ export const ACTION_STYLES = String.raw`${FLOATING_BUTTON_STYLES}
 .kt-content-fab-menu__options { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--kt-linev); }
 .kt-content-fab-menu__modes { display: flex; gap: 4px; }
 .kt-content-fab-menu__sites { display: flex; flex-wrap: wrap; gap: 4px; }
+.kt-content-fab-menu__services { display: flex; flex-direction: column; gap: 4px; max-height: 144px; overflow-x: hidden; overflow-y: auto; }
+.kt-content-fab-menu__services .kt-content-fab-menu__mode { flex: 0 0 auto; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .kt-content-fab-menu__mode { flex: 1 1 0; min-height: 36px; padding: 0 8px; border: 1px solid var(--kt-linev); border-radius: var(--kt-radius-md, 12px); background: transparent; color: var(--kt-on); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
 .kt-content-fab-menu__sites .kt-content-fab-menu__mode { flex: 1 1 30%; min-width: 4.75rem; padding: 6px 8px; line-height: 1.25; text-align: center; white-space: normal; }
 .kt-content-fab-menu__mode[aria-pressed="true"] { border-color: transparent; background: var(--kt-pric); color: var(--kt-onpric); }
