@@ -20,8 +20,24 @@ test("tells users to refresh after a missing connection setup", () => {
   expect(I18N.test_connection_missing.en).toContain(
     "refresh the page and translate again"
   );
-  expect(I18N.test_connection_invalid_key.zh).toBe("密钥无效");
-  expect(I18N.test_connection_invalid_key.en).toBe("The API key is invalid.");
+  expect(I18N.test_connection_invalid_key.zh).toBe(
+    "密钥无效。请核对密钥，必要时检查接口地址"
+  );
+  expect(I18N.test_connection_invalid_key.en).toBe(
+    "The API key is invalid. Check the key, and the endpoint if needed."
+  );
+  expect(I18N.test_connection_network.zh).toBe(
+    "网络错误，请稍后重试，或检查网络与接口地址"
+  );
+  expect(I18N.test_connection_network.en).toBe(
+    "Network error. Try again later, or check your network and the endpoint."
+  );
+  expect(I18N.test_connection_http.zh).toBe(
+    "连接失败，请检查接口地址或稍后重试"
+  );
+  expect(I18N.test_connection_http.en).toBe(
+    "Connection failed. Check the endpoint or try again later"
+  );
   expect(I18N.test_connection_ok.zh).toBe("已连通");
   expect(I18N.test_connection_ok_empty.zh).toBe("已连通，模型列表为空");
 });
