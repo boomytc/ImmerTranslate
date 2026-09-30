@@ -58,6 +58,16 @@ describe("M3 global motion", () => {
     expect(M3_GLOBAL_CSS).toContain("--kt-radius-lg: 16px;");
     expect(M3_GLOBAL_CSS).toContain("--kt-radius-xl: 22px;");
     expect(M3_GLOBAL_CSS).toContain("--kt-radius-2xl: 28px;");
+    expect(M3_GLOBAL_CSS).toContain("--kt-space-2xs: 4px;");
+    expect(M3_GLOBAL_CSS).toContain("--kt-space-xs: 8px;");
+    expect(M3_GLOBAL_CSS).toContain("--kt-space-sm: 12px;");
+    expect(M3_GLOBAL_CSS).toContain("--kt-space-md: 16px;");
+    expect(M3_GLOBAL_CSS).toContain("--kt-space-lg: 20px;");
+    expect(M3_GLOBAL_CSS).toContain("--kt-space-xl: 24px;");
+    expect(M3_GLOBAL_CSS).toContain("--kt-chrome-inset: 16px;");
+    expect(M3_GLOBAL_CSS).toContain(
+      "--kt-liquid: color-mix(in srgb, var(--kt-sf0) 82%, transparent);"
+    );
     expect(M3_GLOBAL_CSS).toContain(
       "--kt-shadow-card: 0 1px 2px rgb(23 24 28 / 0.04), 0 10px 28px rgb(23 24 28 / 0.05);"
     );
