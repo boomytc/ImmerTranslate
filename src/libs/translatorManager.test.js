@@ -171,6 +171,29 @@ jest.mock("./iframe", () => ({
   sendIframeMsg: jest.fn(),
 }));
 
+jest.mock("./pageRuleSync", () => ({
+  pickSharedRulePatch: (values) => {
+    const patch = {};
+    if (!values || typeof values !== "object") return patch;
+    for (const key of [
+      "apiSlug",
+      "transOnly",
+      "fromLang",
+      "toLang",
+      "textStyle",
+      "transOpen",
+    ]) {
+      if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
+      const value = values[key];
+      if (value == null || value === "") continue;
+      patch[key] = value === true ? "true" : value === false ? "false" : value;
+    }
+    return patch;
+  },
+  publishPageRule: jest.fn(),
+  persistSharedSiteRule: jest.fn(),
+}));
+
 jest.mock("./log", () => ({
   logger: {
     debug: jest.fn(),
@@ -185,6 +208,7 @@ const { InputTranslator } = require("./inputTranslate");
 const { PopupManager } = require("./popupManager");
 const { FabManager } = require("./fabManager");
 const { sendIframeMsg } = require("./iframe");
+const { publishPageRule, persistSharedSiteRule } = require("./pageRuleSync");
 const TranslatorManager = require("./translatorManager").default;
 
 function setupMockConstructors() {
@@ -1213,6 +1237,49 @@ describe("TranslatorManager SPA lifecycle", () => {
       [{ apiSlug: "service-one" }],
       [{ toLang: "fr" }],
     ]);
+  });
+
+  test("publishes shared rule edits and persists them from the top frame only", () => {
+    createManager().start();
+    sendRuntimeMessage({
+      action: "trans-putrule",
+      args: { apiSlug: "deepl", toLang: "fr", hasRichText: "true" },
+    });
+    expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledWith({
+      apiSlug: "deepl",
+      toLang: "fr",
+      hasRichText: "true",
+    });
+    expect(publishPageRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rule: expect.any(Object),
+        document: expect.objectContaining({ token: "current-document" }),
+      })
+    );
+    expect(persistSharedSiteRule).toHaveBeenCalledWith({
+      apiSlug: "deepl",
+      toLang: "fr",
+    });
+
+    publishPageRule.mockClear();
+    persistSharedSiteRule.mockClear();
+    sendRuntimeMessage({
+      action: "trans-toggle",
+      args: { enabled: false, persistSite: false },
+    });
+    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(publishPageRule).toHaveBeenCalledTimes(1);
+    expect(persistSharedSiteRule).not.toHaveBeenCalled();
+  });
+
+  test("mirrors a shared rule into an iframe without writing the site rule again", () => {
+    createManager({ isIframe: true }).start();
+    sendRuntimeMessage({
+      action: "trans-putrule",
+      args: { transOnly: "true" },
+    });
+    expect(publishPageRule).toHaveBeenCalled();
+    expect(persistSharedSiteRule).not.toHaveBeenCalled();
   });
 
   test("continues checking queued controls after a verification rejects", async () => {

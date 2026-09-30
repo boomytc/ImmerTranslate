@@ -11,6 +11,7 @@ import {
   MSG_SAVE_RULE,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
+  MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_STYLE,
   MSG_TRANSBOX_TOGGLE,
@@ -723,6 +724,179 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       transOpen: "false",
     });
     expect(siteButtons()[2].getAttribute("aria-pressed")).toBe("true");
+  });
+
+  test("follows a popup rule and writes the target language back", async () => {
+    mockFabSetting = {
+      transApis: [
+        {
+          apiSlug: "DeepSeek",
+          apiType: "DeepSeek",
+          apiName: "DeepSeek",
+          key: "sk-deepseek-secret",
+          model: "deepseek-chat",
+          isDisabled: false,
+        },
+        {
+          apiSlug: "Microsoft",
+          apiType: "Microsoft",
+          apiName: "Microsoft",
+          key: "ms-key",
+          isDisabled: false,
+        },
+      ],
+    };
+    const getFabPageState = jest.fn(async () => ({
+      rule: {
+        apiSlug: "Microsoft",
+        transOnly: "false",
+        transOpen: "false",
+        toLang: "zh-CN",
+      },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const lang = container.querySelector('[aria-label="to_lang"]');
+    expect(lang.value).toBe("zh-CN");
+    expect(
+      container
+        .querySelector(".kt-content-fab-menu__item")
+        .getAttribute("aria-pressed")
+    ).toBe("false");
+
+    act(() => {
+      document.dispatchEvent(
+        new CustomEvent(EVENT_KISS_INNER, {
+          detail: {
+            action: MSG_TRANS_CURRULE,
+            rule: {
+              apiSlug: "DeepSeek",
+              transOnly: "true",
+              transOpen: "true",
+              toLang: "fr",
+            },
+          },
+        })
+      );
+    });
+
+    const services = () =>
+      Array.from(
+        container.querySelectorAll(
+          ".kt-content-fab-menu__services .kt-content-fab-menu__mode"
+        )
+      );
+    const deepseek = services().find(
+      (button) => button.textContent === "DeepSeek"
+    );
+    expect(deepseek.getAttribute("aria-pressed")).toBe("true");
+    const modes = container
+      .querySelector('[aria-label="fab_translation_mode"]')
+      .querySelectorAll(".kt-content-fab-menu__mode");
+    expect(modes[1].getAttribute("aria-pressed")).toBe("true");
+    expect(lang.value).toBe("fr");
+    expect(
+      container
+        .querySelector(".kt-content-fab-menu__item")
+        .getAttribute("aria-pressed")
+    ).toBe("true");
+
+    lang.value = "ja";
+    await act(async () => {
+      lang.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_TRANS_PUTRULE,
+      args: { toLang: "ja" },
+    });
+    expect(container.querySelector(".kt-content-fab-menu")).not.toBeNull();
+  });
+
+  test("aligns page translation when the current site policy changes", async () => {
+    const pattern = getDomainOptions(window.location.href)[0];
+    mockSiteRules = [
+      { pattern: "*", transOpen: "false" },
+      { pattern, transOpen: "*" },
+    ];
+    const getFabPageState = jest.fn(async () => ({
+      rule: { apiSlug: "microsoft", transOnly: "false", transOpen: "true" },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const siteButtons = () =>
+      Array.from(
+        container.querySelectorAll(
+          ".kt-content-fab-menu__sites .kt-content-fab-menu__mode"
+        )
+      );
+    expect(siteButtons()[0].getAttribute("aria-pressed")).toBe("true");
+
+    await act(async () => {
+      siteButtons()[2].click();
+    });
+    expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
+      pattern,
+      transOpen: "false",
+    });
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_TRANS_TOGGLE,
+      args: { enabled: false, persistSite: true },
+    });
+
+    processActions.mockClear();
+    sendBgMsg.mockClear();
+    mockSiteRules = [
+      { pattern: "*", transOpen: "false" },
+      { pattern, transOpen: "false" },
+    ];
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    await act(async () => {
+      siteButtons()[0].click();
+    });
+    expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
+      pattern,
+      transOpen: "*",
+    });
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_TRANS_TOGGLE,
+      args: { enabled: false, persistSite: false },
+    });
   });
 
   // Video fullscreen hides the FAB, so its menu must close too.

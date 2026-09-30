@@ -109,6 +109,7 @@ export function ContentFabContent({
   const [showFab, setShowFab] = useState(true);
   const [touchOpen, setTouchOpen] = useState(false);
   const [open, setOpen] = useState(false); // Action menu visibility.
+  const [pageRule, setPageRule] = useState(null);
   const anchorRef = useRef(null);
   const menuRef = useRef(null);
   const popperRef = useRef(null);
@@ -256,6 +257,7 @@ export function ContentFabContent({
       label: i18n("popup_translate_page"),
       icon: TranslateRoundedIcon,
       action: () => runAction(MSG_TRANS_TOGGLE),
+      pressed: pageRule?.transOpen === true || pageRule?.transOpen === "true",
     },
     {
       label: i18n("text_style_alt"),
@@ -334,10 +336,11 @@ export function ContentFabContent({
             onKeyDownCapture={handleMenuNavigation}
             onKeyDown={handleMenuKeyDown}
           >
-            {items.map(({ label, icon: Icon, action, disabled }) => (
+            {items.map(({ label, icon: Icon, action, disabled, pressed }) => (
               <MenuItem
                 className="kt-content-fab-menu__item"
                 disabled={disabled}
+                aria-pressed={pressed}
                 onClick={disabled ? undefined : action}
                 key={label}
               >
@@ -351,6 +354,7 @@ export function ContentFabContent({
           <FabQuickOptions
             getFabPageState={getFabPageState}
             processActions={processActions}
+            onPageRule={setPageRule}
           />
           {touchOpen && (
             <TouchTranslateControl processActions={processActions} />
