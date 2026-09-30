@@ -64,6 +64,7 @@ import { injectJs, INJECTOR } from "../injectors";
 import { injectInternalCss } from "./injector";
 import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
+import { isMissingRequiredApiKey } from "./apiKey";
 import { openOptionsApisPage } from "./optionsEntry";
 import { getDocInfo } from "./docInfo";
 import { visitTranslationTargets } from "./translationTargets";
@@ -3372,6 +3373,11 @@ export class Translator {
   // 显示在原文下方，并留出上下间距（margin: 8px 0），便于对照阅读。
   async #translateNodeGroup(nodes, hostNode, deLang, options = {}) {
     if (options.valid && !options.valid()) return;
+    const apiSetting = options.touch
+      ? this.#hoverBubbleApiSetting
+      : this.#apiSetting;
+    // A blank key must not insert a translation that looks finished.
+    if (isMissingRequiredApiKey(apiSetting)) return;
     const currentRunId = this.#runId;
     const {
       transTag,
@@ -5058,6 +5064,7 @@ overflow-wrap: anywhere !important;`;
 
   // 翻译页面标题
   async #translateTitle() {
+    if (isMissingRequiredApiKey(this.#apiSetting)) return;
     const runId = this.#runId;
     const docInfo = getDocInfo();
     if (!docInfo?.title) return;
