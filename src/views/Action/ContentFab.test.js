@@ -541,6 +541,132 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(saved.transApis[0].key).toBe(secret);
   });
 
+  test("switches the page translator among configured BYOK services", async () => {
+    mockFabSetting = {
+      transApis: [
+        {
+          apiSlug: "Microsoft",
+          apiType: "Microsoft",
+          apiName: "Microsoft",
+          key: "",
+          isDisabled: false,
+          sortOrder: 0,
+        },
+        {
+          apiSlug: "OpenAI",
+          apiType: "OpenAI",
+          apiName: "OpenAI",
+          key: "  ",
+          model: "gpt-4o-mini",
+          isDisabled: false,
+          sortOrder: 1,
+        },
+        {
+          apiSlug: "DeepSeek",
+          apiType: "DeepSeek",
+          apiName: "DeepSeek",
+          url: "https://api.deepseek.com/chat/completions",
+          key: "sk-deepseek-secret",
+          model: "deepseek-chat",
+          isDisabled: false,
+          sortOrder: 3,
+        },
+        {
+          apiSlug: "Custom_1",
+          apiType: "Custom",
+          apiName: "My Proxy",
+          key: "sk-custom-secret",
+          model: "local-model",
+          isDisabled: false,
+          sortOrder: 2,
+        },
+        {
+          apiSlug: "Claude",
+          apiType: "Claude",
+          apiName: "Claude",
+          key: "sk-claude-secret",
+          isDisabled: true,
+          sortOrder: 4,
+        },
+      ],
+    };
+    const getFabPageState = jest.fn(async () => ({
+      rule: { apiSlug: "Microsoft", transOnly: "false" },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const services = () =>
+      Array.from(
+        container.querySelectorAll(
+          ".kt-content-fab-menu__services .kt-content-fab-menu__mode"
+        )
+      );
+    expect(container.querySelector("#kt-fab-service-label").textContent).toBe(
+      "translate_service"
+    );
+    expect(services().map((button) => button.textContent)).toEqual([
+      "My Proxy",
+      "DeepSeek",
+    ]);
+    expect(
+      services().every(
+        (button) => button.getAttribute("aria-pressed") === "false"
+      )
+    ).toBe(true);
+    expect(
+      container.querySelectorAll(".kt-content-fab-menu__model")
+    ).toHaveLength(0);
+    expect(container.textContent).not.toContain("sk-deepseek-secret");
+    expect(container.textContent).not.toContain("sk-custom-secret");
+    expect(container.textContent).not.toContain("sk-claude-secret");
+
+    await act(async () => {
+      services()[1].click();
+    });
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_TRANS_PUTRULE,
+      args: { apiSlug: "DeepSeek" },
+    });
+    expect(processActions).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: MSG_TRANS_SET_MODEL })
+    );
+    expect(mockFabUpdateSetting).not.toHaveBeenCalled();
+    expect(services()[1].getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector(".kt-content-fab-menu")).not.toBeNull();
+    expect(
+      container.querySelectorAll(".kt-content-fab-menu__model")
+    ).toHaveLength(1);
+
+    processActions.mockClear();
+    await act(async () => {
+      services()[1].click();
+    });
+    expect(processActions).not.toHaveBeenCalled();
+
+    await act(async () => {
+      services()[0].click();
+    });
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_TRANS_PUTRULE,
+      args: { apiSlug: "Custom_1" },
+    });
+    expect(services()[0].getAttribute("aria-pressed")).toBe("true");
+    expect(services()[1].getAttribute("aria-pressed")).toBe("false");
+  });
+
   test("persists the current site transOpen from the FAB menu", async () => {
     const pattern = getDomainOptions(window.location.href)[0];
     mockSiteRules = [{ pattern, selector: "article", transOpen: "false" }];
