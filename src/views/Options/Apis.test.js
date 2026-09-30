@@ -2588,3 +2588,86 @@ describe("Apis connection test", () => {
     view.unmount();
   });
 });
+
+describe("Apis usable services", () => {
+  const usableNames = (container) =>
+    Array.from(container.querySelectorAll(".kt-api-usable__item")).map(
+      (node) => node.textContent
+    );
+
+  test("shows the no-service copy when nothing usable is enabled", async () => {
+    const view = await renderApis([
+      createApi({
+        apiSlug: "OpenAI",
+        apiName: "OpenAI",
+        apiType: OPT_TRANS_OPENAI,
+        key: "  ",
+        isDisabled: false,
+      }),
+      createApi({
+        apiSlug: "Google",
+        apiName: "Google",
+        apiType: "Google",
+        key: "",
+        isDisabled: true,
+      }),
+    ]);
+
+    expect(
+      view.container.querySelector(".kt-api-usable-empty").textContent
+    ).toContain("fab_no_keyed_provider");
+    expect(view.container.textContent).not.toContain("missing_api_key_empty");
+    expect(view.container.textContent).not.toContain("missing_api_key_status");
+    expect(view.container.querySelector(".kt-api-usable")).toBeNull();
+    expect(
+      view.container.querySelector('[aria-label="OpenAI"]')
+    ).not.toBeNull();
+    expect(
+      view.container.querySelector('[aria-label="Google"]')
+    ).not.toBeNull();
+
+    view.unmount();
+  });
+
+  test("lists an enabled keyless engine with an empty key as available", async () => {
+    const view = await renderApis([
+      createApi({
+        apiSlug: "Microsoft",
+        apiName: "Microsoft",
+        apiType: OPT_TRANS_MICROSOFT,
+        key: "",
+        isDisabled: false,
+        sortOrder: 0,
+      }),
+      createApi({
+        apiSlug: "BuiltinAI",
+        apiName: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        key: "  ",
+        isDisabled: false,
+        sortOrder: 1,
+      }),
+      createApi({
+        apiSlug: "DeepSeek",
+        apiName: "DeepSeek",
+        apiType: OPT_TRANS_DEEPSEEK,
+        key: "",
+        isDisabled: false,
+        sortOrder: 2,
+      }),
+    ]);
+
+    expect(view.container.querySelector(".kt-api-usable-empty")).toBeNull();
+    expect(view.container.textContent).not.toContain("fab_no_keyed_provider");
+    expect(view.container.textContent).not.toContain("missing_api_key_empty");
+    expect(usableNames(view.container)).toEqual(["Microsoft", "BuiltinAI"]);
+    expect(
+      view.container.querySelector('[aria-label="DeepSeek"]')
+    ).not.toBeNull();
+    expect(
+      view.container.querySelector('[aria-label="Microsoft"]')
+    ).not.toBeNull();
+
+    view.unmount();
+  });
+});
