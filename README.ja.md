@@ -1,212 +1,45 @@
-# KISS Translator シンプル翻訳
+# ImmerTranslate
 
-[English](README.en.md) | [中文](README.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
+[中文](README.md) | [English](README.en.md) | [한국어](README.ko.md)
 
-シンプルでオープンソースの [バイリンガル対照翻訳拡張機能＆ユーザースクリプト](https://github.com/fishjar/kiss-translator)です。
+ImmerTranslate はバイリンガルウェブ翻訳拡張機能です。リポジトリ：[boomytc/ImmerTranslate](https://github.com/boomytc/ImmerTranslate)。ライセンス：GPL-3.0。
 
-[kiss-translator.webm](https://github.com/fishjar/kiss-translator/assets/1157624/f7ba8a5c-e4a8-4d5a-823a-5c5c67a0a47f)
+系譜の参照（本製品の名称ではありません）：[fishjar/kiss-translator](https://github.com/fishjar/kiss-translator)、[fishjar/kiss-rules](https://github.com/fishjar/kiss-rules)。
 
-## 以下のスポンサー様のご支援に感謝いたします
+## 読み込み
 
-<table>
-  <tr>
-    <td align="center"><img src="https://github.com/user-attachments/assets/8c5f141d-9d13-46b0-832f-f6884db4e5d5" width="128" /></td>
-    <td>
-      <a href="https://go.apimart.ai/gh-gotranslatorrr" target="_blank">
-        <b>APIMart</b> はAI画像・動画生成に特化した低価格APIプラットフォームです。GPT-Image-2は1枚あたり$0.006から、1ドルで160枚以上の画像生成が可能です。画像・動画を統合した非同期APIを提供し、タスク送信でID取得、コールバックで結果取得。数万枚の一括処理でもタイムアウトせず、コードを変更せずにモデルを切り替えられます。従量課金制・月額料金なし。こちらの登録リンクからすぐにご利用いただけます。
-      </a>
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><img src="https://platform.ephone.ai/logo-e.png" width="96" /></td>
-    <td>
-      <a href="https://platform.ephone.ai/" target="_blank">
-        <b>ePhone AI</b> は開発者向けのAIモデルAPI中継・集約プラットフォームであり、OpenAI、Claude、Gemini、DeepSeek、GLMなど、複数の大規模モデルをサポートしています。
-      </a>
-    </td>
-  </tr>
-</table>
-
-## 特徴
-
-- [x] シンプルさを維持
-- [x] オープンソース
-- [x] 主要なブラウザに対応
-  - [x] Chrome/Edge
-  - [x] Firefox
-  - [x] Kiwi (Android)
-  - [x] Orion (iOS)
-  - [x] Safari
-  - [x] Thunderbird
-- [x] 複数の翻訳サービスをサポート
-  - [x] Google/Microsoft
-  - [x] Tencent/Volcengine
-  - [x] OpenAI/Gemini/Claude/Ollama/DeepSeek/OpenRouter/OrcaRouter/Requesty
-  - [x] DeepL/DeepLX
-  - [x] AzureAI/CloudflareAI
-  - [x] Chromeブラウザ内蔵AI翻訳(BuiltinAI)
-- [x] 一般的な翻訳シナリオをカバー
-  - [x] Webページのバイリンガル対照翻訳
-  - [x] 入力ボックス翻訳
-    - ショートカットキーで入力ボックス内のテキストを即座に他言語に翻訳
-  - [x] テキスト選択翻訳
-    - [x] 任意のページで翻訳ボックスを開き、複数の翻訳サービスで比較翻訳が可能
-    - [x] 英語辞書翻訳
-    - [x] 単語のブックマーク
-  - [x] マウスオーバー翻訳
-  - [x] YouTube 字幕翻訳
-    - 任意の翻訳サービスを使用してビデオ字幕を翻訳し、バイリンガル表示をサポート
-    - 基本的な字幕結合・改行アルゴリズムを内蔵し、翻訳品質を向上
-    - AIによる改行機能をサポートし、翻訳品質をさらに向上
-    - 字幕スタイルのカスタマイズ
-- [x] 多様な翻訳効果をサポート
-  - [x] テキスト自動認識と手動ルールの2つのモードをサポート
-    - テキスト自動認識モードにより、ほとんどのWebサイトでルールを記述しなくても完全な翻訳が可能
-    - 手動ルールモードで、特定のWebサイトに合わせた最適な最適化が可能
-  - [x] 翻訳テキストスタイルのカスタマイズ
-  - [x] リッチテキストの翻訳と表示をサポートし、原文のリンクやその他のテキストスタイルを可能な限り保持
-  - [x] 翻訳文のみの表示（原文を非表示）をサポート
-- [x] 翻訳APIの高度な機能
-  - [x] カスタムAPIにより、理論上あらゆる翻訳インターフェースをサポート
-  - [x] 翻訳テキストの統合バッチ送信
-  - [x] ストリーミング伝送をサポートし、翻訳結果をリアルタイムで表示
-  - [x] AIコンテキスト（会話メモリ）機能をサポートし、翻訳品質を向上
-  - [x] カスタムAI用語集
-  - [x] すべてのインターフェースがフックやカスタムパラメータなどの高度な機能をサポート
-- [x] クライアント間のデータ同期
-  - [x] KISS-Worker（cloudflare/docker）
-  - [x] WebDAV
-- [x] カスタム翻訳ルール
-  - [x] ルールの購読/ルール共有
-  - [x] カスタム専門用語
-- [x] カスタムショートカットキー
-  - `Alt+Q` 翻訳をオン
-  - `Alt+D` 独立翻訳ウィンドウを開く
-  - `Alt+K` 設定ポップアップを開く
-  - `Alt+S` 翻訳ポップアップを開く/選択テキストを翻訳
-  - `Alt+O` 設定ページを開く
-  - `Alt+I` 入力ボックス翻訳
-
-## インストール
-
-> 注：以下の理由により、ブラウザ拡張機能の使用を優先することをお勧めします
->
-> - ブラウザ拡張機能の方が機能が完全です（ローカル言語認識、右クリックメニューなど）
-> - ユーザースクリプトはより多くの問題（クロスドメイン問題、スクリプトの競合など）に遭遇する可能性があります
-
-- [x] ブラウザ拡張機能
-  - [x] Chrome [インストール](https://chrome.google.com/webstore/detail/kiss-translator/bdiifdefkgmcblbcghdlonllpjhhjgof?hl=ja)
-    - [x] Kiwi (Android)
-    - [x] Orion (iOS)
-  - [x] Edge [インストール](https://microsoftedge.microsoft.com/addons/detail/%E7%AE%80%E7%BA%A6%E7%BF%BB%E8%AF%91/jemckldkclkinpjighnoilpbldbdmmlh?hl=ja)
-  - [x] Firefox [インストール](https://addons.mozilla.org/ja/firefox/addon/kiss-translator/)
-  - [ ] Safari
-    - [ ] Safari (Mac)
-    - [ ] Safari (iOS) 
-  - [x] Thunderbird [ダウンロード](https://github.com/fishjar/kiss-translator/releases)
-- [x] ユーザースクリプト
-  - [x] Chrome/Edge/Firefox ([Tampermonkey](https://www.tampermonkey.net/)/[Violentmonkey](https://violentmonkey.github.io/)) [インストールリンク](https://fishjar.github.io/kiss-translator/kiss-translator.user.js)
-    - [Greasy Fork](https://greasyfork.org/zh-CN/scripts/472840-kiss-translator)
-  - [x] iOS Safari ([Userscripts Safari](https://github.com/quoid/userscripts)) [インストールリンク](https://fishjar.github.io/kiss-translator/kiss-translator-ios-safari.user.js)
-
-## 関連プロジェクト
-
-- データ同期サービス: [https://github.com/fishjar/kiss-worker](https://github.com/fishjar/kiss-worker)
-  - 本プロジェクトのデータ同期サービスとして使用できます。
-  - 個人のプライベートなルールリストの共有にも使用できます。
-  - セルフホスト、セルフマネジメント、データはプライベート。
-- コミュニティ購読ルール: [https://github.com/fishjar/kiss-rules](https://github.com/fishjar/kiss-rules)
-  - コミュニティによってメンテナンスされた、最新かつ最も完全な購読ルールリストを提供します。
-  - ルール関連の問題についての助けを求める。
-
-## よくある質問（FAQ）
-
-### ショートカットキーの設定方法
-
-拡張機能の管理ページで設定します。例： 
-
-- chrome [chrome://extensions/shortcuts](chrome://extensions/shortcuts)
-- firefox [about:addons](about:addons)
-
-### ルール設定の優先順位は？
-
-個人ルール > 購読ルール > グローバルルール
-
-グローバルルールの優先順位は最も低いですが、フォールバックルールとして非常に重要です。
-
-### API（Ollamaなど）のテストに失敗する
-
-APIテストの失敗には、一般的に以下の原因が考えられます：
-
-- アドレスが間違っている：
-  - 例えば `Ollama` にはネイティブAPIアドレスと `Openai` 互換のアドレスがありますが、本プラグインは現在、`Openai` 互換アドレスをサポートしており、`Ollama` ネイティブAPIアドレスはサポートしていません
-- 一部のAIモデルが統合翻訳をサポートしていない：
-  - この場合、統合翻訳を無効にするか、カスタムAPIを使用して対応できます。
-  - または、カスタムAPIを使用して対応します。詳細は[カスタムAPIサンプルドキュメント](https://github.com/fishjar/kiss-translator/blob/master/custom-api_v2.md)を参照してください
-- 一部のAIモデルでパラメータが一致しない：
-  - 例えば `Gemini` のネイティブAPIはパラメータの不一致が大きく、一部のバージョンのモデルが特定のパラメータをサポートしていないためエラーが返されることがあります。
-  - この場合、`Hook` を使用してリクエスト `body` を変更するか、`Gemini2` (`Openai` 互換アドレス) に切り替えることができます
-- サーバーのクロスドメイン制限によりアクセスが拒否され、403エラーが返される：
-  - 例えば `Ollama` を起動する際に、環境変数 `OLLAMA_ORIGINS=*` を追加する必要があります。参考：https://github.com/fishjar/kiss-translator/issues/174
-
-### 入力したAPIがユーザースクリプトで使用できない
-
-ユーザースクリプトは、リクエストを送信するためにドメインのホワイトリストを追加する必要があります。
-
-### カスタムAPIのhook関数の設定方法
-
-カスタムAPI機能は非常に強力で柔軟性があり、理論的にはどんな翻訳APIにも接続できます。
-
-サンプル参照： [custom-api_v2.md](https://github.com/fishjar/kiss-translator/blob/master/custom-api_v2.md)
-
-### ユーザースクリプトの設定ページに直接アクセスする方法
-
-設定ページアドレス： https://fishjar.github.io/kiss-translator/options.html
-
-## 今後の計画 
-
- 本プロジェクトは余暇に開発しており、厳密なタイムスケジュールはありません。コミュニティの共同構築を歓迎します。以下は初期段階の機能の方向性です：
-
-- [x] **テキストの統合送信**：リクエスト戦略を最適化し、翻訳APIの呼び出し回数を減らし、パフォーマンスを向上させます。
-- [x] **リッチテキスト翻訳の強化**：より複雑なページ構造やリッチテキストコンテンツの正確な翻訳をサポートします。
-- [x] **カスタム/AI APIの強化**：ストリーミング伝送、コンテキストメモリ、複数ラウンドの対話など、高度なAI機能をサポートします。
-- [x] **英語辞書のフォールバックメカニズム**：翻訳サービスが利用できない場合、他の辞書に切り替えるか、ローカル辞書での検索にフォールバックします。
-- [x] **YouTube字幕サポートの最適化**：ストリーミング字幕の結合と翻訳体験を改善し、途切れを減らします。
-
-- [ ] **エッジAIコンピューティングのサポート**：ローカルで軽量なLLM、ASR、OCR、TTSによる翻訳補助を実現。
-- [ ] **分散型共有プラットフォーム**：字幕やルールなどを共有するための分散型共有メカニズムを導入。
-- [ ] **ドキュメント翻訳のサポート**：TXT、PDF、画像、マンガなどの翻訳をサポート。
-- [ ] **翻訳エージェント**：独自の翻訳Agentを開発し、インテリジェントな翻訳機能を実現。
-- [ ] **プロジェクトのリファクタリング**：機能モジュールを再編成し、最新のフレームワークと技術を用いてプロジェクト全体を刷新。
- 
- 特定の方向に興味がある場合は、[Issues](https://github.com/fishjar/kiss-translator/issues) で議論したり、PRを送信したりすることを歓迎します！
-
-## 開発ガイド
+Node.js と pnpm が必要です。
 
 ```sh
-git clone [https://github.com/fishjar/kiss-translator.git](https://github.com/fishjar/kiss-translator.git)
-cd kiss-translator
-git checkout dev # PRを送信する場合はdevブランチにプッシュすることをお勧めします
+git clone https://github.com/boomytc/ImmerTranslate.git
+cd ImmerTranslate
 pnpm install
-pnpm build
+pnpm build:chrome
 ```
 
-### 外部トリガーの例
+`pnpm build` も同じディレクトリを生成します。Chrome で `chrome://extensions` を開き、デベロッパーモードをオンにして「パッケージ化されていない拡張機能を読み込む」から `build/chrome` を選びます（中に `manifest.json` があること）。
 
-```js
-// `toggle_translate`   翻訳を切り替え
-// `toggle_styles`      スタイルを切り替え
-// `toggle_popup`       コントロールパネルを開く／閉じる
-// `toggle_transbox`    翻訳ポップアップを開く／閉じる
-// `toggle_hover_node`  マウスオーバー中の段落を翻訳
-// `input_translate`    入力欄を翻訳
-window.dispatchEvent(new CustomEvent("kiss_translator", {detail: { action: "toggle_translate" }}));
-```
+## BYOK
 
-## コミュニケーション
+プリセットのサービスにキーは含まれません。キーは拡張機能のローカルストレージにのみ置き、リポジトリへ書き込まないでください。次のプリセットは初期状態で無効です。オプションページで有効にしてから、アドレス、キー、モデルを入力します。
 
-- [Telegram グループ](https://t.me/+RRCu_4oNwrM2NmFl)に参加
+- OpenAI
+- Anthropic（プリセット名 Claude）
+- DeepSeek
+- MiMo（プリセット名 XiaomiMimo）
+- DashScope（プリセット名 AliyunBailian）
+- ModelScope
 
-## 寄付
+オプションページの接続テストは `fetchModelCatalog` でモデル一覧を取得するだけで、chat/completions は送りません。
 
-![appreciate](https://github.com/fishjar/kiss-translator/assets/1157624/ebaecabe-2934-4172-8085-af236f5ee399)
+翻訳リクエストは既定で思考 / 推論をオフにします（`thinkingMode` は `disabled`。思考パラメータは注入しません）。
+
+## シェル上にある機能
+
+- ウェブページのバイリンガル対照翻訳。
+- フローティングボールのショートカットメニュー：
+  - 訳文の表示：バイリンガル対照、または訳文のみ。
+  - 現在のエンジンのモデル。モデル一覧は一つだけです。
+  - 現在のサイトの自動翻訳（三態）：グローバルに従う、自動翻訳、自動翻訳しない（個人ルールの `transOpen`）。
+  - 翻訳サービス：有効かつキーが空でないプロバイダだけを列挙します。一つもないときは、その位置に空状態を出し、オプションページ `#/apis` を開きます。現在のサービスがキーを必要とし、キーが空のとき、フローティングボールとポップアップは同じ空状態を表示し、翻訳が完了したようには見せません。選択すると `MSG_TRANS_PUTRULE` で、現在のサイトのページルールに `apiSlug` を書き込みます。オプションページのグローバル既定サービスは変えません。キー不要のエンジン（Microsoft、Google、内蔵翻訳など）はそのまま使えます。
+- 界面言語：簡体字中国語（`zh`）と English（`en`）。
