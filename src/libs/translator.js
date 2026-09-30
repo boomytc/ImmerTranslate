@@ -64,6 +64,7 @@ import { injectJs, INJECTOR } from "../injectors";
 import { injectInternalCss } from "./injector";
 import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
+import { openOptionsApisPage } from "./optionsEntry";
 import { getDocInfo } from "./docInfo";
 import { visitTranslationTargets } from "./translationTargets";
 
@@ -211,6 +212,7 @@ export class Translator {
     space: `${APP_LCNAME}-space`,
     highlight: `${APP_LCNAME}-highlight`,
     retry: `${APP_LCNAME}-retry`,
+    openOptions: `${APP_LCNAME}-open-options`,
     backup: `${APP_LCNAME}-backup`,
     original: `${APP_LCNAME}-original`,
     hoverBubble: `${APP_LCNAME}-hover-bubble`,
@@ -3113,7 +3115,7 @@ export class Translator {
     }
   }
 
-  // 创建带错误信息浮层的重试按钮，浮层内支持直接复制错误内容
+  // 创建带错误信息浮层的重试按钮。浮层可复制错误，并给出打开设置（接口页）的入口。
   #createRetryErrorNode(errorText, onRetry) {
     const i18n = newI18n(this.#setting.uiLang || "zh");
     const copyText = i18n("copy", "Copy");
@@ -3182,15 +3184,11 @@ export class Translator {
     message.textContent = errorText;
     message.style.cssText = `color: ${errorColor};`;
 
-    const copyButton = document.createElement("button");
-    copyButton.type = "button";
-    copyButton.textContent = copyText;
-    copyButton.style.cssText = [
+    const actionButtonStyle = [
       "display: flex",
       "align-items: center",
       "justify-content: center",
       "width: fit-content",
-      "margin-top: 8px",
       "padding: 3px 8px",
       "border: 1px solid rgba(32, 156, 238, 0.35)",
       "border-radius: 4px",
@@ -3202,14 +3200,37 @@ export class Translator {
       "cursor: pointer",
       "transition: background 0.2s ease, border-color 0.2s ease",
     ].join("; ");
-    copyButton.addEventListener("mouseenter", () => {
-      copyButton.style.background = buttonHoverBg;
-      copyButton.style.borderColor = "rgba(32, 156, 238, 0.55)";
-    });
-    copyButton.addEventListener("mouseleave", () => {
-      copyButton.style.background = buttonBg;
-      copyButton.style.borderColor = "rgba(32, 156, 238, 0.35)";
-    });
+    const bindActionHover = (button) => {
+      button.addEventListener("mouseenter", () => {
+        button.style.background = buttonHoverBg;
+        button.style.borderColor = "rgba(32, 156, 238, 0.55)";
+      });
+      button.addEventListener("mouseleave", () => {
+        button.style.background = buttonBg;
+        button.style.borderColor = "rgba(32, 156, 238, 0.35)";
+      });
+    };
+    const createOpenOptionsButton = () => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `${Translator.KISS_CLASS.openOptions} notranslate`;
+      button.setAttribute("translate", "no");
+      button.textContent = i18n("open_setting", "Open Setting");
+      button.style.cssText = actionButtonStyle;
+      bindActionHover(button);
+      button.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        openOptionsApisPage();
+      });
+      return button;
+    };
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.textContent = copyText;
+    copyButton.style.cssText = actionButtonStyle;
+    bindActionHover(copyButton);
     copyButton.addEventListener("click", async (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -3329,9 +3350,19 @@ export class Translator {
       onRetry();
     });
 
+    const actions = document.createElement("span");
+    actions.style.cssText =
+      "display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;";
+    actions.appendChild(createOpenOptionsButton());
+    actions.appendChild(copyButton);
+
+    const visibleOpenOptions = createOpenOptionsButton();
+    visibleOpenOptions.style.marginLeft = "6px";
+
     panel.appendChild(message);
-    panel.appendChild(copyButton);
+    panel.appendChild(actions);
     container.appendChild(retryIcon);
+    container.appendChild(visibleOpenOptions);
 
     return container;
   }
