@@ -24,7 +24,10 @@ import {
   getTranBoxOuterHeight,
 } from "../libs/tranboxPosition";
 
-const TRANBTN_SIZE = 40;
+// Keep in sync with .KT-tranbtn width/height in views/Selection/styles.js.
+export const TRANBTN_SIZE = 44;
+// Leaves room for the ring and drop shadow so the button is not flush-cut at the viewport edge.
+export const TRANBTN_VIEWPORT_INSET = 8;
 const TRANBTN_MOUSE_GAP = isMobile ? 16 : 12;
 
 function getPointerPosition(e) {
@@ -76,11 +79,34 @@ function getVisibleViewportBounds() {
   return { left, top, right: left + width, bottom: top + height };
 }
 
+function axisInset(span, size, inset) {
+  if (span >= size + inset * 2) return inset;
+  return Math.max(0, (span - size) / 2);
+}
+
 function clampButtonPosition(left, top) {
   const viewport = getVisibleViewportBounds();
+  const insetX = axisInset(
+    viewport.right - viewport.left,
+    TRANBTN_SIZE,
+    TRANBTN_VIEWPORT_INSET
+  );
+  const insetY = axisInset(
+    viewport.bottom - viewport.top,
+    TRANBTN_SIZE,
+    TRANBTN_VIEWPORT_INSET
+  );
   return {
-    x: limitButtonPosition(left, viewport.left, viewport.right - TRANBTN_SIZE),
-    y: limitButtonPosition(top, viewport.top, viewport.bottom - TRANBTN_SIZE),
+    x: limitButtonPosition(
+      left,
+      viewport.left + insetX,
+      viewport.right - TRANBTN_SIZE - insetX
+    ),
+    y: limitButtonPosition(
+      top,
+      viewport.top + insetY,
+      viewport.bottom - TRANBTN_SIZE - insetY
+    ),
   };
 }
 

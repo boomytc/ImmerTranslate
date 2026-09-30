@@ -76,6 +76,33 @@ import { visitTranslationTargets } from "./translationTargets";
 // Only wrappers created by this runtime are trusted across instance recreation.
 const touchTranslationOwners = new WeakMap();
 
+// Previous default. Stored settings that still match it pick up the light card.
+const LEGACY_MOUSE_HOVER_BUBBLE_STYLE = `max-width: min(420px, calc(100vw - 32px));
+padding: 10px 12px;
+border-radius: 8px;
+background: rgb(25, 118, 210);
+color: #fff;
+font-size: 14px;
+line-height: 1.5;
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+backdrop-filter: blur(8px);`;
+
+function normalizeBubbleStyle(style) {
+  return String(style || "")
+    .trim()
+    .replace(/;+\s*$/, "")
+    .replace(/\s+/g, " ");
+}
+
+function resolveHoverBubbleStyle(userStyle) {
+  const normalized = normalizeBubbleStyle(userStyle);
+  const legacy = normalizeBubbleStyle(LEGACY_MOUSE_HOVER_BUBBLE_STYLE);
+  if (!normalized || normalized === legacy) {
+    return normalizeBubbleStyle(DEFAULT_MOUSE_HOVER_BUBBLE_STYLE);
+  }
+  return normalized;
+}
+
 export class Translator {
   // 块级判定缓存，避免对同一节点高频调用 window.getComputedStyle(el) 造成浏览器回流（Reflow）
   static displayCache = new WeakMap();
@@ -3917,10 +3944,8 @@ export class Translator {
   }
 
   #getHoverBubbleStyle() {
-    const userStyle =
-      this.#setting.mouseHoverSetting?.bubbleStyle ||
-      DEFAULT_MOUSE_HOVER_BUBBLE_STYLE;
-    const normalizedUserStyle = userStyle.trim().replace(/;+$/, "");
+    const userStyle = this.#setting.mouseHoverSetting?.bubbleStyle || "";
+    const normalizedUserStyle = resolveHoverBubbleStyle(userStyle);
     return `${normalizedUserStyle};
 position: fixed !important;
 z-index: 2147483647 !important;
@@ -3939,6 +3964,7 @@ overflow-wrap: anywhere !important;`;
     const bubble = document.createElement("div");
     bubble.className = `${Translator.KISS_CLASS.hoverBubble} notranslate`;
     bubble.setAttribute("role", "tooltip");
+    bubble.setAttribute("aria-live", "polite");
     document.body.appendChild(bubble);
     this.#hoverBubbleNode = bubble;
 
@@ -3969,6 +3995,20 @@ overflow-wrap: anywhere !important;`;
     bubble.style.top = `${top}px`;
   }
 
+  #labelHoverBubble(bubble, state) {
+    const i18n = newI18n(this.#setting.uiLang || "zh");
+    const name = i18n("mousehover_bubble_label", "Hover translation");
+    const text = bubble.textContent?.replace(/\s+/g, " ").trim() || "";
+    if (state === "loading" && !text) {
+      bubble.setAttribute(
+        "aria-label",
+        i18n("popup_translating", "Translating…")
+      );
+      return;
+    }
+    bubble.setAttribute("aria-label", text ? `${name}: ${text}` : name);
+  }
+
   // 显示悬停气泡内容并更新其状态与位置
   #showHoverBubble(content, state = "ready") {
     const bubble = this.#ensureHoverBubble();
@@ -3977,6 +4017,7 @@ overflow-wrap: anywhere !important;`;
     bubble.replaceChildren(
       content instanceof Node ? content : document.createTextNode(content)
     );
+    this.#labelHoverBubble(bubble, state);
     bubble.hidden = false;
     this.#positionHoverBubble();
   }

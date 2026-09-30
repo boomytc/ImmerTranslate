@@ -1,4 +1,5 @@
 import { SELECTION_STYLES } from "./styles";
+import { TRANBTN_SIZE } from "../../hooks/useSelectionController";
 import { TRANSLATION_PANEL_STYLES } from "../../components/TranslationPanel/styles";
 import { getCssAtRuleBodies } from "../../styles/testUtils";
 
@@ -57,9 +58,16 @@ describe("selection Material 3 shapes", () => {
     )?.[1];
 
     expect(baseRule).toContain("border-radius: 50%");
-    expect(baseRule).toContain("width: 40px");
-    expect(baseRule).toContain("height: 40px");
+    expect(baseRule).toContain(`width: ${TRANBTN_SIZE}px`);
+    expect(baseRule).toContain(`height: ${TRANBTN_SIZE}px`);
+    expect(baseRule).toContain(`min-width: ${TRANBTN_SIZE}px`);
+    expect(baseRule).toContain(`min-height: ${TRANBTN_SIZE}px`);
     expect(baseRule).toContain("border: 0");
+    expect(baseRule).toContain("background-color: var(--kt-pric)");
+    expect(baseRule).not.toContain("--kt-glass-tint");
+    expect(baseRule).toContain(
+      "color-mix(in srgb, var(--kt-pri) 46%, transparent)"
+    );
     expect(baseRule).toContain("color: var(--kt-onpric)");
     expect(baseRule).not.toContain("animation:");
     expect(baseRule).not.toMatch(/transition:[^;]*border-radius/);
