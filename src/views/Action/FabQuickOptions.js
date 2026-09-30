@@ -34,9 +34,20 @@ const uniqueModels = (values) => {
 };
 
 /**
+ * Providers the user can actually call: enabled entries with a non-empty key.
+ * Preset engines and Custom (`apiType === "Custom"`) share this check.
+ * Free-tier rows without a key stay out of the FAB list.
+ */
+export const configuredByokApis = (transApis = []) =>
+  transApis
+    .filter((api) => !api?.isDisabled && String(api?.key || "").trim())
+    .sort((left, right) => (left.sortOrder || 0) - (right.sortOrder || 0));
+
+/**
  * Compact translation controls for the content FAB.
- * Site auto-translate is the personal rule's transOpen; bilingual mode and
- * the active engine model stay as they were.
+ * Site auto-translate is the personal rule's transOpen. Provider switching
+ * writes that same rule's apiSlug. Bilingual mode and the active engine
+ * model stay as they were.
  */
 export default function FabQuickOptions({ getFabPageState, processActions }) {
   const i18n = useI18n();
@@ -67,6 +78,10 @@ export default function FabQuickOptions({ getFabPageState, processActions }) {
     };
   }, [getFabPageState]);
 
+  const configuredApis = useMemo(
+    () => configuredByokApis(setting?.transApis),
+    [setting?.transApis]
+  );
   const activeApi = useMemo(
     () =>
       (setting?.transApis || []).find((api) => api.apiSlug === rule?.apiSlug) ||
@@ -170,6 +185,14 @@ export default function FabQuickOptions({ getFabPageState, processActions }) {
       ),
     }));
   };
+  const applyService = (apiSlug) => {
+    if (!apiSlug || apiSlug === rule?.apiSlug) return;
+    setRule((current) => ({ ...current, apiSlug }));
+    void processActions?.({
+      action: MSG_TRANS_PUTRULE,
+      args: { apiSlug },
+    });
+  };
 
   return (
     <div className="kt-content-fab-menu__options">
@@ -218,6 +241,28 @@ export default function FabQuickOptions({ getFabPageState, processActions }) {
           >
             {i18n("show_only_translations")}
           </button>
+        </div>
+      )}
+      {rule && configuredApis.length > 0 && (
+        <div className="kt-content-fab-menu__field">
+          <span id="kt-fab-service-label">{i18n("translate_service")}</span>
+          <div
+            className="kt-content-fab-menu__services"
+            role="group"
+            aria-labelledby="kt-fab-service-label"
+          >
+            {configuredApis.map((api) => (
+              <button
+                key={api.apiSlug}
+                type="button"
+                className="kt-content-fab-menu__mode"
+                aria-pressed={rule.apiSlug === api.apiSlug}
+                onClick={() => applyService(api.apiSlug)}
+              >
+                {api.apiName || api.apiSlug}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {rule && supportsModel && (
