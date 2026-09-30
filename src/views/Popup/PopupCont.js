@@ -28,7 +28,9 @@ import {
 import { isExt } from "../../libs/client";
 import { useI18n } from "../../hooks/I18n";
 import {
+  EVENT_KISS_INNER,
   MSG_TRANS_TOGGLE,
+  MSG_TRANS_CURRULE,
   MSG_RULE_EDITOR,
   MSG_TRANS_PUTRULE,
   MSG_SAVE_RULE,
@@ -37,6 +39,7 @@ import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
 } from "../../config";
+import { browser } from "../../libs/browser";
 import { saveRule } from "../../libs/rules";
 import { tryClearCaches } from "../../libs/cache";
 import { kissLog } from "../../libs/log";
@@ -340,6 +343,57 @@ export default function PopupCont({
     setValue: setRule,
     onError: reportActionFailure,
   });
+  const applyExternalRule = useCallback(
+    (nextRule) => {
+      if (!nextRule || typeof nextRule !== "object") return;
+      const patch = { ...nextRule };
+      // The main switch confirms transOpen itself. Don't let a broadcast
+      // rewind that optimistic value while the toggle is still in flight.
+      if (translationTogglePendingRef.current) delete patch.transOpen;
+      updateRule.applyExternal?.(patch);
+    },
+    [updateRule]
+  );
+  const documentToken = documentInfo?.token;
+  const targetTabId = targetTab?.id;
+
+  useEffect(() => {
+    const matchesDocument = (sourceDocument) =>
+      !documentToken ||
+      !sourceDocument?.token ||
+      sourceDocument.token === documentToken;
+    const onInner = (event) => {
+      if (event.detail?.action !== MSG_TRANS_CURRULE) return;
+      if (!matchesDocument(event.detail.document)) return;
+      applyExternalRule(event.detail.rule);
+    };
+    const onRuntime = (message, sender) => {
+      if (message?.action !== MSG_TRANS_CURRULE) return;
+      if (
+        targetTabId != null &&
+        sender?.tab?.id != null &&
+        sender.tab.id !== targetTabId
+      ) {
+        return;
+      }
+      const sourceDocument = message.args?.document;
+      if (documentToken) {
+        if (sourceDocument?.token !== documentToken) return;
+      } else if (message.args?.isTopFrame === false) {
+        return;
+      }
+      applyExternalRule(message.args?.rule);
+    };
+    document.addEventListener(EVENT_KISS_INNER, onInner);
+    const runtimeEvents = browser?.runtime?.onMessage;
+    if (!processActions && typeof runtimeEvents?.addListener === "function") {
+      runtimeEvents.addListener(onRuntime);
+    }
+    return () => {
+      document.removeEventListener(EVENT_KISS_INNER, onInner);
+      runtimeEvents?.removeListener?.(onRuntime);
+    };
+  }, [applyExternalRule, documentToken, processActions, targetTabId]);
   const putRuleValues = useCallback(
     (values) => {
       if (!canTranslatePage) return;

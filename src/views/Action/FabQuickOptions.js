@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   API_SPE_TYPES,
+  EVENT_KISS_INNER,
+  GLOBAL_KEY,
   MSG_SAVE_RULE,
+  MSG_TRANS_CURRULE,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
+  MSG_TRANS_TOGGLE,
+  OPT_LANGS_TO,
   OPT_TRANS_QWENMT,
 } from "../../config";
 import { getPresetModels } from "../../config/presetModels";
@@ -15,6 +20,7 @@ import { kissLog } from "../../libs/log";
 import { fetchModelCatalog } from "../../libs/modelList";
 import { sendBgMsg } from "../../libs/msg";
 import { saveRule } from "../../libs/rules";
+import { effectiveTransOpen } from "../../libs/pageRuleSync";
 import {
   readSiteTransOpen,
   siteRulePattern,
@@ -45,11 +51,15 @@ export const configuredByokApis = (transApis = []) =>
 
 /**
  * Compact translation controls for the content FAB.
- * Site auto-translate is the personal rule's transOpen. Provider switching
- * writes that same rule's apiSlug. Bilingual mode and the active engine
- * model stay as they were.
+ * Site auto-translate is the personal rule's transOpen (`*` follows global).
+ * Provider, bilingual mode, and target language write the page rule through
+ * MSG_TRANS_PUTRULE. Open popups hear MSG_TRANS_CURRULE and this menu does too.
  */
-export default function FabQuickOptions({ getFabPageState, processActions }) {
+export default function FabQuickOptions({
+  getFabPageState,
+  processActions,
+  onPageRule,
+}) {
   const i18n = useI18n();
   const { setting, updateSetting } = useSetting();
   const { list: rules = [], isLoading: rulesLoading } = useRules();
@@ -77,6 +87,21 @@ export default function FabQuickOptions({ getFabPageState, processActions }) {
       active = false;
     };
   }, [getFabPageState]);
+
+  useEffect(() => {
+    const onRule = (event) => {
+      if (event.detail?.action !== MSG_TRANS_CURRULE || !event.detail.rule) {
+        return;
+      }
+      setRule(event.detail.rule);
+    };
+    document.addEventListener(EVENT_KISS_INNER, onRule);
+    return () => document.removeEventListener(EVENT_KISS_INNER, onRule);
+  }, []);
+
+  useEffect(() => {
+    onPageRule?.(rule);
+  }, [onPageRule, rule]);
 
   const configuredApis = useMemo(
     () => configuredByokApis(setting?.transApis),
@@ -147,6 +172,23 @@ export default function FabQuickOptions({ getFabPageState, processActions }) {
     setSiteDraft(next);
     const saved = { pattern: sitePattern, transOpen: next };
     const persist = isExt ? sendBgMsg(MSG_SAVE_RULE, saved) : saveRule(saved);
+    const globalTransOpen = rules.find(
+      (item) => item.pattern === GLOBAL_KEY
+    )?.transOpen;
+    const nextRuntime = effectiveTransOpen(next, globalTransOpen);
+    const currentRuntime =
+      rule?.transOpen === true || rule?.transOpen === "true" ? "true" : "false";
+    // Pinning true/false also asks the page to translate now. Follow (`*`)
+    // moves runtime to the global value without saving that boolean over `*`.
+    if (!rule || nextRuntime !== currentRuntime) {
+      void processActions?.({
+        action: MSG_TRANS_TOGGLE,
+        args: {
+          enabled: nextRuntime === "true",
+          persistSite: next !== GLOBAL_KEY,
+        },
+      });
+    }
     void Promise.resolve(persist)
       .then((response) => {
         if (response?.error) throw new Error(response.error);
@@ -193,6 +235,19 @@ export default function FabQuickOptions({ getFabPageState, processActions }) {
       args: { apiSlug },
     });
   };
+  const applyToLang = (toLang) => {
+    if (!toLang || toLang === rule?.toLang) return;
+    setRule((current) => ({ ...current, toLang }));
+    void processActions?.({
+      action: MSG_TRANS_PUTRULE,
+      args: { toLang },
+    });
+  };
+  const toLang = rule?.toLang || "";
+  const toLangOptions =
+    toLang && !OPT_LANGS_TO.some(([code]) => code === toLang)
+      ? [[toLang, toLang], ...OPT_LANGS_TO]
+      : OPT_LANGS_TO;
 
   return (
     <div className="kt-content-fab-menu__options">
@@ -242,6 +297,27 @@ export default function FabQuickOptions({ getFabPageState, processActions }) {
             {i18n("show_only_translations")}
           </button>
         </div>
+      )}
+      {rule && (
+        <label className="kt-content-fab-menu__field">
+          <span id="kt-fab-lang-label">{i18n("to_lang")}</span>
+          <select
+            className="kt-content-fab-menu__lang"
+            aria-labelledby="kt-fab-lang-label"
+            aria-label={i18n("to_lang")}
+            value={
+              toLangOptions.some(([code]) => code === toLang) ? toLang : ""
+            }
+            onChange={(event) => applyToLang(event.target.value)}
+          >
+            {!toLang && <option value="">{i18n("to_lang")}</option>}
+            {toLangOptions.map(([code, name]) => (
+              <option key={code} value={code}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       {rule && configuredApis.length > 0 && (
         <div className="kt-content-fab-menu__field">
