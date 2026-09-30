@@ -51,7 +51,9 @@ import {
 import { useOverviewShortcuts } from "../../hooks/Commands";
 import { isInBlacklist } from "../../libs/blacklist";
 import { useSetting } from "../../hooks/Setting";
+import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
+import { isMissingRequiredApiKey } from "../../libs/apiKey";
 import { COLLAPSED_SERVICE_LIMIT, getVisibleServices } from "./services";
 import CompactLanguageSelect from "./CompactLanguageSelect";
 import PopupStylePreview from "./PopupStylePreview";
@@ -587,6 +589,12 @@ export default function PopupCont({
     OPT_LANGS_TO.find(([key]) => key === toLang)?.[1] || toLang;
   const activeService = services.find(({ key }) => key === apiSlug);
   const activeServiceName = activeService?.name || apiSlug || "—";
+  const activeApiSetting = (setting?.transApis || []).find(
+    (api) => api?.apiSlug === apiSlug
+  );
+  const missingApiKey = isMissingRequiredApiKey(activeApiSetting);
+  const heroActive = translationEnabled && !missingApiKey;
+  const heroBusy = translationBusy && !missingApiKey;
   const pageShortcutLabel = shortcutMap.page.join("+");
   const enabledSummary = [
     i18n("popup_enabled"),
@@ -635,9 +643,9 @@ export default function PopupCont({
     <section className="kt-popup-content">
       <div
         className={`kt-popup-hero ${
-          translationEnabled ? "" : "kt-popup-hero--off"
-        } ${translationBusy ? "kt-popup-hero--busy" : ""}`}
-        aria-busy={translationTogglePending || translationBusy}
+          heroActive ? "" : "kt-popup-hero--off"
+        } ${heroBusy ? "kt-popup-hero--busy" : ""}`}
+        aria-busy={translationTogglePending || heroBusy}
         aria-disabled={!canTranslatePage}
         onClick={() => {
           if (canTranslatePage && !translationTogglePending) {
@@ -646,24 +654,22 @@ export default function PopupCont({
         }}
       >
         <span className="kt-popup-hero__icon" aria-hidden="true">
-          {translationBusy ? (
-            <AutorenewRoundedIcon />
-          ) : (
-            <TranslateRoundedIcon />
-          )}
+          {heroBusy ? <AutorenewRoundedIcon /> : <TranslateRoundedIcon />}
         </span>
         <span className="kt-popup-hero__copy">
           <span className="kt-popup-hero__title">
             {i18n("popup_translate_page")}
           </span>
           <span className="kt-popup-hero__subtitle">
-            {!canTranslatePage
-              ? i18n("popup_unavailable")
-              : translationBusy
-                ? i18n("popup_translating")
-                : translationEnabled
-                  ? enabledSummary
-                  : i18n("popup_disabled")}
+            {missingApiKey
+              ? i18n("missing_api_key_status")
+              : !canTranslatePage
+                ? i18n("popup_unavailable")
+                : translationBusy
+                  ? i18n("popup_translating")
+                  : translationEnabled
+                    ? enabledSummary
+                    : i18n("popup_disabled")}
           </span>
         </span>
         <Switch
@@ -674,11 +680,18 @@ export default function PopupCont({
           onClick={(event) => event.stopPropagation()}
           inputProps={{
             "aria-label": i18n("popup_translate_page"),
-            "aria-busy": translationTogglePending || translationBusy,
+            "aria-busy": translationTogglePending || heroBusy,
           }}
         />
-        {translationBusy && <span className="kt-popup-hero__progress" />}
+        {heroBusy && <span className="kt-popup-hero__progress" />}
       </div>
+
+      {missingApiKey && (
+        <ApiKeyEmptyState
+          className="kt-popup-key-empty"
+          messageKey="missing_api_key_empty"
+        />
+      )}
 
       {canTranslatePage && (
         <div className="kt-popup-language-row">

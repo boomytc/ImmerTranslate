@@ -41,5 +41,5 @@ Translate requests leave thinking / reasoning off by default (`thinkingMode` is 
   - Translation display: bilingual, or translation only.
   - Model for the current engine. There is no second model list.
   - This site's auto-translate, three states: follow global, auto-translate, don't auto-translate (the personal rule's `transOpen`).
-  - Translation service: only providers that are enabled and have a non-empty key. Choosing one sends `MSG_TRANS_PUTRULE` and writes `apiSlug` on the current site's page rule. It does not change the Options global default.
+  - Translation service: only providers that are enabled and have a non-empty key. If none are configured, that slot shows an empty state and opens Options `#/apis`. When the current service requires a key and the key is empty, the FAB and popup show the same empty state and do not present translation as finished. Choosing one sends `MSG_TRANS_PUTRULE` and writes `apiSlug` on the current site's page rule. It does not change the Options global default. Keyless engines (Microsoft, Google, built-in) keep working.
 - UI languages: Simplified Chinese (`zh`) and English (`en`).
