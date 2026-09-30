@@ -16,7 +16,7 @@ import { useI18n } from "../../hooks/I18n";
 import { useRules } from "../../hooks/Rules";
 import { useSetting } from "../../hooks/Setting";
 import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
-import { apiRequiresKey, isMissingRequiredApiKey } from "../../libs/apiKey";
+import { configuredByokApis, isMissingRequiredApiKey } from "../../libs/apiKey";
 import { isExt } from "../../libs/client";
 import { kissLog } from "../../libs/log";
 import { fetchModelCatalog } from "../../libs/modelList";
@@ -40,22 +40,6 @@ const uniqueModels = (values) => {
   });
   return models;
 };
-
-/**
- * Enabled providers the FAB can switch to.
- * A row qualifies when it has a non-empty key, or when it does not require
- * one (keyless engines such as Microsoft, Google, and BuiltinAI).
- * Disabled rows stay out. Key-required rows with a blank key stay out.
- */
-export const configuredByokApis = (transApis = []) =>
-  transApis
-    .filter(
-      (api) =>
-        api &&
-        !api.isDisabled &&
-        (String(api.key || "").trim() || !apiRequiresKey(api))
-    )
-    .sort((left, right) => (left.sortOrder || 0) - (right.sortOrder || 0));
 
 /**
  * Compact translation controls for the content FAB.

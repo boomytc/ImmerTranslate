@@ -53,7 +53,7 @@ import { isInBlacklist } from "../../libs/blacklist";
 import { useSetting } from "../../hooks/Setting";
 import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
-import { isMissingRequiredApiKey } from "../../libs/apiKey";
+import { configuredByokApis, isMissingRequiredApiKey } from "../../libs/apiKey";
 import { COLLAPSED_SERVICE_LIMIT, getVisibleServices } from "./services";
 import CompactLanguageSelect from "./CompactLanguageSelect";
 import PopupStylePreview from "./PopupStylePreview";
@@ -559,14 +559,11 @@ export default function PopupCont({
 
   const services = useMemo(
     () =>
-      (setting?.transApis || [])
-        .filter((api) => !api.isDisabled)
-        .sort((left, right) => (left.sortOrder || 0) - (right.sortOrder || 0))
-        .map((api) => ({
-          key: api.apiSlug,
-          type: api.apiType || api.apiSlug,
-          name: api.apiName || api.apiSlug,
-        })),
+      configuredByokApis(setting?.transApis).map((api) => ({
+        key: api.apiSlug,
+        type: api.apiType || api.apiSlug,
+        name: api.apiName || api.apiSlug,
+      })),
     [setting?.transApis]
   );
 
@@ -686,7 +683,7 @@ export default function PopupCont({
         {heroBusy && <span className="kt-popup-hero__progress" />}
       </div>
 
-      {missingApiKey && (
+      {missingApiKey && services.length > 0 && (
         <ApiKeyEmptyState
           className="kt-popup-key-empty"
           messageKey="missing_api_key_empty"
@@ -729,45 +726,52 @@ export default function PopupCont({
           <div className="kt-popup-section-label">
             {i18n("translate_service")}
           </div>
-          <div
-            className={`kt-popup-services ${
-              showAllServices ? "kt-popup-services--open" : ""
-            }`}
-          >
-            {visibleServices.map((service) => (
-              <button
-                type="button"
-                className="kt-popup-service"
-                aria-pressed={service.key === apiSlug}
-                key={service.key}
-                onClick={() => putRuleValue("apiSlug", service.key)}
-              >
-                <ApiProviderIcon
-                  apiType={service.type}
-                  className="kt-service-logo"
-                  lightSurface
-                />
-                <span className="kt-popup-service__name">{service.name}</span>
-              </button>
-            ))}
-            {services.length > COLLAPSED_SERVICE_LIMIT && (
-              <button
-                type="button"
-                className={`kt-popup-service kt-popup-more-service ${
-                  showAllServices ? "kt-popup-more-service--open" : ""
-                }`}
-                aria-label={serviceDisclosureLabel}
-                aria-expanded={showAllServices}
-                title={serviceDisclosureLabel}
-                onClick={() => setShowAllServices((current) => !current)}
-              >
-                {showAllServices
-                  ? i18n("popup_collapse")
-                  : `+${services.length - visibleServices.length}`}
-                <ExpandMoreRoundedIcon aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          {services.length === 0 ? (
+            <ApiKeyEmptyState
+              className="kt-popup-key-empty"
+              messageKey="fab_no_keyed_provider"
+            />
+          ) : (
+            <div
+              className={`kt-popup-services ${
+                showAllServices ? "kt-popup-services--open" : ""
+              }`}
+            >
+              {visibleServices.map((service) => (
+                <button
+                  type="button"
+                  className="kt-popup-service"
+                  aria-pressed={service.key === apiSlug}
+                  key={service.key}
+                  onClick={() => putRuleValue("apiSlug", service.key)}
+                >
+                  <ApiProviderIcon
+                    apiType={service.type}
+                    className="kt-service-logo"
+                    lightSurface
+                  />
+                  <span className="kt-popup-service__name">{service.name}</span>
+                </button>
+              ))}
+              {services.length > COLLAPSED_SERVICE_LIMIT && (
+                <button
+                  type="button"
+                  className={`kt-popup-service kt-popup-more-service ${
+                    showAllServices ? "kt-popup-more-service--open" : ""
+                  }`}
+                  aria-label={serviceDisclosureLabel}
+                  aria-expanded={showAllServices}
+                  title={serviceDisclosureLabel}
+                  onClick={() => setShowAllServices((current) => !current)}
+                >
+                  {showAllServices
+                    ? i18n("popup_collapse")
+                    : `+${services.length - visibleServices.length}`}
+                  <ExpandMoreRoundedIcon aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
