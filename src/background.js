@@ -58,6 +58,7 @@ import { chromeDetect, chromeTranslate } from "./libs/builtinAI";
 import { sha256 } from "./libs/utils";
 import { installStorageCoordinator } from "./libs/storageCoordination";
 import { isCurrentPopupDocument } from "./libs/popupDocument";
+import { optionsApisHash } from "./libs/optionsEntry";
 
 globalThis.__KISS_CONTEXT__ = "background";
 installStorageCoordinator();
@@ -65,14 +66,79 @@ installStorageCoordinator();
 let openingOptionsPage = false;
 
 /**
+ * Find an already-open options tab without the "tabs" permission.
+ * getContexts can see this extension's own documents; a miss falls through to tabs.create.
+ * @returns {Promise<number | null>}
+ */
+async function findOptionsTabId() {
+  const base = browser.runtime.getURL("options.html");
+  const getContexts = browser.runtime.getContexts;
+  if (typeof getContexts !== "function") return null;
+  try {
+    const contexts = await getContexts({
+      contextTypes: ["TAB"],
+      documentUrls: [base, `${base}*`],
+    });
+    const hit = (contexts || []).find((item) => Number.isInteger(item?.tabId));
+    if (!hit) return null;
+    if (Number.isInteger(hit.windowId) && browser.windows?.update) {
+      try {
+        await browser.windows.update(hit.windowId, { focused: true });
+      } catch (err) {
+        kissLog("focus options window", err);
+      }
+    }
+    return hit.tabId;
+  } catch (err) {
+    kissLog("find options tab", err);
+    return null;
+  }
+}
+
+/**
+ * Open options.html at a hash. Reuses an existing options tab when one is already open.
+ * @param {string} hash
+ */
+async function openOptionsDeepLink(hash) {
+  const url = browser.runtime.getURL(`options.html${hash}`);
+  try {
+    const tabId = await findOptionsTabId();
+    if (tabId != null) {
+      await browser.tabs.update(tabId, { active: true, url });
+      return;
+    }
+    await browser.tabs.create({ url });
+    return;
+  } catch (err) {
+    kissLog("open options page in new tab", err);
+  }
+  if (typeof browser.runtime.openOptionsPage === "function") {
+    try {
+      await browser.runtime.openOptionsPage();
+    } catch (err) {
+      kissLog("open options page with runtime API", err);
+    }
+  }
+}
+
+/**
  * Open the extension settings with the native API when available.
  * Fall back to a new tab when the native API is unavailable or fails.
+ * A `{ hash: "/apis" }` argument from a translate failure opens the APIs tab.
+ * Calls with no hash keep the existing settings open.
+ * @param {unknown} [args]
  */
-async function openOptionsPage() {
+async function openOptionsPage(args) {
   if (openingOptionsPage) return;
 
   openingOptionsPage = true;
   try {
+    const hash = optionsApisHash(args);
+    if (hash) {
+      await openOptionsDeepLink(hash);
+      return;
+    }
+
     if (typeof browser.runtime.openOptionsPage === "function") {
       try {
         await browser.runtime.openOptionsPage();
@@ -727,7 +793,7 @@ const messageHandlers = {
   [MSG_GET_HTTPCACHE]: (args) => getHttpCache(args), // 读取翻译 HTTP 缓存
   [MSG_PUT_HTTPCACHE]: (args) => putHttpCache(args), // 存入翻译 HTTP 缓存
   [MSG_SHA256]: ({ text = "", salt = "" } = {}) => sha256(text, salt), // 代算缓存签名
-  [MSG_OPEN_OPTIONS]: () => openOptionsPage(), // 打开设置选项页
+  [MSG_OPEN_OPTIONS]: (args) => openOptionsPage(args), // 打开设置选项页
   [MSG_SAVE_RULE]: (args) => saveRule(args), // 写入/保存规则
   [MSG_EDIT_RULE]: (args) => writeSiteRule(args),
   [MSG_INJECT_JS]: (args) => injectToCurrentTab(injectInlineJsBg, args), // 注入 JS 代码到前台
