@@ -41,7 +41,7 @@ describe("userscript startup recovery messages", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.REACT_APP_NAME = "KISS Translator";
+    process.env.REACT_APP_NAME = "ImmerTranslate";
     process.env.REACT_APP_VERSION = "2.0.32";
     delete window.APP_INFO;
   });
@@ -56,7 +56,7 @@ describe("userscript startup recovery messages", () => {
 
   test("provides Chinese and English recovery instructions for incompatible versions", async () => {
     window.APP_INFO = {
-      name: "KISS Translator",
+      name: "ImmerTranslate",
       version: "2.1.0",
       eventName: "gm-ping",
     };

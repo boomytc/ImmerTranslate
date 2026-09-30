@@ -1562,8 +1562,8 @@ const genOpenRouter = ({
   const headers = {
     "Content-type": "application/json",
     Authorization: `Bearer ${key}`,
-    "HTTP-Referer": "https://fishjar.github.io/kiss-translator/",
-    "X-OpenRouter-Title": "KISS Translator",
+    "HTTP-Referer": "https://github.com/boomytc/ImmerTranslate",
+    "X-OpenRouter-Title": "ImmerTranslate",
   };
 
   return { url, body, headers, userMsg };
@@ -1609,8 +1609,8 @@ const genOrcaRouter = ({
     "Content-type": "application/json",
     Authorization: `Bearer ${key}`,
     // 聚合网关的调用来源标识，便于在 OrcaRouter 控制台区分本扩展的用量
-    "HTTP-Referer": "https://fishjar.github.io/kiss-translator/",
-    "X-Title": "KISS Translator",
+    "HTTP-Referer": "https://github.com/boomytc/ImmerTranslate",
+    "X-Title": "ImmerTranslate",
   };
 
   return { url, body, headers, userMsg };
@@ -1656,8 +1656,8 @@ const genRequesty = ({
     "Content-type": "application/json",
     Authorization: `Bearer ${key}`,
     // 聚合网关的调用来源标识，便于在 Requesty 控制台区分本扩展的用量
-    "HTTP-Referer": "https://fishjar.github.io/kiss-translator/",
-    "X-Title": "KISS Translator",
+    "HTTP-Referer": "https://github.com/boomytc/ImmerTranslate",
+    "X-Title": "ImmerTranslate",
   };
 
   return { url, body, headers, userMsg };

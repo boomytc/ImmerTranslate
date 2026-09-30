@@ -217,7 +217,7 @@ describe("Options startup sync", () => {
     refreshStorageKeys.mockResolvedValue(undefined);
     runDataMigration.mockResolvedValue(undefined);
     sleep.mockResolvedValue(undefined);
-    process.env.REACT_APP_NAME = "KISS Translator";
+    process.env.REACT_APP_NAME = "ImmerTranslate";
     process.env.REACT_APP_VERSION = "2.0.25";
   });
 
@@ -457,7 +457,7 @@ describe("Options startup sync", () => {
     expect(adaptScript).not.toHaveBeenCalled();
     expect(trySyncSetting).not.toHaveBeenCalled();
     window.APP_INFO = {
-      name: "KISS Translator",
+      name: "ImmerTranslate",
       version: "2.0.24",
       eventName: "kiss-ping",
     };
@@ -515,7 +515,7 @@ describe("Options startup sync", () => {
   test("shows a version mismatch without reading storage", async () => {
     mockIsGm = true;
     window.APP_INFO = {
-      name: "KISS Translator",
+      name: "ImmerTranslate",
       version: "2.1.0",
       eventName: "kiss-ping",
     };

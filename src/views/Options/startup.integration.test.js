@@ -464,7 +464,7 @@ describe("Options startup with real storage hooks", () => {
     "accepts an older compatible userscript bridge (%p) before migration and local storage access",
     async (eventName) => {
       mockIsGm = true;
-      process.env.REACT_APP_NAME = "KISS Translator";
+      process.env.REACT_APP_NAME = "ImmerTranslate";
       process.env.REACT_APP_VERSION = "2.0.32";
       const migration = deferred();
       const settingSync = deferred();
@@ -481,7 +481,7 @@ describe("Options startup with real storage hooks", () => {
       );
 
       window.APP_INFO = {
-        name: "KISS Translator",
+        name: "ImmerTranslate",
         version: "2.0.31",
         eventName,
       };

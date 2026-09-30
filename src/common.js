@@ -129,7 +129,7 @@ function showErr(message) {
     fontWeight: "bold",
   });
 
-  const messageText = document.createTextNode(`KISS-Translator: ${message}`);
+  const messageText = document.createTextNode(`ImmerTranslate: ${message}`);
   banner.appendChild(messageText);
   banner.appendChild(closeButton);
 
