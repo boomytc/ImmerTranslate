@@ -37,14 +37,16 @@ describe("Popup Header actions", () => {
       );
     });
 
-    const separate = container.querySelector(
-      '[aria-label="open_separate_window"]'
-    );
+    const separate = container.querySelector(".kt-popup-header__window");
     const settings = container.querySelector('[aria-label="setting"]');
 
     expect(container.querySelector('[aria-label="popup_support"]')).toBeNull();
     expect(container.textContent).not.toContain("appreciate_support");
     expect(container.textContent).not.toContain("comment_support");
+    expect(separate.textContent).toBe("popup_open_separate_window");
+    expect(separate.getAttribute("aria-label")).toBe(
+      "popup_open_separate_window · popup_text_translation"
+    );
     expect(separate.compareDocumentPosition(settings)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
@@ -59,11 +61,24 @@ describe("Popup Header actions", () => {
 
     const close = container.querySelector('[aria-label="close"]');
     expect(close).not.toBeNull();
-    expect(
-      container.querySelector('[aria-label="open_separate_window"]')
-    ).toBeNull();
+    expect(container.querySelector(".kt-popup-header__window")).toBeNull();
 
     act(() => close.click());
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("opens the separate text window from the visible header action", () => {
+    const openSeparateWindow = jest.fn();
+    act(() => {
+      root.render(
+        <Header
+          openSeparateWindow={openSeparateWindow}
+          openSettings={jest.fn()}
+        />
+      );
+    });
+
+    act(() => container.querySelector(".kt-popup-header__window").click());
+    expect(openSeparateWindow).toHaveBeenCalledTimes(1);
   });
 });

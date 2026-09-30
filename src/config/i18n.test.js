@@ -26,6 +26,13 @@ test("tells users to refresh after a missing connection setup", () => {
   expect(I18N.test_connection_ok_empty.zh).toBe("已连通，模型列表为空");
 });
 
+test("names the separate text window in Chinese and English", () => {
+  expect(I18N.popup_open_separate_window.zh).toBe("打开独立窗");
+  expect(I18N.popup_open_separate_window.en).toBe("Open separate window");
+  expect(I18N.popup_text_translation.zh).toBe("文本翻译");
+  expect(I18N.popup_text_translation.en).toBe("Text translation");
+});
+
 test("provides distinct popup loading and domain status labels", () => {
   expect(I18N.popup_loading.en).toBe("Loading…");
   expect(I18N.popup_loading.en).not.toBe(I18N.popup_translating.en);
