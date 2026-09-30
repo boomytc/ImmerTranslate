@@ -32,7 +32,9 @@ test("tells users to refresh after a missing connection setup", () => {
   expect(I18N.test_connection_network.en).toBe(
     "Network error. Try again later, or check your network and the endpoint."
   );
-  expect(I18N.test_connection_http.zh).toBe("连接失败，请检查接口地址或稍后重试");
+  expect(I18N.test_connection_http.zh).toBe(
+    "连接失败，请检查接口地址或稍后重试"
+  );
   expect(I18N.test_connection_http.en).toBe(
     "Connection failed. Check the endpoint or try again later"
   );
