@@ -1,191 +1,231 @@
-# ImmerTranslate
+# KISS Translator 简约翻译
 
-[English](README.en.md)
+[English](README.en.md) | [中文](README.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
-## 简介
+一个简约、开源的 [双语对照翻译扩展 & 油猴脚本](https://github.com/fishjar/kiss-translator)。
 
-开源 MVP：网页主内容双语（原文 + 译文）阅读。适用于 Chrome / Edge Manifest V3。
+本仓库（[boomytc/ImmerTranslate](https://github.com/boomytc/ImmerTranslate)）的工作树来自上游 [fishjar/kiss-translator](https://github.com/fishjar/kiss-translator)，经由 [boomytc/kiss-translator](https://github.com/boomytc/kiss-translator) v1.0.2（commit `e7027b4`）整树覆盖。许可证为 GPL-3.0。
 
-受沉浸式双语翻译类扩展启发。本仓库是独立实现，核心保持小巧，密钥留在本机（MVP 没有登录墙）。
+[kiss-translator.webm](https://github.com/fishjar/kiss-translator/assets/1157624/f7ba8a5c-e4a8-4d5a-823a-5c5c67a0a47f)
 
-## 状态
+## 感谢以下赞助商对本项目的支持
 
-早期 MVP。当前开发版本为 **1.0.1**（分支 `dev-1.0.1`，与 `extension/manifest.json` 一致）。早先过早标成的 1.0.0 已撤回；1.0.0 是 0.4.2–0.8.0 已交付能力的版本对齐。1.0.1 让悬浮球单击与弹层主按钮共用同一套整页翻译状态，悬停文案随状态显示本机快捷键。已发布的最新 tag 仍是 `v0.3.0`。未填写 API Key 时，翻译是 **mock**：把原文包成 `⟦…⟧`。在选项页保存密钥后，会选用 OpenAI 兼容或 Anthropic 兼容引擎。默认：协议 `openai`，base `https://api.deepseek.com/v1`，模型 `deepseek-flash`。扩展里的密钥只存在 `chrome.storage.local`。
+<table>
+  <tr>
+    <td align="center"><img src="https://github.com/user-attachments/assets/8c5f141d-9d13-46b0-832f-f6884db4e5d5" width="600" /></td>
+    <td>
+      <a href="https://go.apimart.ai/gh-gotranslatorrr" target="_blank">
+        <b>APIMart</b> 是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费，通过此注册链接注册即可开用。
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://platform.ephone.ai/logo-e.png" width="96" /></td>
+    <td>
+      <a href="https://platform.ephone.ai/" target="_blank">
+        <b>ePhone AI</b> 是一个面向开发者的 AI 模型 API 中转与聚合平台，支持 OpenAI、Claude、Gemini、DeepSeek、GLM 等多家大模型。
+      </a>
+    </td>
+  </tr>
+</table>
 
-点击工具栏图标会打开 **弹窗**（`default_popup`），而不是静默切换。弹窗骨架是一行状态（已翻译 / 未翻译，以及 Mock 或当前引擎的只读一句）、双态主按钮 **翻译** ↔ **显示原文**、以及 **打开设置**。主按钮下方有两个本页按钮：**本页加入永不翻译** 和 **本页加入始终翻译**。本页已经在对应名单里时，按钮变成 **本页移出永不翻译** 或 **本页移出始终翻译**。按钮上方写着将要写入的来源（带协议的 origin）。未翻译时，主按钮用和选项页相同的格式函数，把整页快捷键放进括号：macOS 为 **翻译 (⌥A)**，Windows / Linux 为 **翻译 (Alt+A)**（不用 ⌘T，那是新建标签页）。已翻译时按钮仍是 **显示原文**。API Key 为空时，状态行标明 **Mock 模式**（译文为 `⟦原文⟧`）。弹窗不放登录头像、Pro 开关、促销条或快捷宫格，也不在弹窗里编辑整份名单。页面右侧偏下有一颗可拖拽的 **悬浮球**，和弹窗共用 `extension/glass.css` 里的毛玻璃令牌（模糊、圆角、半透明底、细边和阴影）。单击与弹窗主按钮走同一套双态：未翻译时翻译整页，已翻译时显示原文。悬停提示随状态变化，并带上与弹层相同的本机快捷键（macOS **⌥A**，Windows / Linux **Alt+A**，或选项里改过的整页键）。已翻译时球角上有一枚小标记。球旁有一个 **打开弹层** 的小入口，打开工具栏弹层；浏览器不允许时则打开弹层里已有的选项页，不把整张弹窗嵌进球里。球上方有一个标成 **站点** 的按钮，打开后是和弹窗相同的两条本页操作。松手后球会贴到左缘或右缘，并记住竖直位置（`chrome.storage.local` 的 `ballPosition`：`side` 与 `top`）。第一次出现时，球旁边有一张不挡操作的提示卡，点「知道了」或点这张卡就关掉，看过不再出现，也不会引导登录或付费。第一次安装、且还没有 `onboardingDone` 时，页面左上角另有一张不挡操作的毛玻璃卡片，最多三步，依次是 **钉到工具栏**、**点弹层译一页**、**认识悬浮球**。每一步都可以「跳过」；前两步也可以「全部跳过」。点最后一步的「完成」，或把步骤走完/跳完，会写入 `onboardingDone`，之后不再出现。引导还在、或刚在本页关掉时，球旁那张提示不会同时或紧接着弹出。若已经看到「认识悬浮球」再结束，会一并写下 `ballTipSeen`，球旁提示不再重复同一段说明。若在前两步就「全部跳过」，`ballTipSeen` 仍留空，球旁提示留到下一次打开页面，并且仍然只出现一次。卡片没有登录、条款勾选、Pro、功能目录或 Token。重新安装，或在扩展的 Service Worker 控制台执行 `chrome.storage.local.remove(["onboardingDone", "ballTipSeen"])` 后刷新，可以再看。来源在永不翻译名单里时，悬浮球连同「站点」按钮一起不显示。完整名单在选项页增删改；弹窗和悬浮球只动当前页这一条来源。移出本页时，会去掉所有命中该页的条目（裸域名和精确 origin 都算）。选项页是左侧导航加右侧内容，五个分区依次为 **基本**、**快捷键**、**悬浮球**、**站点名单**、**引擎与密钥**。整页复用 `extension/glass.css` 的毛玻璃令牌，不是整页纯白；主按钮保持克制的蓝色。Mac 与 Windows 共用这一套布局。悬浮球可关闭（`ballEnabled`，默认开）；关掉后页面上不显示，竖直位置仍留在 `ballPosition`。整页快捷键也可改（`pageHotkey`，默认 Alt+A，macOS 显示 **⌥A**），和段落键用同一套平台格式函数。
+## 特性
 
-悬停主内容段落，按段落快捷键只翻译这一段（可在选项页修改，存储键 `paragraphHotkey`）。规范键位是 Option / Alt + T：macOS 显示并保存 **⌥T**，Windows / Linux 显示并保存 **Alt+T**。整页切换仍是 Option / Alt + A：macOS **⌥A**，Windows / Linux **Alt+A**（不用 Ctrl+A，那是全选；也不用 ⌘T，那是新建标签页）。文章页上，焦点不在输入框时，这个组合在 `window` / `document` 的捕获阶段 `keydown` 里匹配；命中后 `preventDefault` 并 `stopPropagation`，避免浏览器把 Alt+字母当成菜单或加速键。若某环境仍在事件到达页面前吃掉 `keydown`，同一次按键的 `keyup` 会补上一次。整页另有 manifest 命令（各平台建议键 Alt+A，macOS 上即 ⌥A）。段落也有一条（建议键 Alt+T，macOS 上即 ⌥T）：只翻译当前悬停的那一段，并且只在命令快捷键与已保存的 `paragraphHotkey` 一致时生效。选项页改键并保存，或点「恢复默认」（会写回该平台的默认段落键），都以新值为准。段落命令不会切换整页。黑名单来源上，段落快捷键不插入译文。弹窗主按钮和悬浮球不依赖热键，热键失效时两者仍能切换，并和页面状态保持一致。选项页可以把某个来源标成 **永不翻译**（`denyOrigins`，默认空，因此所有站点都可译）或 **始终翻译**（`allowOrigins`），也可以编辑或移除已有条目。列入永不翻译的来源，弹窗、悬浮球和快捷键都不会插入双语节点；同一来源两边都有时，以永不翻译为准（裸域名在永不翻译、该 origin 在始终翻译时同样如此）。弹窗和悬浮球上的「站点」可以把当前页 origin 一键加入或移出，不用手打。阅读样式（`translationFontSize`：`sm` / `md` / `lg`；`translationContrast`：`normal` / `high`；`displayMode`：`bilingual` 或 `translation-only`）存在 `chrome.storage.local`，对已经打开的页面立即生效，不用刷新。
-
-Node 与云端验收读取已 gitignore 的本地 YAML，以及环境变量。Service worker 用 translate-core 的 `createPipelineEngine` 把所选引擎包一层；缓存、重试和限流不在扩展壳里另写一套。`packages/translate-core` 仍是 **1.0.0**，扩展壳是 **1.0.1**。`extension/vendor` 由 `scripts/sync-translate-core.sh` 从该包的 `src` 同步，与 0.8.0 的 `TranslateFailure`（`kind` / `code` / `status`）一致。`TranslateRequest` / `TranslateResponse` 保持不变；密钥为空时仍走 mock 引擎。翻译被拒绝时，页面右上角出现一条不挡点击的毛玻璃提示，悬浮球旁和弹窗提示行显示同一句（含失败种类 `kind` 和说明）。没有新的协议族，也没有登录或 Pro。
-
-## 目录
-
-```
-extension/                 # 作为「已解压的扩展程序」加载这一目录
-  manifest.json
-  background.js            # 消息总线 → 翻译引擎
-  glass.css                # 弹窗、选项页、悬浮球与失败提示共用的毛玻璃令牌
-  options.css              # 选项页布局（复用 glass.css 令牌）
-  popup.html / popup.js    # 工具栏弹窗：状态行 / 双态按钮 / 本页站点 / 设置入口
-  hotkey.js                # 快捷键编解码与按系统显示（⌥ / Alt）
-  sitelist.js              # 按来源匹配始终翻译 / 永不翻译
-  ballpos.js               # 悬浮球默认位置、夹取与贴边
-  onboarding.js            # 首次三步引导：顺序、跳过，以及与球旁提示互斥
-  failtip.js               # 翻译失败提示：说明与 kind / code / status
-  content.js / content.css # 段落识别、悬停、双语 DOM、悬浮球、失败提示、首次引导、样式属性
-  options.html / options.js
-  vendor/translate-core/   # packages/translate-core/src 的同步副本（MV3）
-packages/translate-core/   # TranslateRequest/Response + mockTranslate
-  config/load.js           # 仅 Node 的 YAML 合并（不会同步进扩展）
-config.yaml                # 已提交的模板，apiKey 为空
-scripts/sync-translate-core.sh
-```
+- [x] 保持简约
+- [x] 开放源代码
+- [x] 适配常见浏览器
+  - [x] Chrome/Edge
+  - [x] Firefox
+  - [x] Kiwi (Android)
+  - [x] Orion (iOS)
+  - [x] Safari
+  - [x] Thunderbird
+- [x] 支持多种翻译服务
+  - [x] Google/Microsoft
+  - [x] Tencent/Volcengine
+  - [x] OpenAI/Gemini/Claude/Ollama/DeepSeek/OpenRouter/OrcaRouter/Requesty/ModelScope
+  - [x] DeepL/DeepLX
+  - [x] AzureAI/CloudflareAI
+  - [x] Chrome浏览器内置AI翻译(BuiltinAI)
+- [x] 覆盖常见翻译场景
+  - [x] 网页双语对照翻译
+  - [x] 输入框翻译
+    - 通过快捷键立即将输入框内文本翻译成其他语言
+  - [x] 划词翻译
+    - [x] 任意页面打开翻译框，可用多种翻译服务对比翻译
+    - [x] 英文词典翻译
+    - [x] 收藏词汇
+  - [x] 鼠标悬停翻译
+  - [x] YouTube 字幕翻译
+    - 支持任意翻译服务对视频字幕进行翻译并双语显示
+    - 内置基础的字幕合并与断句算法，提升翻译效果
+    - 支持AI断句功能，可进一步提升翻译质量
+    - 自定义字幕样式
+- [x] 支持多样翻译效果
+  - [x] 支持自动识别文本与手动规则两种模式
+    - 自动识别文本模式使得绝大部分网站无需编写规则也能翻译完整
+    - 手动规则模式，可以针对特定网站极致优化
+  - [x] 自定义译文样式
+  - [x] 支持富文本翻译及显示，能够尽量保留原文中的链接及其他文本样式
+  - [x] 支持仅显示译文（隐藏原文）
+- [x] 翻译接口高级功能
+  - [x] 通过自定义接口，理论上支持任何翻译接口
+  - [x] 聚合批量发送翻译文本
+  - [x] 支持流式传输，实时显示翻译结果
+  - [x] 支持AI上下文会话记忆功能，提升翻译效果
+  - [x] 自定义AI术语词典
+  - [x] 所有接口均支持Hook和自定义参数等高级功能
+- [x] 跨客户端数据同步
+  - [x] KISS-Worker（cloudflare/docker）
+  - [x] WebDAV
+- [x] 自定义翻译规则
+  - [x] 规则订阅/规则分享
+  - [x] 自定义专业术语
+- [x] 自定义快捷键
+  - `Alt+Q` 开启翻译
+  - `Alt+D` 打开独立翻译窗
+  - `Alt+K` 打开设置弹窗
+  - `Alt+S` 打开翻译弹窗/翻译选中文字
+  - `Alt+O` 打开设置页面
+  - `Alt+I` 输入框翻译
 
 ## 安装
 
-扩展版本 **1.0.1**。从本仓库拿到源码后，在 Chrome 或 Edge 里以未打包方式加载。
+> 注：基于以下原因，建议优先使用浏览器扩展
+>
+> - 浏览器扩展的功能更完整（本地语言识别、右键菜单等）
+> - 油猴脚本会遇到更多使用上的问题（跨域问题、脚本冲突等）
 
-1. 克隆或下载本仓库。
-2. 打开 `chrome://extensions`（Edge：`edge://extensions`）。
-3. 打开 **开发者模式**。
-4. 点击 **加载已解压的扩展程序**，选择仓库里的 `extension/` 目录。
-5. **把扩展图标钉到工具栏**。不钉的话，只能从扩展菜单（拼图图标）里点开。
+- [x] 浏览器扩展
+  - [x] Chrome [安装地址](https://chrome.google.com/webstore/detail/kiss-translator/bdiifdefkgmcblbcghdlonllpjhhjgof?hl=zh-CN)
+    - [x] Kiwi (Android)
+    - [x] Orion (iOS)
+  - [x] Edge [安装地址](https://microsoftedge.microsoft.com/addons/detail/%E7%AE%80%E7%BA%A6%E7%BF%BB%E8%AF%91/jemckldkclkinpjighnoilpbldbdmmlh?hl=zh-CN)
+  - [x] Firefox [安装地址](https://addons.mozilla.org/zh-CN/firefox/addon/kiss-translator/)
+  - [ ] Safari
+    - [ ] Safari (Mac)
+    - [ ] Safari (iOS) 
+  - [x] Thunderbird [下载地址](https://github.com/fishjar/kiss-translator/releases)
+- [x] 油猴脚本
+  - [x] Chrome/Edge/Firefox ([Tampermonkey](https://www.tampermonkey.net/)/[Violentmonkey](https://violentmonkey.github.io/)) [安装链接](https://fishjar.github.io/kiss-translator/kiss-translator.user.js)
+    - [Greasy Fork](https://greasyfork.org/zh-CN/scripts/472840-kiss-translator)
+  - [x] iOS Safari ([Userscripts Safari](https://github.com/quoid/userscripts)) [安装链接](https://fishjar.github.io/kiss-translator/kiss-translator-ios-safari.user.js)
 
-### 从 GitHub Release 安装（可选）
+## 关联项目
 
-版本用 git tag 和 [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases) 发布，不维护长期 `release-*` 分支。已有 tag：`v0.1.0`、`v0.1.1`、`v0.2.0`、`v0.2.1`、`v0.3.0`。早先的 `v1.0.0` tag 已撤回。之后的版本同样打 tag 并建 Release。
+- 数据同步服务: [https://github.com/fishjar/kiss-worker](https://github.com/fishjar/kiss-worker)
+  - 可用于本项目的数据同步服务。
+  - 亦可用于分享个人的私有规则列表。
+  - 自己部署，自己管理，数据私有。
+- 社区订阅规则: [https://github.com/fishjar/kiss-rules](https://github.com/fishjar/kiss-rules)
+  - 提供社区维护的，最新最全的订阅规则列表。
+  - 求助规则相关的问题。
 
-1. 在 Releases 里打开要装的 tag，下载该 tag 的源码（Source code）。
-2. 解压后，按上面的步骤加载其中的 `extension/`，并把图标钉到工具栏。
+## 常见问题
 
-当前开发线是 `dev-1.0.1`。要跟这条线，克隆或下载该分支，再加载其中的 `extension/`。
+### 如何设置快捷键
 
-## 使用
+在插件管理那里设置，例如： 
 
-若是第一次使用，文章页左上角会先出现一张可跳过的三步卡片（**钉到工具栏**、**点弹层译一页**、**认识悬浮球**）。它不挡住页面：可以继续滚动、点悬浮球或打开弹层。走完、跳完，或点「全部跳过」之后写入 `onboardingDone`，不再出现。想再看一遍，在扩展的 Service Worker 控制台执行 `chrome.storage.local.remove(["onboardingDone", "ballTipSeen"])`，然后刷新文章页。
+- chrome [chrome://extensions/shortcuts](chrome://extensions/shortcuts)
+- firefox [about:addons](about:addons)
 
-1. 打开一篇文章页，点击工具栏上的扩展图标，打开弹窗。状态行显示本页是「已翻译」还是「未翻译」，并带一句 Mock 或当前引擎说明。未填 API Key 时标明 Mock 模式，译文形如 `⟦原文⟧`。主按钮在 **翻译** 和 **显示原文** 之间切换。未翻译时，按钮文案是 **翻译 (⌥A)**（macOS）或 **翻译 (Alt+A)**（Windows / Linux），括号里的快捷键与选项页同一个格式函数。焦点不在输入框时，按同一组合也会切换整页：Windows / Linux 为 **Alt+A**，macOS 为 **⌥A**。若系统或浏览器抢走该组合，用弹窗主按钮或悬浮球即可，两者和热键共用同一页面状态。「打开设置」打开选项页。页面右侧偏下的悬浮球单击做同一件事：未翻译时译整页，已翻译时显示原文。悬停时，macOS 为「点击翻译为简体中文 (⌥A)」，Windows / Linux 为「点击翻译为简体中文 (Alt+A)」；已翻译时为「已翻译 · 点击显示原文」并带同一快捷键。译过之后球角有一枚小标记。球旁的「打开弹层」打开工具栏弹层或选项页。球可以拖动，松手后贴到左边或右边，并记住上下位置；刷新后还在那一侧的同一高度。第一次会在球旁边出现一张提示，点「知道了」或点这张卡即消失，之后不再挡页面。
-2. 悬停主内容里的一段（会出现蓝色描边），按默认段落快捷键（macOS **⌥T**，Windows / Linux **Alt+T**），只翻译这一段。译文行的样式与整页对照相同。已经译过的段再按一次不会重复插入。若浏览器吃掉这次按键，扩展命令仍只译悬停的这一段，不会改整页。
-3. 选项页（扩展详情 → 扩展选项，或弹窗里的「打开设置」）左侧有五个分区，右侧是对应内容。打开后可按下面走一遍；改完点底部「保存」。字号、对比度、显示方式、站点名单和悬浮球开关会立刻写入，不用再点保存。
-   - **基本**：目标语言、显示方式（双语对照或仅译文）、译文字号、对比度。已经译过的页面会马上换样式，不用刷新。源语言也在这里。
-   - **快捷键**：整页切换和段落快捷键。聚焦输入框，按下含修饰键的组合，然后保存，新组合才会在阅读页生效。macOS 显示 **⌥** / **⌘**（默认整页 **⌥A**、段落 **⌥T**），Windows / Linux 显示 **Alt** / **Ctrl**（默认 **Alt+A**、**Alt+T**）。点「恢复默认」会写回该平台的默认键，按钮文案与这一显示相同。
-   - **悬浮球**：开关默认开。说明写明默认贴右缘，松手贴左右边缘，并记住竖直位置。关掉后已打开的页面上球会消失，位置仍留着；再打开后回到上次的高度。
-   - **站点名单**：**永不翻译** 的来源不会插入双语节点（弹窗、悬浮球和快捷键都不会）。**始终翻译** 可选，打开该来源时自动翻译。同一来源两边都有时，以永不翻译为准。只填域名则同时匹配 http 与 https；填完整网址则只保存其 origin。子域名不会跟着生效。每一条都可以 **编辑** 或 **移除**。加入、编辑和移除会立刻保存，刷新后还在。弹窗和悬浮球上的「站点」可以把当前页 origin 一键加入或移出。
-   - **引擎与密钥**：只有 OpenAI 兼容和 Anthropic 兼容。API Key 留空时页面标明 mock，译文为 `⟦原文⟧`（`⟦…⟧`）。没有登录或付费墙。
+### 规则设置的优先级是如何的
 
-协议、Base URL、模型、API Key、语言、`pageHotkey`、`paragraphHotkey`、`ballEnabled`、`denyOrigins`、`allowOrigins` 和阅读样式都只存在 `chrome.storage.local`。密钥留空则继续用 mock。扩展不读取 `config.yaml`。
+个人规则 > 订阅规则 > 全局规则
 
-## 配置密钥
+其中全局规则优先级最低，但非常重要，相当于兜底规则。
 
-密钥不要提交进仓库。
+### 如何在网页上直接编辑规则
 
-- **浏览器扩展**：在选项页填写 API Key，只写入本机 `chrome.storage.local`。留空则继续 mock（`⟦…⟧`）。扩展不读 YAML。
-- **本机 Node / 云端验收**：把模板抄成 `config.local.yaml` 再填写，或设置环境变量 `DEEPSEEK_BASE_URL` 与 `DEEPSEEK_API_KEY`。
+打开网页翻译面板，点击「编辑网站规则」。选择规则用途后点击「选取元素」，在网页上点击锁定元素；通过祖先路径调整层级，比较不同定位候选及匹配数量，点击「确认添加定位」加入草稿，最后点击主面板的「保存规则」保存。也可以通过「手动添加」输入 CSS 选择器。选取链接时不会跳转，右键可取消选取；副面板中的 ← / → 可按页面顺序浏览匹配元素。
 
-```bash
-cp config.yaml config.local.yaml
+- 支持翻译目标、排除区域、根容器、保留原文和段落边界。修改、删除、撤销和重做都只更新当前草稿及预览，点击「保存规则」后才写入本地并触发同步。
+- 打开编辑器不会自动保存规则，也不会改变自动扫描设置。「自动扫描页面」启用时，目标选择器不是翻译白名单；需要严格指定目标时可选择「禁用」。删除一条定位不等于排除区域，其他规则或自动扫描仍可能覆盖它。
+- 「恢复此组继承」重新使用订阅／全局值；「清空此组」将草稿中的该组设为显式空选择器。清空根容器后不扫描页面。
+- 没有匹配的个人规则时，新规则的默认网站匹配与 popup 的「网域」一致，例如 `www.bbc.com`，可从下拉列表选择 `*.bbc.com` 等范围，也可输入自定义匹配规则。已有匹配的个人规则会直接载入编辑，保存时保留未修改的其他配置；已有 `hostname:` 规则仍兼容，订阅内容通过个人规则覆盖。
+- 有未保存的草稿时，退出或重新读取规则会提示选择「保存规则」「不保存」或「继续编辑」。保存失败或检测到外部冲突会保留草稿；重新读取会替换草稿并清空撤销历史。页面路由变化时也会先提醒处理草稿，避免直接丢失修改。撤销历史仅保留在当前编辑会话。
+- 「预计翻译范围」点击一次显示高亮，再次点击关闭，按钮会显示当前开关状态。范围预览使用草稿规则，只查看当前已加载 DOM，不发送翻译请求；内部排除项、保留项和后续语言／长度过滤仍然生效。「查看译文」会执行实际翻译。退出时应用已保存的规则，并恢复进入前的翻译和交互开关；未保存的预览修改不会留在页面上。
+
+当前支持桌面普通 DOM 网页及其动态内容。iframe、Shadow DOM 内部、Canvas 文字和触屏专用操作暂未纳入可视化选取。油猴同源页面通过浏览器 Web Locks 协调写入；不同源页面共享的 GM 存储没有跨源原子事务保证，编辑器会在检测到外部变更时提示重新读取。
+
+### 接口（Ollama等）测试失败
+
+一般接口测试失败常见有以下几种原因：
+
+- 地址填错了：
+  - 比如 `Ollama` 有原生接口地址和 `Openai` 兼容的地址，本插件目前统一支持 `Openai` 兼容的地址，不支持 `Ollama` 原生接口地址
+- 某些AI模型不支持聚合翻译：
+  - 此种情况可以选择禁用聚合翻译或通过自定义接口的方式来使用。
+  - 或通过自定义接口的方式来使用，详情参考： [自定义接口示例文档](https://github.com/fishjar/kiss-translator/blob/master/custom-api_v2.md)
+- 某些AI模型的参数不一致：
+  - 比如 `Gemini` 原生接口参数非常不一致，部分版本的模型不支持某些参数会导致返回错误。
+  - 此种情况可以通过 `Hook` 修改请求 `body` ,或者更换为 `Gemini2` (`Openai` 兼容的地址)
+- 服务器跨域限制访问，返回403错误：
+  - 比如 `Ollama` 启动时须添加环境变量 `OLLAMA_ORIGINS=*`, 参考：https://github.com/fishjar/kiss-translator/issues/174
+
+### 填写的接口在油猴脚本不能使用
+
+油猴脚本需要增加域名白名单，否则不能发出请求。
+
+### 如何设置自定义接口的hook函数
+
+自定义接口功能非常强大、灵活，理论可以接入任何翻译接口。
+
+示例参考： [custom-api_v2.md](https://github.com/fishjar/kiss-translator/blob/master/custom-api_v2.md)
+
+### 如何直接进入油猴脚本设置页面
+
+设置页面地址： https://fishjar.github.io/kiss-translator/options.html
+
+## 未来规划 
+
+ 本项目为业余开发，无严格时间表，欢迎社区共建。以下为初步设想的功能方向：
+
+- [x] **聚合发送文本**：优化请求策略，减少翻译接口调用次数，提升性能。
+- [x] **增强富文本翻译**：支持更复杂的页面结构和富文本内容的准确翻译。
+- [x] **强化自定义/AI 接口**：支持流式传输、上下文记忆、多轮对话等高级 AI 功能。
+- [x] **英文词典备灾机制**：当翻译服务失效时，可切换其他词典或 fallback 到本地词典查询。
+- [x] **优化 YouTube 字幕支持**：改进流式字幕的合并与翻译体验，减少断句。
+
+- [ ] **支持边缘AI计算**：实现本地轻量的 LLM、ASR、OCR、TTS 辅助翻译。
+- [ ] **分布式共享平台**：引入分布式共享机制，用于分享字幕、规则等。
+- [ ] **支持文档翻译**：支持翻译 TXT、PDF、图片、漫画等。
+- [ ] **翻译Agent**：自研翻译Aagent，实现智能化翻译功能。
+- [ ] **项目重构**：重新规划整理功能模块，使用现代框架和技术重构整个项目。
+ 
+ 如果你对某个方向感兴趣，欢迎在 [Issues](https://github.com/fishjar/kiss-translator/issues) 中讨论或提交 PR！
+
+## BYOK 与模型列表
+
+六家预置（OpenAI、Claude、DeepSeek、XiaomiMimo、AliyunBailian、ModelScope）默认禁用。先在接口列表启用，再自填 base / Key / Model。说明见 [docs/BYOK.md](docs/BYOK.md)。`pnpm build:chrome` 后加载 `build/chrome`。API Key 只保存在本机。本项目为 GPL-3.0。
+
+## 开发指引
+
+```sh
+git clone https://github.com/fishjar/kiss-translator.git
+cd kiss-translator
+git checkout dev # 提交PR建议推送到dev分支
+pnpm install
+pnpm build
 ```
 
-`config.yaml` 是已提交的空密钥模板（`apiKey: ""`）。`config.local.yaml` 已被 gitignore。空白或只有空格的环境变量不会覆盖 YAML。合并顺序和其余变量名见下文 [Node 与云端配置](#node-与云端配置)。
-
-## translate-core 冒烟测试
-
-```bash
-cd packages/translate-core
-npm run smoke
-```
-
-期望输出里有形如 `⟦原文⟧` 的 JSON 段落，最后一行是 `smoke ok`。
-
-## 同步 vendor 副本
-
-MV3 service worker 不能导入扩展根目录以外的文件。改完 `packages/translate-core/src/` 之后：
-
-```bash
-./scripts/sync-translate-core.sh
-```
-
-然后在浏览器里重新加载扩展。
-
-## MVP 验收
-
-当前扩展版本是 **1.0.1**（`dev-1.0.1`）。清单覆盖最初的 MVP 检查、悬停热键、0.3.0 的站点名单和阅读样式开关、0.4.0 的工具栏弹窗和悬浮球、0.4.1 的整页热键捕获、0.4.2 的段落热键、0.5.0 的选项页五分区、0.6.0 的三步首次引导、0.7.0 的站点名单编辑和本页一键加入，以及 0.8.0 的翻译失败提示（vendor 已与 translate-core 同步）。1.0.0 只对齐版本号。1.0.1 让悬浮球单击与弹层主按钮共用整页翻译状态，悬停文案跟随该状态和本机快捷键。
-
-```bash
-npm run accept
-```
-
-检查内容：vendor 与 `packages/translate-core` 同步（壳 `1.0.1`，包 `1.0.0`）；background 导入该 vendor，并按选项在 mock / OpenAI / Anthropic 之间选择；mock 批量结果为 `⟦…⟧`；包内 smoke；MV3 manifest（壳版本 `1.0.1`，translate-core `1.0.0`）；翻译失败把 `kind` / `code` / `status` 和说明传到页面毛玻璃提示、悬浮球和弹窗，空密钥仍是 mock；站点名单可编辑，弹窗和悬浮球可把本页 origin 加入或移出，两边都有时以永不翻译为准；首次引导正好三步且可跳过，结束前不与悬浮球一次性提示连弹；选项页五个分区和毛玻璃令牌，且没有登录或付费墙文案；段落热键规范值是 `Alt+T`（macOS 显示 **⌥T**，Windows / Linux 显示 **Alt+T**），整页是 `Alt+A`（macOS **⌥A**），捕获阶段命中后取消默认动作，单段走一次 `TRANSLATE_BATCH`；浏览器吃掉段落键时，manifest 命令 `translate-hovered-paragraph` 仍只译悬停段，且须与已保存的快捷键一致；git 文件里没有本机绝对路径或形如密钥的秘密；`config.yaml` 的 `apiKey` 为空；`config.local.yaml` 已被 gitignore；YAML 合并优先级；`extension/` 里既没有本地 YAML，也没有密钥。
-
-`npm run accept` 通过后，按下面的清单在本机点一遍。加载方式见上文 [安装](#安装)（须把图标钉到工具栏）。
-
-### 本机验收清单
-
-除失败提示和最后一项外，API Key 留空。设置页应写明无强制登录、无升级弹窗。
-
-- [ ] **首次引导**：扩展 Service Worker 控制台执行 `chrome.storage.local.remove(["onboardingDone", "ballTipSeen"])`，刷新文章页。左上角出现毛玻璃卡片，依次只有三步：钉到工具栏、点弹层译一页、认识悬浮球。页面仍可滚动；悬浮球可点，弹层也能打开。没有登录、条款勾选、Pro 或粉色主按钮。**跳过路径**：点三次「跳过」，卡片消失；再刷新，卡片不回来，这一页也不会马上冒出球旁提示。**完成路径**：再清一次上述两个键并刷新，点「下一步」「下一步」「完成」，结果与跳过路径相同。**全部跳过**：再清一次两个键并刷新，在第一步点「全部跳过」。本页没有球旁提示；再刷新一次，引导不出现，球旁提示出现一次。点「知道了」后再刷新，两张卡都不再出现。
-- [ ] **钉到工具栏 + 弹窗**：按 [安装](#安装) 加载 `extension/` 并钉到工具栏。文章页点击图标应打开弹窗，而不是直接静默切换。空 API Key 时状态行标明 Mock 模式。主按钮在未翻译时为「翻译 (⌥A)」（macOS）或「翻译 (Alt+A)」（Windows / Linux）；点后段落下出现双语 `⟦原文⟧`，状态变为已翻译，按钮变为「显示原文」；再点一次，译文节点消失。同一快捷键也会切换整页。「打开设置」会打开选项页。弹窗里没有协议、模型、密钥、登录、Pro 或快捷宫格。弹窗另有「本页加入永不翻译」和「本页加入始终翻译」，不编辑整份名单。
-- [ ] **整页快捷键**：文章页焦点不在输入框时，Windows / Linux 按 **Alt+A**、macOS 按 **⌥A**，应在翻译和显示原文之间切换，并和弹窗、悬浮球是同一状态。悬停一段时 **Alt+T** / **⌥T** 仍只译该段。输入框里按这些组合不会触发。若系统仍抢走整页组合，弹窗主按钮和悬浮球仍能切换。
-- [ ] **悬浮球**：默认在右侧偏下，外观与弹窗同一套毛玻璃。拖动后松开，会贴到左缘或右缘，竖直位置保持刚才松开的高度；刷新后还在。单击与弹窗主按钮共用同一状态：未翻译时整页出现 `⟦原文⟧`，再点一次恢复原文；球上没有「翻译」「显示原文」文字按钮。悬停文案在 macOS 为「点击翻译为简体中文 (⌥A)」或「已翻译 · 点击显示原文 (⌥A)」，Windows / Linux 把括号换成 Alt+A。打开弹窗，主按钮与球一致。球旁「打开弹层」能打开工具栏弹层或选项页。已翻译时球角有一枚小标记。第一次出现一张提示，点「知道了」或点这张卡后不再出现。球上方的「站点」打开「本页加入永不翻译」和「本页加入始终翻译」。来源在永不翻译名单里时，页面上没有这颗球，也没有「站点」按钮。
-- [ ] **悬停 + 段落快捷键**：悬停主内容一段（蓝色描边），按 macOS **⌥T** 或 Windows / Linux **Alt+T**，只有该段出现双语行。再按一次不会多出一块译文。未悬停时这个键不切换整页。
-- [ ] **设置页改快捷键**：选项页聚焦「段落快捷键」，按下含修饰键的组合并保存；悬停另一段用新组合只译该段，原来的 Alt+T / ⌥T 不再译段。macOS 上捕获和「恢复默认」都显示 ⌥ / ⌘，不会把「Alt+T」当作默认文案。Windows / Linux 仍显示 Alt+T。点「恢复默认」写回该平台的默认段落键，悬停后该默认键又能只译一段。
-- [ ] **本页站点与永不翻译优先**：在文章页打开弹窗（或点悬浮球上的「站点」），点 **本页加入永不翻译**。状态变为「本站永不翻译」，主按钮不能再译，整页快捷键和段落快捷键都不插入译文，悬浮球从页面上消失。刷新后仍然如此。再打开弹窗，点 **本页移出永不翻译**，球回来，也可以再译。然后点 **本页加入始终翻译**，刷新或留在本页应自动出现译文。再点 **本页加入永不翻译**（始终翻译那一条还在）：本页仍不翻译，弹窗会说明以永不翻译为准；选项页里始终翻译那一行标着「已被永不翻译覆盖」。在选项页把一条域名改成另一个域名再刷新，名单里是新值。移出后两条名单都不再命中该页。
-- [ ] **选项页五分区**：打开设置。左侧依次是基本、快捷键、悬浮球、站点名单、引擎与密钥，右侧是对应内容，外观为毛玻璃而不是整页纯白，主按钮为蓝色。基本里改字号或双语对照 / 仅译文，已译页面马上变样。快捷键区的整页与段落键按本机显示 ⌥/⌘ 或 Alt/Ctrl。关掉悬浮球后页面上没有球，再打开后球回来，高度仍是上次记住的。站点名单仍可加入永不翻译。引擎区密钥留空时标明 mock `⟦…⟧`。没有登录或付费墙。刷新选项页后，刚才保存的项还在。
-- [ ] **样式即时生效**：已译页面上改译文字号、对比度，或双语对照 / 仅译文，当前页马上变样，不用刷新。
-- [ ] **翻译失败可见**：选项页「引擎与密钥」填一个非空假 API Key（例如 `not-a-real-key`），把 Base URL 改成到不了的地址 `https://127.0.0.1:9`，保存。文章页用弹窗「翻译」、悬浮球或整页快捷键发起翻译。请求失败后（管道会先短暂重试）页面右上角出现毛玻璃提示，不挡住滚动和点击。文字里有失败说明，并带 `kind`（连不上主机时为 `network`）。弹窗提示行和悬浮球旁是同一句。然后清空 API Key 并保存，再译一页：段落下出现 `⟦原文⟧`，不再出现失败提示。
-- [ ] **可选真实 DeepSeek Key**：协议保持 OpenAI 兼容，填入自备 DeepSeek Key（默认 base / model 即可）翻译一页。密钥只在本机 `chrome.storage.local`。没有登录或升级墙。
-
-## Node 与云端配置
-
-扩展只从 `chrome.storage.local`（选项页）读取协议、Base URL、模型和 API Key，不读 YAML。不要把 `config.yaml` 或 `config.local.yaml` 复制进 `extension/` 或 `extension/vendor/`。
-
-Node 脚本和云端验收：复制模板，在本地填写密钥。
-
-```bash
-cp config.yaml config.local.yaml
-```
-
-`config.yaml` 是已提交模板（`apiKey: ""`）。`config.local.yaml` 已被 gitignore。加载器：`packages/translate-core/config/load.js`（`loadMergedEngineConfig`、`createEngineFromMergedConfig`）。`apiKey` 为空时选用 `mockTranslate`。`provider: anthropic` 选用 Anthropic 兼容引擎；其他 provider 用 OpenAI 兼容引擎（含 DeepSeek）。
-
-合并顺序（后者胜出）：默认值 ← `config.yaml` ← `config.local.yaml` ← 环境变量。YAML 只支持很小的子集：每行一个 `key: value`，可选引号，`#` 注释必须单独成行。不支持嵌套。
-
-| 变量 | 覆盖字段 |
-| --- | --- |
-| `IMMER_TRANSLATE_PROVIDER` | `provider` |
-| `IMMER_TRANSLATE_BASE_URL` | `baseUrl` |
-| `IMMER_TRANSLATE_MODEL` | `model` |
-| `IMMER_TRANSLATE_API_KEY` | `apiKey` |
-| `IMMER_TRANSLATE_SOURCE_LANG` | `sourceLang` |
-| `IMMER_TRANSLATE_TARGET_LANG` | `targetLang` |
-| `DEEPSEEK_BASE_URL` | `baseUrl`（在通用变量之后） |
-| `DEEPSEEK_API_KEY` | `apiKey`（在通用变量之后） |
-
-空白或只有空格的变量不会覆盖 YAML。因此非空的 `DEEPSEEK_API_KEY` 会压过 YAML 和 `IMMER_TRANSLATE_API_KEY`。
+### 外部触发示例
 
 ```js
-import { loadMergedEngineConfig, createEngineFromMergedConfig } from "./packages/translate-core/config/load.js";
-
-const cfg = loadMergedEngineConfig({ cwd: process.cwd(), env: process.env });
-const engine = createEngineFromMergedConfig(cfg);
+// `toggle_translate`   切换翻译
+// `toggle_styles`      切换样式
+// `toggle_popup`       打开/关闭控制面板
+// `toggle_transbox`    打开/关闭翻译弹窗
+// `toggle_hover_node`  翻译鼠标悬停段落
+// `input_translate`    翻译输入框
+window.dispatchEvent(new CustomEvent("kiss_translator", {detail: { action: "toggle_translate" }}));
 ```
 
-把 `cfg.sourceLang` / `cfg.targetLang` 放进翻译请求。引擎工厂只接收 `apiKey`、`baseUrl` 和 `model`。
+## 交流
 
-## 分支与 Release
+- 加入 [Telegram 群](https://t.me/+RRCu_4oNwrM2NmFl)
 
-日常远程分支是 `main` 和当前的 `dev-*`。
+## 赞赏
 
-- 开发在 `dev-*`（当前 `dev-1.0.1`，扩展版本 `1.0.1`）
-- 阶段完成后合入 `main`
-- 发布时打 tag，并创建 GitHub Release。已有 `v0.1.0` 至 `v0.3.0`。早先的 `v1.0.0` tag 已撤回。没有长期 `release-*` 分支
-
-未完成的工作留在当前 `dev-*`，该阶段合入 `main` 后再作为稳定线。
-
-## 安全要点
-
-- 仓库里不放 API Key
-- 见 [SECURITY.md](SECURITY.md)
-
-## 许可证
-
-[MIT](LICENSE)
+![appreciate](https://github.com/fishjar/kiss-translator/assets/1157624/ebaecabe-2934-4172-8085-af236f5ee399)

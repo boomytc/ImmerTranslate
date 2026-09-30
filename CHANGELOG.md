@@ -1,98 +1,208 @@
-# Changelog
+## v1.0.1
 
-## 1.0.1
+- 扩展外壳对齐 LightUI 节奏：设置页分组字段改为底边框，弹窗与悬浮按钮使用液态玻璃。
 
-- The floating ball's primary click uses the same dual-state page machine as the popup CTA. Untranslated runs `TRANSLATE_PAGE`; translated runs `RESTORE_PAGE`. Both use the content script's `active` flag, which `GET_PAGE_STATE` and the ball indicator already use. An open popup listens for `PAGE_STATE` and re-reads that flag, so the CTA stays aligned with the ball. The ball does not show text buttons 「翻译」 or 「显示原文」.
-- The ball hover title follows that state and the saved page chord, with the same formatter as the popup and the options page. Untranslated macOS reads 「点击翻译为简体中文 (⌥A)」; Windows and Linux use Alt+A. Translated reads 「已翻译 · 点击显示原文」 plus that chord. A small 「打开弹层」 control opens the toolbar popup when the browser allows it, otherwise the options page the popup already opens. It does not embed the popup card.
-- `extension/manifest.json` version is `1.0.1`. Root status lines name `dev-1.0.1`. `packages/translate-core` stays `1.0.0`; `TranslateRequest` / `TranslateResponse` and engines are unchanged. No login, Pro, or banner.
+## v1.0.0
 
-## 1.0.0
+- 本仓库首个产品版本，基于 fishjar kiss-translator 2.1.0 线，以 1.0.0 发布。
+- 自定义接口支持多协议 BYOK，并可拉取模型列表；OpenAI 与 Claude 默认禁用。
+- 设置页、弹窗和悬浮按钮采用系统毛玻璃。页面双语译文对齐原文排版，页面译文本身不使用毛玻璃。
+- 关闭思考时，翻译请求写入对应协议的显式字段。
+- Popup 应用名和设置页 Playground 跟随当前界面语言。
+- 新增悬浮按钮外观设置与实时预览；离开页面时重置按钮状态，避免挂载时从原点飞入。
+- 新增 Requesty 翻译接口。
+- 加强专业术语 Playground；AI 术语变化时刷新词典缓存，并隔离不同调用方的批量翻译取消。
+- 优化翻译界面与默认翻译服务，并简化独立翻译窗口。
 
-- Version alignment only. `extension/manifest.json` version is `1.0.0`. `packages/translate-core` package version is `1.0.0`. `TranslateRequest` / `TranslateResponse` and translate-core behavior are unchanged. No new engine, login, Pro, or banner. Knives already shipped in 0.4.2–0.8.0 stay as they are.
-- Root status lines name `dev-1.0.0`.
-- No functional change.
+## v2.1.0
 
-## 0.8.0
+- 新增术语库本地替换引擎和专业术语 Playground，支持在翻译流程中验证术语替换效果。
+- 新增按住鼠标翻译模式，可在链接、按钮及网页规则限定区域内触发翻译，并可配置触发后的点击行为。
+- 新增可视化网站规则编辑器，并统一设置页、弹窗及规则界面的 Material 3 风格与交互。
+- 新增 APIMart 翻译接口及 GPT-6 Astra 思考参数支持，改进提示词协议兼容和小模型使用说明。
+- 新增字幕翻译服务选择和跨视频字幕位置记忆，改进 YouTube 字幕分段与时间轴处理。
+- 新增触摸段落翻译、俄语界面及可选的 LaTeX 转 Unicode 显示，并支持自动检查新版本。
+- 修复设置启动与同步竞态、翻译面板导航和滚动行为、悬浮按钮定位等问题，并改进同步警告与多语言标签。
 
-- Shell version in `extension/manifest.json` is `0.8.0`. `extension/vendor/translate-core` is the copy of `packages/translate-core` `0.8.0` produced by `scripts/sync-translate-core.sh`. `TranslateRequest` / `TranslateResponse` are unchanged. An empty API key still uses the mock `⟦…⟧` engine. There is no new protocol family and no login or Pro.
-- When translate rejects, the service worker answers `TRANSLATE_BATCH` with `ok: false`, `error` (the message), `kind`, `code`, and `status`. The content script keeps those fields on the reply to the popup. A frosted-glass toast (`#immer-fail-host`, shared `extension/glass.css` tokens, no pointer events, auto-dismiss) shows the message and the kind on the page. The floating ball shows the same sentence, and the popup hint line does too. The page stays scrollable and clickable. Clearing the API key returns to mock `⟦…⟧`.
-- Root status lines name `dev-0.8.0`.
+## v2.0.32
 
-## 0.7.0
+- 新增 Google Cloud、Qwen MT、Yandex Cloud 等翻译接口，并补充免费翻译接口选择。
+- 支持语言地区变体翻译，统一翻译文本格式处理，并将默认翻译接口切换为微软翻译。
+- 悬浮翻译气泡可独立选择翻译接口，不影响划词翻译和网页翻译；同时改进翻译流程兼容性与批量删除性能。
+- AI 词典新增多语言英文提示词预设，收藏词高亮支持悬浮查看词典释义。
+- 新增复制到剪贴板后自动翻译的可选设置，并更新扩展快捷键分配与中文标签。
+- 更新主页的视频、生态链接及多语言内容，并修复 CVE-2026-54466 安全漏洞。
 
-- The options **站点名单** section can add, edit, and remove rows on both **永不翻译** (`denyOrigins`) and **始终翻译** (`allowOrigins`). Edit replaces one stored entry in place. Adds, edits, and removals write `chrome.storage.local` immediately and still apply on refresh. The five-section frosted-glass options layout is unchanged. There is no site-adapter catalog and no copied default rule dump.
-- The toolbar popup adds two labeled controls for the current page origin: **本页加入永不翻译** and **本页加入始终翻译**. When that origin is already on the list, the same control reads **本页移出永不翻译** or **本页移出始终翻译**. The line above them shows the origin that will be stored. The popup still does not edit the full lists, and it still has no login, Pro, promo, or shortcut grid. The floating ball keeps its tap-to-translate behavior and adds a **站点** control. That opens the same two labels for this page. On a deny-listed origin the ball, including that control, stays hidden; removal stays available from the popup and the options page.
-- Deny still wins when a page matches both lists (`ImmerSites.sitePolicy`: `blocked` when denied, `auto` only when allowed and not denied). A bare host on the deny list covers an origin on the allow list, and the reverse. Removing the current page drops every stored row that matches it, so a bare host and an exact origin are both cleared. An empty deny list still leaves every site eligible. Empty API key stays on the mock `⟦…⟧` engine.
-- `extension/manifest.json` version is `0.7.0`. Root status lines name `dev-0.7.0`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+## v2.0.31
 
-## 0.6.0
+- Gemini 接口恢复 Generate Content 兼容支持，并可适配 Generate Content 与 Interactions 双协议、模型列表地址及不同模型的思考参数。
+- 修复 Gemini 2 模型列表配置并移除不兼容的温度参数；DeepL 支持简体与繁体中文语言代码。
+- OpenRouter 新增推理控制，并提高默认批量翻译并发数。
+- 微软翻译改用 Edge 公开端点，不再依赖旧的认证流程。
+- 新增越南语界面支持。
+- 流式翻译可在完整 JSON 返回前持续输出已解析片段，改善响应反馈。
+- 保留翻译文本内部空白，并排除收藏词高亮内容，避免翻译请求被额外标记污染。
+- 悬浮翻译按钮可记住贴边状态，并在窗口尺寸变化后恢复吸附位置。
 
-- First install shows one lightweight card, at most three skippable steps, in order: 钉到工具栏, 点弹层译一页, 认识悬浮球. Each step has 下一步 / 跳过; the last step uses 完成. 全部跳过 dismisses the rest. Finishing or skipping through the end writes `chrome.storage.local` `onboardingDone`, and the card does not return until that key is removed or the extension storage is cleared (reinstall). The card is a frosted-glass overlay (`extension/glass.css`, primary button in the `#1f4e9a` family). It does not cover the page, so scrolling, the popup, and the floating ball keep working. There is no login, terms checkbox, Pro offer, feature catalog, or token gift, and no immersive-translate pink.
-- The card does not fight the existing one-time ball tip. While the guide is pending or visible, the tip stays hidden. Dismissing the guide on this document does not open the tip immediately. Reaching 认识悬浮球 and then finishing or skipping that step also sets `ballTipSeen`, so the tip does not repeat the same introduction. 全部跳过 before that step leaves `ballTipSeen` unset; the tip can still appear once on a later page.
-- `extension/manifest.json` version is `0.6.0`. Root status lines name `dev-0.6.0`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+## v2.0.30
 
-## 0.5.0
+- Gemini 接口默认模型更新为 Gemini 3.6 Flash，并支持按模型适配思考模式配置与降级提示。
+- 优化 Firefox 中扩展快捷键设置的引导，避免跳转至不支持的直接管理地址。
+- 升级依赖以修复 CVE-2026-9277 安全漏洞。
 
-- Options page is a left nav and a right content pane, one layout on macOS and Windows. Five sections, in order: 基本 (target language, bilingual or translation-only, font size, contrast), 快捷键 (whole-page and paragraph chords, labeled with the same platform formatters already used by the popup: ⌘/⌥ on macOS, Ctrl/Alt on Windows and Linux), 悬浮球 (enable toggle plus a short note: right edge, snap, remembered vertical position), 站点名单 (the existing allow/deny UI), 引擎与密钥 (OpenAI-compatible and Anthropic-compatible fields only). An empty API key stays on the labeled mock `⟦…⟧` engine. There is no login wall and no paywall.
-- The page uses `extension/glass.css` tokens (frosted fill, blur, radius, hairline, shadow) instead of a solid white sheet. The primary action stays in the `#1f4e9a` family.
-- Style switches still write through immediately and update an open translated page without reload. Site-list edits still save immediately. `pageHotkey` (default Alt+A, shown as ⌥A on macOS) is stored beside `paragraphHotkey` and drives the in-page chord. `ballEnabled` defaults to true; turning it off hides the ball and leaves `ballPosition` in place.
-- `extension/manifest.json` version is `0.5.0`. Root status lines name `dev-0.5.0`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+## v2.0.29
 
-## 0.4.2
+- 新增 OrcaRouter 翻译接口，支持 OpenAI 兼容请求、流式输出、批量翻译与推理强度配置。
+- 微软翻译失效，设腾讯翻译为默认翻译接口。
+- 优化 OpenRouter 应用归因、模型列表去重与 Gemini Interactions API 的响应解析和重试。
+- 新增目标语言忽略规则：选中文本与目标语言相同或为纯数字时可不显示划词翻译按钮；中文默认显示划词翻译按钮。
+- 划词翻译新增双击触发模式；优化可编辑元素识别、按钮定位、全屏视频中的悬浮按钮隐藏及可自动高度翻译窗的视口约束。
+- 新增原文包裹与样式选项，翻译仅显示模式下可在悬停气泡中查看隐藏的原文。
+- 规则新增持久化的纯文本翻译选项；悬浮翻译按钮支持按站点配置例外显示规则。
+- 优化输入框与各翻译接口的换行保留逻辑，并新增批量翻译并发控制。
+- 字幕功能支持按视频保存自动翻译开关、缓存字幕轨道、自动收藏字幕单词，并修复 AI 断句索引偏移导致的时间轴不同步问题。
+- Playground 新增合并单行换行选项，并补充多组字幕分段测试样本。
+- 增加字幕断句的测试功能，方便调试。
+- 选词收藏新增自动收藏选项；词典提示词模式的选择说明更清晰。
+- 同步加密密码支持本地重置，并加强密码轮换的安全校验。
+- 设置页打开优先使用浏览器原生 API，并在不支持时回退到扩展页面；支持正式、GitHub 与开发环境的多站点 Options 页和版本检测地址。
+- Web 构建现在会生成 `version.txt`；内置规则构建仅生成规则 JSON 文件；版本检测主地址失败或返回非成功状态时自动回退到 GitHub。
+- 新增土耳其语界面翻译。
+- 改进 Firefox 内容脚本样式注入、油猴流式响应兼容性、Trusted Types 回退处理、悬停译文重触发和不可滚动页面的滚动锚定。
+- 升级依赖以修复 CVE-2026-25896 安全漏洞。
 
-- Paragraph translate stays Option/Alt+T (macOS **⌥T**, Windows/Linux **Alt+T**). Hover a main-content paragraph and the chord still translates only that segment; a second press does not insert another block. The in-page listener remains capture-phase `keydown` / `keyup` on `window` and `document`. `chrome.commands` now also suggests Alt+T (`translate-hovered-paragraph`) so a browser that eats the key messages the active tab. The command translates that paragraph only when its shortcut still matches the saved `paragraphHotkey`, so an options-page change and 「恢复默认」 stay in effect. If the menu clears the hover before the message arrives, the paragraph the pointer was just on is still the target. The command does not toggle the page. On a deny-listed origin the paragraph chord does not insert a translation. Whole-page Alt+A, the popup, and the floating ball are unchanged.
-- `extension/manifest.json` version is `0.4.2`. Root status lines name `dev-0.4.2`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+## v2.0.28
 
-## 0.4.1
+- PDF 页面支持使用选中文本打开划词翻译弹窗。
+- 鼠标悬停翻译新增气泡显示模式，并优化相关设置项布局。
+- 优化划词翻译弹窗位置约束，避免弹窗超出视口，并防止 Logo 被误拖拽。
+- 统一 XML 与按行响应的译文分段解析逻辑，提升 AI 接口响应处理稳定性。
+- 修复 OpenCodeGo 流式响应解析、Playground 表单和划词翻译弹窗相关问题。
 
-- Whole-page translate stays Option/Alt+A (macOS **⌥A**, Windows/Linux **Alt+A**). It is no longer only a `document` `keydown` listener. `window` and `document` both listen in the capture phase; when the chord matches and focus is outside an editable field, the handler calls `preventDefault` and `stopPropagation` so the browser does not keep the key as a menu or accelerator. If that `keydown` never arrives, the matching `keyup` toggles once. `chrome.commands` suggests Alt+A on every platform (Option+A on macOS) and messages the active tab with `TOGGLE_TRANSLATE`, the same path as the in-page chord. Paragraph Option/Alt+T is unchanged. The popup CTA and the floating ball still share `setTranslated` and work when the chord cannot fire. Default is not Ctrl+A or ⌘T.
-- `extension/manifest.json` version is `0.4.1`. Root status lines name `dev-0.4.1`. `packages/translate-core` stays `0.4.0`; its contract, pipeline, and `src` are unchanged.
+## v2.0.27
 
-## 0.4.0
+- AI 接口支持配置模型列表 URL，可在接口设置中拉取并选择模型。
+- 新增 OpenCode AI 翻译接口支持。
+- 收藏单词页新增 AI 词典标签页，方便查看不同 AI 词典结果。
+- 优化 YouTube 字幕 AI 断句与分块调度，减少不必要的提前处理。
+- 优化字幕界面显示、悬停查找、列表标签和层级表现。
+- 设置页新增扩展快捷键展示，并增加版本提示。
+- 修复已处理节点可能被重复翻译的问题，并优化内置 AI 超时处理。
 
-- Toolbar action opens `default_popup` (`extension/popup.html`) instead of a silent toggle. The skeleton is a status line, a dual-state primary button (**翻译** / **显示原文**), and **打开设置**. The status line names Mock mode when the API key is empty (`⟦原文⟧`) or the current engine plus languages when a key is set. The popup does not show login, Pro, a promo banner, a shortcut grid, or site-list edits. Never-translate stays on the options page; a denied origin still disables the button and reports that state.
-- The popup and the floating ball share one frosted-glass sheet (`extension/glass.css`): blur, radius, translucent fill, hairline, and shadow. There is no per-OS stylesheet. The primary button is a solid emphasis control and does not use the immersive-translate pink.
-- A draggable floating ball starts on the lower right and shares the same translate/restore state as the popup. On release it snaps to the left or right edge and keeps the vertical position (`chrome.storage.local` `ballPosition`: `{ side, top }`). A small corner mark shows while the page is translated. The first time, one non-blocking card beside the ball explains it; dismiss with 知道了 or a click. It is not shown again and does not mention login or payment. On a deny-list origin the ball is hidden.
-- `extension/manifest.json` version is `0.4.0`. Root status lines name `dev-0.4.0`. Paragraph translate stays Option/Alt+T and whole-page translate is Option/Alt+A (not Command+T). macOS shows and stores **⌥T** / **⌥A**; Windows and Linux keep **Alt+T** / **Alt+A**. Deny/allow lists, style switches, and one `createPipelineEngine` wrapper stay. Empty API key still uses the mock `⟦…⟧` engine. `packages/translate-core` is package version `0.4.0`; its contract and `src` are unchanged, and `extension/vendor` is the synced copy of that `src`. Acceptance reads the Chinese README phrases 「加载已解压的扩展程序」 and 「钉到工具栏」.
+## v2.0.26
 
-## 1.0.0（已撤回的过早标号）
+- AI 接口支持非批量请求的流式输出，并修复非批量翻译提示词生成问题。
+- 个人规则新增启用/禁用开关，方便临时关闭单条自定义规则。
+- 划词翻译弹窗新增单击翻译、双击翻译和禁用模式，优化复制弹窗内容时的交互体验。
+- 修复划词翻译弹窗相关问题，提升选区状态、弹窗提交和清理逻辑的稳定性。
+- 优化大段纯文本翻译处理，修复纯文本 `<pre>` 内容翻译卡顿或分段异常的问题。
+- 修复用户脚本设置页启动与 GM 桥接兼容性，支持原生和旧版 GM API。
+- 优化繁体中文文案、同步设置标签和接口测试目标语言逻辑，并移除接口排序权重的可见输入项。
+- 修复渐变样式背景色、设置页 URL 匹配和开发环境选项页地址等问题。
 
-- The premature `1.0.0` label was withdrawn: that cut had no productized popup or floating ball. Latest published tag remains `v0.3.0`. The line then continued through `0.8.0` on `dev-0.8.0` before this alignment.
+## v2.0.25
 
-## 0.3.0
+- 新增字幕显示顺序设置，支持按偏好调整原文与译文的展示位置。
+- 新增划词翻译按钮位置模式，并优化划词翻译相关控制逻辑。
+- AI 词典支持自定义用户提示词，并修复 popup 中 AI 词典显示异常的问题。
+- 优化提示词签名缓存，使用摘要减少缓存键体积并提升稳定性。
+- 优化字幕 AI 断句与提示词输出要求，修复响应解析失败导致字幕丢失的问题。
+- 修复字幕块修复逻辑过早翻译普通未译字幕的问题，避免绕过预翻译与节流设置。
+- 修复自动扫描时空白文本组仍触发翻译的问题，并增强 `keepSelector` 匹配的兼容性。
+- 优化主页元数据、Logo 与 API 图标路径，并更新版本管理流程文档。
 
-- Per-origin site lists in `chrome.storage.local`: `denyOrigins` (never translate; default empty, so every site stays eligible) and optional `allowOrigins` (always translate on load). The icon toggle and Alt+T do not insert bilingual nodes on a denied origin. Deny wins if an origin is on both lists.
-- Reading style switches apply to an open page without reload: translation font size (`sm` / `md` / `lg`), contrast (`normal` / `high`), and `displayMode` (`bilingual` under the original, or `translation-only`).
-- Options page can add the current tab's origin and edit both lists. Empty API key still uses the mock `⟦…⟧` engine. translate-core is unchanged.
+## v2.0.24
 
-## 0.2.1
+- 新增 AI 词典功能，支持使用检测到的语言进行语音播报。
+- 新增提示词（Prompt）管理功能，方便自定义和管理提示词。
+- 新增同步加密密码支持，进一步提升多端数据同步的安全性。
+- 优化 YouTube 字幕处理：支持翻译失败字幕块的立即修复，并增加导出原始字幕事件为 JSON 的功能。
+- 优化并加固油猴脚本 (GM) 支持：修复 Via 浏览器中的流式 UTF-8 解码回退，完善桥接逻辑及请求回退处理，补充缺失的 connect 域名。
+- 修复并优化 GitHub Gist 同步功能，解决同步重复等问题。
+- 提升安全性与兼容性：使用 Trusted Types 保护 HTML 解析过程，并在界面中隐藏 API 密钥显示。
+- 增强扩展与页面性能：在 manifest 中添加 `match_origin_as_fallback` 以提升匹配能力；延迟选项页面的启动同步并跳过重载重新同步。
+- 接口与体验优化：调整模型 Temperature 步长为 0.1；优化主页 SEO 与元数据；重构项目入口组件并优化构建流程。
 
-- Version and docs alignment only: `extension/manifest.json` version is `0.2.1`
-- Root README notes the current dev version `0.2.1`, and that first-time users should pin the extension icon to the Chrome toolbar (otherwise open it from the Extensions menu)
-- No functional change
+## v2.0.23
 
-## 0.2.0
+- 全局规则和站点规则新增文本顺序选项，支持译文在上方显示，并让隐藏原文快捷键遵循该顺序。
+- 优化字幕翻译的流式渲染、AI 断句、翻译设置和错误处理，并补充字幕翻译相关测试。
+- OpenAI 兼容接口支持推理模式配置。
+- 优化 YouTube 字幕提供器结构，拆分字幕轨道、字幕处理、AI 断句和播放器 UI 模块，提升后续维护性。
+- 优化 TranslatorManager 在 SPA 页面中的生命周期处理，并修复已处理节点重新扫描的问题。
+- 移除 iframe 白名单设置，空 iframe 不再触发无效翻译流程。
+- 修复划词翻译手动选择接口后被自动切换的问题。
+- 修复 popup 中无害标签页消息错误、油猴脚本环境变量读取、Origin 头伪装范围和右键菜单文案等问题。
 
-- Hover a main-content paragraph to mark it; default hotkey **Alt+T** translates that single segment through `TRANSLATE_BATCH`
-- Options page can change the hotkey (`chrome.storage.local` key `paragraphHotkey`); empty API key still uses the mock `⟦…⟧` engine
-- Full-page action-icon toggle is unchanged, and the single-segment line uses the same bilingual DOM style
-- Service worker wraps the selected engine once with `createPipelineEngine`; cache, retry, and rate limit stay in translate-core
+## v2.0.22
 
-## translate-core 0.2.0
+- 接口设置页优化：新增批量操作、拖拽排序、置顶、按字母排序、禁用沉底、删除默认接口等能力。
+- 接口配置调整：AI 接口支持推理开关，触发模式移动到各接口设置中，并新增一些常用接口。
+- 增加 GitHub Gist 同步功能，并优化 WebDAV 同步时的 cookie 处理。
+- 字幕翻译增强：增加视频上下文摘要、流式渲染、内置统计断句选项、仅译文模式悬停显示原文、可配置加载提示显示。
+- 优化字幕列表性能与交互：虚拟列表、滚动位置保持、字幕项动画性能、YouTube 字幕按钮状态同步和字幕下载触屏兼容。
+- 优化字幕解析与分段：修复 YouTube timedtext 规范化、字幕轨道切换检测、Gemini 截断处理、单词字幕回退、HTML 实体反转义等问题。
+- 划词翻译弹窗支持色彩模式切换、拖拽调整宽度、快捷键，并优化划词按钮跟随选中文本的逻辑。
+- 规则设置新增 iframe 白名单、块级选择器规则、订阅规则单独开关和快速加入黑名单按钮。
+- 增加模糊译文功能、代码型输入框等宽字体、自动设置界面语言、YouTube 隐藏 Logo 等体验优化。
+- 修复新版汉典布局下的单字查询解析、about:blank 页面扩展可用性、忽略 script 元素、部分接口图标暗色模式显示等问题。
 
-- Paragraph cache, retry with backoff, and rate limit via `withCache` / `withRetry` / `withRateLimit` / `createPipelineEngine`
-- `TranslateRequest` / `TranslateResponse` unchanged
+## v2.0.21
 
-## 0.1.1
+- 禁用某个翻译服务后，将不再出现在下拉列表中
+- BUILTINAI 翻译服务将区分简体中文和繁体中文
+- 选中单个英文单词，可以设置是否调用翻译服务进行翻译
+- 翻译失败时，显示一个重试按钮
+- AI接口也可以设置专业术语，如果规则中也设置了AI专业术语，会自动合并。
+- 输入框翻译、鼠标悬停翻译、划词翻译 均增加黑名单功能，匹配则会自动禁用。
+- 字幕翻译增加AI专业术语支持。
+- 译文增加 lang 属性。
+- 优化 trustedTypes，提高安全性。
+- 修复换行符处理逻辑引发的系列问题。
+- 支持单个汉字查询（调用汉典）。
+- 其他一些小修改和优化。
 
-- Version and docs alignment only: `extension/manifest.json` version is `0.1.1`
-- Root README notes the current dev version `0.1.1`
-- No functional change
+## v2.0.20
 
-## 0.1.0
+- 优化本地语言识别不准确时的处理逻辑
+- 修复 MacOS 编译 Safari 插件脚本错误
+- 优化调整划词翻译逻辑
+  - 修复移动端不显示header的bug
+  - 仅对翻译框的大小和位置持久化，其他设置不持久化，仅在当前页面生效
+  - 修复翻译框有时会突然变成0,0位置，和0,0大小的bug
+- 修复移动端输入框翻译圆点按钮无效的bug
+- youtube视频右边的字幕滚动列表可以在设置中选择关闭
+- 接口设置中增加`复制接口`功能
+- 修复接口权重排序在popup无效的bug
+- 规则设置增加`扫描全部节点`的功能，并替换popup中`shadowroot`的位置
+  - `扫描全部节点`相当于忽略所有`忽略元素`，翻译全部内容，并同时扫描`shadowroot`
+- 更新内置部分规则，新安装时会尝试同步订阅规则
+- 其他一下小优化
 
-- Initial MVP shell: MV3 extension + translate-core mock engine
-- Bilingual paragraph overlay with toggle via extension action
-- Options page stores protocol, base URL, model, API key, and languages in `chrome.storage.local` only
-- Empty API key keeps the mock engine; a key selects the OpenAI-compatible or Anthropic-compatible engine (default DeepSeek `deepseek-flash`)
-- Node/cloud: gitignored `config.local.yaml` merged over `config.yaml`, then environment variables; extension stays on `chrome.storage`
+## v2.0.19
+
+- 修复油猴脚本切换翻译时的脚本错误
+- 添加自动更新版本号脚本
+
+## v2.0.18
+
+- 支持翻译closed模式的 shadowroot 中的内容
+- 保存规则时，可选子域名
+- AI聚合翻译，支持流式传输，优化翻译体验
+- 优化划词翻译窗口显示效果
+  - 划词翻译按钮增加自动隐藏逻辑（5秒 / 移动100px / 右键）
+- 增加翻译状态的图标显示，已翻译会有一个绿色小勾
+- 优化输入框翻译，解决一些兼容性问题
+  - 可设置在输入框上方显示一个圆形翻译按钮，使得移动端也可以使用输入框翻译功能
+- 优化字幕翻译，增加一些新功能
+  - 字幕翻译设置样式时，支持可视化编辑
+  - 优化字幕翻译逻辑，优先使用用户选择的字幕轨
+  - 字幕翻译右侧的字幕滚动列表可以手动点击按钮关闭
+  - 字幕翻译的菜单去掉shadowroot
+  - 增加下拉选项，可以随时切换AI断句的模型
+  - 重构字幕增强功能设置，新增“移动端禁用”选项（默认）
+- 优化移动端检测逻辑，修复触屏笔记本被误判为移动端的问题
+- 在所有场景下均给AI接口添加上下文信息，包括网页标题、描述、摘要
+- 翻译接口增加排序权重
+- 新增占位标签格式，优化google2的翻译效果
+- bing词典增加显示单词时态信息
