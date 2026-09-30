@@ -2,7 +2,6 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import Header from "./Header";
-import { REVIEW_URL, SUPPORT_URL } from "./supportLinks";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -12,7 +11,7 @@ jest.mock("../../hooks/I18n", () => ({
 
 jest.mock("../../components/Logo", () => () => null);
 
-describe("Popup Header support menu", () => {
+describe("Popup Header actions", () => {
   let container;
   let root;
   let originalWindowOpen;
@@ -31,72 +30,26 @@ describe("Popup Header support menu", () => {
     window.open = originalWindowOpen;
   });
 
-  test("places Sponsor before the window and settings actions", () => {
+  test("places window and settings actions without sponsor or review links", () => {
     act(() => {
       root.render(
         <Header openSeparateWindow={jest.fn()} openSettings={jest.fn()} />
       );
     });
 
-    const sponsor = container.querySelector('[aria-label="popup_support"]');
     const separate = container.querySelector(
       '[aria-label="open_separate_window"]'
     );
     const settings = container.querySelector('[aria-label="setting"]');
 
-    expect(sponsor.compareDocumentPosition(separate)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
+    expect(container.querySelector('[aria-label="popup_support"]')).toBeNull();
+    expect(container.textContent).not.toContain("appreciate_support");
+    expect(container.textContent).not.toContain("comment_support");
     expect(separate.compareDocumentPosition(settings)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
-  });
-
-  test("keeps review and sponsorship actions in an anchored menu", () => {
-    act(() => {
-      root.render(
-        <Header openSeparateWindow={jest.fn()} openSettings={jest.fn()} />
-      );
-    });
-
-    const sponsor = container.querySelector('[aria-label="popup_support"]');
-    act(() => sponsor.click());
-
-    const menuItems = document.body.querySelectorAll('[role="menuitem"]');
-    expect(menuItems).toHaveLength(2);
-    expect(menuItems[0].textContent).toContain("comment_support");
-    expect(menuItems[1].textContent).toContain("appreciate_support");
-
-    act(() => menuItems[1].click());
-    expect(window.open).toHaveBeenCalledWith(
-      SUPPORT_URL,
-      "_blank",
-      "noopener,noreferrer"
-    );
-  });
-
-  test("opens the upstream store review page", () => {
-    act(() => {
-      root.render(
-        <Header openSeparateWindow={jest.fn()} openSettings={jest.fn()} />
-      );
-    });
-
     expect(container.querySelector(".kt-popup-header__title").textContent).toBe(
       "app_name"
-    );
-    expect(
-      container
-        .querySelector(".kt-popup-brand-button")
-        .getAttribute("aria-label")
-    ).toBe("app_name");
-    act(() => container.querySelector('[aria-label="popup_support"]').click());
-    act(() => document.body.querySelector('[role="menuitem"]').click());
-
-    expect(window.open).toHaveBeenCalledWith(
-      REVIEW_URL,
-      "_blank",
-      "noopener,noreferrer"
     );
   });
 

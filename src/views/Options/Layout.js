@@ -4,7 +4,6 @@ import Header from "./Header";
 import Navigator from "./Navigator";
 import { useI18n } from "../../hooks/I18n";
 import { useMediaQueryMatch } from "../../hooks/MediaQuery";
-import { useSetting } from "../../hooks/Setting";
 import { OPTIONS_STYLES } from "./styles";
 import { normalizeOptionsPath } from "./paths";
 
@@ -13,115 +12,15 @@ const WIDE_PAGE_PATHS = new Set(["/apis", "/playground", "/prompts"]);
 export const isWideOptionsPage = (pathname) =>
   WIDE_PAGE_PATHS.has(normalizeOptionsPath(pathname));
 
-export const VERSION_REGEX = /^(\d+)\.(\d+)\.(\d+)$/;
-
-/**
- * 校验版本号字符串是否为合法的纯数字三段式 (X.Y.Z) 格式
- */
-export function isValidVersion(version) {
-  if (typeof version !== "string") return false;
-  return VERSION_REGEX.test(version.trim());
-}
-
-/**
- * 解析版本号为数字数组 [major, minor, patch]
- */
-export function parseVersion(version) {
-  if (!isValidVersion(version)) return null;
-  const match = version.trim().match(VERSION_REGEX);
-  if (!match) return null;
-  return [
-    parseInt(match[1], 10),
-    parseInt(match[2], 10),
-    parseInt(match[3], 10),
-  ];
-}
-
-/**
- * 比较远端版本与当前版本，仅当远端版本严格大于当前版本时返回 true
- */
-export function isNewerVersion(remoteVersion, currentVersion) {
-  const remote = parseVersion(remoteVersion);
-  const current = parseVersion(currentVersion);
-  if (!remote || !current) return false;
-
-  for (let i = 0; i < 3; i++) {
-    if (remote[i] !== current[i]) {
-      return remote[i] > current[i];
-    }
-  }
-  return false;
-}
-
-export async function fetchLatestVersion({ signal, now = Date.now } = {}) {
-  const versionUrls = [
-    process.env.REACT_APP_VERSION_URL,
-    process.env.REACT_APP_VERSION_URL_GITHUB,
-  ].filter(Boolean);
-  let lastError;
-
-  for (const versionUrl of versionUrls) {
-    try {
-      const response = await fetch(`${versionUrl}?t=${now()}`, { signal });
-      if (!response.ok) {
-        throw new Error(`Version request failed: ${response.status}`);
-      }
-      const text = (await response.text()).trim();
-      // 防御网络拦截返回 HTML 登录页或拦截文案
-      if (!isValidVersion(text)) {
-        throw new Error(`Invalid version format from ${versionUrl}`);
-      }
-      return text;
-    } catch (error) {
-      if (error?.name === "AbortError") throw error;
-      lastError = error;
-    }
-  }
-
-  throw lastError || new Error("No version URL configured");
-}
-
 export default function Layout() {
   const location = useLocation();
   const pathname = normalizeOptionsPath(location.pathname);
   const i18n = useI18n();
-  const { setting } = useSetting();
-  const checkUpdate = setting?.checkUpdate ?? true;
   const [navigationOpen, setNavigationOpen] = useState(false);
   const navigationTriggerRef = useRef(null);
   const backgroundRef = useRef(null);
-  const [latestVersion, setLatestVersion] = useState("");
   const isMobile = useMediaQueryMatch("(max-width: 1179px)");
   const isWidePage = isWideOptionsPage(pathname);
-
-  useEffect(() => {
-    if (process.env.NODE_ENV === "test") return undefined;
-    if (!checkUpdate) {
-      setLatestVersion("");
-      return undefined;
-    }
-    let active = true;
-    const controller = new AbortController();
-    fetchLatestVersion({ signal: controller.signal })
-      .then((version) => {
-        if (
-          active &&
-          version &&
-          isNewerVersion(version, process.env.REACT_APP_VERSION)
-        ) {
-          setLatestVersion(version);
-        }
-      })
-      .catch((error) => {
-        if (error.name !== "AbortError") {
-          console.error("fetch version error:", error);
-        }
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [checkUpdate]);
 
   useEffect(() => {
     setNavigationOpen(false);
@@ -283,22 +182,6 @@ export default function Layout() {
                 <h1>{page[0]}</h1>
                 {page[1] && <p>{page[1]}</p>}
               </header>
-              {latestVersion && (
-                <div className="kt-options-version-alert" role="status">
-                  <span>
-                    {i18n("version_warning")
-                      .replace("{0}", process.env.REACT_APP_VERSION)
-                      .replace("{1}", latestVersion)}
-                  </span>
-                  <a
-                    href={process.env.REACT_APP_RELEASES_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {i18n("download_update")}
-                  </a>
-                </div>
-              )}
               <div className="kt-options-page">
                 <Outlet />
               </div>

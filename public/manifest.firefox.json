@@ -5,7 +5,7 @@
   "version": "1.0.2",
   "default_locale": "en",
   "author": "Gabe<yugang2002@gmail.com>",
-  "homepage_url": "https://github.com/fishjar/kiss-translator",
+  "homepage_url": "https://github.com/boomytc/ImmerTranslate",
   "background": {
     "scripts": [
       "background.js"
