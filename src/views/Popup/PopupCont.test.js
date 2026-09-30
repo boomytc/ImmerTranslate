@@ -28,6 +28,7 @@ import {
   MSG_TRANS_GETRULE,
   MSG_TRANS_PUTRULE,
   EVENT_KISS_INNER,
+  MSG_OPEN_OPTIONS,
   MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
   MSG_TOUCH_TRANSLATE_MODE_SET,
@@ -1905,6 +1906,110 @@ describe("PopupCont capability parity", () => {
         ...view.container.querySelectorAll(".kt-popup-language-select input"),
       ].map((node) => node.value)
     ).toEqual(["fr", "en"]);
+    view.cleanup();
+  });
+});
+
+describe("missing API key empty state", () => {
+  test("shows the empty state for the current keyed service and opens API settings", async () => {
+    mockIsExt = true;
+    const view = renderPopupCont({
+      rule: { apiSlug: "DeepSeek", transOpen: "true" },
+      setting: {
+        transApis: [
+          {
+            apiSlug: "Microsoft",
+            apiType: "Microsoft",
+            apiName: "Microsoft",
+            key: "",
+          },
+          {
+            apiSlug: "DeepSeek",
+            apiType: "DeepSeek",
+            apiName: "DeepSeek",
+            key: "  ",
+          },
+        ],
+        tranboxSetting: { transOpen: true },
+        mouseHoverSetting: { useMouseHover: false },
+        inputRule: { transOpen: true },
+        shortcuts: { toggleTranslate: ["AltLeft", "KeyQ"] },
+      },
+    });
+    await flushEffects();
+
+    const hero = view.container.querySelector(".kt-popup-hero");
+    expect(hero.className).toContain("kt-popup-hero--off");
+    expect(hero.className).not.toContain("kt-popup-hero--busy");
+    expect(
+      view.container.querySelector(".kt-popup-hero__subtitle").textContent
+    ).toBe("missing_api_key_status");
+    const empty = view.container.querySelector(".kt-popup-key-empty");
+    expect(empty.textContent).toContain("missing_api_key_empty");
+    expect(empty.textContent).toContain("missing_api_key_action");
+    expect(view.container.textContent).not.toContain("popup_enabled");
+
+    act(() => empty.querySelector("button").click());
+    expect(mockSendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS, {
+      hash: "/apis",
+    });
+    view.cleanup();
+    mockIsExt = false;
+  });
+
+  test("keeps keyless engines out of the empty state", async () => {
+    const view = renderPopupCont({
+      rule: { apiSlug: "Microsoft", transOpen: "true" },
+      setting: {
+        transApis: [
+          {
+            apiSlug: "Microsoft",
+            apiType: "Microsoft",
+            apiName: "Microsoft",
+            key: "",
+          },
+          {
+            apiSlug: "Google",
+            apiType: "Google",
+            apiName: "Google",
+            key: "",
+          },
+        ],
+        shortcuts: { toggleTranslate: ["AltLeft", "KeyQ"] },
+      },
+    });
+    await flushEffects();
+
+    expect(view.container.querySelector(".kt-popup-key-empty")).toBeNull();
+    expect(
+      view.container.querySelector(".kt-popup-hero__subtitle").textContent
+    ).toContain("popup_enabled");
+    view.cleanup();
+  });
+
+  test("drops the empty state once the current service has a key", async () => {
+    const view = renderPopupCont({
+      rule: { apiSlug: "DeepSeek", transOpen: "true" },
+      setting: {
+        transApis: [
+          {
+            apiSlug: "DeepSeek",
+            apiType: "DeepSeek",
+            apiName: "DeepSeek",
+            key: "sk-deepseek",
+          },
+        ],
+        shortcuts: { toggleTranslate: ["AltLeft", "KeyQ"] },
+      },
+    });
+    await flushEffects();
+
+    expect(view.container.querySelector(".kt-popup-key-empty")).toBeNull();
+    expect(view.container.textContent).not.toContain("sk-deepseek");
+    expect(view.container.textContent).not.toContain("missing_api_key_empty");
+    expect(
+      view.container.querySelector(".kt-popup-hero__subtitle").textContent
+    ).toContain("popup_enabled");
     view.cleanup();
   });
 });

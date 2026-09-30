@@ -668,6 +668,112 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(services()[1].getAttribute("aria-pressed")).toBe("false");
   });
 
+  test("shows an empty service state when no provider has a key", async () => {
+    mockFabSetting = {
+      transApis: [
+        {
+          apiSlug: "Microsoft",
+          apiType: "Microsoft",
+          apiName: "Microsoft",
+          key: "",
+          isDisabled: false,
+        },
+        {
+          apiSlug: "OpenAI",
+          apiType: "OpenAI",
+          apiName: "OpenAI",
+          key: "  ",
+          isDisabled: false,
+        },
+      ],
+    };
+    const getFabPageState = jest.fn(async () => ({
+      rule: { apiSlug: "Microsoft", transOnly: "false" },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("#kt-fab-service-label").textContent).toBe(
+      "translate_service"
+    );
+    expect(
+      container.querySelector(".kt-content-fab-menu__services")
+    ).toBeNull();
+    const empty = container.querySelector(".kt-content-fab-menu__empty");
+    expect(empty.textContent).toContain("fab_no_keyed_provider");
+    expect(empty.textContent).not.toContain("missing_api_key_empty");
+    expect(container.textContent).not.toContain("OpenAI");
+
+    act(() => empty.querySelector("button").click());
+    expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS, { hash: "/apis" });
+    expect(sendBgMsg).not.toHaveBeenCalledWith(MSG_OPEN_OPTIONS);
+  });
+
+  test("shows the current service empty state when its key is blank", async () => {
+    mockFabSetting = {
+      transApis: [
+        {
+          apiSlug: "DeepSeek",
+          apiType: "DeepSeek",
+          apiName: "DeepSeek",
+          key: "",
+          isDisabled: false,
+        },
+        {
+          apiSlug: "OpenAI",
+          apiType: "OpenAI",
+          apiName: "OpenAI",
+          key: "sk-openai-secret",
+          isDisabled: false,
+        },
+      ],
+    };
+    const getFabPageState = jest.fn(async () => ({
+      rule: { apiSlug: "DeepSeek", transOnly: "false" },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const empty = container.querySelector(".kt-content-fab-menu__empty");
+    expect(empty.textContent).toContain("missing_api_key_empty");
+    expect(
+      Array.from(
+        container.querySelectorAll(
+          ".kt-content-fab-menu__services .kt-content-fab-menu__mode"
+        )
+      ).map((button) => button.textContent)
+    ).toEqual(["OpenAI"]);
+    expect(container.textContent).not.toContain("sk-openai-secret");
+
+    sendBgMsg.mockClear();
+    act(() => empty.querySelector("button").click());
+    expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS, { hash: "/apis" });
+  });
+
   test("persists the current site transOpen from the FAB menu", async () => {
     const pattern = getDomainOptions(window.location.href)[0];
     mockSiteRules = [{ pattern, selector: "article", transOpen: "false" }];

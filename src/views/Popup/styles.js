@@ -137,6 +137,9 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-hero--off .kt-popup-hero__title { color: var(--kt-on); }
 .kt-popup-hero__subtitle { display: block; margin-top: 3px; overflow: hidden; color: var(--kt-onpric); font-size: 11.5px; opacity: .76; text-overflow: ellipsis; white-space: nowrap; }
 .kt-popup-hero--off .kt-popup-hero__subtitle { color: var(--kt-onv); opacity: 1; }
+.kt-popup-key-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border: 1px solid var(--kt-linev); border-radius: var(--kt-radius-control, 16px); background: var(--kt-sf2); color: var(--kt-on); }
+.kt-popup-key-empty p { margin: 0; font-size: 12.5px; font-weight: 500; line-height: 1.45; }
+.kt-popup-key-empty button { min-height: 32px; padding: 0 12px; border: 0; border-radius: var(--kt-radius-control, 16px); background: var(--kt-pri); color: var(--kt-onpri); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .kt-popup-hero__progress { height: 4px; position: absolute; right: 0; bottom: 0; left: 0; background: color-mix(in srgb, var(--kt-pri) 18%, transparent); }
 .kt-popup-hero__progress::after { content: ""; position: absolute; inset-block: 0; border-radius: 999px; background: var(--kt-pri); animation: kt-m3-sweep 1.05s ease-in-out infinite; }
 

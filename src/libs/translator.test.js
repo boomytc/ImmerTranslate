@@ -154,6 +154,65 @@ describe("Translator rule styles", () => {
     expect(document.querySelector(".kiss-translator-wrapper")).not.toBeNull();
   });
 
+  test("does not insert a translation when the active service has no key", async () => {
+    document.body.innerHTML =
+      '<main id="root"><p>Hello from the wiki</p></main>';
+    const translator = createTranslator(
+      { apiSlug: "deepseek", transOpen: "false" },
+      {
+        preInit: false,
+        minLength: 0,
+        transApis: [
+          {
+            ...DEFAULT_API_SETTING,
+            apiSlug: "deepseek",
+            apiType: "DeepSeek",
+            key: "  ",
+          },
+        ],
+      }
+    );
+
+    translator.enable();
+    await flushAsync();
+    await flushAsync();
+
+    expect(apiTranslate).not.toHaveBeenCalled();
+    expect(
+      document.querySelector(`.${Translator.KISS_CLASS.warpper}`)
+    ).toBeNull();
+    expect(document.body.textContent).toContain("Hello from the wiki");
+  });
+
+  test("still translates a keyless engine when its key is empty", async () => {
+    document.body.innerHTML =
+      '<main id="root"><p>Hello from Microsoft</p></main>';
+    const translator = createTranslator(
+      { apiSlug: "microsoft", transOpen: "false" },
+      {
+        preInit: false,
+        minLength: 0,
+        transApis: [
+          {
+            ...DEFAULT_API_SETTING,
+            apiSlug: "microsoft",
+            apiType: "Microsoft",
+            key: "",
+          },
+        ],
+      }
+    );
+
+    translator.enable();
+    await flushAsync();
+    await flushAsync();
+
+    expect(apiTranslate).toHaveBeenCalled();
+    expect(
+      document.querySelector(`.${Translator.KISS_CLASS.warpper}`)
+    ).not.toBeNull();
+  });
+
   test("changing manual targets removes old translations and discovers new targets", async () => {
     document.body.innerHTML =
       '<main id="root"><p id="a">First article text</p><p id="b">Second article text</p></main>';
