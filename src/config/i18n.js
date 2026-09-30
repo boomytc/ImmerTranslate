@@ -5044,6 +5044,15 @@ export const I18N = {
     tr: `Seçim Çevirisi`,
     vi: "Dịch vùng chọn",
   },
+  tranbtn_label: {
+    zh: `翻译选中文字`,
+    en: `Translate selection`,
+    zh_TW: `翻譯選取文字`,
+    ja: `選択したテキストを翻訳`,
+    ko: `선택한 텍스트 번역`,
+    tr: `Seçimi çevir`,
+    vi: "Dịch vùng chọn",
+  },
   toggle_selection_translate: {
     zh: `启用划词翻译`,
     en: `Use Selection Translate`,
@@ -6844,6 +6853,15 @@ export const I18N = {
     tr: `Fareyle Üzerine Gelindiğinde Çeviriyi Etkinleştir`,
     vi: "Bật dịch khi di chuột",
   },
+  use_mousehover_translation_helper: {
+    zh: `开启后，按当前快捷键或按住方式悬停，会显示译文气泡或双语结果。关闭后不再出现悬停入口。`,
+    en: `When on, hovering with the current shortcut or hold gesture shows a translation bubble or bilingual result. When off, that hover entry stays hidden.`,
+    zh_TW: `開啟後，依目前快速鍵或按住方式懸停，會顯示譯文氣泡或雙語結果。關閉後不再出現懸停入口。`,
+    ja: `オンにすると、現在のショートカットまたは長押しでホバーしたときに翻訳バブルまたは対訳が表示されます。オフにするとホバー入口は出ません。`,
+    ko: `켜면 현재 단축키나 길게 누르기로 마우스를 올렸을 때 번역 말풍선 또는 이중 언어 결과가 나타납니다. 끄면 마우스오버 입구가 나타나지 않습니다.`,
+    tr: `Açıkken, geçerli kısayol veya basılı tutma ile üzerine gelmek bir çeviri balonu veya iki dilli sonuç gösterir. Kapalıyken bu giriş görünmez.`,
+    vi: "Khi bật, di chuột với phím tắt hoặc thao tác nhấn giữ hiện tại sẽ hiện bong bóng dịch hoặc kết quả song ngữ. Khi tắt, lối vào khi di chuột không xuất hiện.",
+  },
   selected_translation_alert: {
     zh: `划词翻译的开启和关闭请到“规则设置”里面设置。`,
     en: `To turn selected translation on or off, please go to "Rule Settings".`,
@@ -7023,6 +7041,15 @@ export const I18N = {
     ko: `말풍선 모드`,
     tr: `Kabarcık Modu`,
     vi: "Chế độ bong bóng",
+  },
+  mousehover_bubble_label: {
+    zh: `悬停翻译`,
+    en: `Hover translation`,
+    zh_TW: `懸停翻譯`,
+    ja: `ホバー翻訳`,
+    ko: `마우스오버 번역`,
+    tr: `Üzerine gelince çeviri`,
+    vi: "Dịch khi di chuột",
   },
   mousehover_bubble_style: {
     zh: `气泡样式 CSS`,

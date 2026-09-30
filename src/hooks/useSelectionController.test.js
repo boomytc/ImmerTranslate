@@ -73,10 +73,11 @@ function TestController({
   setBoxPosition = jest.fn(),
   toLang = "zh-CN",
   skipLangs,
+  hideTranBtn = false,
 }) {
   const tranboxSetting = {
     triggerMode,
-    hideTranBtn: false,
+    hideTranBtn,
     btnPositionMode,
     btnOffsetX,
     btnOffsetY,
@@ -479,7 +480,7 @@ describe("useSelectionController", () => {
     });
     await dispatchWindowMouseup();
 
-    expect(controller.state.position).toEqual({ x: 280, y: 200 });
+    expect(controller.state.position).toEqual({ x: 268, y: 188 });
 
     act(() => {
       controller.root.unmount();
@@ -503,7 +504,7 @@ describe("useSelectionController", () => {
     });
     await dispatchWindowMouseup();
 
-    expect(controller.state.position).toEqual({ x: 0, y: 0 });
+    expect(controller.state.position).toEqual({ x: 8, y: 8 });
 
     act(() => {
       controller.root.unmount();
@@ -531,7 +532,7 @@ describe("useSelectionController", () => {
     currentSelection = makeSelection("library", pageParagraph);
     await dispatchWindowMouseup(200, { clientX: 318, clientY: 238 });
 
-    expect(controller.state.position).toEqual({ x: 280, y: 200 });
+    expect(controller.state.position).toEqual({ x: 268, y: 188 });
 
     act(() => {
       controller.root.unmount();
@@ -561,7 +562,7 @@ describe("useSelectionController", () => {
       height: 20,
     });
     await dispatchWindowMouseup();
-    expect(controller.state.position).toEqual({ x: 280, y: 200 });
+    expect(controller.state.position).toEqual({ x: 268, y: 188 });
 
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -575,7 +576,22 @@ describe("useSelectionController", () => {
     });
     act(() => window.dispatchEvent(new Event("resize")));
 
-    expect(controller.state.position).toEqual({ x: 160, y: 110 });
+    expect(controller.state.position).toEqual({ x: 148, y: 98 });
+
+    act(() => {
+      controller.root.unmount();
+    });
+  });
+
+  test("does not show the trigger button when hideTranBtn is enabled", async () => {
+    const controller = renderController({ hideTranBtn: true });
+    const pageParagraph = createParagraph("The library is open.");
+
+    currentSelection = makeSelection("library", pageParagraph);
+    await dispatchWindowMouseup();
+
+    expect(controller.state.showBtn).toBe(false);
+    expect(controller.state.showBox).toBe(false);
 
     act(() => {
       controller.root.unmount();
