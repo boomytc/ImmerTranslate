@@ -6434,4 +6434,71 @@ describe("Translator rule styles", () => {
       expect(inner.textContent).toBe("YX finish line x");
     });
   });
+
+  describe("page translate failure opens options", () => {
+    const openOptionsClass = `.${Translator.KISS_CLASS.openOptions}`;
+
+    test("failed page translation shows a visible 打开设置 control", async () => {
+      apiTranslate.mockRejectedValueOnce(new Error("invalid api key"));
+      document.body.innerHTML =
+        '<main id="root"><p id="target">Hello from the source page.</p></main>';
+      const previousPage = process.env.REACT_APP_OPTIONSPAGE;
+      process.env.REACT_APP_OPTIONSPAGE = "https://example.test/options";
+      const open = jest.spyOn(window, "open").mockImplementation(() => null);
+
+      createTranslator(
+        {
+          autoScan: "false",
+          selector: "#target",
+          apiSlug: "test-api",
+        },
+        {
+          minLength: 0,
+          uiLang: "zh",
+          transApis: [createApiSetting("test-api")],
+        }
+      );
+      await flushAsync();
+
+      const button = document.querySelector(openOptionsClass);
+      expect(button).not.toBeNull();
+      expect(button.textContent).toBe("打开设置");
+      expect(button.hidden).toBe(false);
+      button.click();
+      expect(open).toHaveBeenCalledWith(
+        "https://example.test/options#/apis",
+        "_blank",
+        "noopener,noreferrer"
+      );
+      expect(apiTranslate).toHaveBeenCalledTimes(1);
+      expect(
+        document.querySelector(`.${Translator.KISS_CLASS.retry}`)
+      ).not.toBeNull();
+
+      open.mockRestore();
+      process.env.REACT_APP_OPTIONSPAGE = previousPage;
+    });
+
+    test("successful translation does not add an options control", async () => {
+      document.body.innerHTML =
+        '<main id="root"><p id="target">Hello from the source page.</p></main>';
+      createTranslator(
+        {
+          autoScan: "false",
+          selector: "#target",
+          apiSlug: "test-api",
+        },
+        {
+          minLength: 0,
+          transApis: [createApiSetting("test-api")],
+        }
+      );
+      await flushAsync();
+
+      expect(
+        document.querySelector(`.${Translator.KISS_CLASS.inner}`).textContent
+      ).toBe("Translated");
+      expect(document.querySelector(openOptionsClass)).toBeNull();
+    });
+  });
 });
