@@ -11,6 +11,34 @@ test("covers every supported locale for every registered label", () => {
   expect(missing).toEqual([]);
 });
 
+test("tells users there is no usable translation service in the FAB empty state", () => {
+  const copy = I18N.fab_no_keyed_provider;
+  expect(copy.zh).toBe(
+    "没有可用的翻译服务。请到接口设置启用服务，或填写密钥。"
+  );
+  expect(copy.en).toBe(
+    "No translation service is available. Enable one in API settings, or add an API key."
+  );
+  expect(copy.zh_TW).toBe(
+    "沒有可用的翻譯服務。請到介面設定啟用服務，或填寫金鑰。"
+  );
+  expect(copy.ja).toBe(
+    "利用できる翻訳サービスがありません。API設定でサービスを有効にするか、キーを入力してください。"
+  );
+  expect(copy.ko).toBe(
+    "사용할 수 있는 번역 서비스가 없습니다. API 설정에서 서비스를 사용 설정하거나 키를 입력하세요."
+  );
+  expect(copy.tr).toBe(
+    "Kullanılabilir bir çeviri hizmeti yok. API ayarlarından bir hizmeti etkinleştirin veya bir API anahtarı ekleyin."
+  );
+  expect(copy.vi).toBe(
+    "Không có dịch vụ dịch nào dùng được. Hãy bật một dịch vụ trong cài đặt API, hoặc nhập khóa API."
+  );
+  expect(copy.zh).not.toContain("已填写密钥");
+  expect(copy.en).not.toContain("has an API key yet");
+  expect(copy.ru).toBe(copy.en);
+});
+
 test("tells users to refresh after a missing connection setup", () => {
   expect(I18N.test_connection_missing.zh).toContain("请先填写密钥和接口地址");
   expect(I18N.test_connection_missing.zh).toContain("配置后请刷新页面再译");
