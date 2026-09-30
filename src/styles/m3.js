@@ -160,6 +160,15 @@ export const M3_RADIUS_CARD = 20;
 export const M3_RADIUS_SHEET = 18;
 export const M3_RADIUS_CHIP = 14;
 
+// 4pt chrome spacing. Ball menu, popup, and options shell share this scale.
+export const M3_SPACE_2XS = 4;
+export const M3_SPACE_XS = 8;
+export const M3_SPACE_SM = 12;
+export const M3_SPACE_MD = 16;
+export const M3_SPACE_LG = 20;
+export const M3_SPACE_XL = 24;
+export const M3_CHROME_INSET = M3_SPACE_MD;
+
 export const M3_GLOBAL_CSS = String.raw`
 :host,
 .kt-m3-root {
@@ -176,6 +185,13 @@ export const M3_GLOBAL_CSS = String.raw`
   --kt-radius-control: ${M3_RADIUS_CONTROL}px;
   --kt-radius-sheet: ${M3_RADIUS_SHEET}px;
   --kt-radius-chip: ${M3_RADIUS_CHIP}px;
+  --kt-space-2xs: ${M3_SPACE_2XS}px;
+  --kt-space-xs: ${M3_SPACE_XS}px;
+  --kt-space-sm: ${M3_SPACE_SM}px;
+  --kt-space-md: ${M3_SPACE_MD}px;
+  --kt-space-lg: ${M3_SPACE_LG}px;
+  --kt-space-xl: ${M3_SPACE_XL}px;
+  --kt-chrome-inset: ${M3_CHROME_INSET}px;
   --kt-border: rgb(23 24 28 / 0.08);
   --kt-border-strong: rgb(23 24 28 / 0.14);
   --kt-glass-blur: blur(22px) saturate(1.6);
@@ -216,9 +232,9 @@ export const M3_GLOBAL_CSS = String.raw`
     --kt-glass-bg: color-mix(in srgb, var(--kt-bg) 88%, transparent);
     --kt-glass-tint: color-mix(in srgb, var(--kt-pric) 78%, transparent);
     --kt-glass-edge: color-mix(in srgb, var(--kt-sf0) 64%, var(--kt-linev));
-    --kt-liquid: color-mix(in srgb, var(--kt-sf0) 48%, transparent);
-    --kt-liquid-tint: color-mix(in srgb, var(--kt-pric) 62%, transparent);
-    --kt-liquid-edge: color-mix(in srgb, white 58%, var(--kt-border));
+    --kt-liquid: color-mix(in srgb, var(--kt-sf0) 82%, transparent);
+    --kt-liquid-tint: color-mix(in srgb, var(--kt-pric) 78%, transparent);
+    --kt-liquid-edge: color-mix(in srgb, white 72%, var(--kt-border-strong));
     --kt-liquid-blur: blur(22px) saturate(1.75) brightness(1.06);
     --kt-liquid-shadow: inset 0 1px 0 color-mix(in srgb, white 74%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--kt-on) 6%, transparent), 0 10px 30px -12px color-mix(in srgb, var(--kt-on) 18%, transparent);
   }
@@ -229,9 +245,9 @@ export const M3_GLOBAL_CSS = String.raw`
     --kt-glass-bg: color-mix(in srgb, var(--kt-bg) 92%, transparent);
     --kt-glass-tint: color-mix(in srgb, var(--kt-pric) 86%, transparent);
     --kt-glass-edge: color-mix(in srgb, var(--kt-on) 18%, var(--kt-linev));
-    --kt-liquid: color-mix(in srgb, var(--kt-sf0) 46%, transparent);
-    --kt-liquid-tint: color-mix(in srgb, var(--kt-pric) 70%, transparent);
-    --kt-liquid-edge: color-mix(in srgb, white 16%, transparent);
+    --kt-liquid: color-mix(in srgb, var(--kt-sf0) 78%, transparent);
+    --kt-liquid-tint: color-mix(in srgb, var(--kt-pric) 82%, transparent);
+    --kt-liquid-edge: color-mix(in srgb, white 24%, transparent);
     --kt-liquid-shadow: inset 0 1px 0 color-mix(in srgb, white 22%, transparent), 0 10px 30px -12px color-mix(in srgb, black 40%, transparent);
   }
 }

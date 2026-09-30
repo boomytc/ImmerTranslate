@@ -116,7 +116,9 @@ describe("popup translation controls", () => {
       /\.kt-popup-more-service\s*\{([^}]*)\}/
     )?.[1];
 
-    expect(headerRule).toContain("padding: 7px 14px");
+    expect(headerRule).toContain(
+      "padding: var(--kt-space-xs, 8px) var(--kt-chrome-inset, 16px) var(--kt-space-2xs, 4px)"
+    );
     const windowAction = POPUP_STYLES.match(
       /\.kt-popup-header__window\s*\{([^}]*)\}/
     )?.[1];
