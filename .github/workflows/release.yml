@@ -92,5 +92,5 @@ jobs:
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
           asset_path: ./build/${{ matrix.client }}.zip
-          asset_name: kiss-translator_${{ github.ref_name }}_${{ matrix.client }}.zip
+          asset_name: immer-translate_${{ github.ref_name }}_${{ matrix.client }}.zip
           asset_content_type: application/zip
