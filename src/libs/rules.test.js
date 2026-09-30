@@ -255,6 +255,34 @@ describe("rules enabled state", () => {
     expect(latest).toEqual([other, existing, GLOBLA_RULE]);
   });
 
+  test("site transOpen false blocks auto-translate until the site follows global again", async () => {
+    const stored = [{ ...GLOBLA_RULE, transOpen: "true" }];
+    getRulesWithDefault.mockImplementation(async () =>
+      stored.map((rule) => ({ ...rule }))
+    );
+    saveEdit.mockImplementation(async (_key, update) => {
+      const value = update(await getRulesWithDefault());
+      stored.splice(0, stored.length, ...value);
+      return { value, changed: true };
+    });
+
+    await saveRule({ pattern: "example.com", transOpen: "false" });
+    await expect(
+      matchRule("https://example.com/post", {
+        injectRules: false,
+        subrulesList: [],
+      })
+    ).resolves.toMatchObject({ transOpen: "false" });
+
+    await saveRule({ pattern: "example.com", transOpen: "*" });
+    await expect(
+      matchRule("https://example.com/post", {
+        injectRules: false,
+        subrulesList: [],
+      })
+    ).resolves.toMatchObject({ transOpen: "true" });
+  });
+
   test.each([
     ["enabled", "false", true, "true"],
     ["disabled", "true", false, "false"],
