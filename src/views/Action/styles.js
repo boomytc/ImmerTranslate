@@ -16,7 +16,9 @@ export const ACTION_STYLES = String.raw`${FLOATING_BUTTON_STYLES}
 .kt-content-fab-menu__item svg { width: 19px; height: 19px; }
 .kt-content-fab-menu__options { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--kt-linev); }
 .kt-content-fab-menu__modes { display: flex; gap: 4px; }
+.kt-content-fab-menu__sites { display: flex; flex-wrap: wrap; gap: 4px; }
 .kt-content-fab-menu__mode { flex: 1 1 0; min-height: 36px; padding: 0 8px; border: 1px solid var(--kt-linev); border-radius: var(--kt-radius-md, 12px); background: transparent; color: var(--kt-on); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.kt-content-fab-menu__sites .kt-content-fab-menu__mode { flex: 1 1 30%; min-width: 4.75rem; padding: 6px 8px; line-height: 1.25; text-align: center; white-space: normal; }
 .kt-content-fab-menu__mode[aria-pressed="true"] { border-color: transparent; background: var(--kt-pric); color: var(--kt-onpric); }
 .kt-content-fab-menu__field { display: flex; flex-direction: column; gap: 4px; color: var(--kt-onv); font-size: 11px; font-weight: 650; }
 .kt-content-fab-menu__model { width: 100%; min-height: 36px; padding: 0 8px; border: 1px solid var(--kt-linev); border-radius: var(--kt-radius-md, 12px); background: var(--kt-sf0); color: var(--kt-on); font: inherit; font-size: 12px; font-weight: 650; }
