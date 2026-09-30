@@ -14,42 +14,29 @@ export const languageOptions = [
   { value: "ru", label: "Русский" },
 ];
 
-const storeLocales = {
-  en: { chromium: "en", firefox: "en-US" },
-  zh_CN: { chromium: "zh-CN", firefox: "zh-CN" },
-  zh_TW: { chromium: "zh-TW", firefox: "zh-TW" },
-  ja: { chromium: "ja", firefox: "ja" },
-  ko: { chromium: "ko", firefox: "ko" },
-  fr: { chromium: "fr", firefox: "fr" },
-  de: { chromium: "de", firefox: "de" },
-  es: { chromium: "es", firefox: "es" },
-  vi: { chromium: "vi", firefox: "vi" },
-  ru: { chromium: "ru", firefox: "ru" },
-};
+const RELEASES_URL = "https://github.com/boomytc/ImmerTranslate/releases";
 
-const createInstalls = (language, meta = {}) => {
-  const locales = storeLocales[language] || storeLocales.en;
-
+const createInstalls = (meta = {}) => {
   return [
     {
       name: "Chrome",
       meta: meta.extension || "Browser extension",
-      href: `https://chrome.google.com/webstore/detail/kiss-translator/bdiifdefkgmcblbcghdlonllpjhhjgof?hl=${locales.chromium}`,
+      href: RELEASES_URL,
     },
     {
       name: "Edge",
       meta: meta.extension || "Browser extension",
-      href: `https://microsoftedge.microsoft.com/addons/detail/%E7%AE%80%E7%BA%A6%E7%BF%BB%E8%AF%91/jemckldkclkinpjighnoilpbldbdmmlh?hl=${locales.chromium}`,
+      href: RELEASES_URL,
     },
     {
       name: "Firefox",
       meta: meta.extension || "Browser extension",
-      href: `https://addons.mozilla.org/${locales.firefox}/firefox/addon/kiss-translator/`,
+      href: RELEASES_URL,
     },
     {
       name: "Thunderbird",
       meta: meta.release || "Release package",
-      href: "https://github.com/fishjar/kiss-translator/releases",
+      href: RELEASES_URL,
     },
     {
       name: "Userscript",
@@ -75,7 +62,7 @@ const baseContent = {
     title:
       "Minimalist. Open-source. An all-scenario geek-style translation tool.",
     subtitle:
-      "KISS Translator brings page translation, selection lookup, input-box translation, and YouTube subtitles into one lightweight browser extension and userscript.",
+      "ImmerTranslate brings page translation, selection lookup, input-box translation, and YouTube subtitles into one lightweight browser extension and userscript.",
     installExtension: "Install Extension",
     installUserscript: "Install Userscript",
     openOptions: "Open Script Settings",
@@ -83,10 +70,10 @@ const baseContent = {
     status: ["Extension", "Userscript", "AI APIs", "Rules", "Sync"],
     installTitle: "Install targets",
     installSubtitle: "Pick the client that fits your browser and workflow.",
-    videoTitle: "See KISS Translator in action",
+    videoTitle: "See ImmerTranslate in action",
     videoSubtitle:
       "Watch these introductions to explore the main features and workflows.",
-    videoLabel: "KISS Translator introduction video",
+    videoLabel: "ImmerTranslate introduction video",
     watchOnYouTube: "Watch on YouTube",
     featureTitle: "Translation workspace",
     featureSubtitle:
@@ -154,13 +141,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "Private data sync for KISS Translator, deployable to Cloudflare Workers or self-hosted with Docker.",
+        "Private data sync for ImmerTranslate, deployable to Cloudflare Workers or self-hosted with Docker.",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "Collects and generates website compatibility subscription rules for KISS Translator.",
+        "Collects and generates website compatibility subscription rules for ImmerTranslate.",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -168,12 +155,12 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "KISS Translator 的私有数据同步服务，可部署到 Cloudflare Workers 或通过 Docker 自托管。",
+        "ImmerTranslate 的私有数据同步服务，可部署到 Cloudflare Workers 或通过 Docker 自托管。",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
-      description: "收录并生成 KISS Translator 的网页适配订阅规则。",
+      description: "收录并生成 ImmerTranslate 的网页适配订阅规则。",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -181,12 +168,12 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "KISS Translator 的私有資料同步服務，可部署至 Cloudflare Workers 或透過 Docker 自行架設。",
+        "ImmerTranslate 的私有資料同步服務，可部署至 Cloudflare Workers 或透過 Docker 自行架設。",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
-      description: "收錄並產生 KISS Translator 的網站相容性訂閱規則。",
+      description: "收錄並產生 ImmerTranslate 的網站相容性訂閱規則。",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -194,13 +181,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "KISS Translator のプライベートデータ同期サービス。Cloudflare Workers または Docker でセルフホストできます。",
+        "ImmerTranslate のプライベートデータ同期サービス。Cloudflare Workers または Docker でセルフホストできます。",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "KISS Translator 向けの Web サイト互換サブスクリプションルールを収集・生成します。",
+        "ImmerTranslate 向けの Web サイト互換サブスクリプションルールを収集・生成します。",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -208,13 +195,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "KISS Translator용 비공개 데이터 동기화 서비스로, Cloudflare Workers 또는 Docker에 직접 배포할 수 있습니다.",
+        "ImmerTranslate용 비공개 데이터 동기화 서비스로, Cloudflare Workers 또는 Docker에 직접 배포할 수 있습니다.",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "KISS Translator의 웹사이트 호환 구독 규칙을 수집하고 생성합니다.",
+        "ImmerTranslate의 웹사이트 호환 구독 규칙을 수집하고 생성합니다.",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -222,13 +209,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "Service privé de synchronisation pour KISS Translator, déployable sur Cloudflare Workers ou auto-hébergeable avec Docker.",
+        "Service privé de synchronisation pour ImmerTranslate, déployable sur Cloudflare Workers ou auto-hébergeable avec Docker.",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "Collecte et génère des règles d'abonnement de compatibilité Web pour KISS Translator.",
+        "Collecte et génère des règles d'abonnement de compatibilité Web pour ImmerTranslate.",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -236,13 +223,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "Privater Datensynchronisierungsdienst für KISS Translator, bereitstellbar auf Cloudflare Workers oder selbst gehostet mit Docker.",
+        "Privater Datensynchronisierungsdienst für ImmerTranslate, bereitstellbar auf Cloudflare Workers oder selbst gehostet mit Docker.",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "Sammelt und erzeugt Website-Kompatibilitätsregeln für KISS Translator-Abonnements.",
+        "Sammelt und erzeugt Website-Kompatibilitätsregeln für ImmerTranslate-Abonnements.",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -250,13 +237,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "Servicio privado de sincronización para KISS Translator, desplegable en Cloudflare Workers o autoalojado con Docker.",
+        "Servicio privado de sincronización para ImmerTranslate, desplegable en Cloudflare Workers o autoalojado con Docker.",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "Recopila y genera reglas de suscripción de compatibilidad web para KISS Translator.",
+        "Recopila y genera reglas de suscripción de compatibilidad web para ImmerTranslate.",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -264,13 +251,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "Dịch vụ đồng bộ dữ liệu riêng tư cho KISS Translator, có thể triển khai trên Cloudflare Workers hoặc tự lưu trữ bằng Docker.",
+        "Dịch vụ đồng bộ dữ liệu riêng tư cho ImmerTranslate, có thể triển khai trên Cloudflare Workers hoặc tự lưu trữ bằng Docker.",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "Thu thập và tạo các quy tắc đăng ký tương thích trang web cho KISS Translator.",
+        "Thu thập và tạo các quy tắc đăng ký tương thích trang web cho ImmerTranslate.",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -278,13 +265,13 @@ const ecosystemProjects = {
     {
       name: "kiss-worker",
       description:
-        "Сервис приватной синхронизации данных KISS Translator с развёртыванием в Cloudflare Workers или самостоятельным размещением через Docker.",
+        "Сервис приватной синхронизации данных ImmerTranslate с развёртыванием в Cloudflare Workers или самостоятельным размещением через Docker.",
       href: "https://github.com/fishjar/kiss-worker",
     },
     {
       name: "kiss-rules",
       description:
-        "Собирает и создаёт правила подписки для совместимости сайтов с KISS Translator.",
+        "Собирает и создаёт правила подписки для совместимости сайтов с ImmerTranslate.",
       href: "https://github.com/fishjar/kiss-rules",
     },
   ],
@@ -300,7 +287,7 @@ const translations = {
     eyebrow: "开源翻译工具箱",
     title: "简约。开源。全场景极客式翻译工具。",
     subtitle:
-      "KISS Translator 将网页翻译、划词查询、输入框翻译和 YouTube 字幕整合到一个轻量的浏览器扩展与油猴脚本中。",
+      "ImmerTranslate 将网页翻译、划词查询、输入框翻译和 YouTube 字幕整合到一个轻量的浏览器扩展与油猴脚本中。",
     installExtension: "安装扩展",
     installUserscript: "安装脚本",
     openOptions: "打开脚本设置",
@@ -310,8 +297,8 @@ const translations = {
     installSubtitle: "选择适合你的浏览器和使用方式的客户端。",
     videoTitle: "视频介绍",
     videoSubtitle:
-      "通过这些介绍视频了解 KISS Translator 的主要功能和使用方式。",
-    videoLabel: "KISS Translator 介绍视频",
+      "通过这些介绍视频了解 ImmerTranslate 的主要功能和使用方式。",
+    videoLabel: "ImmerTranslate 介绍视频",
     watchOnYouTube: "在 YouTube 观看",
     featureTitle: "翻译工作台",
     featureSubtitle:
@@ -367,7 +354,7 @@ const translations = {
     eyebrow: "開源翻譯工具箱",
     title: "簡約。開源。全場景極客式翻譯工具。",
     subtitle:
-      "KISS Translator 將網頁翻譯、劃詞查詢、輸入框翻譯和 YouTube 字幕整合到輕量的瀏覽器擴充套件與使用者腳本中。",
+      "ImmerTranslate 將網頁翻譯、劃詞查詢、輸入框翻譯和 YouTube 字幕整合到輕量的瀏覽器擴充套件與使用者腳本中。",
     installExtension: "安裝擴充套件",
     installUserscript: "安裝腳本",
     openOptions: "開啟腳本設定",
@@ -377,8 +364,8 @@ const translations = {
     installSubtitle: "選擇適合你的瀏覽器與工作流程的用戶端。",
     videoTitle: "影片介紹",
     videoSubtitle:
-      "透過這些介紹影片瞭解 KISS Translator 的主要功能與使用方式。",
-    videoLabel: "KISS Translator 介紹影片",
+      "透過這些介紹影片瞭解 ImmerTranslate 的主要功能與使用方式。",
+    videoLabel: "ImmerTranslate 介紹影片",
     watchOnYouTube: "在 YouTube 觀看",
     featureTitle: "翻譯工作台",
     featureSubtitle: "覆蓋閱讀、劃詞、寫作、影片字幕和自訂介面的緊湊能力面板。",
@@ -433,7 +420,7 @@ const translations = {
     eyebrow: "オープンソース翻訳ツールキット",
     title: "ミニマル。オープンソース。全シーン対応のギークスタイル翻訳ツール。",
     subtitle:
-      "KISS Translator はページ翻訳、選択テキスト翻訳、入力欄翻訳、YouTube 字幕翻訳を軽量な拡張機能とユーザースクリプトにまとめます。",
+      "ImmerTranslate はページ翻訳、選択テキスト翻訳、入力欄翻訳、YouTube 字幕翻訳を軽量な拡張機能とユーザースクリプトにまとめます。",
     installExtension: "拡張機能を入手",
     installUserscript: "スクリプトを入手",
     openOptions: "スクリプト設定を開く",
@@ -443,8 +430,8 @@ const translations = {
     installSubtitle: "ブラウザと使い方に合うクライアントを選べます。",
     videoTitle: "紹介動画",
     videoSubtitle:
-      "紹介動画で KISS Translator の主な機能と使い方をご覧ください。",
-    videoLabel: "KISS Translator 紹介動画",
+      "紹介動画で ImmerTranslate の主な機能と使い方をご覧ください。",
+    videoLabel: "ImmerTranslate 紹介動画",
     watchOnYouTube: "YouTube で見る",
     featureTitle: "翻訳ワークスペース",
     featureSubtitle:
@@ -500,7 +487,7 @@ const translations = {
     eyebrow: "오픈 소스 번역 도구",
     title: "미니멀. 오픈 소스. 모든 상황을 위한 긱(Geek) 스타일 번역 도구.",
     subtitle:
-      "KISS Translator는 웹페이지 번역, 선택 번역, 입력창 번역, YouTube 자막 번역을 가벼운 브라우저 확장과 유저스크립트로 제공합니다.",
+      "ImmerTranslate는 웹페이지 번역, 선택 번역, 입력창 번역, YouTube 자막 번역을 가벼운 브라우저 확장과 유저스크립트로 제공합니다.",
     installExtension: "확장 설치",
     installUserscript: "스크립트 설치",
     openOptions: "스크립트 설정 열기",
@@ -510,8 +497,8 @@ const translations = {
     installSubtitle: "브라우저와 작업 방식에 맞는 클라이언트를 선택하세요.",
     videoTitle: "소개 동영상",
     videoSubtitle:
-      "소개 동영상에서 KISS Translator의 주요 기능과 사용 방법을 확인하세요.",
-    videoLabel: "KISS Translator 소개 동영상",
+      "소개 동영상에서 ImmerTranslate의 주요 기능과 사용 방법을 확인하세요.",
+    videoLabel: "ImmerTranslate 소개 동영상",
     watchOnYouTube: "YouTube에서 보기",
     featureTitle: "번역 작업 공간",
     featureSubtitle:
@@ -568,7 +555,7 @@ const translations = {
     title:
       "Minimaliste. Open source. Un outil de traduction style geek tout-terrain.",
     subtitle:
-      "KISS Translator regroupe traduction de pages, selection de texte, champs de saisie et sous-titres YouTube dans une extension et un userscript legers.",
+      "ImmerTranslate regroupe traduction de pages, selection de texte, champs de saisie et sous-titres YouTube dans une extension et un userscript legers.",
     installExtension: "Installer l'extension",
     installUserscript: "Installer le script",
     openOptions: "Ouvrir les paramètres du script",
@@ -579,8 +566,8 @@ const translations = {
       "Choisissez le client adapte a votre navigateur et a votre flux de travail.",
     videoTitle: "Vidéos de présentation",
     videoSubtitle:
-      "Découvrez les principales fonctions et méthodes de travail de KISS Translator.",
-    videoLabel: "Vidéo de présentation de KISS Translator",
+      "Découvrez les principales fonctions et méthodes de travail de ImmerTranslate.",
+    videoLabel: "Vidéo de présentation de ImmerTranslate",
     watchOnYouTube: "Regarder sur YouTube",
     featureTitle: "Espace de traduction",
     featureSubtitle:
@@ -637,7 +624,7 @@ const translations = {
     title:
       "Minimalistisch. Open-Source. Ein Allround-Geek-Style-Ubersetzungstool.",
     subtitle:
-      "KISS Translator bundelt Seitenubersetzung, Auswahlubersetzung, Eingabefeld-Ubersetzung und YouTube-Untertitel in einer schlanken Erweiterung und einem Userscript.",
+      "ImmerTranslate bundelt Seitenubersetzung, Auswahlubersetzung, Eingabefeld-Ubersetzung und YouTube-Untertitel in einer schlanken Erweiterung und einem Userscript.",
     installExtension: "Erweiterung installieren",
     installUserscript: "Script installieren",
     openOptions: "Skripteinstellungen öffnen",
@@ -648,8 +635,8 @@ const translations = {
       "Wahlen Sie den Client fur Ihren Browser und Arbeitsablauf.",
     videoTitle: "Einführungsvideos",
     videoSubtitle:
-      "Lernen Sie die wichtigsten Funktionen und Arbeitsabläufe von KISS Translator kennen.",
-    videoLabel: "KISS Translator Einführungsvideo",
+      "Lernen Sie die wichtigsten Funktionen und Arbeitsabläufe von ImmerTranslate kennen.",
+    videoLabel: "ImmerTranslate Einführungsvideo",
     watchOnYouTube: "Auf YouTube ansehen",
     featureTitle: "Ubersetzungsarbeitsplatz",
     featureSubtitle:
@@ -706,7 +693,7 @@ const translations = {
     title:
       "Minimalista. Codigo abierto. Una herramienta de traduccion estilo geek para cualquier situacion.",
     subtitle:
-      "KISS Translator une traduccion de paginas, seleccion de texto, campos de entrada y subtitulos de YouTube en una extension y un userscript ligeros.",
+      "ImmerTranslate une traduccion de paginas, seleccion de texto, campos de entrada y subtitulos de YouTube en una extension y un userscript ligeros.",
     installExtension: "Instalar extension",
     installUserscript: "Instalar script",
     openOptions: "Abrir configuración del script",
@@ -717,8 +704,8 @@ const translations = {
       "Elige el cliente que encaje con tu navegador y flujo de trabajo.",
     videoTitle: "Vídeos de introducción",
     videoSubtitle:
-      "Descubre las funciones y los flujos de trabajo principales de KISS Translator.",
-    videoLabel: "Vídeo de introducción de KISS Translator",
+      "Descubre las funciones y los flujos de trabajo principales de ImmerTranslate.",
+    videoLabel: "Vídeo de introducción de ImmerTranslate",
     watchOnYouTube: "Ver en YouTube",
     featureTitle: "Espacio de traduccion",
     featureSubtitle:
@@ -775,7 +762,7 @@ const translations = {
     title:
       "Tối giản. Mã nguồn mở. Công cụ dịch thuật phong cách geek cho mọi tình huống.",
     subtitle:
-      "KISS Translator kết hợp dịch trang web, tra cứu văn bản được chọn, dịch trong ô nhập và phụ đề YouTube vào một tiện ích trình duyệt cùng userscript gọn nhẹ.",
+      "ImmerTranslate kết hợp dịch trang web, tra cứu văn bản được chọn, dịch trong ô nhập và phụ đề YouTube vào một tiện ích trình duyệt cùng userscript gọn nhẹ.",
     installExtension: "Cài đặt tiện ích",
     installUserscript: "Cài đặt userscript",
     openOptions: "Mở cài đặt tập lệnh",
@@ -786,8 +773,8 @@ const translations = {
       "Chọn ứng dụng phù hợp với trình duyệt và cách làm việc của bạn.",
     videoTitle: "Video giới thiệu",
     videoSubtitle:
-      "Khám phá các tính năng và quy trình làm việc chính của KISS Translator qua các video này.",
-    videoLabel: "Video giới thiệu KISS Translator",
+      "Khám phá các tính năng và quy trình làm việc chính của ImmerTranslate qua các video này.",
+    videoLabel: "Video giới thiệu ImmerTranslate",
     watchOnYouTube: "Xem trên YouTube",
     installMeta: {
       extension: "Tiện ích trình duyệt",
@@ -847,7 +834,7 @@ const translations = {
     eyebrow: "Инструменты перевода с открытым исходным кодом",
     title: "Минимализм. Открытый код. Переводчик в стиле гик для любых задач.",
     subtitle:
-      "KISS Translator объединяет перевод веб-страниц, выделенного текста, полей ввода и субтитров YouTube в лёгком браузерном расширении и userscript.",
+      "ImmerTranslate объединяет перевод веб-страниц, выделенного текста, полей ввода и субтитров YouTube в лёгком браузерном расширении и userscript.",
     installExtension: "Установить расширение",
     installUserscript: "Установить userscript",
     openOptions: "Открыть настройки скрипта",
@@ -858,8 +845,8 @@ const translations = {
       "Выберите клиент, подходящий для вашего браузера и рабочего процесса.",
     videoTitle: "Обзорные видео",
     videoSubtitle:
-      "Познакомьтесь с основными функциями и сценариями работы KISS Translator.",
-    videoLabel: "Обзорное видео KISS Translator",
+      "Познакомьтесь с основными функциями и сценариями работы ImmerTranslate.",
+    videoLabel: "Обзорное видео ImmerTranslate",
     watchOnYouTube: "Смотреть на YouTube",
     installMeta: {
       extension: "Расширение браузера",
@@ -918,7 +905,7 @@ export const homepageContent = Object.fromEntries(
     {
       ...baseContent.en,
       ...translations[value],
-      installs: createInstalls(value, translations[value]?.installMeta),
+      installs: createInstalls(translations[value]?.installMeta),
       ecosystemProjects: ecosystemProjects[value] ?? ecosystemProjects.en,
       providers: translations[value]?.providers ?? baseContent.en.providers,
     },

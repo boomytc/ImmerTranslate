@@ -861,23 +861,16 @@ describe("PopupCont capability parity", () => {
     view.cleanup();
   });
 
-  test("preserves upstream review and support links in the content popup", async () => {
+  test("does not show review or donation links in the content popup", async () => {
     const view = renderPopupCont({
       isContent: true,
       processActions: jest.fn(),
     });
     await flushEffects();
 
-    const supportLinks = view.container.querySelectorAll(".kt-popup-support a");
-    expect(supportLinks).toHaveLength(2);
-    expect(supportLinks[0].textContent).toContain("comment_support");
-    expect(supportLinks[0].href).toBe(
-      "https://chromewebstore.google.com/detail/kiss-translator/bdiifdefkgmcblbcghdlonllpjhhjgof/reviews"
-    );
-    expect(supportLinks[1].textContent).toContain("appreciate_support");
-    expect(supportLinks[1].href).toBe(
-      "https://github.com/fishjar/kiss-translator#%E8%B5%9E%E8%B5%8F"
-    );
+    expect(view.container.querySelector(".kt-popup-support")).toBeNull();
+    expect(view.container.textContent).not.toContain("appreciate_support");
+    expect(view.container.textContent).not.toContain("comment_support");
     view.cleanup();
   });
 

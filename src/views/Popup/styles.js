@@ -86,12 +86,6 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-header__drag { display: flex; color: var(--kt-onv); cursor: move; }
 .kt-popup-header__actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .kt-popup-header__actions .MuiIconButton-root { width: 38px; height: 38px; padding: 7px; }
-.kt-popup-header__sponsor.MuiIconButton-root { background: var(--kt-secc); color: var(--kt-onsecc); }
-.kt-popup-header__sponsor.MuiIconButton-root:hover { background: color-mix(in srgb, var(--kt-secc) 82%, var(--kt-onsecc)); }
-.kt-popup-support { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding: 8px; border-radius: var(--kt-radius-xl, 22px); background: var(--kt-sf1); }
-.kt-popup-support a { min-height: 34px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 999px; color: var(--kt-pri); font-size: 11px; font-weight: 700; text-decoration: none; }
-.kt-popup-support a:hover { background: var(--kt-sf2); }
-
 .kt-popup-tabs { min-height: 44px; margin: 0 14px; }
 .kt-popup-tabs .MuiTab-root { min-height: 36px; padding-block: 5px; }
 .kt-popup-scroll { height: auto; overflow: visible; }

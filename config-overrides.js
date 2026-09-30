@@ -90,7 +90,7 @@ const userscriptWebpack = (config, env) => {
 // @name          ${process.env.REACT_APP_NAME}
 // @namespace     ${process.env.REACT_APP_HOMEPAGE}
 // @version       ${process.env.REACT_APP_VERSION}
-// @description   A simple bilingual translation extension & Greasemonkey script (一个简约的双语对照翻译扩展 & 油猴脚本)
+// @description   ImmerTranslate bilingual translation extension and userscript
 // @author        Gabe<yugang2002@gmail.com>
 // @homepageURL   ${process.env.REACT_APP_HOMEPAGE}
 // @license       GPL-3.0
@@ -135,7 +135,6 @@ const userscriptWebpack = (config, env) => {
 // @connect       github.com
 // @connect       api.github.com
 // @connect       githubusercontent.com
-// @connect       kiss-translator.rayjar.com
 // @connect       ghproxy.com
 // @connect       dav.jianguoyun.com
 // @connect       fanyi.baidu.com

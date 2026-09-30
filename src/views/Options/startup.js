@@ -59,7 +59,7 @@ async function prepareGmBridge() {
   }
 
   throw new Error(
-    "\u8fde\u63a5\u6cb9\u7334\u811a\u672c\u8d85\u65f6\uff0c\u8bf7\u786e\u8ba4\u5df2\u5b89\u88c5\u5e76\u542f\u7528 KISS Translator \u811a\u672c\uff0c\u7136\u540e\u5237\u65b0\u8bbe\u7f6e\u9875\u3002\nTime out. Please confirm whether to install or enable KISS Translator GreaseMonkey script?"
+    "\u8fde\u63a5\u6cb9\u7334\u811a\u672c\u8d85\u65f6\uff0c\u8bf7\u786e\u8ba4\u5df2\u5b89\u88c5\u5e76\u542f\u7528 ImmerTranslate \u811a\u672c\uff0c\u7136\u540e\u5237\u65b0\u8bbe\u7f6e\u9875\u3002\nTime out. Please confirm whether to install or enable ImmerTranslate GreaseMonkey script?"
   );
 }
 

@@ -2208,7 +2208,7 @@ export default function Apis() {
           <br />
           {i18n("about_api_4")}
           <Link
-            href="https://github.com/fishjar/kiss-translator/blob/master/custom-api_v2.md"
+            href="https://github.com/boomytc/ImmerTranslate/blob/main/custom-api_v2.md"
             target="_blank"
           >
             {i18n("goto_custom_api_example")}
