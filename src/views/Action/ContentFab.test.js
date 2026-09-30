@@ -8,6 +8,7 @@ import {
   MSG_OPEN_OPTIONS,
   MSG_OPEN_TRANBOX,
   MSG_POPUP_TOGGLE,
+  MSG_SAVE_RULE,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
   MSG_TRANS_TOGGLE,
@@ -16,11 +17,24 @@ import {
 } from "../../config";
 import { fetchModelCatalog } from "../../libs/modelList";
 import { sendBgMsg } from "../../libs/msg";
+import { getDomainOptions } from "../../libs/url";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let mockFabSetting = { transApis: [] };
+let mockSiteRules = [];
 const mockFabUpdateSetting = jest.fn();
+
+jest.mock("../../hooks/Rules", () => ({
+  useRules: () => ({ list: mockSiteRules, isLoading: false }),
+}));
+// Saving a site rule imports the rules module, which pulls these in.
+jest.mock("../../libs/subRules", () => ({
+  loadOrFetchSubRules: jest.fn(),
+}));
+jest.mock("../../libs/sync", () => ({
+  trySyncRules: jest.fn(),
+}));
 
 jest.mock("../../libs/modelList", () => ({
   fetchModelCatalog: jest.fn(async () => ({
@@ -92,6 +106,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     mockIsVideoFullscreen = false;
     draggableProps = null;
     mockFabSetting = { transApis: [] };
+    mockSiteRules = [];
     mockFabUpdateSetting.mockReset();
     fetchModelCatalog.mockReset();
     fetchModelCatalog.mockResolvedValue({
@@ -484,7 +499,9 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       await Promise.resolve();
     });
 
-    const modes = container.querySelectorAll(".kt-content-fab-menu__mode");
+    const modes = container
+      .querySelector('[aria-label="fab_translation_mode"]')
+      .querySelectorAll(".kt-content-fab-menu__mode");
     expect(modes[0].getAttribute("aria-pressed")).toBe("true");
     expect(modes[1].textContent).toBe("show_only_translations");
     act(() => modes[1].click());
@@ -522,6 +539,64 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     });
     expect(saved.transApis[0].model).toBe("deepseek-chat");
     expect(saved.transApis[0].key).toBe(secret);
+  });
+
+  test("persists the current site transOpen from the FAB menu", async () => {
+    const pattern = getDomainOptions(window.location.href)[0];
+    mockSiteRules = [{ pattern, selector: "article", transOpen: "false" }];
+    const getFabPageState = jest.fn(async () => ({
+      rule: { apiSlug: "microsoft", transOnly: "false" },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const siteButtons = () =>
+      Array.from(
+        container.querySelectorAll(
+          ".kt-content-fab-menu__sites .kt-content-fab-menu__mode"
+        )
+      );
+    expect(siteButtons().map((button) => button.textContent)).toEqual([
+      "site_trans_follow",
+      "site_trans_on",
+      "site_trans_off",
+    ]);
+    expect(siteButtons()[2].getAttribute("aria-pressed")).toBe("true");
+
+    await act(async () => {
+      siteButtons()[0].click();
+    });
+    expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
+      pattern,
+      transOpen: "*",
+    });
+    expect(processActions).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: MSG_TRANS_PUTRULE })
+    );
+    expect(siteButtons()[0].getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector(".kt-content-fab-menu")).not.toBeNull();
+
+    sendBgMsg.mockClear();
+    await act(async () => {
+      siteButtons()[2].click();
+    });
+    expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
+      pattern,
+      transOpen: "false",
+    });
+    expect(siteButtons()[2].getAttribute("aria-pressed")).toBe("true");
   });
 
   // Video fullscreen hides the FAB, so its menu must close too.
