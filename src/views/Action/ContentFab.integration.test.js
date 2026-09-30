@@ -26,6 +26,16 @@ jest.mock("../../hooks/M3Theme", () => ({
 jest.mock("../../hooks/I18n", () => ({
   useI18n: () => (key) => key,
 }));
+jest.mock("../../hooks/Rules", () => ({
+  useRules: () => ({ list: [], isLoading: false }),
+}));
+// Saving a site rule imports the rules module, which pulls these in.
+jest.mock("../../libs/subRules", () => ({
+  loadOrFetchSubRules: jest.fn(),
+}));
+jest.mock("../../libs/sync", () => ({
+  trySyncRules: jest.fn(),
+}));
 jest.mock("../../hooks/WindowSize", () => ({
   __esModule: true,
   default: () => ({ w: 800, h: 600 }),
