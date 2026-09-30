@@ -55,9 +55,10 @@ export const POPUP_STYLES = String.raw`
   position: sticky;
   top: 0;
   z-index: 20;
-  padding-bottom: 2px;
+  padding-bottom: var(--kt-space-xs, 8px);
+  border-bottom: 1px solid var(--kt-liquid-edge, var(--kt-border, var(--kt-linev)));
   background: var(--kt-liquid, var(--kt-sf0));
-  box-shadow: var(--kt-liquid-shadow, var(--kt-shadow-menu));
+  box-shadow: none;
   -webkit-backdrop-filter: var(--kt-liquid-blur, blur(22px) saturate(1.75) brightness(1.06));
   backdrop-filter: var(--kt-liquid-blur, blur(22px) saturate(1.75) brightness(1.06));
 }
@@ -72,15 +73,15 @@ export const POPUP_STYLES = String.raw`
   min-height: 56px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  gap: var(--kt-space-xs, 8px);
+  padding: var(--kt-space-xs, 8px) var(--kt-chrome-inset, 16px) var(--kt-space-2xs, 4px);
   background: transparent;
 }
 
 .kt-popup-header__logo { border-radius: var(--kt-radius-chip, 14px); }
 .kt-popup-brand-button { display: block; padding: 0; border: 0; border-radius: var(--kt-radius-chip, 14px); background: transparent; cursor: pointer; }
 .kt-popup-header__identity { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.kt-popup-header__title { min-width: 0; max-width: 100%; overflow: hidden; font-size: 15px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.kt-popup-header__title { min-width: 0; max-width: 100%; overflow: hidden; color: var(--kt-on); font-size: 15px; font-weight: 650; letter-spacing: -0.02em; text-overflow: ellipsis; white-space: nowrap; }
 .kt-popup-header__version { padding: 3px 8px; border-radius: 999px; background: var(--kt-sf2); color: var(--kt-onv); font-size: 10.5px; font-weight: 650; }
 .kt-popup-header__spacer { flex: 1; }
 .kt-popup-header__drag { display: flex; color: var(--kt-onv); cursor: move; }
@@ -94,8 +95,10 @@ export const POPUP_STYLES = String.raw`
   .kt-popup-header__window:hover { background: color-mix(in srgb, var(--kt-onpri) 12%, var(--kt-pri)); }
 }
 .kt-popup-shell--window .kt-popup-window-title { flex: none; margin: 0; padding: 16px 16px 2px; color: var(--kt-on); font-size: 16px; font-weight: 700; line-height: 1.3; }
-.kt-popup-tabs { min-height: 44px; margin: 0 14px; }
-.kt-popup-tabs .MuiTab-root { min-height: 36px; padding-block: 5px; }
+.kt-popup-tabs { min-height: 44px; margin: 0 var(--kt-chrome-inset, 16px); }
+.kt-popup-tabs.MuiTabs-root { min-height: 40px; padding: 3px; border-radius: 999px; background: var(--kt-sf2); }
+.kt-popup-tabs .MuiTab-root { min-height: 34px; padding-block: 5px; border-radius: 999px; color: var(--kt-onv); font-weight: 650; }
+.kt-popup-tabs .MuiTab-root.Mui-selected { background: var(--kt-sf0); color: var(--kt-on); box-shadow: var(--kt-shadow-card); }
 .kt-popup-scroll { height: auto; overflow: visible; }
 .kt-popup-content { display: flex; flex-direction: column; gap: 14px; padding: 14px 18px 18px; }
 
@@ -301,6 +304,7 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-shell--window .kt-popup-text-panel { padding: 0; animation: none; }
 
 @media (max-width: 395px) {
+  .kt-popup-header { padding-inline: 14px; }
   .kt-popup-content { padding-inline: 14px; }
   .kt-popup-tabs { margin-inline: 14px; }
 }
