@@ -10,9 +10,9 @@ async function main() {
   // https://github.com/vitejs/vite/issues/5885
   process.env.NODE_ENV = "production";
 
-  const ProjectName = "Kiss Translator";
+  const ProjectName = "ImmerTranslate";
   const AppCategory = "public.app-category.productivity";
-  const Identifier = "com.fishjar.kiss-translator";
+  const Identifier = "com.boomytc.immer-translate";
   const DevelopmentTeam = process.env.DEVELOPMENT_TEAM;
   const DistPath = "build";
 

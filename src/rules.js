@@ -13,7 +13,7 @@ import { BUILTIN_RULES } from "./config/rules";
     // 生成的目标路径在打包输出文件夹的 web 目录下
     const file = path.resolve(
       __dirname,
-      "../build/web/kiss-translator-rules.json"
+      "../build/web/immer-translate-rules.json"
     );
     fs.writeFileSync(file, data);
     console.info(`Built-in rules generated: ${file}`);

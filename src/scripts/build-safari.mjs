@@ -23,8 +23,8 @@ async function main() {
 
   // 2. 集中配置项
   const CONFIG = {
-    projectName: "Kiss Translator",
-    identifier: "com.fishjar.kiss-translator",
+    projectName: "ImmerTranslate",
+    identifier: "com.boomytc.immer-translate",
     appCategory: "public.app-category.productivity",
     developmentTeam: process.env.DEVELOPMENT_TEAM, // 如果没有设置，后续逻辑会处理
     distPath: "build",
