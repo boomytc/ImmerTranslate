@@ -9,6 +9,8 @@ import { useI18n } from "../../hooks/I18n";
 export default function Header({ onClose, openSeparateWindow, openSettings }) {
   const i18n = useI18n();
   const appName = i18n("app_name");
+  const openSeparateWindowLabel = i18n("popup_open_separate_window");
+  const openSeparateWindowName = `${openSeparateWindowLabel} · ${i18n("popup_text_translation")}`;
 
   const handleHomepage = () => {
     window.open(
@@ -46,12 +48,16 @@ export default function Header({ onClose, openSeparateWindow, openSettings }) {
         </IconButton>
       ) : (
         <span className="kt-popup-header__actions">
-          <IconButton
+          <button
+            type="button"
+            className="kt-popup-header__window"
             onClick={openSeparateWindow}
-            aria-label={i18n("open_separate_window")}
+            aria-label={openSeparateWindowName}
+            title={openSeparateWindowName}
           >
-            <OpenInNewRoundedIcon />
-          </IconButton>
+            <OpenInNewRoundedIcon aria-hidden="true" />
+            <span>{openSeparateWindowLabel}</span>
+          </button>
           <IconButton onClick={openSettings} aria-label={i18n("setting")}>
             <SettingsRoundedIcon />
           </IconButton>

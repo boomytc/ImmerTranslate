@@ -200,6 +200,7 @@ describe("common iframe startup", () => {
 
     expect(matchRule).toHaveBeenCalledTimes(1);
     expect(TranslatorManager).toHaveBeenCalledTimes(1);
+    expect(TranslatorManager.mock.calls[0][0].transboxOnly).toBe(false);
     expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
     expect(runSubtitle).toHaveBeenCalledTimes(1);
   });
@@ -237,12 +238,20 @@ describe("common iframe startup", () => {
 
   test("starts transbox-only manager for PDF documents", async () => {
     setContentType("application/pdf");
+    getFabWithDefault.mockResolvedValue({
+      isHide: false,
+      hideExceptionList: "kiss.example",
+    });
+    isInBlacklist.mockImplementation(
+      (_href, blacklist) => blacklist === "kiss.example"
+    );
 
     await run();
 
     expect(matchRule).toHaveBeenCalledTimes(1);
     expect(TranslatorManager).toHaveBeenCalledTimes(1);
     expect(TranslatorManager.mock.calls[0][0].transboxOnly).toBe(true);
+    expect(TranslatorManager.mock.calls[0][0].fabConfig.isHide).toBe(false);
     expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
     expect(runSubtitle).not.toHaveBeenCalled();
   });

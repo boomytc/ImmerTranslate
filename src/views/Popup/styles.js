@@ -84,8 +84,16 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-header__version { padding: 3px 8px; border-radius: 999px; background: var(--kt-sf2); color: var(--kt-onv); font-size: 10.5px; font-weight: 650; }
 .kt-popup-header__spacer { flex: 1; }
 .kt-popup-header__drag { display: flex; color: var(--kt-onv); cursor: move; }
-.kt-popup-header__actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.kt-popup-header__actions { display: flex; flex: none; align-items: center; gap: 6px; }
 .kt-popup-header__actions .MuiIconButton-root { width: 38px; height: 38px; padding: 7px; }
+.kt-popup-header__window { height: 32px; display: inline-flex; flex: none; align-items: center; gap: 4px; margin: 0; padding: 0 10px 0 8px; border: 0; border-radius: 999px; background: var(--kt-pri); color: var(--kt-onpri); box-shadow: 0 1px 2px rgb(23 24 28 / 0.18); font: inherit; font-size: 12px; font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; }
+.kt-popup-header__window svg { width: 16px; height: 16px; flex: none; }
+.kt-popup-header__window:focus-visible { outline: 2px solid var(--kt-pri); outline-offset: 2px; }
+.kt-popup-header__window:active { transform: scale(.98); }
+@media (hover: hover) {
+  .kt-popup-header__window:hover { background: color-mix(in srgb, var(--kt-onpri) 12%, var(--kt-pri)); }
+}
+.kt-popup-shell--window .kt-popup-window-title { flex: none; margin: 0; padding: 16px 16px 2px; color: var(--kt-on); font-size: 16px; font-weight: 700; line-height: 1.3; }
 .kt-popup-tabs { min-height: 44px; margin: 0 14px; }
 .kt-popup-tabs .MuiTab-root { min-height: 36px; padding-block: 5px; }
 .kt-popup-scroll { height: auto; overflow: visible; }
