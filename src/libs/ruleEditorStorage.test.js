@@ -13,7 +13,7 @@ import {
   saveEdit,
   withTransaction,
 } from "./storage";
-import { STOKEY_SETTING } from "../config";
+import { KV_RULES_KEY, STOKEY_SETTING } from "../config";
 import { loadOrFetchSubRules } from "./subRules";
 
 jest.mock("./storage", () => ({
@@ -226,7 +226,7 @@ test("persists the edit timestamp before starting cloud synchronization", async 
   expect(saveEdit).toHaveBeenCalledWith(
     expect.any(String),
     expect.any(Function),
-    "kiss-rules_v2.json",
+    KV_RULES_KEY,
     { timestamp: expect.any(Number) }
   );
   expect(trySyncRules).toHaveBeenCalled();
