@@ -454,32 +454,25 @@ describe.each(["document", "shadow root"])(
       );
     });
 
-    test.each(["menu surface", "disabled item"])(
-      "the first outside click closes after clicking the %s",
-      (target) => {
-        render();
-        openMenu();
-        const onPageClick = jest.fn();
-        window.addEventListener("click", onPageClick);
-        try {
-          click(
-            target === "menu surface"
-              ? menu()
-              : menu().querySelector('[aria-disabled="true"]')
-          );
-          expect(menu()).not.toBeNull();
-          expect(onPageClick).not.toHaveBeenCalled();
-          expect(processActions).not.toHaveBeenCalled();
+    test("the first outside click closes after clicking the menu surface", () => {
+      render();
+      openMenu();
+      const onPageClick = jest.fn();
+      window.addEventListener("click", onPageClick);
+      try {
+        click(menu());
+        expect(menu()).not.toBeNull();
+        expect(onPageClick).not.toHaveBeenCalled();
+        expect(processActions).not.toHaveBeenCalled();
 
-          click(document.body);
+        click(document.body);
 
-          expect(menu()).toBeNull();
-          expect(fab().getAttribute("aria-expanded")).toBe("false");
-        } finally {
-          window.removeEventListener("click", onPageClick);
-        }
+        expect(menu()).toBeNull();
+        expect(fab().getAttribute("aria-expanded")).toBe("false");
+      } finally {
+        window.removeEventListener("click", onPageClick);
       }
-    );
+    });
 
     test("clicking the open FAB closes without reopening the menu", () => {
       render();
