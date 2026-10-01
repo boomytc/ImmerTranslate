@@ -49,7 +49,7 @@ import {
 } from "../../config";
 import { getPresetModels } from "../../config/presetModels";
 import { fetchModelCatalog } from "../../libs/modelList";
-import { DEFAULT_FAB, isFabVisible } from "../../config/fab";
+import { DEFAULT_FAB, isFabVisible, FAB_SIZE_PRESETS } from "../../config/fab";
 import { useStorage } from "../../hooks/Storage";
 import {
   readSiteTransOpen,
@@ -578,7 +578,7 @@ export default function PopupCont({
       try {
         const href = isContent
           ? window.location?.href
-          : (targetTabUrl || (await getCurTab())?.url || "");
+          : targetTabUrl || (await getCurTab())?.url || "";
         if (!active || !href) return;
         const options = getDomainOptions(href);
         setCurrentHref(href);
@@ -683,7 +683,12 @@ export default function PopupCont({
     return () => {
       active = false;
     };
-  }, [activeApiSetting?.apiType, activeApiSetting?.key, listUrl, supportsModel]);
+  }, [
+    activeApiSetting?.apiType,
+    activeApiSetting?.key,
+    listUrl,
+    supportsModel,
+  ]);
 
   const handleSelectModel = useCallback(
     (model) => {
@@ -704,12 +709,9 @@ export default function PopupCont({
       }
       void updateSetting((previous) => ({
         ...previous,
-        transApis: (
-          previous?.transApis ||
-          setting?.transApis ||
-          []
-        ).map((api) =>
-          api.apiSlug === activeApiSetting.apiSlug ? { ...api, model } : api
+        transApis: (previous?.transApis || setting?.transApis || []).map(
+          (api) =>
+            api.apiSlug === activeApiSetting.apiSlug ? { ...api, model } : api
         ),
       }));
     },
@@ -847,6 +849,33 @@ export default function PopupCont({
     updateFab,
   ]);
 
+  const handleUpdateFabSize = useCallback(
+    async (size) => {
+      if (fabLoading) return;
+      try {
+        const nextFab = { ...(fabData || DEFAULT_FAB), size };
+        await updateFab(nextFab);
+        const shouldShow = isFabVisible(currentHref, nextFab);
+        const args = { enabled: shouldShow, fabConfig: nextFab };
+        if (processActions) {
+          await processActions({ action: MSG_FAB_TOGGLE, args });
+        } else {
+          await sendPageMessage(MSG_FAB_TOGGLE, args);
+        }
+      } catch (error) {
+        kissLog("update fab size error", error);
+      }
+    },
+    [
+      currentHref,
+      fabData,
+      fabLoading,
+      processActions,
+      sendPageMessage,
+      updateFab,
+    ]
+  );
+
   const { data: rulesData, isLoading: rulesLoading } = useStorage(
     STOKEY_RULES,
     DEFAULT_RULES
@@ -881,15 +910,15 @@ export default function PopupCont({
       setSiteDraft(next);
       const saved = { pattern: sitePattern, transOpen: next };
       const persist =
-        isExt && isContent
-          ? sendBgMsg(MSG_SAVE_RULE, saved)
-          : saveRule(saved);
+        isExt && isContent ? sendBgMsg(MSG_SAVE_RULE, saved) : saveRule(saved);
       const globalTransOpen = rules.find(
         (item) => item.pattern === GLOBAL_KEY
       )?.transOpen;
       const nextRuntime = effectiveTransOpen(next, globalTransOpen);
       const currentRuntime =
-        rule?.transOpen === true || rule?.transOpen === "true" ? "true" : "false";
+        rule?.transOpen === true || rule?.transOpen === "true"
+          ? "true"
+          : "false";
 
       if (canTranslatePage && nextRuntime !== currentRuntime) {
         void Promise.resolve(
@@ -1258,6 +1287,31 @@ export default function PopupCont({
               )}
             </Button>
           )}
+        </div>
+        <div className="kt-popup-fab-control__sizes">
+          <span className="kt-popup-fab-control__size-label">
+            {i18n("fab_size")}
+          </span>
+          <div
+            className="kt-popup-fab-control__size-group"
+            role="group"
+            aria-label={i18n("fab_size")}
+          >
+            {FAB_SIZE_PRESETS.map(({ size, labelKey }) => (
+              <button
+                key={size}
+                type="button"
+                className="kt-popup-fab-control__size-chip"
+                aria-pressed={
+                  Math.abs((fabData?.size || DEFAULT_FAB.size) - size) <= 4
+                }
+                disabled={fabLoading}
+                onClick={() => void handleUpdateFabSize(size)}
+              >
+                {i18n(labelKey)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

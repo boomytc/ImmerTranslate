@@ -333,6 +333,33 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       view.cleanup();
     });
 
+    test("clicking size preset chip updates fab size and sends MSG_FAB_TOGGLE", async () => {
+      const processActions = jest.fn(async () => ({ ok: true }));
+      const view = renderPopup({ processActions });
+      await flushEffects();
+
+      const sizeChips = view.container.querySelectorAll(
+        ".kt-popup-fab-control__size-chip"
+      );
+      expect(sizeChips).toHaveLength(3);
+      expect(sizeChips[2].getAttribute("aria-pressed")).toBe("true");
+
+      await act(async () => {
+        sizeChips[0].click();
+      });
+      await flushEffects();
+
+      expect(processActions).toHaveBeenCalledWith({
+        action: MSG_FAB_TOGGLE,
+        args: expect.objectContaining({
+          fabConfig: expect.objectContaining({ size: 36 }),
+        }),
+      });
+      expect(sizeChips[0].getAttribute("aria-pressed")).toBe("true");
+
+      view.cleanup();
+    });
+
     test("when global FAB is hidden, site exception button enables FAB for this site", async () => {
       // Set storage to global hidden
       await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({

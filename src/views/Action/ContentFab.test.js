@@ -1369,6 +1369,44 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       ["*", "other.example"].sort()
     );
   });
+
+  test("renders size presets and updates button size when clicked", async () => {
+    let stored = { size: 56 };
+    const save = jest.fn(async (updater) => {
+      stored = typeof updater === "function" ? updater(stored) : updater;
+      return { value: stored };
+    });
+    jest.spyOn(storageStateModule, "getStorageState").mockReturnValue({
+      save,
+      subscribe: () => () => {},
+    });
+
+    render({ size: 56 });
+    clickFab();
+
+    const heroItem = container.querySelector(
+      ".kt-content-fab-menu__item--hero"
+    );
+    expect(heroItem).not.toBeNull();
+    expect(heroItem.textContent).toBe("popup_translate_page");
+
+    const sizeButtons = container.querySelectorAll(
+      ".kt-content-fab-menu__sizes button"
+    );
+    expect(sizeButtons).toHaveLength(3);
+    expect(sizeButtons[2].getAttribute("aria-pressed")).toBe("true");
+
+    await act(async () => {
+      sizeButtons[0].click();
+    });
+
+    expect(sizeButtons[0].getAttribute("aria-pressed")).toBe("true");
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_FAB_TOGGLE,
+      args: { fabConfig: { size: 36 } },
+    });
+    expect(stored.size).toBe(36);
+  });
 });
 
 describe("configuredByokApis", () => {

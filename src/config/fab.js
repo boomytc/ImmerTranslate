@@ -4,6 +4,12 @@ export const FAB_MIN_OPACITY = 0.1;
 export const FAB_MIN_SIZE = 24;
 export const FAB_MAX_SIZE = 96;
 
+export const FAB_SIZE_PRESETS = [
+  { size: 36, label: "36px", labelKey: "fab_size_s" },
+  { size: 48, label: "48px", labelKey: "fab_size_m" },
+  { size: 56, label: "56px", labelKey: "fab_size_l" },
+];
+
 export const DEFAULT_FAB = {
   hideExceptionList: "",
   halfHide: true,
@@ -39,6 +45,9 @@ export function normalizeFabAppearance(config) {
 export function isFabVisible(href, fabConfig = {}) {
   const safeHref = typeof href === "string" ? href : "";
   const isGlobalHide = Boolean(fabConfig?.isHide);
-  const isException = isInBlacklist(safeHref, fabConfig?.hideExceptionList || "");
+  const isException = isInBlacklist(
+    safeHref,
+    fabConfig?.hideExceptionList || ""
+  );
   return isGlobalHide ? isException : !isException;
 }
