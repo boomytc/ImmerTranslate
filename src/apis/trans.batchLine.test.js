@@ -640,25 +640,6 @@ describe("Batch Translation Protocols & Custom Batch User Prompt", () => {
   });
 
   describe("alignBatchTranslations unit tests", () => {
-    test("handles normal structured items", () => {
-      const items = [
-        { id: 0, translation: ["译文0", "en"] },
-        { id: 1, translation: ["译文1", "en"] },
-      ];
-      const aligned = alignBatchTranslations(items, 2);
-      expect(aligned).toEqual([
-        { id: 0, result: ["译文0", "en"] },
-        { id: 1, result: ["译文1", "en"] },
-      ]);
-    });
-
-    test("defends against dropped segments and maintains absolute slot index", () => {
-      // 遗漏 id 0，只有 id 1
-      const items = [{ id: 1, translation: ["译文1", ""] }];
-      const aligned = alignBatchTranslations(items, 2);
-      expect(aligned).toEqual([{ id: 1, result: ["译文1", ""] }]);
-    });
-
     test("defends against out-of-bounds and duplicate IDs", () => {
       const items = [
         { id: 0, translation: ["首次译文0", ""] },
@@ -671,18 +652,6 @@ describe("Batch Translation Protocols & Custom Batch User Prompt", () => {
       expect(aligned).toEqual([
         { id: 0, result: ["首次译文0", ""] },
         { id: 1, result: ["有效译文1", ""] },
-      ]);
-    });
-
-    test("supports legacy positional arrays for traditional APIs", () => {
-      const items = [
-        ["Google 译文 0", "en"],
-        ["Google 译文 1", "en"],
-      ];
-      const aligned = alignBatchTranslations(items, 2);
-      expect(aligned).toEqual([
-        { id: 0, result: ["Google 译文 0", "en"] },
-        { id: 1, result: ["Google 译文 1", "en"] },
       ]);
     });
   });

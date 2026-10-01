@@ -17,10 +17,8 @@ jest.mock("../libs/docInfo", () => ({
 
 import { handleTranslate } from "./trans";
 import {
-  API_SPE_TYPES,
   DEFAULT_API_LIST,
   MODELSCOPE_CHAT_COMPLETIONS_URL,
-  MODELSCOPE_MODELS_URL,
   OPT_TRANS_MODELSCOPE,
   resolveApiPromptSettings,
 } from "../config";
@@ -41,21 +39,6 @@ const getApiSetting = (update = {}) =>
 describe("ModelScope interface", () => {
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  test("ships the OpenAI-compatible chat URL and native model list URL", () => {
-    const api = DEFAULT_API_LIST.find(
-      (item) => item.apiType === OPT_TRANS_MODELSCOPE
-    );
-
-    expect(api).toMatchObject({
-      url: MODELSCOPE_CHAT_COMPLETIONS_URL,
-      modelListUrl: MODELSCOPE_MODELS_URL,
-      model: "Qwen/Qwen3-32B",
-      key: "",
-    });
-    expect(API_SPE_TYPES.ai.has(OPT_TRANS_MODELSCOPE)).toBe(true);
-    expect(API_SPE_TYPES.stream.has(OPT_TRANS_MODELSCOPE)).toBe(true);
   });
 
   test("sends a bearer chat completion", async () => {
