@@ -17,6 +17,7 @@ const { tryDetectLang } = require("./detect");
 const {
   DEFAULT_API_SETTING,
   EVENT_FAVORITE_WORD_CHANGE,
+  I18N,
   OPT_DICT_BING,
   OPT_DICT_YOUDAO,
 } = require("../config");
@@ -6542,15 +6543,12 @@ backdrop-filter: blur(8px);`,
 
   describe("page translate failure opens options", () => {
     const openOptionsClass = `.${Translator.KISS_CLASS.openOptions}`;
+    const errorClass = `.${Translator.KISS_CLASS.error}`;
 
-    test("failed page translation shows a visible 打开设置 control", async () => {
-      apiTranslate.mockRejectedValueOnce(new Error("invalid api key"));
+    const failPage = async (error, setting = {}) => {
+      apiTranslate.mockRejectedValueOnce(error);
       document.body.innerHTML =
         '<main id="root"><p id="target">Hello from the source page.</p></main>';
-      const previousPage = process.env.REACT_APP_OPTIONSPAGE;
-      process.env.REACT_APP_OPTIONSPAGE = "https://example.test/options";
-      const open = jest.spyOn(window, "open").mockImplementation(() => null);
-
       createTranslator(
         {
           autoScan: "false",
@@ -6560,15 +6558,27 @@ backdrop-filter: blur(8px);`,
         {
           minLength: 0,
           uiLang: "zh",
-          transApis: [createApiSetting("test-api")],
+          transApis: [createApiSetting("test-api", setting.isDisabled)],
+          ...setting,
         }
       );
       await flushAsync();
+      return document.querySelector(errorClass);
+    };
+
+    test("failed page translation shows a visible 打开设置 control", async () => {
+      const previousPage = process.env.REACT_APP_OPTIONSPAGE;
+      process.env.REACT_APP_OPTIONSPAGE = "https://example.test/options";
+      const open = jest.spyOn(window, "open").mockImplementation(() => null);
+
+      const message = await failPage(new Error("invalid api key"));
 
       const button = document.querySelector(openOptionsClass);
       expect(button).not.toBeNull();
       expect(button.textContent).toBe("打开设置");
       expect(button.hidden).toBe(false);
+      expect(message.textContent).toBe(I18N.test_connection_invalid_key.zh);
+      expect(message.hidden).toBe(false);
       button.click();
       expect(open).toHaveBeenCalledWith(
         "https://example.test/options#/apis",
@@ -6582,6 +6592,54 @@ backdrop-filter: blur(8px);`,
 
       open.mockRestore();
       process.env.REACT_APP_OPTIONSPAGE = previousPage;
+    });
+
+    test("shows the connection-test network copy when the provider cannot be reached", async () => {
+      const message = await failPage(new TypeError("Failed to fetch"));
+      expect(message.textContent).toBe(I18N.test_connection_network.zh);
+    });
+
+    test("shows the connection-test http copy for a provider status error", async () => {
+      const message = await failPage(
+        new Error(JSON.stringify({ status: 502, statusText: "Bad Gateway" }))
+      );
+      expect(message.textContent).toBe(I18N.test_connection_http.zh);
+    });
+
+    test("shows service guidance when the active service is disabled", async () => {
+      const message = await failPage(
+        new Error("translate got empty response"),
+        {
+          isDisabled: true,
+        }
+      );
+      expect(message.textContent).toBe(
+        I18N.page_translate_service_unavailable.zh
+      );
+    });
+
+    test("shows an actionable fallback in English for an unknown failure", async () => {
+      apiTranslate.mockRejectedValueOnce(
+        new Error("translate got an unexpected result")
+      );
+      document.body.innerHTML =
+        '<main id="root"><p id="target">Hello from the source page.</p></main>';
+      createTranslator(
+        {
+          autoScan: "false",
+          selector: "#target",
+          apiSlug: "test-api",
+        },
+        {
+          minLength: 0,
+          uiLang: "en",
+          transApis: [createApiSetting("test-api")],
+        }
+      );
+      await flushAsync();
+      expect(document.querySelector(errorClass).textContent).toBe(
+        I18N.page_translate_failed.en
+      );
     });
 
     test("successful translation does not add an options control", async () => {

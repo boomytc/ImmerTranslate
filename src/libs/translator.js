@@ -66,6 +66,7 @@ import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
 import { isMissingRequiredApiKey } from "./apiKey";
 import { openOptionsApisPage } from "./optionsEntry";
+import { pageTranslateFailureKey } from "./pageTranslateError";
 import { getDocInfo } from "./docInfo";
 import { visitTranslationTargets } from "./translationTargets";
 
@@ -240,6 +241,7 @@ export class Translator {
     space: `${APP_LCNAME}-space`,
     highlight: `${APP_LCNAME}-highlight`,
     retry: `${APP_LCNAME}-retry`,
+    error: `${APP_LCNAME}-error`,
     openOptions: `${APP_LCNAME}-open-options`,
     backup: `${APP_LCNAME}-backup`,
     original: `${APP_LCNAME}-original`,
@@ -3212,6 +3214,20 @@ export class Translator {
     message.textContent = errorText;
     message.style.cssText = `color: ${errorColor};`;
 
+    const visibleMessage = document.createElement("span");
+    visibleMessage.className = `${Translator.KISS_CLASS.error} notranslate`;
+    visibleMessage.setAttribute("translate", "no");
+    visibleMessage.setAttribute("role", "status");
+    visibleMessage.textContent = errorText;
+    visibleMessage.style.cssText = [
+      `color: ${errorColor}`,
+      "font-size: 12px",
+      "line-height: 1.4",
+      "margin-left: 6px",
+      "max-width: min(320px, 70vw)",
+      "white-space: normal",
+    ].join("; ");
+
     const actionButtonStyle = [
       "display: flex",
       "align-items: center",
@@ -3390,6 +3406,7 @@ export class Translator {
     panel.appendChild(message);
     panel.appendChild(actions);
     container.appendChild(retryIcon);
+    container.appendChild(visibleMessage);
     container.appendChild(visibleOpenOptions);
 
     return container;
@@ -3734,6 +3751,10 @@ export class Translator {
         return;
       }
 
+      // 页面上显示可行动文案；原始异常只留在日志里，避免把堆栈或密钥摊开。
+      const i18n = newI18n(this.#setting.uiLang || "zh");
+      const userMessage = i18n(pageTranslateFailureKey(err, apiSetting));
+
       // 失败重试按钮
       try {
         const lastWrapper = hostNode.querySelector(
@@ -3745,7 +3766,7 @@ export class Translator {
           );
           if (inner) {
             inner.textContent = "";
-            const retryNode = this.#createRetryErrorNode(errorText, () => {
+            const retryNode = this.#createRetryErrorNode(userMessage, () => {
               this.#withViewportAnchor(() => {
                 touchTranslationOwners.delete(lastWrapper);
                 lastWrapper.remove();

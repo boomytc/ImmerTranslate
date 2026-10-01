@@ -66,6 +66,18 @@ test("tells users to refresh after a missing connection setup", () => {
   expect(I18N.test_connection_http.en).toBe(
     "Connection failed. Check the endpoint or try again later"
   );
+  expect(I18N.page_translate_failed.zh).toBe(
+    "页面翻译失败。请检查网络，或换一个翻译服务，也可以打开设置核对接口"
+  );
+  expect(I18N.page_translate_failed.en).toBe(
+    "Page translation failed. Check your network, switch translation service, or open settings and check the endpoint."
+  );
+  expect(I18N.page_translate_service_unavailable.zh).toBe(
+    "当前翻译服务不可用或已停用。请换一个翻译服务，或打开设置检查接口"
+  );
+  expect(I18N.page_translate_service_unavailable.en).toBe(
+    "This translation service is unavailable or turned off. Switch translation service, or open settings and check the endpoint."
+  );
   expect(I18N.test_connection_ok.zh).toBe("已连通");
   expect(I18N.test_connection_ok_empty.zh).toBe("已连通，模型列表为空");
 });
