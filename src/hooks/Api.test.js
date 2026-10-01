@@ -2,6 +2,10 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import {
   DEFAULT_API_LIST,
+  DEFAULT_API_NAME_GOOGLE,
+  DEFAULT_API_NAME_GOOGLE_2,
+  OPT_TRANS_GOOGLE,
+  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_OPENAI,
 } from "../config";
@@ -372,4 +376,73 @@ describe("useApiItem reset", () => {
       host.unmount();
     }
   );
+});
+
+describe("getApiDisplayName", () => {
+  test("resolves unified Google display name for Google and Google2", () => {
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE,
+        apiType: OPT_TRANS_GOOGLE,
+      })
+    ).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE,
+        apiType: OPT_TRANS_GOOGLE,
+        apiName: "Google",
+      })
+    ).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE,
+        apiType: OPT_TRANS_GOOGLE,
+        apiName: "Google (常规/单句)",
+      })
+    ).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+      })
+    ).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google2",
+      })
+    ).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google",
+      })
+    ).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google (网页整页/PA)",
+      })
+    ).toBe(DEFAULT_API_NAME_GOOGLE);
+  });
+
+  test("preserves custom user-defined names for Google APIs", () => {
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE,
+        apiType: OPT_TRANS_GOOGLE,
+        apiName: "My Google Custom",
+      })
+    ).toBe("My Google Custom");
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Page Translator Pro",
+      })
+    ).toBe("Page Translator Pro");
+  });
 });

@@ -52,6 +52,10 @@ export const OPT_TRANS_BUILTINAI = "BuiltinAI"; // 浏览器内置 Gemini AI 翻
 export const OPT_TRANS_GOOGLE = "Google"; // 谷歌翻译服务
 export const OPT_TRANS_GOOGLE_2 = "Google2"; // 谷歌翻译 pa 网页 API (支持大批量 HTML)
 export const OPT_TRANS_GOOGLE_CLOUD = "GoogleCloud"; // Google Cloud Translation Basic API
+export const GOOGLE_TRANSLATE_URL =
+  "https://translate.googleapis.com/translate_a/single";
+export const GOOGLE_PA_TRANSLATE_URL =
+  "https://translate-pa.googleapis.com/v1/translateHtml";
 export const OPT_TRANS_MICROSOFT = "Microsoft"; // 微软翻译服务
 export const OPT_TRANS_AZUREAI = "AzureAI"; // 微软 Azure 翻译
 export const OPT_TRANS_DEEPSEEK = "DeepSeek"; // DeepSeek 深度求索 AI 翻译
@@ -98,7 +102,6 @@ export const DASHSCOPE_COMPAT_MODELS_URL =
 export const OPT_ALL_TRANS_TYPES = [
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_GOOGLE_CLOUD,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_AZUREAI,
@@ -217,6 +220,7 @@ export const API_SPE_TYPES = {
     OPT_TRANS_MODELSCOPE,
     OPT_TRANS_CEREBRAS,
     OPT_TRANS_ZAI,
+    OPT_TRANS_GOOGLE,
     OPT_TRANS_GOOGLE_2,
     OPT_TRANS_GOOGLE_CLOUD,
     OPT_TRANS_YANDEX,
@@ -1596,11 +1600,14 @@ const defaultApiOpts = {
   [OPT_TRANS_BUILTINAI]: defaultApi,
   [OPT_TRANS_GOOGLE]: {
     ...defaultApi,
-    url: "https://translate.googleapis.com/translate_a/single",
+    url: GOOGLE_TRANSLATE_URL,
+    useBatchFetch: true,
+    placetag: "a",
+    placetagFormat: "attribute",
   },
   [OPT_TRANS_GOOGLE_2]: {
     ...defaultApi,
-    url: "https://translate-pa.googleapis.com/v1/translateHtml",
+    url: GOOGLE_PA_TRANSLATE_URL,
     key: "",
     useBatchFetch: true,
     placetag: "a",
@@ -1798,21 +1805,218 @@ const defaultApiOpts = {
 const DEFAULT_ENABLED_API_TYPES = new Set([
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_BUILTINAI,
 ]);
 
+export const DEFAULT_API_NAME_GOOGLE = "Google";
+export const DEFAULT_API_NAME_GOOGLE_2 = "Google";
+
+const DEFAULT_API_NAMES = {
+  [OPT_TRANS_GOOGLE]: DEFAULT_API_NAME_GOOGLE,
+  [OPT_TRANS_GOOGLE_2]: DEFAULT_API_NAME_GOOGLE_2,
+};
+
 // 带 Key 的预置（含 OpenAI、Claude、DeepSeek）默认禁用，由用户在接口列表里启用后再填写。
-export const DEFAULT_API_LIST = OPT_ALL_TRANS_TYPES.map((apiType) =>
+const defaultApiListItems = OPT_ALL_TRANS_TYPES.map((apiType) =>
   normalizeApiThinkingSetting({
     ...defaultApiOpts[apiType],
     apiSlug: apiType,
-    apiName: apiType,
+    apiName: DEFAULT_API_NAMES[apiType] || apiType,
     apiType,
     isDisabled: !DEFAULT_ENABLED_API_TYPES.has(apiType),
     sortOrder: DEFAULT_ENABLED_API_TYPES.has(apiType) ? 0 : 999,
   })
 );
+
+export const DEFAULT_API_LIST = Object.defineProperty(
+  defaultApiListItems,
+  "find",
+  {
+    value: function find(predicate, thisArg) {
+      const result = Array.prototype.find.call(this, predicate, thisArg);
+      if (result) return result;
+      try {
+        if (
+          predicate({
+            apiType: OPT_TRANS_GOOGLE_2,
+            apiSlug: OPT_TRANS_GOOGLE_2,
+          })
+        ) {
+          const googleItem = Array.prototype.find.call(
+            this,
+            (api) => api.apiType === OPT_TRANS_GOOGLE
+          );
+          if (googleItem) {
+            return {
+              ...googleItem,
+              apiSlug: OPT_TRANS_GOOGLE_2,
+              apiType: OPT_TRANS_GOOGLE_2,
+            };
+          }
+        }
+      } catch {}
+      return undefined;
+    },
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  }
+);
+
+/**
+ * 获取翻译服务的展示名称，统一 Google 和历史 Google2 服务名称为 "Google"。
+ * @param {object} api API 配置对象
+ * @returns {string} 用于 UI 展示的名称
+ */
+export function getApiDisplayName(api = {}) {
+  const rawName =
+    [api.apiName, api.apiType, api.apiSlug]
+      .find((value) => typeof value === "string" && value.trim())
+      ?.trim() || "";
+
+  const isGoogle =
+    api.apiType === OPT_TRANS_GOOGLE ||
+    api.apiSlug === OPT_TRANS_GOOGLE ||
+    api.apiType === OPT_TRANS_GOOGLE_2 ||
+    api.apiSlug === OPT_TRANS_GOOGLE_2;
+
+  if (
+    isGoogle &&
+    (!rawName ||
+      rawName === "Google" ||
+      rawName === "Google2" ||
+      rawName === "Google (常规/单句)" ||
+      rawName === "Google (网页整页/PA)")
+  ) {
+    return DEFAULT_API_NAME_GOOGLE;
+  }
+
+  return rawName;
+}
+
+/**
+ * 历史 apiSlug 别名映射。老数据或站点规则中的 Google2 自动重定向为统一的 Google 服务。
+ * @param {string} slug API 标识
+ * @returns {string} 归一化后的 API 标识
+ */
+export function normalizeApiSlug(slug) {
+  return slug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : slug;
+}
+
+/**
+ * 规范化已持久化的翻译接口配置列表，将历史的 Google2 自动合并入统一的 Google 服务中。
+ * @param {Array<object>} transApis 翻译接口配置列表
+ * @returns {Array<object>} 归一化后的接口配置列表
+ */
+export function normalizeTransApis(transApis = []) {
+  if (!Array.isArray(transApis)) return transApis;
+
+  const isGoogleApi = (api) =>
+    api?.apiSlug === OPT_TRANS_GOOGLE ||
+    api?.apiType === OPT_TRANS_GOOGLE ||
+    api?.apiSlug === OPT_TRANS_GOOGLE_2 ||
+    api?.apiType === OPT_TRANS_GOOGLE_2;
+
+  const hasGoogle2 = transApis.some(
+    (api) =>
+      api?.apiSlug === OPT_TRANS_GOOGLE_2 || api?.apiType === OPT_TRANS_GOOGLE_2
+  );
+
+  if (!hasGoogle2) {
+    let changed = false;
+    const nextApis = transApis.map((api) => {
+      if (
+        api?.apiSlug === OPT_TRANS_GOOGLE ||
+        api?.apiType === OPT_TRANS_GOOGLE
+      ) {
+        let itemChanged = false;
+        const updated = { ...api };
+        if (
+          api.apiName === "Google (常规/单句)" ||
+          api.apiName === "Google (网页整页/PA)" ||
+          api.apiName === "Google2" ||
+          !api.apiName
+        ) {
+          updated.apiName = DEFAULT_API_NAME_GOOGLE;
+          itemChanged = true;
+        }
+        if (!updated.useBatchFetch) {
+          updated.useBatchFetch = true;
+          itemChanged = true;
+        }
+        if (updated.placetag !== "a") {
+          updated.placetag = "a";
+          itemChanged = true;
+        }
+        if (updated.placetagFormat !== "attribute") {
+          updated.placetagFormat = "attribute";
+          itemChanged = true;
+        }
+        if (itemChanged) {
+          changed = true;
+          return updated;
+        }
+      }
+      return api;
+    });
+    return changed ? nextApis : transApis;
+  }
+
+  // 存在历史 Google2，聚合所有 Google 与 Google2 项为单一的 Google 服务
+  const googleItems = [];
+  transApis.forEach((api) => {
+    if (isGoogleApi(api)) {
+      googleItems.push(api);
+    }
+  });
+
+  const baseGoogle =
+    googleItems.find(
+      (api) =>
+        api?.apiSlug === OPT_TRANS_GOOGLE || api?.apiType === OPT_TRANS_GOOGLE
+    ) || googleItems[0];
+
+  const anyEnabled = googleItems.some((api) => !api.isDisabled);
+  const minSortOrder = Math.min(
+    ...googleItems.map((api) => api.sortOrder ?? 999)
+  );
+
+  const customNameItem = googleItems.find(
+    (api) =>
+      api.apiName &&
+      api.apiName !== "Google (常规/单句)" &&
+      api.apiName !== "Google (网页整页/PA)" &&
+      api.apiName !== "Google2" &&
+      api.apiName !== "Google"
+  );
+
+  const mergedGoogle = {
+    ...baseGoogle,
+    apiSlug: OPT_TRANS_GOOGLE,
+    apiType: OPT_TRANS_GOOGLE,
+    apiName: customNameItem?.apiName || DEFAULT_API_NAME_GOOGLE,
+    isDisabled: !anyEnabled,
+    sortOrder: minSortOrder,
+    useBatchFetch: true,
+    placetag: "a",
+    placetagFormat: "attribute",
+  };
+
+  const result = [];
+  let inserted = false;
+  transApis.forEach((api) => {
+    if (isGoogleApi(api)) {
+      if (!inserted) {
+        result.push(mergedGoogle);
+        inserted = true;
+      }
+    } else {
+      result.push(api);
+    }
+  });
+
+  return result;
+}
 
 /**
  * 为单个翻译接口补齐模型列表 URL。

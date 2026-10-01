@@ -27,7 +27,7 @@ import { useCallback, useMemo } from "react";
 import { limitNumber } from "../../libs/utils";
 import { useTranbox } from "../../hooks/Tranbox";
 import { isExt } from "../../libs/client";
-import { useApiList } from "../../hooks/Api";
+import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import ValidationInput from "../../hooks/ValidationInput";
 import { usePromptList } from "../../hooks/Prompt";
 import { useOverviewShortcuts } from "../../hooks/Commands";
@@ -224,7 +224,7 @@ export default function Tranbox() {
                   { value: "-", label: i18n("disable") },
                   ...aiEnabledApis.map((api) => ({
                     value: api.apiSlug,
-                    label: api.apiName,
+                    label: getApiDisplayName(api),
                   })),
                 ]}
               />
@@ -277,7 +277,7 @@ export default function Tranbox() {
                 >
                   {enabledApis.map((api) => (
                     <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                      {api.apiName}
+                      {getApiDisplayName(api)}
                     </MenuItem>
                   ))}
                 </TextField>

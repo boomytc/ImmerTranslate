@@ -73,6 +73,7 @@ import { isInBlacklist } from "../../libs/blacklist";
 import { useSetting } from "../../hooks/Setting";
 import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
+import { getApiDisplayName } from "../../hooks/Api";
 import { configuredByokApis, isMissingRequiredApiKey } from "../../libs/apiKey";
 import { COLLAPSED_SERVICE_LIMIT, getVisibleServices } from "./services";
 import CompactLanguageSelect from "./CompactLanguageSelect";
@@ -600,7 +601,7 @@ export default function PopupCont({
       configuredByokApis(setting?.transApis).map((api) => ({
         key: api.apiSlug,
         type: api.apiType || api.apiSlug,
-        name: api.apiName || api.apiSlug,
+        name: getApiDisplayName(api),
       })),
     [setting?.transApis]
   );
@@ -885,7 +886,7 @@ export default function PopupCont({
     setting?.tranboxSetting ||
     DEFAULT_TRANBOX_SETTING;
   const selectionTranslateOpen =
-    localSelectionTranslateOpen ?? (activeTranboxSetting?.transOpen !== false);
+    localSelectionTranslateOpen ?? activeTranboxSetting?.transOpen !== false;
 
   const handleToggleSelectionTranslate = useCallback(
     async (enabled) => {
