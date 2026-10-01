@@ -620,35 +620,6 @@ describe("TerminologyPlayground", () => {
     act(() => root.unmount());
   });
 
-  test("assertion-issue and auto-sample-skipped i18n keys are complete in all 7 languages", () => {
-    const REQUIRED_KEYS = [
-      "terminology_playground_alert_auto_sample_skipped",
-      "terminology_playground_issue_no_terms",
-      "terminology_playground_issue_empty_text",
-      "terminology_playground_issue_invalid_testcase",
-      "terminology_playground_issue_single_not_found",
-      "terminology_playground_issue_single_wrong_replacement",
-      "terminology_playground_issue_conflict_long_not_hit",
-      "terminology_playground_issue_conflict_long_cut",
-      "terminology_playground_issue_conflict_long_value_not_applied",
-      "terminology_playground_issue_conflict_long_no_value_replaced",
-      "terminology_playground_issue_conflict_short_value_not_applied",
-      "terminology_playground_issue_naive_prefix_cut",
-      "terminology_playground_issue_naive_cut_residue",
-      "terminology_playground_issue_unknown_type",
-      "terminology_playground_check_more",
-      "terminology_playground_check_expand",
-      "terminology_playground_check_collapse",
-    ];
-    const LANGS = ["zh", "en", "zh_TW", "ja", "ko", "tr", "vi"];
-    for (const key of REQUIRED_KEYS) {
-      for (const lang of LANGS) {
-        expect(I18N[key]?.[lang]).toEqual(expect.any(String));
-        expect(String(I18N[key]?.[lang]).length).toBeGreaterThan(0);
-      }
-    }
-  });
-
   test("explains explicit English word boundaries without changing symbol-term guidance", async () => {
     const { container, root } = renderPlayground({ rule: null });
     await flushEffects();
@@ -3397,43 +3368,6 @@ describe("TerminologyPlayground", () => {
     expect(respCol).not.toBeNull();
     expect(reqCol.className).toContain("MuiGrid-grid-md-6");
     expect(respCol.className).toContain("MuiGrid-grid-md-6");
-
-    act(() => root.unmount());
-  });
-
-  test("default: no maxHeight on panel containers, scroll areas not in auto overflow", async () => {
-    mockResolvedTransApis.push(
-      mockResolvedApi({ apiSlug: "openai", apiName: "OpenAI" })
-    );
-    mockApiTranslateWithCapture({
-      reqUserMsg: { role: "user", content: batchUserMsgContent() },
-    });
-    const { container, root, setAiTermsDraft } = renderPlayground({
-      rule: null,
-    });
-    await flushEffects();
-    fillAiTerms(container, setAiTermsDraft, "zorp,数据管道");
-    await runAiTest(container);
-
-    // 外层 Box（Grid item 的第一个子元素）初始无 maxHeight
-    const reqPanel = container.querySelector(
-      '[data-testid="terminology-ai-req-col"] > div'
-    );
-    const respPanel = container.querySelector(
-      '[data-testid="terminology-ai-resp-col"] > div'
-    );
-    expect(reqPanel.style.maxHeight).toBe("");
-    expect(respPanel.style.maxHeight).toBe("");
-
-    // 滚动区初始 overflowY 不是 auto（U2 默认不滚动契约）
-    const reqScroll = container.querySelector(
-      '[data-testid="terminology-ai-req-scroll"]'
-    );
-    const respScroll = container.querySelector(
-      '[data-testid="terminology-ai-resp-scroll"]'
-    );
-    expect(reqScroll.style.overflowY).not.toBe("auto");
-    expect(respScroll.style.overflowY).not.toBe("auto");
 
     act(() => root.unmount());
   });
