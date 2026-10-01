@@ -9,6 +9,7 @@ import {
   MSG_TRANS_SET_MODEL,
   MSG_TRANS_TOGGLE,
   OPT_LANGS_TO,
+  OPT_STYLE_NONE,
   OPT_TRANS_QWENMT,
 } from "../../config";
 import { DEFAULT_FAB, FAB_SIZE_PRESETS } from "../../config/fab";
@@ -16,6 +17,7 @@ import { getPresetModels } from "../../config/presetModels";
 import { useI18n } from "../../hooks/I18n";
 import { useRules } from "../../hooks/Rules";
 import { useSetting } from "../../hooks/Setting";
+import { useAllTextStyles } from "../../hooks/CustomStyles";
 import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import { configuredByokApis, isMissingRequiredApiKey } from "../../libs/apiKey";
 import { isExt } from "../../libs/client";
@@ -59,6 +61,7 @@ export default function FabQuickOptions({
   const i18n = useI18n();
   const { setting, updateSetting } = useSetting();
   const { list: rules = [], isLoading: rulesLoading } = useRules();
+  const { allTextStyles } = useAllTextStyles();
   const [rule, setRule] = useState(null);
   const [catalogModels, setCatalogModels] = useState([]);
   const [modelOverride, setModelOverride] = useState(null);
@@ -128,6 +131,22 @@ export default function FabQuickOptions({
       ]),
     [activeApi?.apiType, catalogModels, selectedModel]
   );
+  const currentTextStyle = rule?.textStyle || OPT_STYLE_NONE;
+  const styleOptions = useMemo(() => {
+    if (
+      currentTextStyle &&
+      !allTextStyles.some((item) => item.styleSlug === currentTextStyle)
+    ) {
+      return [
+        {
+          styleSlug: currentTextStyle,
+          styleName: currentTextStyle,
+        },
+        ...allTextStyles,
+      ];
+    }
+    return allTextStyles;
+  }, [allTextStyles, currentTextStyle]);
 
   useEffect(() => {
     setModelOverride(null);
@@ -245,6 +264,15 @@ export default function FabQuickOptions({
     toLang && !OPT_LANGS_TO.some(([code]) => code === toLang)
       ? [[toLang, toLang], ...OPT_LANGS_TO]
       : OPT_LANGS_TO;
+
+  const applyTextStyle = (textStyle) => {
+    if (!textStyle || textStyle === currentTextStyle) return;
+    setRule((current) => ({ ...current, textStyle }));
+    void processActions?.({
+      action: MSG_TRANS_PUTRULE,
+      args: { textStyle },
+    });
+  };
 
   const matchedFabSize =
     FAB_SIZE_PRESETS.find(
@@ -403,6 +431,30 @@ export default function FabQuickOptions({
           >
             <option value="bilingual">{i18n("fab_bilingual")}</option>
             <option value="trans_only">{i18n("show_only_translations")}</option>
+          </select>
+        </label>
+      )}
+
+      {rule && (
+        <label className="kt-content-fab-menu__row">
+          <span
+            className="kt-content-fab-menu__row-label"
+            id="kt-fab-style-label"
+          >
+            {i18n("text_style")}
+          </span>
+          <select
+            className="kt-content-fab-menu__select kt-content-fab-menu__style-select"
+            aria-labelledby="kt-fab-style-label"
+            aria-label={i18n("text_style")}
+            value={currentTextStyle}
+            onChange={(event) => applyTextStyle(event.target.value)}
+          >
+            {styleOptions.map((style) => (
+              <option key={style.styleSlug} value={style.styleSlug}>
+                {style.styleName || style.styleSlug}
+              </option>
+            ))}
           </select>
         </label>
       )}

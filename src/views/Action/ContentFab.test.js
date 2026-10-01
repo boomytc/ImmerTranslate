@@ -17,6 +17,8 @@ import {
   MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_STYLE,
   MSG_TRANSBOX_TOGGLE,
+  OPT_STYLE_LINE,
+  OPT_STYLE_NONE,
 } from "../../config";
 import * as storageStateModule from "../../libs/storageState";
 import { fetchModelCatalog } from "../../libs/modelList";
@@ -545,6 +547,61 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     });
     expect(saved.transApis[0].model).toBe("deepseek-chat");
     expect(saved.transApis[0].key).toBe(secret);
+  });
+
+  test("switches textStyle from FabQuickOptions and syncs palette button pressed state", async () => {
+    const getFabPageState = jest.fn(async () => ({
+      rule: { textStyle: OPT_STYLE_NONE },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const paletteItem = menuItems()[1];
+    expect(paletteItem.getAttribute("aria-pressed")).toBe("false");
+
+    const styleSelect = container.querySelector(
+      ".kt-content-fab-menu__style-select"
+    );
+    expect(styleSelect).not.toBeNull();
+    expect(styleSelect.value).toBe(OPT_STYLE_NONE);
+
+    act(() => {
+      styleSelect.value = OPT_STYLE_LINE;
+      styleSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_TRANS_PUTRULE,
+      args: { textStyle: OPT_STYLE_LINE },
+    });
+    expect(paletteItem.getAttribute("aria-pressed")).toBe("true");
+
+    // Test bidirectional sync from MSG_TRANS_CURRULE
+    act(() => {
+      document.dispatchEvent(
+        new CustomEvent(EVENT_KISS_INNER, {
+          detail: {
+            action: MSG_TRANS_CURRULE,
+            rule: { textStyle: OPT_STYLE_NONE },
+          },
+        })
+      );
+    });
+
+    expect(styleSelect.value).toBe(OPT_STYLE_NONE);
+    expect(paletteItem.getAttribute("aria-pressed")).toBe("false");
   });
 
   test("switches the page translator among configured services", async () => {

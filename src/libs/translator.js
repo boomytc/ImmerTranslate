@@ -50,6 +50,7 @@ import { builtinStylesMap, genTextClass } from "./style";
 import {
   applyInlineCss,
   applySourceTypography,
+  BILINGUAL_TYPOGRAPHY_PROPERTIES,
   clearPageTranslationChrome,
   ensurePageTranslationChromeStyle,
   PAGE_TRANSLATION_CHROME_CSS,
@@ -408,6 +409,7 @@ export class Translator {
   #glossary = {}; // AI词典
   #blockSelectorInvalid = false; // 自定义块级选择器是否已确认无效
   #textClass = {}; // 译文样式class
+  #lastActiveTextStyle = null; // 上次选中的有效译文样式
   #textSheet = null; // CSSStyleSheet 实例（Firefox 内容脚本中不可用时为 null）
   #textStylesRaw = ""; // 原始 CSS 文本（Firefox adoptedStyleSheets 回退备用）
   #useSheetFallback = false; // Firefox 跨作用域限制标记：adoptedStyleSheets 不可用时直接走内联 <style>
@@ -1125,6 +1127,9 @@ export class Translator {
       ...rule,
       isPlainText: rule.isPlainText === true || rule.isPlainText === "true",
     };
+    if (this.#rule.textStyle && this.#rule.textStyle !== OPT_STYLE_NONE) {
+      this.#lastActiveTextStyle = this.#rule.textStyle;
+    }
     this.#favWords = this.#dedupeFavoriteWords(favWords);
     this.#apisMap = new Map(
       this.#setting.transApis.map((api) => [api.apiSlug, api])
@@ -4715,12 +4720,69 @@ overflow-wrap: anywhere !important;`;
 
   // 更新样式
   #updateStyle(node, oldStyle, newStyle) {
-    this.#findTranslationWrappers(node).forEach((el) => {
-      const inner = el.querySelector(
+    if (!node || typeof node.querySelectorAll !== "function") return;
+    const newStyleCode = this.#textStyleCode(newStyle);
+    const ownsBackground = [
+      "background",
+      "background-color",
+      "background-image",
+    ].some((property) => styleOwnsProperty(newStyleCode, property));
+
+    this.#findTranslationWrappers(node).forEach((wrapper) => {
+      const inner = wrapper.querySelector?.(
         `:scope > .${Translator.KISS_CLASS.inner}`
       );
-      inner.classList.remove(this.#textClass[oldStyle]);
-      inner.classList.add(this.#textClass[newStyle]);
+      if (!inner) return;
+
+      const oldClass = this.#textClass?.[oldStyle];
+      if (oldClass && typeof oldClass === "string") {
+        const oldTokens = oldClass.split(/\s+/).filter(Boolean);
+        if (oldTokens.length) inner.classList.remove(...oldTokens);
+      }
+
+      const newClass = this.#textClass?.[newStyle];
+      if (newClass && typeof newClass === "string") {
+        const newTokens = newClass.split(/\s+/).filter(Boolean);
+        if (newTokens.length) inner.classList.add(...newTokens);
+      }
+
+      const hostNode =
+        touchTranslationOwners.get(wrapper) ||
+        (node !== wrapper ? node : wrapper.parentElement);
+
+      BILINGUAL_TYPOGRAPHY_PROPERTIES.forEach((property) => {
+        if (styleOwnsProperty(newStyleCode, property)) {
+          wrapper.style.removeProperty(property);
+          inner.style.removeProperty(property);
+        }
+      });
+      if (
+        styleOwnsProperty(newStyleCode, "color") ||
+        styleOwnsProperty(newStyleCode, "-webkit-text-fill-color")
+      ) {
+        wrapper.style.removeProperty("-webkit-text-fill-color");
+        inner.style.removeProperty("-webkit-text-fill-color");
+      }
+
+      if (hostNode) {
+        applySourceTypography(wrapper, hostNode, newStyleCode);
+        applySourceTypography(inner, hostNode, newStyleCode);
+      }
+
+      clearPageTranslationChrome(wrapper, { surface: true });
+      if (ownsBackground) {
+        inner.style.removeProperty("background");
+        inner.style.removeProperty("background-color");
+        inner.style.removeProperty("background-image");
+        clearPageTranslationChrome(inner, { surface: false });
+      } else {
+        inner.style.removeProperty("background");
+        clearPageTranslationChrome(inner, { surface: true });
+      }
+
+      if (this.#rule?.textExtStyle?.trim()) {
+        applyInlineCss(inner, this.#rule.textExtStyle);
+      }
     });
   }
 
@@ -5227,13 +5289,30 @@ overflow-wrap: anywhere !important;`;
     }
   }
 
-  // 快速切换模糊样式
-  toggleStyle() {
-    const textStyle =
-      this.#rule.textStyle === OPT_STYLE_FUZZY
-        ? OPT_STYLE_NONE
-        : OPT_STYLE_FUZZY;
-    this.updateRule({ textStyle });
+  // 快速切换译文呈现样式
+  toggleStyle(targetStyle) {
+    const currentStyle = this.#rule.textStyle;
+    let nextStyle;
+    if (targetStyle && targetStyle !== OPT_STYLE_NONE) {
+      if (currentStyle === targetStyle) {
+        this.#lastActiveTextStyle = currentStyle;
+        nextStyle = OPT_STYLE_NONE;
+      } else {
+        this.#lastActiveTextStyle = targetStyle;
+        nextStyle = targetStyle;
+      }
+    } else if (targetStyle === OPT_STYLE_NONE) {
+      if (currentStyle && currentStyle !== OPT_STYLE_NONE) {
+        this.#lastActiveTextStyle = currentStyle;
+      }
+      nextStyle = OPT_STYLE_NONE;
+    } else if (currentStyle && currentStyle !== OPT_STYLE_NONE) {
+      this.#lastActiveTextStyle = currentStyle;
+      nextStyle = OPT_STYLE_NONE;
+    } else {
+      nextStyle = this.#lastActiveTextStyle || OPT_STYLE_FUZZY;
+    }
+    this.updateRule({ textStyle: nextStyle });
   }
 
   // 切换划词翻译
@@ -5268,6 +5347,9 @@ overflow-wrap: anywhere !important;`;
 
   // 更新规则
   updateRule(newRule) {
+    if (newRule.textStyle && newRule.textStyle !== OPT_STYLE_NONE) {
+      this.#lastActiveTextStyle = newRule.textStyle;
+    }
     if (Object.prototype.hasOwnProperty.call(newRule, "isPlainText")) {
       newRule = {
         ...newRule,
