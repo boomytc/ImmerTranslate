@@ -10,6 +10,8 @@ export const PAGE_TRANSLATE_SERVICE = "page_translate_service_unavailable";
 export const PAGE_TRANSLATE_FAILED = "page_translate_failed";
 /** Distinct: the hover bubble should not say the page translation failed. */
 export const HOVER_TRANSLATE_FAILED = "hover_translate_failed";
+/** Distinct: the selection panel should not say the page or hover translation failed. */
+export const SELECTION_TRANSLATE_FAILED = "selection_translate_failed";
 
 const INVALID_KEY_RE =
   /invalid(?:\s+|[_-])?(?:api(?:\s+|[_-])?)?key|incorrect api key|api key is invalid|unauthorized/i;
@@ -79,4 +81,18 @@ export function pageTranslateFailureKey(error, apiSetting) {
 export function hoverTranslateFailureKey(error, apiSetting) {
   const key = pageTranslateFailureKey(error, apiSetting);
   return key === PAGE_TRANSLATE_FAILED ? HOVER_TRANSLATE_FAILED : key;
+}
+
+/**
+ * Selection results share the page-translate failure kinds. Network, HTTP,
+ * invalid-key, and unavailable-service copy stays the same; only the generic
+ * sentence is selection-specific.
+ *
+ * @param {unknown} error
+ * @param {{isDisabled?: boolean}|null|undefined} [apiSetting]
+ * @returns {string}
+ */
+export function selectionTranslateFailureKey(error, apiSetting) {
+  const key = pageTranslateFailureKey(error, apiSetting);
+  return key === PAGE_TRANSLATE_FAILED ? SELECTION_TRANSLATE_FAILED : key;
 }
