@@ -4567,6 +4567,15 @@ export const I18N = {
     tr: `Seçim çevirisi başarısız oldu. Ağınızı kontrol edin, başka bir çeviri hizmetine geçin veya ayarları açıp uç noktayı kontrol edin.`,
     vi: "Dịch vùng chọn thất bại. Hãy kiểm tra mạng, đổi dịch vụ dịch, hoặc mở cài đặt để kiểm tra địa chỉ.",
   },
+  input_translate_failed: {
+    zh: `输入框翻译失败。请检查网络，或换一个翻译服务，也可以打开设置核对接口`,
+    en: `Input box translation failed. Check your network, switch translation service, or open settings and check the endpoint.`,
+    zh_TW: `輸入框翻譯失敗。請檢查網路，或換一個翻譯服務，也可以開啟設定核對介面`,
+    ja: `入力ボックスの翻訳に失敗しました。ネットワークを確認するか、別の翻訳サービスに切り替えるか、設定を開いてエンドポイントを確認してください。`,
+    ko: `입력창 번역에 실패했습니다. 네트워크를 확인하거나, 다른 번역 서비스로 바꾸거나, 설정을 열어 엔드포인트를 확인하세요.`,
+    tr: `Giriş kutusu çevirisi başarısız oldu. Ağınızı kontrol edin, başka bir çeviri hizmetine geçin veya ayarları açıp uç noktayı kontrol edin.`,
+    vi: "Dịch hộp nhập thất bại. Hãy kiểm tra mạng, đổi dịch vụ dịch, hoặc mở cài đặt để kiểm tra địa chỉ.",
+  },
   fab_translation_mode: {
     zh: `译文显示`,
     en: `Translation display`,
