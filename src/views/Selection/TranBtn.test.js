@@ -113,3 +113,23 @@ test("activates once for a keyboard-generated click", () => {
   expect(view.onTrigger).toHaveBeenCalledTimes(1);
   view.cleanup();
 });
+
+test("applies dynamic fab size to button dimensions and icon size", () => {
+  const view = renderTranBtn({ size: 36 });
+  expect(view.button.style.width).toBe("36px");
+  expect(view.button.style.height).toBe("36px");
+  expect(view.button.style.minWidth).toBe("36px");
+  expect(view.button.style.minHeight).toBe("36px");
+  expect(view.button.style.borderRadius).toBe("18px");
+
+  const icon = view.button.querySelector("svg");
+  expect(icon.style.width).toBe("16px");
+  view.cleanup();
+
+  const viewLarge = renderTranBtn({ size: 56 });
+  expect(viewLarge.button.style.width).toBe("56px");
+  expect(viewLarge.button.style.height).toBe("56px");
+  const iconLarge = viewLarge.button.querySelector("svg");
+  expect(iconLarge.style.width).toBe("24px");
+  viewLarge.cleanup();
+});
