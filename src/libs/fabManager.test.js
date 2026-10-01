@@ -63,15 +63,4 @@ describe("FabManager", () => {
 
     expect(showSpy).not.toHaveBeenCalled();
   });
-
-  test("setProps delegates to ShadowDomManager setProps", () => {
-    const manager = new FabManager({
-      processActions: jest.fn(),
-      fabConfig: { isHide: false, size: 48 },
-      autoShow: false,
-    });
-    const setPropsSpy = jest.spyOn(manager, "setProps");
-    manager.setProps({ fabConfig: { size: 64 } });
-    expect(setPropsSpy).toHaveBeenCalledWith({ fabConfig: { size: 64 } });
-  });
 });
