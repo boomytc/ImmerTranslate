@@ -6,6 +6,8 @@ import InputSetting, { normalizeTriggerTime } from "./InputSetting";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let mockTriggerTime = 300;
+let mockShowDot = "mobile";
+const mockUpdateInputRule = jest.fn();
 
 jest.mock("../../hooks/I18n", () => ({ useI18n: () => (key) => key }));
 jest.mock("../../hooks/InputRule", () => ({
@@ -19,10 +21,10 @@ jest.mock("../../hooks/InputRule", () => ({
       triggerCount: 5,
       triggerTime: mockTriggerTime,
       transSign: "",
-      showDot: "mobile",
+      showDot: mockShowDot,
       blacklist: "",
     },
-    updateInputRule: jest.fn(),
+    updateInputRule: mockUpdateInputRule,
   }),
 }));
 jest.mock("../../hooks/Api", () => ({
@@ -38,6 +40,8 @@ jest.mock("./ShortcutInput", () => {
 describe("InputSetting", () => {
   beforeEach(() => {
     mockTriggerTime = 300;
+    mockShowDot = "mobile";
+    mockUpdateInputRule.mockClear();
   });
 
   test.each([
@@ -50,6 +54,38 @@ describe("InputSetting", () => {
     ["", DEFAULT_INPUT_RULE.triggerTime],
   ])("normalizes trigger time %p to %p", (value, expected) => {
     expect(normalizeTriggerTime(value)).toBe(expected);
+  });
+
+  test.each([
+    ["mobile", "show_dot_disable", "-"],
+    ["mobile", "show_dot_always", "always"],
+    ["always", "show_dot_mobile", "mobile"],
+  ])("records an explicit %s to %s choice", (current, label, showDot) => {
+    mockShowDot = current;
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    act(() => root.render(<InputSetting />));
+
+    const group = container.querySelector(
+      '[role="radiogroup"][aria-label="show_translation_dot"]'
+    );
+    const selectedLabel =
+      current === "always" ? "show_dot_always" : "show_dot_mobile";
+    expect(
+      group
+        .querySelector(`[aria-label="${selectedLabel}"]`)
+        .getAttribute("aria-checked")
+    ).toBe("true");
+    act(() =>
+      group.querySelector(`[role="radio"][aria-label="${label}"]`).click()
+    );
+
+    expect(mockUpdateInputRule).toHaveBeenCalledWith({
+      showDot,
+      showDotChosen: true,
+    });
+
+    act(() => root.unmount());
   });
 
   test("renders one complete trigger-count control for values one through five", () => {

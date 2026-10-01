@@ -140,7 +140,49 @@ describe("InputTranslator input button", () => {
     const target = createTarget();
     focusTarget(translator, target);
 
-    expect(getFloatButton(target)).toBeTruthy();
+    const button = getFloatButton(target);
+    expect(button).toBeTruthy();
+    expect(button.innerText).toBe("译");
+  });
+
+  test("shows the dot on desktop when the rule omits showDot", () => {
+    translator.disable();
+    translator = new InputTranslator({
+      inputRule: {
+        transOpen: true,
+        triggerShortcut: ["AltLeft", "KeyI"],
+        triggerCount: 1,
+        triggerTime: 200,
+      },
+    });
+    const target = document.createElement("input");
+    focusTarget(translator, target);
+
+    expect(getFloatButton(target).innerText).toBe("译");
+  });
+
+  test.each([
+    ["mobile-only", "mobile"],
+    ["disabled", "-"],
+  ])("hides the dot on desktop for a %s rule", (_label, showDot) => {
+    Object.defineProperty(navigator, "maxTouchPoints", {
+      configurable: true,
+      value: 0,
+    });
+    translator.disable();
+    translator = new InputTranslator({
+      inputRule: {
+        transOpen: true,
+        triggerShortcut: ["AltLeft", "KeyI"],
+        triggerCount: 1,
+        triggerTime: 200,
+        showDot,
+      },
+    });
+    const target = document.createElement("input");
+    focusTarget(translator, target);
+
+    expect(getFloatButton(target)).toBeUndefined();
   });
 
   test.each([
