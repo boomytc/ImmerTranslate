@@ -57,10 +57,14 @@ describe("homepage content", () => {
         const [chrome, edge, firefoxInstall] =
           homepageContent[language].installs;
 
-        expect(chrome.href).toContain(`?hl=${chromium}`);
-        expect(edge.href).toContain(`?hl=${chromium}`);
-        expect(firefoxInstall.href).toContain(
-          `addons.mozilla.org/${firefox}/firefox/`
+        expect(chrome.href).toBe(
+          "https://github.com/boomytc/ImmerTranslate/releases"
+        );
+        expect(edge.href).toBe(
+          "https://github.com/boomytc/ImmerTranslate/releases"
+        );
+        expect(firefoxInstall.href).toBe(
+          "https://github.com/boomytc/ImmerTranslate/releases"
         );
       }
     );
