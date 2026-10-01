@@ -1,3 +1,5 @@
+import { APP_LCNAME } from "../config/app";
+
 /**
  * Page bilingual nodes must follow the source paragraph's typography.
  * Site rules such as `* { font-size }` or `font { font-size }` set a used
@@ -31,6 +33,8 @@ export const PAGE_TRANSLATION_CHROME_STYLE_ID = "kiss-translator-page-chrome";
 
 // Glass / frost stays on the extension shell. Page translations stay flat.
 export const PAGE_TRANSLATION_CHROME_CSS = `
+${APP_LCNAME}.${APP_LCNAME}-wrapper,
+.${APP_LCNAME}-wrapper,
 kiss-translator.kiss-translator-wrapper,
 .kiss-translator-wrapper {
   background-color: transparent !important;
@@ -39,6 +43,8 @@ kiss-translator.kiss-translator-wrapper,
   -webkit-backdrop-filter: none !important;
   box-shadow: none !important;
 }
+${APP_LCNAME}.${APP_LCNAME}-wrapper > .${APP_LCNAME}-inner,
+.${APP_LCNAME}-wrapper > .${APP_LCNAME}-inner,
 kiss-translator.kiss-translator-wrapper > .kiss-translator-inner,
 .kiss-translator-wrapper > .kiss-translator-inner {
   backdrop-filter: none !important;

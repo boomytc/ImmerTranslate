@@ -12,6 +12,20 @@ jest.mock("./detect", () => ({
   tryDetectLang: jest.fn(),
 }));
 
+jest.mock("../config/app", () => {
+  const actual = jest.requireActual("../config/app");
+  return {
+    ...actual,
+    APP_NAME: "KISS-Translator",
+    APP_LCNAME: "kiss-translator",
+    APP_CONSTS: {
+      fabID: "kiss-translator-fab",
+      boxID: "kiss-translator-box",
+      popupID: "kiss-translator-popup",
+    },
+  };
+});
+
 const { apiMicrosoftDict, apiTranslate, apiYoudaoDict } = require("../apis");
 const { tryDetectLang } = require("./detect");
 const {

@@ -983,7 +983,7 @@ export default class TranslatorManager {
         }
         break;
       case MSG_TRANS_TOGGLE_STYLE:
-        this._translator?.toggleStyle();
+        this._translator?.toggleStyle(args?.textStyle);
         publishRule = true;
         if (this._translator?.rule?.textStyle) {
           sharedPatch = { textStyle: this._translator.rule.textStyle };

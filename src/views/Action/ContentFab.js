@@ -32,9 +32,11 @@ import {
   MSG_OPEN_OPTIONS,
   MSG_OPEN_TRANBOX,
   MSG_POPUP_TOGGLE,
+  MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_STYLE,
   MSG_TRANSBOX_TOGGLE,
+  OPT_STYLE_NONE,
   STOKEY_FAB,
 } from "../../config";
 import { useI18n } from "../../hooks/I18n";
@@ -177,6 +179,33 @@ export function ContentFabContent({
     return () => {
       if (undoTimerRef.current) window.clearTimeout(undoTimerRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    if (!getFabPageState) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const response = await getFabPageState();
+        if (active && response?.rule) setPageRule(response.rule);
+      } catch {
+        // The action list stays usable when the page rule cannot be read.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [getFabPageState]);
+
+  useEffect(() => {
+    const onRule = (event) => {
+      if (event.detail?.action !== MSG_TRANS_CURRULE || !event.detail.rule) {
+        return;
+      }
+      setPageRule(event.detail.rule);
+    };
+    document.addEventListener(EVENT_KISS_INNER, onRule);
+    return () => document.removeEventListener(EVENT_KISS_INNER, onRule);
   }, []);
 
   useEffect(() => {
@@ -508,6 +537,9 @@ export function ContentFabContent({
       label: i18n("text_style_alt"),
       icon: PaletteRoundedIcon,
       action: () => runAction(MSG_TRANS_TOGGLE_STYLE),
+      pressed: Boolean(
+        pageRule?.textStyle && pageRule.textStyle !== OPT_STYLE_NONE
+      ),
     },
     {
       label: i18n("selection_translate"),
