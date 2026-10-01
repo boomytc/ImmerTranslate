@@ -43,6 +43,7 @@ jest.mock("../config", () => ({
   MSG_OPEN_TRANBOX: "open-tranbox",
   MSG_TRANSBOX_TOGGLE: "transbox-toggle",
   MSG_POPUP_TOGGLE: "popup-toggle",
+  MSG_FAB_TOGGLE: "toggle_fab",
   MSG_RULE_EDITOR: "rule-editor",
   MSG_MOUSEHOVER_TOGGLE: "mousehover-toggle",
   MSG_TOUCH_TRANSLATE_MODE_SET: "touch-mode-set",
@@ -153,6 +154,9 @@ jest.mock("./fabManager", () => ({
   FabManager: jest.fn().mockImplementation(() => {
     const instance = {
       destroy: jest.fn(),
+      show: jest.fn(),
+      setProps: jest.fn(),
+      isVisible: true,
     };
     mockFabInstances.push(instance);
     return instance;
@@ -288,6 +292,9 @@ function setupMockConstructors() {
   FabManager.mockImplementation(() => {
     const instance = {
       destroy: jest.fn(),
+      show: jest.fn(),
+      setProps: jest.fn(),
+      isVisible: true,
     };
     mockFabInstances.push(instance);
     return instance;
@@ -1436,5 +1443,138 @@ describe("TranslatorManager SPA lifecycle", () => {
       browser.runtime.onMessage.addListener.mock.calls[0][0]
     );
     expect(mockTransboxInstances[0].disable).toHaveBeenCalledTimes(1);
+  });
+
+  describe("MSG_FAB_TOGGLE handling", () => {
+    test("destroys FabManager when enabled is false and preserves in-memory isHide", () => {
+      const manager = createManager();
+      manager.start();
+      const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
+      const reply = jest.fn();
+
+      // Initial state: FabManager was created on start
+      expect(mockFabInstances.length).toBe(1);
+      const initialFab = mockFabInstances[0];
+
+      // Send MSG_FAB_TOGGLE with enabled: false (e.g. site-level hide)
+      handler(
+        {
+          action: "toggle_fab",
+          args: { enabled: false },
+        },
+        {},
+        reply
+      );
+
+      expect(initialFab.destroy).toHaveBeenCalledTimes(1);
+      expect(reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fabVisible: false,
+          fabConfig: expect.objectContaining({ isHide: false }),
+        })
+      );
+    });
+
+    test("creates FabManager and calls show when enabled is true", () => {
+      const manager = createManager();
+      manager.start();
+      const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
+      const reply = jest.fn();
+
+      // Destroy first
+      handler(
+        { action: "toggle_fab", args: { enabled: false } },
+        {},
+        jest.fn()
+      );
+
+      // Now toggle back to true
+      handler(
+        {
+          action: "toggle_fab",
+          args: { enabled: true, fabConfig: { isHide: false, size: 64 } },
+        },
+        {},
+        reply
+      );
+
+      expect(FabManager).toHaveBeenCalledWith(
+        expect.objectContaining({
+          autoShow: false,
+          fabConfig: expect.objectContaining({ size: 64 }),
+        })
+      );
+      const newFab = mockFabInstances.at(-1);
+      expect(newFab.show).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fabConfig: expect.objectContaining({ size: 64 }),
+        })
+      );
+      expect(reply).toHaveBeenCalledWith(
+        expect.objectContaining({ fabVisible: true })
+      );
+    });
+
+    test.each([{ isIframe: true }, { transboxOnly: true }])(
+      "does not process MSG_FAB_TOGGLE in restricted mode %j",
+      (options) => {
+        const initialCount = mockFabInstances.length;
+        const manager = createManager(options);
+        manager.start();
+        const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
+        const reply = jest.fn();
+
+        handler({ action: "toggle_fab", args: { enabled: true } }, {}, reply);
+        expect(mockFabInstances.length).toBe(initialCount);
+        expect(reply).toHaveBeenCalledWith(
+          expect.not.objectContaining({ fabVisible: true })
+        );
+      }
+    );
+
+    test("preserves saved hide and undo configurations across SPA restarts", () => {
+      const manager = createManager();
+      manager.start();
+      const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
+      const hiddenConfig = {
+        isHide: false,
+        hideExceptionList: window.location.hostname,
+      };
+
+      // Keep the mounted undo bar while making the saved policy authoritative.
+      handler(
+        {
+          action: "toggle_fab",
+          args: { enabled: true, fabConfig: hiddenConfig },
+        },
+        {},
+        jest.fn()
+      );
+      manager.restart("during-fab-undo-window");
+      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toEqual(hiddenConfig);
+
+      handler(
+        {
+          action: "toggle_fab",
+          args: { enabled: false, fabConfig: hiddenConfig },
+        },
+        {},
+        jest.fn()
+      );
+      manager.restart("after-fab-undo-window");
+      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toEqual(hiddenConfig);
+
+      const restoredConfig = { ...hiddenConfig, hideExceptionList: "" };
+      handler(
+        {
+          action: "toggle_fab",
+          args: { enabled: true, fabConfig: restoredConfig },
+        },
+        {},
+        jest.fn()
+      );
+      manager.restart("after-fab-undo");
+      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toEqual(restoredConfig);
+    });
   });
 });

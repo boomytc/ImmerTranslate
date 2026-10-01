@@ -28,22 +28,40 @@ import {
 import { isExt } from "../../libs/client";
 import { useI18n } from "../../hooks/I18n";
 import {
+  API_SPE_TYPES,
   EVENT_KISS_INNER,
+  GLOBAL_KEY,
+  MSG_FAB_TOGGLE,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_CURRULE,
   MSG_RULE_EDITOR,
   MSG_TRANS_PUTRULE,
+  MSG_TRANS_SET_MODEL,
   MSG_SAVE_RULE,
   MSG_TOUCH_TRANSLATE_MODE_SET,
   MSG_TOUCH_TRANSLATE_STATE,
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
+  OPT_TRANS_QWENMT,
+  STOKEY_FAB,
+  STOKEY_RULES,
+  DEFAULT_RULES,
 } from "../../config";
+import { getPresetModels } from "../../config/presetModels";
+import { fetchModelCatalog } from "../../libs/modelList";
+import { DEFAULT_FAB, isFabVisible } from "../../config/fab";
+import { useStorage } from "../../hooks/Storage";
+import {
+  readSiteTransOpen,
+  siteRulePattern,
+  SITE_TRANS_OPEN_OPTIONS,
+} from "../Action/sitePolicy";
 import { browser } from "../../libs/browser";
 import { saveRule } from "../../libs/rules";
 import { tryClearCaches } from "../../libs/cache";
 import { kissLog } from "../../libs/log";
 import { getDomainOptions, truncateMiddle } from "../../libs/url";
+import { isMatch } from "../../libs/utils";
 import {
   getCompactStylePreviewCode,
   useAllTextStyles,
@@ -59,6 +77,18 @@ import CompactLanguageSelect from "./CompactLanguageSelect";
 import PopupStylePreview from "./PopupStylePreview";
 import { queryPopupData } from "./loadData";
 import { useConfirmedPopupUpdate } from "./useConfirmedPopupUpdate";
+
+const uniqueModels = (values) => {
+  const seen = new Set();
+  const models = [];
+  values.forEach((value) => {
+    const model = String(value || "").trim();
+    if (!model || seen.has(model)) return;
+    seen.add(model);
+    models.push(model);
+  });
+  return models;
+};
 
 const isTouchAction = (action) =>
   action === MSG_TOUCH_TRANSLATE_STATE ||
@@ -83,6 +113,14 @@ export function resolvePopupTextStyles(
       return true;
     })
     .slice(0, 5);
+}
+
+function effectiveTransOpen(siteTransOpen, globalTransOpen) {
+  if (siteTransOpen === "true" || siteTransOpen === true) return "true";
+  if (siteTransOpen === "false" || siteTransOpen === false) return "false";
+  if (globalTransOpen === "true" || globalTransOpen === true) return "true";
+  if (globalTransOpen === "false" || globalTransOpen === false) return "false";
+  return "false";
 }
 
 export default function PopupCont({
@@ -540,9 +578,7 @@ export default function PopupCont({
       try {
         const href = isContent
           ? window.location?.href
-          : hasTargetTab
-            ? targetTabUrl || ""
-            : (await getCurTab())?.url || "";
+          : (targetTabUrl || (await getCurTab())?.url || "");
         if (!active || !href) return;
         const options = getDomainOptions(href);
         setCurrentHref(href);
@@ -586,8 +622,315 @@ export default function PopupCont({
     OPT_LANGS_TO.find(([key]) => key === toLang)?.[1] || toLang;
   const activeService = services.find(({ key }) => key === apiSlug);
   const activeServiceName = activeService?.name || apiSlug || "—";
-  const activeApiSetting = (setting?.transApis || []).find(
+  const effectiveTransApis =
+    contextSetting?.transApis || setting?.transApis || [];
+  const activeApiSetting = effectiveTransApis.find(
     (api) => api?.apiSlug === apiSlug
+  );
+  const [modelOverride, setModelOverride] = useState(null);
+  const [catalogModels, setCatalogModels] = useState([]);
+
+  const supportsModel = Boolean(
+    activeApiSetting &&
+      (API_SPE_TYPES.ai?.has(activeApiSetting.apiType) ||
+        activeApiSetting.apiType === OPT_TRANS_QWENMT)
+  );
+  const listUrl = String(
+    activeApiSetting?.modelListUrl || activeApiSetting?.url || ""
+  ).trim();
+  const selectedModel = modelOverride ?? activeApiSetting?.model ?? "";
+  const modelOptions = useMemo(
+    () =>
+      uniqueModels([
+        selectedModel,
+        ...getPresetModels(activeApiSetting?.apiType),
+        ...catalogModels,
+      ]),
+    [activeApiSetting?.apiType, catalogModels, selectedModel]
+  );
+
+  useEffect(() => {
+    setModelOverride(null);
+    setCatalogModels([]);
+  }, [apiSlug]);
+
+  useEffect(() => {
+    if (
+      !supportsModel ||
+      !listUrl ||
+      !String(activeApiSetting?.key || "").trim()
+    ) {
+      return undefined;
+    }
+    let active = true;
+    Promise.resolve(
+      fetchModelCatalog({
+        apiType: activeApiSetting.apiType,
+        modelListUrl: listUrl,
+        key: activeApiSetting.key,
+      })
+    )
+      .then((catalog) => {
+        if (!active || !Array.isArray(catalog?.models)) return;
+        setCatalogModels(
+          catalog.models.filter((model) => typeof model === "string")
+        );
+      })
+      .catch((err) => {
+        kissLog("fetchModelCatalog popup error", err);
+        if (active) setCatalogModels([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeApiSetting?.apiType, activeApiSetting?.key, listUrl, supportsModel]);
+
+  const handleSelectModel = useCallback(
+    (model) => {
+      if (!model || model === selectedModel || !activeApiSetting) return;
+      setModelOverride(model);
+      if (canTranslatePage) {
+        void Promise.resolve(
+          processActions
+            ? processActions({
+                action: MSG_TRANS_SET_MODEL,
+                args: { apiSlug: activeApiSetting.apiSlug, model },
+              })
+            : sendPageMessage(MSG_TRANS_SET_MODEL, {
+                apiSlug: activeApiSetting.apiSlug,
+                model,
+              })
+        ).catch((err) => kissLog("apply model to page", err));
+      }
+      void updateSetting((previous) => ({
+        ...previous,
+        transApis: (
+          previous?.transApis ||
+          setting?.transApis ||
+          []
+        ).map((api) =>
+          api.apiSlug === activeApiSetting.apiSlug ? { ...api, model } : api
+        ),
+      }));
+    },
+    [
+      activeApiSetting,
+      canTranslatePage,
+      processActions,
+      selectedModel,
+      sendPageMessage,
+      setting?.transApis,
+      updateSetting,
+    ]
+  );
+
+  const {
+    data: fabData,
+    save: updateFab,
+    isLoading: fabLoading,
+  } = useStorage(STOKEY_FAB, DEFAULT_FAB);
+  const isCurrentSiteFabVisible = isFabVisible(currentHref, fabData);
+
+  const handleToggleGlobalFab = useCallback(
+    async (enabled) => {
+      if (fabLoading) return;
+      let resolvedNextFab;
+      try {
+        await updateFab((prev) => {
+          resolvedNextFab = {
+            ...(typeof prev === "object" && prev !== null ? prev : {}),
+            isHide: !enabled,
+          };
+          return resolvedNextFab;
+        });
+        if (canTranslatePage && resolvedNextFab) {
+          const shouldShow = isFabVisible(currentHref, resolvedNextFab);
+          const args = { enabled: shouldShow, fabConfig: resolvedNextFab };
+          if (processActions) {
+            await processActions({ action: MSG_FAB_TOGGLE, args });
+          } else {
+            await sendPageMessage(MSG_FAB_TOGGLE, args, true);
+          }
+        }
+      } catch (error) {
+        kissLog("toggle global fab error", error);
+      }
+    },
+    [
+      canTranslatePage,
+      currentHref,
+      fabLoading,
+      processActions,
+      sendPageMessage,
+      updateFab,
+    ]
+  );
+
+  const handleToggleSiteFab = useCallback(async () => {
+    if (fabLoading) return;
+    const domain =
+      selectedDomain || (currentHref ? getDomainOptions(currentHref)[0] : "");
+    if (!domain) return;
+    let resolvedNextFab;
+    let resolvedTargetVisible;
+    try {
+      await updateFab((prev) => {
+        const current =
+          typeof prev === "object" && prev !== null ? prev : DEFAULT_FAB;
+        const currentIsHide = Boolean(current?.isHide);
+        const targetVisible = !isFabVisible(currentHref, current);
+        resolvedTargetVisible = targetVisible;
+        const entries = (current?.hideExceptionList || "")
+          .split(/\n|,/)
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+
+        let nextEntries;
+        if (targetVisible) {
+          if (currentIsHide) {
+            nextEntries = entries.includes(domain)
+              ? entries
+              : [...entries, domain];
+          } else {
+            nextEntries = entries.filter(
+              (entry) => entry !== domain && !isMatch(currentHref, entry)
+            );
+          }
+        } else {
+          if (currentIsHide) {
+            nextEntries = entries.filter(
+              (entry) => entry !== domain && !isMatch(currentHref, entry)
+            );
+          } else {
+            nextEntries = entries.includes(domain)
+              ? entries
+              : [...entries, domain];
+          }
+        }
+
+        resolvedNextFab = {
+          ...current,
+          hideExceptionList: nextEntries.join("\n"),
+        };
+        return resolvedNextFab;
+      });
+
+      if (canTranslatePage && resolvedNextFab) {
+        const shouldShow = isFabVisible(currentHref, resolvedNextFab);
+        const args = { enabled: shouldShow, fabConfig: resolvedNextFab };
+        if (processActions) {
+          await processActions({ action: MSG_FAB_TOGGLE, args });
+        } else {
+          await sendPageMessage(MSG_FAB_TOGGLE, args, true);
+        }
+      }
+      showMessage(
+        i18n(
+          resolvedTargetVisible
+            ? "fab_shown_on_site_toast"
+            : "fab_hidden_on_site_toast"
+        )
+      );
+    } catch (error) {
+      kissLog("toggle site fab error", error);
+      showMessage(i18n("error_got_some_wrong"), "error");
+    }
+  }, [
+    canTranslatePage,
+    currentHref,
+    fabLoading,
+    i18n,
+    processActions,
+    selectedDomain,
+    sendPageMessage,
+    showMessage,
+    updateFab,
+  ]);
+
+  const { data: rulesData, isLoading: rulesLoading } = useStorage(
+    STOKEY_RULES,
+    DEFAULT_RULES
+  );
+  const rules = useMemo(
+    () => (Array.isArray(rulesData) ? rulesData : DEFAULT_RULES),
+    [rulesData]
+  );
+  const [siteDraft, setSiteDraft] = useState(null);
+  const sitePattern = useMemo(
+    () => selectedDomain || siteRulePattern(currentHref, rules),
+    [currentHref, rules, selectedDomain]
+  );
+  const storedSiteTransOpen = useMemo(() => {
+    if (selectedDomain) {
+      const exact = rules.find((r) => r.pattern === selectedDomain);
+      if (exact && exact.transOpen) {
+        return exact.transOpen;
+      }
+    }
+    return readSiteTransOpen(currentHref, rules);
+  }, [currentHref, rules, selectedDomain]);
+  const siteTransOpen = siteDraft ?? storedSiteTransOpen;
+
+  useEffect(() => {
+    setSiteDraft(null);
+  }, [storedSiteTransOpen, currentHref, selectedDomain]);
+
+  const handleSelectSitePolicy = useCallback(
+    async (next) => {
+      if (rulesLoading || !sitePattern || next === siteTransOpen) return;
+      setSiteDraft(next);
+      const saved = { pattern: sitePattern, transOpen: next };
+      const persist =
+        isExt && isContent
+          ? sendBgMsg(MSG_SAVE_RULE, saved)
+          : saveRule(saved);
+      const globalTransOpen = rules.find(
+        (item) => item.pattern === GLOBAL_KEY
+      )?.transOpen;
+      const nextRuntime = effectiveTransOpen(next, globalTransOpen);
+      const currentRuntime =
+        rule?.transOpen === true || rule?.transOpen === "true" ? "true" : "false";
+
+      if (canTranslatePage && nextRuntime !== currentRuntime) {
+        void Promise.resolve(
+          processActions
+            ? processActions({
+                action: MSG_TRANS_TOGGLE,
+                args: {
+                  enabled: nextRuntime === "true",
+                  persistSite: next !== GLOBAL_KEY,
+                },
+              })
+            : sendPageMessage(MSG_TRANS_TOGGLE, {
+                enabled: nextRuntime === "true",
+                persistSite: next !== GLOBAL_KEY,
+              })
+        ).catch((err) => kissLog("toggle site transOpen error", err));
+      }
+
+      try {
+        const response = await Promise.resolve(persist);
+        if (response?.error) throw new Error(response.error);
+        showMessage(i18n("save_success"));
+      } catch (error) {
+        kissLog("save site transOpen", error);
+        setSiteDraft(null);
+        showMessage(i18n("error_got_some_wrong"), "error");
+      }
+    },
+    [
+      canTranslatePage,
+      i18n,
+      isContent,
+      processActions,
+      rule?.transOpen,
+      rules,
+      rulesLoading,
+      sendPageMessage,
+      showMessage,
+      sitePattern,
+      siteTransOpen,
+    ]
   );
   const missingApiKey = isMissingRequiredApiKey(activeApiSetting);
   const heroActive = translationEnabled && !missingApiKey;
@@ -772,6 +1115,29 @@ export default function PopupCont({
               )}
             </div>
           )}
+          {supportsModel && (
+            <div className="kt-popup-model-row">
+              <span className="kt-popup-model-label">{i18n("fab_model")}</span>
+              <select
+                className="kt-popup-model-select"
+                aria-label={i18n("fab_model")}
+                title={selectedModel}
+                value={
+                  modelOptions.includes(selectedModel) ? selectedModel : ""
+                }
+                onChange={(event) => handleSelectModel(event.target.value)}
+              >
+                {!selectedModel && (
+                  <option value="">{i18n("fab_model")}</option>
+                )}
+                {modelOptions.map((model) => (
+                  <option key={model} value={model} title={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
@@ -828,6 +1194,70 @@ export default function PopupCont({
                 : "add_to_blacklist"
             )}
           </Button>
+        </div>
+      </div>
+
+      {canTranslatePage && domainOptions.length > 0 && (
+        <div className="kt-popup-site-policy">
+          <div className="kt-popup-section-label">
+            {i18n("site_trans_policy")}
+          </div>
+          <div
+            className="kt-popup-policy-modes"
+            role="group"
+            aria-label={i18n("site_trans_policy")}
+            aria-busy={rulesLoading}
+          >
+            {SITE_TRANS_OPEN_OPTIONS.map(({ value, labelKey }) => (
+              <button
+                key={value}
+                type="button"
+                className={`kt-popup-policy-mode ${
+                  !rulesLoading && siteTransOpen === value
+                    ? "kt-popup-policy-mode--active"
+                    : ""
+                }`}
+                aria-pressed={!rulesLoading && siteTransOpen === value}
+                disabled={rulesLoading}
+                onClick={() => void handleSelectSitePolicy(value)}
+              >
+                {i18n(labelKey)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="kt-popup-fab-control">
+        <div className="kt-popup-section-label">{i18n("fab_control")}</div>
+        <div className="kt-popup-fab-control__body">
+          <div className="kt-popup-fab-control__global">
+            <span>{i18n("fab_global_switch")}</span>
+            <Switch
+              size="small"
+              checked={!fabLoading && !fabData?.isHide}
+              disabled={fabLoading}
+              onChange={(_event, checked) =>
+                void handleToggleGlobalFab(checked)
+              }
+              inputProps={{ "aria-label": i18n("fab_global_switch") }}
+            />
+          </div>
+          {canTranslatePage && domainOptions.length > 0 && (
+            <Button
+              variant="outlined"
+              size="small"
+              className="kt-popup-fab-control__site-btn"
+              disabled={fabLoading}
+              onClick={() => void handleToggleSiteFab()}
+            >
+              {i18n(
+                isCurrentSiteFabVisible
+                  ? "hide_fab_on_site"
+                  : "show_fab_on_site"
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -937,25 +1367,37 @@ export default function PopupCont({
         )}
       </div>
 
-      {isContent && (
-        <>
-          <footer className="kt-popup-footer">
-            {[shortcutMap.page, shortcutMap.selection]
-              .filter((keys) => keys.length > 0)
-              .map((keys) => (
-                <span className="kt-popup-footer__keys" key={keys.join("+")}>
-                  {keys.map((key) => (
-                    <kbd key={key}>{key}</kbd>
-                  ))}
-                </span>
+      <footer className="kt-popup-footer">
+        {[
+          {
+            key: "page",
+            keys: shortcutMap.page,
+            label: i18n("toggle_translate_shortcut"),
+          },
+          {
+            key: "selection",
+            keys: shortcutMap.selection,
+            label: i18n("trigger_tranbox_shortcut"),
+          },
+        ]
+          .filter(({ keys }) => keys.length > 0)
+          .map(({ key, keys, label }) => (
+            <span
+              className="kt-popup-footer__keys"
+              key={key}
+              title={`${label}: ${keys.join("+")}`}
+              aria-label={`${label}: ${keys.join("+")}`}
+            >
+              {keys.map((k) => (
+                <kbd key={k}>{k}</kbd>
               ))}
-            <span className="kt-popup-footer__spacer" />
-            <Button variant="text" onClick={handleOpenSetting}>
-              {i18n("popup_all_settings")}
-            </Button>
-          </footer>
-        </>
-      )}
+            </span>
+          ))}
+        <span className="kt-popup-footer__spacer" />
+        <Button variant="text" onClick={handleOpenSetting}>
+          {i18n("popup_all_settings")}
+        </Button>
+      </footer>
 
       <Snackbar
         key={snackbar.id}

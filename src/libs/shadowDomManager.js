@@ -47,8 +47,34 @@ export default class ShadowDomManager {
    * // 这导致新传入的 `props` 根本没有应用并渲染到界面上，仍然只显示先前挂载时的旧属性值。
    * @param {Object} props - 可选的新 props
    */
+  setProps(props) {
+    if (!props || typeof props !== "object") return;
+    this._props = { ...this._props, ...props };
+    if (!this.#reactRoot || !this.#hostElement) return;
+    this.#renderProps = { ...(this.#renderProps || this._props), ...props };
+    const enhancedProps = {
+      ...this.#renderProps,
+      onClose: this.hide.bind(this),
+    };
+    const ComponentToRender = this._ReactComponent;
+    this.#reactRoot.render(
+      <React.StrictMode>
+        <CacheProvider value={this.#cache}>
+          <ComponentToRender {...enhancedProps} />
+        </CacheProvider>
+      </React.StrictMode>
+    );
+  }
+
+  /**
+   * 显示组件
+   * @param {Object} props - 可选的新 props
+   */
   show(props) {
     if (this.isVisible || this.#isProcessing) {
+      if (props && this.isVisible) {
+        this.setProps(props);
+      }
       return;
     }
 
@@ -59,7 +85,9 @@ export default class ShadowDomManager {
     if (!this.#hostElement) {
       this.#isProcessing = true;
       try {
-        this.#mount(props || this._props);
+        const initialProps = props ? { ...this._props, ...props } : this._props;
+        this._props = initialProps;
+        this.#mount(initialProps);
       } catch (error) {
         this.#unmount();
         logger.warn(`Failed to mount component with id "${this._id}":`, error);
@@ -68,6 +96,8 @@ export default class ShadowDomManager {
       } finally {
         this.#isProcessing = false;
       }
+    } else if (props) {
+      this.setProps(props);
     }
 
     setShadowHostVisible(this.#hostElement, true);

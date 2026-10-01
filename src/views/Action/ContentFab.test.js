@@ -10,6 +10,7 @@ import {
   MSG_OPEN_TRANBOX,
   MSG_POPUP_TOGGLE,
   MSG_SAVE_RULE,
+  MSG_FAB_TOGGLE,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
   MSG_TRANS_CURRULE,
@@ -17,6 +18,7 @@ import {
   MSG_TRANS_TOGGLE_STYLE,
   MSG_TRANSBOX_TOGGLE,
 } from "../../config";
+import * as storageStateModule from "../../libs/storageState";
 import { fetchModelCatalog } from "../../libs/modelList";
 import { sendBgMsg } from "../../libs/msg";
 import { getDomainOptions } from "../../libs/url";
@@ -1036,6 +1038,336 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     );
 
     expect(menuItems()).toHaveLength(0);
+  });
+
+  test("clicking hide on site button hides FAB, saves to storage, and allows undo", async () => {
+    let savedUpdater = null;
+    let undoUpdater = null;
+    let stored = { isHide: false, hideExceptionList: "" };
+    const mockSave = jest.fn((updater) => {
+      if (!savedUpdater) {
+        savedUpdater = updater;
+      } else {
+        undoUpdater = updater;
+      }
+      stored = updater(stored);
+      return Promise.resolve({ value: stored });
+    });
+    const mockSubscribe = jest.fn(() => () => {});
+    const spy = jest
+      .spyOn(storageStateModule, "getStorageState")
+      .mockReturnValue({
+        save: mockSave,
+        subscribe: mockSubscribe,
+        snapshot: { data: { isHide: false, hideExceptionList: "" } },
+      });
+
+    render();
+    clickFab();
+    const hideBtn = container.querySelector(
+      ".kt-content-fab-menu__mode--hide-fab"
+    );
+    expect(hideBtn).not.toBeNull();
+    expect(hideBtn.textContent).toBe("hide_fab_on_site");
+
+    await act(async () => {
+      hideBtn.click();
+    });
+
+    expect(draggableProps.show).toBe(false);
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    const domain = window.location.hostname;
+    const hideResult = savedUpdater({ isHide: false, hideExceptionList: "" });
+    expect(hideResult.hideExceptionList).toContain(domain);
+
+    const undoBtn = container.querySelector(".kt-fab-undo-btn");
+    expect(undoBtn).not.toBeNull();
+    expect(undoBtn.textContent).toBe("fab_undo");
+
+    await act(async () => {
+      undoBtn.click();
+    });
+
+    expect(draggableProps.show).toBe(true);
+    expect(mockSave).toHaveBeenCalledTimes(2);
+    const undoResult = undoUpdater({
+      isHide: false,
+      hideExceptionList: domain,
+    });
+    expect(undoResult.hideExceptionList).not.toContain(domain);
+    expect(processActions).toHaveBeenLastCalledWith({
+      action: MSG_FAB_TOGGLE,
+      args: {
+        enabled: true,
+        fabConfig: expect.objectContaining({
+          hideExceptionList: expect.not.stringContaining(domain),
+        }),
+      },
+    });
+    spy.mockRestore();
+  });
+
+  test("when undo timer expires after 4500ms, sends MSG_FAB_TOGGLE to destroy DOM", async () => {
+    jest.useFakeTimers();
+    const mockSave = jest.fn((updater) =>
+      Promise.resolve({
+        value: updater({ isHide: false, hideExceptionList: "" }),
+      })
+    );
+    const mockSubscribe = jest.fn(() => () => {});
+    const spy = jest
+      .spyOn(storageStateModule, "getStorageState")
+      .mockReturnValue({
+        save: mockSave,
+        subscribe: mockSubscribe,
+        snapshot: { data: { isHide: false, hideExceptionList: "" } },
+      });
+
+    render();
+    clickFab();
+    const hideBtn = container.querySelector(
+      ".kt-content-fab-menu__mode--hide-fab"
+    );
+
+    await act(async () => {
+      hideBtn.click();
+    });
+
+    expect(draggableProps.show).toBe(false);
+    expect(processActions).toHaveBeenCalledWith({
+      action: MSG_FAB_TOGGLE,
+      args: {
+        enabled: true,
+        fabConfig: expect.objectContaining({
+          isHide: false,
+          hideExceptionList: expect.stringContaining(window.location.hostname),
+        }),
+      },
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(4500);
+    });
+
+    expect(processActions).toHaveBeenLastCalledWith({
+      action: MSG_FAB_TOGGLE,
+      args: {
+        enabled: false,
+        fabConfig: expect.objectContaining({
+          isHide: false,
+          hideExceptionList: expect.stringContaining(window.location.hostname),
+        }),
+      },
+    });
+
+    jest.useRealTimers();
+    spy.mockRestore();
+  });
+
+  test("when global is hidden (isHide: true) on a site exception, clicking hide on site removes site from exception list", async () => {
+    let savedUpdater = null;
+    let undoUpdater = null;
+    let stored = { isHide: true, hideExceptionList: "localhost" };
+    const mockSave = jest.fn((updater) => {
+      if (!savedUpdater) savedUpdater = updater;
+      else undoUpdater = updater;
+      stored = updater(stored);
+      return Promise.resolve({ value: stored });
+    });
+    const mockSubscribe = jest.fn(() => () => {});
+    const spy = jest
+      .spyOn(storageStateModule, "getStorageState")
+      .mockReturnValue({
+        save: mockSave,
+        subscribe: mockSubscribe,
+        snapshot: { data: { isHide: true, hideExceptionList: "localhost" } },
+      });
+
+    render();
+    clickFab();
+    const hideBtn = container.querySelector(
+      ".kt-content-fab-menu__mode--hide-fab"
+    );
+
+    await act(async () => {
+      hideBtn.click();
+    });
+
+    expect(draggableProps.show).toBe(false);
+    const domain = window.location.hostname;
+    const hideResult = savedUpdater({
+      isHide: true,
+      hideExceptionList: domain,
+    });
+    expect(hideResult.hideExceptionList).not.toContain(domain);
+
+    const undoBtn = container.querySelector(".kt-fab-undo-btn");
+    await act(async () => {
+      undoBtn.click();
+    });
+
+    expect(draggableProps.show).toBe(true);
+    const undoResult = undoUpdater({
+      isHide: true,
+      hideExceptionList: "",
+    });
+    expect(undoResult.hideExceptionList).toContain(domain);
+    expect(processActions).toHaveBeenLastCalledWith({
+      action: MSG_FAB_TOGGLE,
+      args: {
+        enabled: true,
+        fabConfig: expect.objectContaining({
+          isHide: true,
+          hideExceptionList: expect.stringContaining(domain),
+        }),
+      },
+    });
+    spy.mockRestore();
+  });
+
+  test("external storage update making FAB visible cancels timer and restores FAB", async () => {
+    let subscribeCallback = null;
+    const mockSave = jest.fn(() => Promise.resolve());
+    const mockSubscribe = jest.fn((cb) => {
+      subscribeCallback = cb;
+      return () => {};
+    });
+    const spy = jest
+      .spyOn(storageStateModule, "getStorageState")
+      .mockReturnValue({
+        save: mockSave,
+        subscribe: mockSubscribe,
+        snapshot: { data: { isHide: false, hideExceptionList: "" } },
+      });
+
+    render();
+    clickFab();
+    const hideBtn = container.querySelector(
+      ".kt-content-fab-menu__mode--hide-fab"
+    );
+
+    await act(async () => {
+      hideBtn.click();
+    });
+
+    expect(draggableProps.show).toBe(false);
+    expect(subscribeCallback).not.toBeNull();
+
+    // 1. Initial snapshot confirms hidden:
+    act(() => {
+      subscribeCallback({
+        data: { isHide: false, hideExceptionList: window.location.hostname },
+      });
+    });
+    expect(draggableProps.show).toBe(false);
+
+    // A pending write is only a preview; keep the confirmed hidden state.
+    act(() => {
+      subscribeCallback({
+        data: { isHide: false, hideExceptionList: "" },
+        isSaving: true,
+      });
+    });
+    expect(draggableProps.show).toBe(false);
+    expect(container.querySelector(".kt-fab-undo-btn")).not.toBeNull();
+
+    // 2. External change in popup removes domain from exception list -> visible again!
+    act(() => {
+      subscribeCallback({
+        data: { isHide: false, hideExceptionList: "" },
+      });
+    });
+
+    // FAB restored and undo snackbar dismissed!
+    expect(draggableProps.show).toBe(true);
+    expect(container.querySelector(".kt-fab-undo-btn")).toBeNull();
+    spy.mockRestore();
+  });
+
+  test("undo restores a removed wildcard exception without losing unrelated edits", async () => {
+    let stored = { isHide: true, hideExceptionList: "*\nother.example" };
+    jest.spyOn(storageStateModule, "getStorageState").mockReturnValue({
+      save: jest.fn((updater) => {
+        stored = updater(stored);
+        return Promise.resolve({ value: stored });
+      }),
+      subscribe: jest.fn(() => () => {}),
+    });
+
+    render(stored);
+    clickFab();
+    await act(async () => {
+      container.querySelector(".kt-content-fab-menu__mode--hide-fab").click();
+    });
+    expect(stored.hideExceptionList).toBe("other.example");
+
+    stored = { ...stored, hideExceptionList: "other.example\nadded.example" };
+    await act(async () => {
+      container.querySelector(".kt-fab-undo-btn").click();
+    });
+    expect(stored.hideExceptionList.split("\n").sort()).toEqual(
+      ["*", "other.example", "added.example"].sort()
+    );
+  });
+
+  test("a rejected site hide keeps the FAB available and does not schedule destruction", async () => {
+    jest.useFakeTimers();
+    jest.spyOn(storageStateModule, "getStorageState").mockReturnValue({
+      save: jest.fn().mockRejectedValue(new Error("storage unavailable")),
+      subscribe: jest.fn(() => () => {}),
+    });
+
+    try {
+      render();
+      clickFab();
+      await act(async () => {
+        container.querySelector(".kt-content-fab-menu__mode--hide-fab").click();
+      });
+
+      expect(draggableProps.show).toBe(true);
+      expect(container.querySelector(".kt-fab-undo-btn")).toBeNull();
+      act(() => jest.advanceTimersByTime(4500));
+      expect(processActions).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: MSG_FAB_TOGGLE })
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("a rejected undo keeps the restoration available for retry", async () => {
+    let stored = { isHide: true, hideExceptionList: "*\nother.example" };
+    const save = jest.fn((updater) => {
+      stored = updater(stored);
+      return Promise.resolve({ value: stored });
+    });
+    jest.spyOn(storageStateModule, "getStorageState").mockReturnValue({
+      save,
+      subscribe: jest.fn(() => () => {}),
+    });
+
+    render(stored);
+    clickFab();
+    await act(async () => {
+      container.querySelector(".kt-content-fab-menu__mode--hide-fab").click();
+    });
+
+    save.mockRejectedValueOnce(new Error("storage unavailable"));
+    await act(async () => {
+      container.querySelector(".kt-fab-undo-btn").click();
+    });
+    expect(draggableProps.show).toBe(false);
+    expect(
+      container.querySelector(".kt-fab-undo-snackbar").textContent
+    ).toContain("error_got_some_wrong");
+
+    await act(async () => {
+      container.querySelector(".kt-fab-undo-btn").click();
+    });
+    expect(draggableProps.show).toBe(true);
+    expect(stored.hideExceptionList.split("\n").sort()).toEqual(
+      ["*", "other.example"].sort()
+    );
   });
 });
 

@@ -205,9 +205,26 @@ describe("common iframe startup", () => {
     expect(runSubtitle).toHaveBeenCalledTimes(1);
   });
 
-  test("inverts the FAB visibility when the top-level page matches its exception list", async () => {
+  test("passes the stored FAB config through unchanged when the page matches its exception list", async () => {
     getFabWithDefault.mockResolvedValue({
       isHide: false,
+      hideExceptionList: "kiss.example",
+    });
+    isInBlacklist.mockImplementation(
+      (_href, blacklist) => blacklist === "kiss.example"
+    );
+
+    await run();
+
+    expect(TranslatorManager.mock.calls[0][0].fabConfig).toEqual({
+      isHide: false,
+      hideExceptionList: "kiss.example",
+    });
+  });
+
+  test("passes a globally hidden FAB config through unchanged when the page is listed", async () => {
+    getFabWithDefault.mockResolvedValue({
+      isHide: true,
       hideExceptionList: "kiss.example",
     });
     isInBlacklist.mockImplementation(
@@ -220,20 +237,6 @@ describe("common iframe startup", () => {
       isHide: true,
       hideExceptionList: "kiss.example",
     });
-  });
-
-  test("shows the FAB when a hidden global setting matches its exception list", async () => {
-    getFabWithDefault.mockResolvedValue({
-      isHide: true,
-      hideExceptionList: "kiss.example",
-    });
-    isInBlacklist.mockImplementation(
-      (_href, blacklist) => blacklist === "kiss.example"
-    );
-
-    await run();
-
-    expect(TranslatorManager.mock.calls[0][0].fabConfig.isHide).toBe(false);
   });
 
   test("starts transbox-only manager for PDF documents", async () => {

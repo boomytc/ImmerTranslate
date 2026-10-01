@@ -10,6 +10,7 @@ export * from "./prompt";
 export * from "./setting";
 export * from "./i18n";
 export * from "./storage";
+export * from "./fab";
 export * from "./url";
 export * from "./msg";
 export * from "./client";

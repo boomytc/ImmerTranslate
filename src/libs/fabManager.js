@@ -1,5 +1,6 @@
 import ShadowDomManager from "./shadowDomManager";
 import { APP_CONSTS, MSG_TRANS_GETRULE } from "../config";
+import { isFabVisible } from "../config/fab";
 import ContentFab from "../views/Action/ContentFab";
 
 /**
@@ -13,7 +14,13 @@ export class FabManager extends ShadowDomManager {
    * @param {Function} params.processActions - 动作执行处理器
    * @param {object} params.fabConfig - 悬浮球的配置参数
    */
-  constructor({ processActions, fabConfig, getSelectionEnabled }) {
+  constructor({
+    processActions,
+    fabConfig,
+    getSelectionEnabled,
+    autoShow = true,
+    href = typeof window !== "undefined" ? window.location?.href || "" : "",
+  }) {
     super({
       id: APP_CONSTS.fabID,
       className: "notranslate",
@@ -26,8 +33,8 @@ export class FabManager extends ShadowDomManager {
       },
     });
 
-    // 如果配置没有指明隐藏，则在初始化时自动显示悬浮球
-    if (!fabConfig?.isHide) {
+    // 根据全局开关与站点特例判定是否在初始化时自动显示悬浮球
+    if (autoShow && isFabVisible(href, fabConfig)) {
       this.show();
     }
   }
