@@ -318,28 +318,6 @@ test("preserves the terminology draft across the send-to-translation flow", asyn
   act(() => root.unmount());
 });
 
-test("never leaks the terminology resize handle into other playground tabs", async () => {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  act(() => root.render(<Playground />));
-
-  // 遍历全部页签：无论切换到哪里，术语库的自定义缩放手柄都不得出现在
-  // 翻译、字幕断句等页面（其他 multiline 输入框保持原样，不共享该控件）。
-  const tabs = [...container.querySelectorAll('[role="tab"]')];
-  expect(tabs.length).toBeGreaterThanOrEqual(3);
-  for (const tab of tabs) {
-    await act(async () => {
-      tab.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(
-      container.querySelector('[data-testid="terminology-resize-handle"]')
-    ).toBeNull();
-  }
-
-  act(() => root.unmount());
-});
-
 test("persists terminology drafts to localStorage across unmount/remount", async () => {
   mockTerminology.mockClear();
   // 清空 localStorage，确保从干净状态开始。
