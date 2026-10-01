@@ -29,6 +29,8 @@ import {
   EVENT_FAVORITE_WORD_CHANGE,
   OPT_DICT_BING,
   OPT_DICT_MAP,
+  OPT_TRANS_GOOGLE,
+  OPT_TRANS_GOOGLE_2,
   newI18n,
 } from "../config";
 import { resolveApiPromptSettings } from "../config/prompt";
@@ -106,6 +108,14 @@ function resolveHoverBubbleStyle(userStyle) {
     return normalizeBubbleStyle(DEFAULT_MOUSE_HOVER_BUBBLE_STYLE);
   }
   return normalized;
+}
+
+function createApisMap(apis = []) {
+  const map = new Map((apis || []).map((api) => [api.apiSlug, api]));
+  if (map.has(OPT_TRANS_GOOGLE) && !map.has(OPT_TRANS_GOOGLE_2)) {
+    map.set(OPT_TRANS_GOOGLE_2, map.get(OPT_TRANS_GOOGLE));
+  }
+  return map;
 }
 
 export class Translator {
@@ -1023,17 +1033,19 @@ export class Translator {
   // 接口参数
   // todo: 不用频繁查找计算
   get #apiSetting() {
-    // return (
-    //   this.#setting.transApis.find(
-    //     (api) => api.apiSlug === this.#rule.apiSlug
-    //   ) || DEFAULT_API_SETTING
-    // );
-    return this.#apisMap.get(this.#rule.apiSlug) || DEFAULT_API_SETTING;
+    const slug =
+      this.#rule.apiSlug === OPT_TRANS_GOOGLE_2
+        ? OPT_TRANS_GOOGLE
+        : this.#rule.apiSlug;
+    return this.#apisMap.get(slug) || DEFAULT_API_SETTING;
   }
 
   // 气泡模式可使用独立接口；配置失效时继续跟随当前网页规则。
   get #hoverBubbleApiSetting() {
-    const apiSlug = this.#setting.mouseHoverSetting?.apiSlug;
+    let apiSlug = this.#setting.mouseHoverSetting?.apiSlug;
+    if (apiSlug === OPT_TRANS_GOOGLE_2) {
+      apiSlug = OPT_TRANS_GOOGLE;
+    }
     if (!apiSlug || apiSlug === GLOBAL_KEY) {
       return this.#apiSetting;
     }
@@ -1043,7 +1055,11 @@ export class Translator {
   }
 
   get #transAllnow() {
-    const apiValue = this.#apisMap.get(this.#rule.apiSlug)?.transAllnow;
+    const slug =
+      this.#rule.apiSlug === OPT_TRANS_GOOGLE_2
+        ? OPT_TRANS_GOOGLE
+        : this.#rule.apiSlug;
+    const apiValue = this.#apisMap.get(slug)?.transAllnow;
     if (apiValue !== undefined) {
       return apiValue === true || apiValue === "true";
     }
@@ -1054,7 +1070,11 @@ export class Translator {
   }
 
   get #rootMargin() {
-    const apiValue = this.#apisMap.get(this.#rule.apiSlug)?.rootMargin;
+    const slug =
+      this.#rule.apiSlug === OPT_TRANS_GOOGLE_2
+        ? OPT_TRANS_GOOGLE
+        : this.#rule.apiSlug;
+    const apiValue = this.#apisMap.get(slug)?.rootMargin;
     const legacyValue = this.#setting.rootMargin;
     const value =
       apiValue !== undefined && apiValue !== ""
@@ -1131,9 +1151,7 @@ export class Translator {
       this.#lastActiveTextStyle = this.#rule.textStyle;
     }
     this.#favWords = this.#dedupeFavoriteWords(favWords);
-    this.#apisMap = new Map(
-      this.#setting.transApis.map((api) => [api.apiSlug, api])
-    );
+    this.#apisMap = createApisMap(this.#setting.transApis);
 
     this.#eventName = genEventName();
     this.#combinedSkipsRegex = new RegExp(
@@ -5275,7 +5293,7 @@ overflow-wrap: anywhere !important;`;
       apiIndex === index ? { ...api, model } : api
     );
     this.#setting = { ...this.#setting, transApis: nextApis };
-    this.#apisMap = new Map(nextApis.map((api) => [api.apiSlug, api]));
+    this.#apisMap = createApisMap(nextApis);
     return true;
   }
 

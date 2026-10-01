@@ -2,8 +2,10 @@ import { useCallback, useMemo } from "react";
 import {
   DEFAULT_API_LIST,
   API_SPE_TYPES,
+  getApiDisplayName,
   normalizeApiModelListUrls,
   normalizeApiThinkingSettings,
+  normalizeTransApis,
 } from "../config";
 import { useSetting } from "./Setting";
 
@@ -15,7 +17,9 @@ function useApiState() {
     () =>
       [
         ...normalizeApiThinkingSettings(
-          normalizeApiModelListUrls(setting?.transApis || [])
+          normalizeApiModelListUrls(
+            normalizeTransApis(setting?.transApis || [])
+          )
         ),
       ].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
     [setting?.transApis]
@@ -54,13 +58,7 @@ const API_NAME_COLLATOR = new Intl.Collator(undefined, {
   sensitivity: "base",
 });
 
-export function getApiDisplayName(api = {}) {
-  const displayName = [api.apiName, api.apiType, api.apiSlug].find(
-    (value) => typeof value === "string" && value.trim()
-  );
-
-  return displayName?.trim() || "";
-}
+export { getApiDisplayName };
 
 export function compareApisByDisplayName(
   firstApi,

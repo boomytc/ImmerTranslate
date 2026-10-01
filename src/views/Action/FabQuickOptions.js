@@ -18,6 +18,7 @@ import { useI18n } from "../../hooks/I18n";
 import { useRules } from "../../hooks/Rules";
 import { useSetting } from "../../hooks/Setting";
 import { useAllTextStyles } from "../../hooks/CustomStyles";
+import { getApiDisplayName } from "../../hooks/Api";
 import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import { configuredByokApis, isMissingRequiredApiKey } from "../../libs/apiKey";
 import { isExt } from "../../libs/client";
@@ -333,7 +334,7 @@ export default function FabQuickOptions({
                 )}
                 {configuredApis.map((api) => (
                   <option key={api.apiSlug} value={api.apiSlug}>
-                    {api.apiName || api.apiSlug}
+                    {getApiDisplayName(api)}
                   </option>
                 ))}
               </select>

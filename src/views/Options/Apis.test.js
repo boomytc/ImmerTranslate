@@ -4,6 +4,7 @@ import { Simulate } from "react-dom/test-utils";
 import Apis from "./Apis";
 import {
   DEFAULT_API_LIST,
+  DEFAULT_API_NAME_GOOGLE,
   I18N,
   OPT_TRANS_BUILTINAI,
   GEMINI_INTERACTIONS_URL,
@@ -2623,7 +2624,7 @@ describe("Apis usable services", () => {
       view.container.querySelector('[aria-label="OpenAI"]')
     ).not.toBeNull();
     expect(
-      view.container.querySelector('[aria-label="Google"]')
+      view.container.querySelector(`[aria-label="${DEFAULT_API_NAME_GOOGLE}"]`)
     ).not.toBeNull();
 
     view.unmount();

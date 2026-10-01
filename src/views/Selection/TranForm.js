@@ -21,6 +21,10 @@ import {
   OPT_DICT_MAP,
   OPT_SUG_MAP,
   API_SPE_TYPES,
+  OPT_TRANS_GOOGLE,
+  OPT_TRANS_GOOGLE_2,
+  normalizeTransApis,
+  getApiDisplayName,
   PROMPT_CATEGORY_DICTIONARY,
   PROMPT_MODE_FOLLOW_API,
   findPromptBySlug,
@@ -68,7 +72,9 @@ const resolveActiveApiSlugs = (apiSlugs, optApis) => {
   }
 
   const validSlugs = new Set(optApis.map((api) => api.key));
-  return apiSlugs.filter((slug) => validSlugs.has(slug));
+  return apiSlugs
+    .map((slug) => (slug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : slug))
+    .filter((slug) => validSlugs.has(slug));
 };
 
 /**
@@ -90,8 +96,14 @@ function readStoredApiChoice(storageKey) {
     if (parsed.some((slug) => typeof slug !== "string")) {
       return { status: "none" };
     }
-    // 去重：重复 slug 视为同一选择。
-    const slugs = [...new Set(parsed)];
+    // 去重：重复 slug 视为同一选择；Google2 映射为 Google。
+    const slugs = [
+      ...new Set(
+        parsed.map((slug) =>
+          slug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : slug
+        )
+      ),
+    ];
     return { status: "restored", slugs, isEmpty: slugs.length === 0 };
   } catch {
     return { status: "none" };
@@ -338,16 +350,20 @@ export default function TranForm({
   }, [fromLang, toLang, toLang2, deLang, translateVariants]);
 
   // Keep only enabled translation providers.
-  const optApis = useMemo(
-    () =>
-      transApis
-        .filter((api) => !api.isDisabled)
-        .map((api) => ({
-          key: api.apiSlug,
-          name: api.apiName || api.apiSlug,
-        })),
-    [transApis]
-  );
+  const optApis = useMemo(() => {
+    const seen = new Set();
+    return normalizeTransApis(transApis)
+      .filter((api) => !api.isDisabled)
+      .map((api) => ({
+        key: api.apiSlug,
+        name: getApiDisplayName(api),
+      }))
+      .filter((item) => {
+        if (seen.has(item.key)) return false;
+        seen.add(item.key);
+        return true;
+      });
+  }, [transApis]);
 
   const isWord = useMemo(() => isValidWord(text), [text]);
   const xs = useMemo(() => (isPlaygound ? 6 : 4), [isPlaygound]);

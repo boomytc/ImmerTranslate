@@ -10,6 +10,8 @@ import {
   API_SPE_TYPES,
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_GOOGLE,
+  OPT_TRANS_GOOGLE_2,
+  getApiDisplayName,
 } from "../../config";
 import { useI18n } from "../../hooks/I18n";
 import { parseMathInText } from "../../libs/mathParse";
@@ -173,7 +175,12 @@ export default function TranCont({
 
   // Resolve the translation API settings for this instance's slug.
   const apiSetting = useMemo(
-    () => transApis.find((api) => api.apiSlug === apiSlug),
+    () =>
+      transApis.find(
+        (api) =>
+          api.apiSlug === apiSlug ||
+          (apiSlug === OPT_TRANS_GOOGLE_2 && api.apiSlug === OPT_TRANS_GOOGLE)
+      ),
     [transApis, apiSlug]
   );
   const coordinatesBuiltinSource =
@@ -342,9 +349,15 @@ export default function TranCont({
     );
   }
 
-  const resultLabel = `${i18n("translated_text")} - ${
-    apiSetting.apiName || apiSetting.apiSlug
-  }`;
+  const displayName =
+    apiSetting.apiType === OPT_TRANS_GOOGLE ||
+    apiSetting.apiSlug === OPT_TRANS_GOOGLE ||
+    apiSetting.apiType === OPT_TRANS_GOOGLE_2 ||
+    apiSetting.apiSlug === OPT_TRANS_GOOGLE_2
+      ? getApiDisplayName(apiSetting)
+      : apiSetting.apiName || apiSetting.apiSlug;
+
+  const resultLabel = `${i18n("translated_text")} - ${displayName}`;
 
   return (
     <Box

@@ -2067,7 +2067,11 @@ describe("missing API key empty state", () => {
       Array.from(
         view.container.querySelectorAll(".kt-popup-service__name")
       ).map((node) => node.textContent)
-    ).toEqual(["BuiltinAI", "Google", "Google2", "Microsoft"]);
+    ).toEqual([
+      "BuiltinAI",
+      "Google",
+      "Microsoft",
+    ]);
     expect(view.container.textContent).not.toContain("DeepSeek");
     expect(view.container.textContent).not.toContain("sk-openai-secret");
     view.cleanup();
