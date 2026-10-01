@@ -13,6 +13,8 @@ import {
 } from "../../config";
 import { useI18n } from "../../hooks/I18n";
 import { parseMathInText } from "../../libs/mathParse";
+import { kissLog } from "../../libs/log";
+import { selectionTranslateFailureKey } from "../../libs/pageTranslateError";
 import CopyBtn from "./CopyBtn";
 import { BrowserTtsBtn } from "./AudioBtn";
 
@@ -165,7 +167,7 @@ export default function TranCont({
   const i18n = useI18n();
   const [trText, setTrText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [failure, setFailure] = useState(null);
   const [attemptRevision, setAttemptRevision] = useState(requestRevision);
   const requestPendingRef = useRef(false);
 
@@ -179,13 +181,16 @@ export default function TranCont({
   const builtinDetectedLang = coordinatesBuiltinSource ? detectedLang : "";
   const waitForBuiltinDetection =
     coordinatesBuiltinSource && sourceDetectionPending;
+  const errorText = failure
+    ? i18n(selectionTranslateFailureKey(failure, apiSetting))
+    : "";
 
   useEffect(() => {
     requestPendingRef.current = false;
     if (!text?.trim() || !apiSetting) {
       setTrText("");
       setLoading(false);
-      setError("");
+      setFailure(null);
       return;
     }
 
@@ -193,7 +198,7 @@ export default function TranCont({
       requestPendingRef.current = true;
       setTrText("");
       setLoading(true);
-      setError("");
+      setFailure(null);
       return;
     }
 
@@ -231,7 +236,7 @@ export default function TranCont({
       try {
         setLoading(true);
         setTrText("");
-        setError("");
+        setFailure(null);
 
         const translate = (requestText, requestFromLang = fromLang) =>
           apiTranslate({
@@ -273,7 +278,9 @@ export default function TranCont({
         }
 
         if (active) {
-          setError(err.message);
+          // The panel shows actionable copy. The raw exception stays in the log.
+          kissLog("selection translate error: ", err);
+          setFailure(err);
         }
       } finally {
         if (active) {
@@ -314,8 +321,8 @@ export default function TranCont({
   if (simpleStyle) {
     return (
       <Box aria-live="polite" aria-busy={loading}>
-        {error ? (
-          <Alert severity="error">{error}</Alert>
+        {errorText ? (
+          <Alert severity="error">{errorText}</Alert>
         ) : trText ? (
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <Box sx={{ width: 12, height: 12, flex: "0 0 auto", mt: "0.35em" }}>
@@ -386,7 +393,7 @@ export default function TranCont({
           },
         }}
         value={trText}
-        helperText={error}
+        helperText={errorText}
         InputProps={{
           readOnly: true,
           startAdornment: (
@@ -457,8 +464,8 @@ export default function TranCont({
           whiteSpace: "nowrap",
         }}
       >
-        {!loading && (error || trText)
-          ? `${resultLabel}: ${error || trText}`
+        {!loading && (errorText || trText)
+          ? `${resultLabel}: ${errorText || trText}`
           : ""}
       </Box>
     </Box>
