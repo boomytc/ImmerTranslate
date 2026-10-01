@@ -901,12 +901,12 @@ describe("PopupCont capability parity", () => {
     const view = renderPopupCont({ processActions, setting });
     await flushEffects();
     openAdvancedOptions(view.container);
+    const advanced = view.container.querySelector(".kt-popup-advanced");
 
-    ["selection_translate", "mousehover_translate", "input_translate"].forEach(
-      (label) => {
-        expect(view.container.textContent).not.toContain(label);
-      }
-    );
+    ["mousehover_translate", "input_translate"].forEach((label) => {
+      expect(view.container.textContent).not.toContain(label);
+    });
+    expect(advanced.textContent).not.toContain("selection_translate");
     expect(processActions).not.toHaveBeenCalled();
     expect(mockUpdateSetting).not.toHaveBeenCalled();
     expect(setting).toEqual({

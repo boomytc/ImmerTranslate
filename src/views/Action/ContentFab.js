@@ -1,7 +1,6 @@
 import { supportsTouch } from "../../libs/touchCapability";
 import TouchTranslateControl from "../../components/TouchTranslateControl";
 import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
-import SelectAllRoundedIcon from "@mui/icons-material/SelectAllRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
@@ -17,7 +16,6 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useSyncExternalStore,
 } from "react";
 import ThemeProvider from "../../hooks/M3Theme";
 import Draggable from "./Draggable";
@@ -30,12 +28,10 @@ import {
   EVENT_KISS_INNER,
   MSG_FAB_TOGGLE,
   MSG_OPEN_OPTIONS,
-  MSG_OPEN_TRANBOX,
   MSG_POPUP_TOGGLE,
   MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_STYLE,
-  MSG_TRANSBOX_TOGGLE,
   OPT_STYLE_NONE,
   STOKEY_FAB,
 } from "../../config";
@@ -58,15 +54,7 @@ import { isMatch } from "../../libs/utils";
 import FloatingButton from "../../components/FloatingButton";
 import FabQuickOptions from "./FabQuickOptions";
 
-const selectionUnavailable = () => false;
 
-function subscribeSelectionEnabled(onChange) {
-  const handleChange = (event) => {
-    if (event.detail?.action === MSG_TRANSBOX_TOGGLE) onChange();
-  };
-  document.addEventListener(EVENT_KISS_INNER, handleChange);
-  return () => document.removeEventListener(EVENT_KISS_INNER, handleChange);
-}
 
 // Flip and shift the menu near viewport edges. The FAB can reach any corner,
 // so fallback placements cover all sides to prevent clipping.
@@ -112,7 +100,7 @@ export const FAB_POPPER_MODIFIERS = [
 export function ContentFabContent({
   fabConfig = {},
   processActions,
-  getSelectionEnabled = selectionUnavailable,
+  getSelectionEnabled = () => false,
   getFabPageState,
 }) {
   const i18n = useI18n();
@@ -148,11 +136,6 @@ export function ContentFabContent({
       }));
     },
     [processActions]
-  );
-  // Use the current tab's runtime state, which can differ from stored settings.
-  const selectionEnabled = useSyncExternalStore(
-    subscribeSelectionEnabled,
-    getSelectionEnabled
   );
   const opensMenu = fabClickAction !== 1;
   const windowSize = useWindowSize();
@@ -540,12 +523,6 @@ export function ContentFabContent({
       pressed: Boolean(
         pageRule?.textStyle && pageRule.textStyle !== OPT_STYLE_NONE
       ),
-    },
-    {
-      label: i18n("selection_translate"),
-      icon: SelectAllRoundedIcon,
-      action: () => runAction(MSG_OPEN_TRANBOX),
-      disabled: !selectionEnabled,
     },
     {
       label: i18n("open_menu"),

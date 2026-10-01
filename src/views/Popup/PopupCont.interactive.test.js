@@ -8,6 +8,7 @@ import {
   MSG_FAB_TOGGLE,
   MSG_TRANS_SET_MODEL,
   MSG_TRANS_TOGGLE,
+  MSG_TRANSBOX_TOGGLE,
   STOKEY_FAB,
   STOKEY_RULES,
 } from "../../config";
@@ -356,6 +357,42 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         }),
       });
       expect(sizeChips[0].getAttribute("aria-pressed")).toBe("true");
+
+      view.cleanup();
+    });
+
+    test("renders selection translation switch and toggles MSG_TRANSBOX_TOGGLE", async () => {
+      const processActions = jest.fn(async () => ({ ok: true }));
+      const view = renderPopup({ processActions });
+      await flushEffects();
+
+      const selectionSwitch = view.container.querySelector(
+        'input[aria-label="selection_translate"]'
+      );
+      expect(selectionSwitch).not.toBeNull();
+      expect(selectionSwitch.checked).toBe(true);
+
+      await act(async () => {
+        selectionSwitch.click();
+      });
+      await flushEffects();
+
+      expect(processActions).toHaveBeenCalledWith({
+        action: MSG_TRANSBOX_TOGGLE,
+        args: { enabled: false },
+      });
+      expect(selectionSwitch.checked).toBe(false);
+
+      await act(async () => {
+        selectionSwitch.click();
+      });
+      await flushEffects();
+
+      expect(processActions).toHaveBeenCalledWith({
+        action: MSG_TRANSBOX_TOGGLE,
+        args: { enabled: true },
+      });
+      expect(selectionSwitch.checked).toBe(true);
 
       view.cleanup();
     });
