@@ -501,9 +501,64 @@ describe("InputTranslator failure copy", () => {
     expect(document.body.textContent).not.toContain("invalid api key");
   });
 
-  test("shows service guidance when the input service cannot be used", async () => {
+  test("shows service guidance when the request reports an unusable service", async () => {
     apiTranslate.mockRejectedValueOnce(new Error("genInit: url is empty"));
     prepareInput(translator);
+
+    await translator.handleTranslate({ isBtnTrigger: true });
+
+    expect(apiTranslate).toHaveBeenCalledTimes(1);
+    expect(failureMessage()).toBe(I18N.page_translate_service_unavailable.zh);
+    expect(document.body.textContent).not.toContain("url is empty");
+  });
+
+  test.each([
+    ["zh", I18N.page_translate_service_unavailable.zh],
+    ["en", I18N.page_translate_service_unavailable.en],
+  ])(
+    "does not call the API when the selected input service is disabled (%s)",
+    async (uiLang, copy) => {
+      translator.disable();
+      translator = new InputTranslator({
+        uiLang,
+        inputRule: {
+          transOpen: true,
+          triggerShortcut: ["AltLeft", "KeyI"],
+          triggerCount: 1,
+          triggerTime: 200,
+          showDot: "always",
+          apiSlug: "microsoft",
+          fromLang: "auto",
+          toLang: "zh-CN",
+        },
+        transApis: [
+          {
+            apiSlug: "microsoft",
+            apiType: "Microsoft",
+            url: "",
+            isDisabled: true,
+          },
+        ],
+      });
+      apiTranslate.mockResolvedValue({
+        trText: "你好，世界",
+        isSame: false,
+      });
+      const target = prepareInput(translator, "Hello, world");
+
+      await translator.handleTranslate({ isBtnTrigger: true });
+
+      expect(apiTranslate).not.toHaveBeenCalled();
+      expect(failureMessage()).toBe(copy);
+      expect(target.value).toBe("Hello, world");
+      expect(document.body.textContent).not.toContain("你好，世界");
+      expect(document.body.textContent).not.toContain("translator is disabled");
+    }
+  );
+
+  test("does not call the API when the resolved input service is disabled", async () => {
+    apiTranslate.mockResolvedValue({ trText: "你好，世界", isSame: false });
+    const target = prepareInput(translator, "Hello, world");
     resolveApiPromptSettings.mockReturnValue({
       apiSlug: "test",
       isDisabled: true,
@@ -511,8 +566,34 @@ describe("InputTranslator failure copy", () => {
 
     await translator.handleTranslate({ isBtnTrigger: true });
 
+    expect(apiTranslate).not.toHaveBeenCalled();
     expect(failureMessage()).toBe(I18N.page_translate_service_unavailable.zh);
-    expect(document.body.textContent).not.toContain("url is empty");
+    expect(target.value).toBe("Hello, world");
+  });
+
+  test("does not call the API when the selected input service is missing", async () => {
+    translator.disable();
+    translator = new InputTranslator({
+      uiLang: "zh",
+      inputRule: {
+        transOpen: true,
+        triggerShortcut: ["AltLeft", "KeyI"],
+        triggerCount: 1,
+        triggerTime: 200,
+        showDot: "always",
+        apiSlug: "microsoft",
+      },
+      transApis: [{ apiSlug: "google" }],
+    });
+    apiTranslate.mockResolvedValue({ trText: "你好，世界", isSame: false });
+    const target = prepareInput(translator, "Hello, world");
+
+    await translator.handleTranslate({ isBtnTrigger: true });
+
+    expect(apiTranslate).not.toHaveBeenCalled();
+    expect(failureMessage()).toBe(I18N.page_translate_service_unavailable.zh);
+    expect(target.value).toBe("Hello, world");
+    expect(document.body.textContent).not.toContain("你好，世界");
   });
 
   test("shows an actionable input-box fallback in English for an unknown failure", async () => {
@@ -525,7 +606,9 @@ describe("InputTranslator failure copy", () => {
         triggerCount: 1,
         triggerTime: 200,
         showDot: "always",
+        apiSlug: "test",
       },
+      transApis: [{ apiSlug: "test" }],
     });
     apiTranslate.mockRejectedValueOnce(
       new Error("translate got an unexpected result")
@@ -622,7 +705,9 @@ describe("InputTranslator failure copy", () => {
         triggerCount: 1,
         triggerTime: 200,
         showDot: "-",
+        apiSlug: "test",
       },
+      transApis: [{ apiSlug: "test" }],
     });
     const error = new TypeError("Failed to fetch");
     error.stack = "TypeError: Failed to fetch\n    at translate";

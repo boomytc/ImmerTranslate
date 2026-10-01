@@ -787,43 +787,60 @@ export class InputTranslator {
       }
     }
 
-    const rawApiSetting =
-      this.#config.transApis.find((api) => api.apiSlug === apiSlug) ||
-      DEFAULT_API_SETTING;
+    const matchedApi = this.#config.transApis.find(
+      (api) => api.apiSlug === apiSlug
+    );
+    const rawApiSetting = matchedApi || DEFAULT_API_SETTING;
 
     const apiSetting = resolveApiPromptSettings(
       rawApiSetting,
       this.#config.prompts,
       this.#config.subtitleSetting
     );
+    // 已停用或列表里没有这条服务时，免钥接口仍可能翻译成功。先拦住，不要发请求。
+    const serviceUnavailable =
+      !matchedApi || matchedApi.isDisabled || apiSetting?.isDisabled;
 
     const loadingId = "kiss-loading-" + genEventName();
 
     try {
-      addLoading(node, loadingId);
-      this.hideFloatButton(); // 翻译期间隐藏按钮
+      if (serviceUnavailable) {
+        if (runId === this.#translateRunId) {
+          this.#queuedFailure = {
+            node,
+            error: new Error("translator is disabled"),
+            apiSetting: {
+              ...(apiSetting || rawApiSetting || {}),
+              isDisabled: true,
+            },
+          };
+        }
+      } else {
+        addLoading(node, loadingId);
+        this.hideFloatButton(); // 翻译期间隐藏按钮
 
-      // 调用翻译 API
-      const { trText, isSame } = await apiTranslate({
-        text,
-        fromLang,
-        toLang,
-        apiSetting,
-        textFormat: "text",
-        translateVariants: this.#config.translateVariants,
-      });
+        // 调用翻译 API
+        const { trText, isSame } = await apiTranslate({
+          text,
+          fromLang,
+          toLang,
+          apiSetting,
+          textFormat: "text",
+          translateVariants: this.#config.translateVariants,
+        });
 
-      // 输入框写回纯文本，开启后将模型输出的行内 LaTeX 转成可读的 Unicode
-      const trimmedText = trText?.trim() || "";
-      const newText = this.#config.parseLatex
-        ? parseMathInText(trimmedText)
-        : trimmedText;
-      if (!newText || isSame) return;
+        // 输入框写回纯文本，开启后将模型输出的行内 LaTeX 转成可读的 Unicode
+        const trimmedText = trText?.trim() || "";
+        const newText = this.#config.parseLatex
+          ? parseMathInText(trimmedText)
+          : trimmedText;
+        if (!newText || isSame) return;
 
-      // 6. 执行替换 (使用新的智能替换函数)
-      const success = await smartReplaceText(node, newText);
-      if (!success) {
-        logger.warn("Text replacement failed after all strategies.");
+        // 6. 执行替换 (使用新的智能替换函数)
+        const success = await smartReplaceText(node, newText);
+        if (!success) {
+          logger.warn("Text replacement failed after all strategies.");
+        }
       }
     } catch (err) {
       // 只把可行动文案放到输入框旁；原始异常留在日志里。
