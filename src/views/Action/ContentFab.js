@@ -3,7 +3,6 @@ import TouchTranslateControl from "../../components/TouchTranslateControl";
 import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
-import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
@@ -28,7 +27,6 @@ import {
   EVENT_KISS_INNER,
   MSG_FAB_TOGGLE,
   MSG_OPEN_OPTIONS,
-  MSG_POPUP_TOGGLE,
   MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_STYLE,
@@ -523,11 +521,6 @@ export function ContentFabContent({
       pressed: Boolean(
         pageRule?.textStyle && pageRule.textStyle !== OPT_STYLE_NONE
       ),
-    },
-    {
-      label: i18n("open_menu"),
-      icon: TuneRoundedIcon,
-      action: () => runAction(MSG_POPUP_TOGGLE),
     },
     {
       label: i18n("open_setting"),
