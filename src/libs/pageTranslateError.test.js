@@ -5,8 +5,10 @@ import {
   PAGE_TRANSLATE_INVALID_KEY,
   PAGE_TRANSLATE_NETWORK,
   PAGE_TRANSLATE_SERVICE,
+  SELECTION_TRANSLATE_FAILED,
   hoverTranslateFailureKey,
   pageTranslateFailureKey,
+  selectionTranslateFailureKey,
 } from "./pageTranslateError";
 
 describe("pageTranslateFailureKey", () => {
@@ -118,5 +120,57 @@ describe("hoverTranslateFailureKey", () => {
     expect(
       hoverTranslateFailureKey(new Error("translate got an unexpected result"))
     ).toBe(HOVER_TRANSLATE_FAILED);
+  });
+});
+
+describe("selectionTranslateFailureKey", () => {
+  test("reuses connection-test and service copy for the same failure kinds", () => {
+    expect(selectionTranslateFailureKey(new TypeError("Failed to fetch"))).toBe(
+      PAGE_TRANSLATE_NETWORK
+    );
+    expect(selectionTranslateFailureKey(new Error("GM request timeout."))).toBe(
+      PAGE_TRANSLATE_NETWORK
+    );
+    expect(selectionTranslateFailureKey({ status: 502 })).toBe(
+      PAGE_TRANSLATE_HTTP
+    );
+    expect(
+      selectionTranslateFailureKey(new Error(JSON.stringify({ status: 404 })))
+    ).toBe(PAGE_TRANSLATE_HTTP);
+    expect(selectionTranslateFailureKey(new Error("invalid api key"))).toBe(
+      PAGE_TRANSLATE_INVALID_KEY
+    );
+    expect(
+      selectionTranslateFailureKey(new Error(JSON.stringify({ status: 401 })))
+    ).toBe(PAGE_TRANSLATE_INVALID_KEY);
+    expect(
+      selectionTranslateFailureKey(new Error(JSON.stringify({ status: 403 })))
+    ).toBe(PAGE_TRANSLATE_INVALID_KEY);
+    expect(
+      selectionTranslateFailureKey(new Error("genInit: url is empty"))
+    ).toBe(PAGE_TRANSLATE_SERVICE);
+    expect(
+      selectionTranslateFailureKey(
+        new Error("parse translate result: apiType not matched")
+      )
+    ).toBe(PAGE_TRANSLATE_SERVICE);
+    expect(
+      selectionTranslateFailureKey(new Error("translate got empty response"), {
+        isDisabled: true,
+      })
+    ).toBe(PAGE_TRANSLATE_SERVICE);
+    expect(
+      selectionTranslateFailureKey(new TypeError("Failed to fetch"), {
+        isDisabled: true,
+      })
+    ).toBe(PAGE_TRANSLATE_NETWORK);
+  });
+
+  test("uses selection wording only for an unknown failure", () => {
+    expect(
+      selectionTranslateFailureKey(
+        new Error("translate got an unexpected result")
+      )
+    ).toBe(SELECTION_TRANSLATE_FAILED);
   });
 });

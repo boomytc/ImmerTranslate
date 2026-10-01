@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import TranCont from "./TranCont";
 import { apiTranslate } from "../../apis";
+import { kissLog } from "../../libs/log";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -10,15 +11,27 @@ jest.mock("../../apis", () => ({
   apiTranslate: jest.fn(),
 }));
 
-jest.mock("../../config", () => ({
-  API_SPE_TYPES: {
-    ai: new Set(["OpenAI"]),
-    stream: new Set(["OpenAI"]),
-  },
-  OPT_TRANS_BUILTINAI: "BuiltinAI",
-  OPT_TRANS_GOOGLE: "Google",
-  OPT_TRANS_GOOGLE_2: "Google2",
-}));
+jest.mock("../../libs/log", () => {
+  const actual = jest.requireActual("../../libs/log");
+  return {
+    ...actual,
+    kissLog: jest.fn(),
+  };
+});
+
+jest.mock("../../config", () => {
+  const actual = jest.requireActual("../../config");
+  return {
+    ...actual,
+    API_SPE_TYPES: {
+      ai: new Set(["OpenAI"]),
+      stream: new Set(["OpenAI"]),
+    },
+    OPT_TRANS_BUILTINAI: "BuiltinAI",
+    OPT_TRANS_GOOGLE: "Google",
+    OPT_TRANS_GOOGLE_2: "Google2",
+  };
+});
 
 jest.mock("../../hooks/I18n", () => ({
   useI18n: () => (key) => key,
@@ -146,6 +159,7 @@ function renderTranCont(props = {}) {
 describe("TranCont", () => {
   beforeEach(() => {
     apiTranslate.mockReset();
+    kissLog.mockClear();
     document.body.innerHTML = "";
   });
 
@@ -253,9 +267,14 @@ describe("TranCont", () => {
       expect(container.querySelector('[role="status"]')).toBe(status);
       expect(status.textContent).toBe(
         `translated_text - OpenAI: ${
-          outcome === "success" ? "Final translation" : "Translation failed"
+          outcome === "success"
+            ? "Final translation"
+            : "selection_translate_failed"
         }`
       );
+      if (outcome === "error") {
+        expect(container.textContent).not.toContain("Translation failed");
+      }
       act(() => root.unmount());
     }
   );
@@ -671,7 +690,8 @@ describe("TranCont", () => {
 
     expect(apiTranslate).toHaveBeenCalledTimes(1);
     expect(container.querySelector("textarea").value).toBe("");
-    expect(container.textContent).toContain("source detection failed");
+    expect(container.textContent).toContain("selection_translate_failed");
+    expect(container.textContent).not.toContain("source detection failed");
 
     act(() => root.unmount());
   });
@@ -722,7 +742,8 @@ describe("TranCont", () => {
     await flushEffects();
 
     expect(container.querySelector("textarea").value).toBe("");
-    expect(container.textContent).toContain("fragment failed");
+    expect(container.textContent).toContain("selection_translate_failed");
+    expect(container.textContent).not.toContain("fragment failed");
 
     act(() => {
       root.unmount();
@@ -964,6 +985,116 @@ describe("TranCont", () => {
     await act(async () => {
       deferred.resolve({ trText: "卸载后的译文" });
       await deferred.promise;
+    });
+  });
+
+  describe("selection failure copy", () => {
+    const shownError = (container) =>
+      container.querySelector(".MuiFormHelperText-root")?.textContent || "";
+
+    test("shows the connection-test network copy instead of the raw exception", async () => {
+      const error = new TypeError("Failed to fetch");
+      error.stack = "TypeError: Failed to fetch\n    at translate";
+      apiTranslate.mockRejectedValueOnce(error);
+
+      const { container, root } = renderTranCont();
+      await flushEffects();
+
+      expect(shownError(container)).toBe("test_connection_network");
+      expect(container.textContent).not.toContain("Failed to fetch");
+      expect(container.textContent).not.toContain("TypeError");
+      expect(container.textContent).not.toContain("at translate");
+      expect(container.querySelector('[role="status"]').textContent).toBe(
+        "translated_text - OpenAI: test_connection_network"
+      );
+      expect(kissLog).toHaveBeenCalledWith(
+        "selection translate error: ",
+        error
+      );
+      act(() => root.unmount());
+    });
+
+    test("shows the connection-test http copy for a provider status error", async () => {
+      const error = new Error(
+        JSON.stringify({ status: 502, statusText: "Bad Gateway" })
+      );
+      apiTranslate.mockRejectedValueOnce(error);
+
+      const { container, root } = renderTranCont();
+      await flushEffects();
+
+      expect(shownError(container)).toBe("test_connection_http");
+      expect(container.textContent).not.toContain("502");
+      expect(container.textContent).not.toContain("Bad Gateway");
+      act(() => root.unmount());
+    });
+
+    test("shows the connection-test invalid-key copy", async () => {
+      apiTranslate.mockRejectedValueOnce(new Error("invalid api key"));
+
+      const { container, root } = renderTranCont();
+      await flushEffects();
+
+      expect(shownError(container)).toBe("test_connection_invalid_key");
+      expect(container.textContent).not.toContain("invalid api key");
+      act(() => root.unmount());
+    });
+
+    test("shows service guidance when the selection service cannot be used", async () => {
+      apiTranslate.mockRejectedValueOnce(new Error("genInit: url is empty"));
+
+      const { container, root } = renderTranCont({
+        transApis: [{ ...baseApiSetting, isDisabled: true }],
+      });
+      await flushEffects();
+
+      expect(shownError(container)).toBe("page_translate_service_unavailable");
+      expect(container.textContent).not.toContain("url is empty");
+      act(() => root.unmount());
+    });
+
+    test("shows an actionable selection fallback for an unknown failure", async () => {
+      apiTranslate.mockRejectedValueOnce(
+        new Error("translate got an unexpected result")
+      );
+
+      const { container, root } = renderTranCont();
+      await flushEffects();
+
+      expect(shownError(container)).toBe("selection_translate_failed");
+      expect(container.textContent).not.toContain("unexpected result");
+      expect(container.textContent).not.toContain("page_translate_failed");
+      expect(container.textContent).not.toContain("hover_translate_failed");
+      act(() => root.unmount());
+    });
+
+    test("shows the same network copy in the compact selection layout", async () => {
+      const error = new TypeError("Failed to fetch");
+      error.stack = "TypeError: Failed to fetch\n    at translate";
+      apiTranslate.mockRejectedValueOnce(error);
+
+      const { container, root } = renderTranCont({ simpleStyle: true });
+      await flushEffects();
+
+      expect(container.querySelector('[role="alert"]').textContent).toBe(
+        "test_connection_network"
+      );
+      expect(container.textContent).not.toContain("Failed to fetch");
+      expect(container.textContent).not.toContain("TypeError");
+      act(() => root.unmount());
+    });
+
+    test("keeps a successful selection translation in the result field", async () => {
+      apiTranslate.mockResolvedValueOnce({ trText: "译文" });
+
+      const { container, root } = renderTranCont();
+      await flushEffects();
+
+      expect(container.querySelector("textarea").value).toBe("译文");
+      expect(shownError(container)).toBe("");
+      expect(container.textContent).not.toContain("selection_translate_failed");
+      expect(kissLog).not.toHaveBeenCalled();
+      act(() => root.unmount());
     });
   });
 });
