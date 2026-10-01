@@ -7,8 +7,6 @@ import { configuredByokApis } from "../../libs/apiKey";
 import {
   EVENT_KISS_INNER,
   MSG_OPEN_OPTIONS,
-  MSG_OPEN_TRANBOX,
-  MSG_POPUP_TOGGLE,
   MSG_SAVE_RULE,
   MSG_FAB_TOGGLE,
   MSG_TRANS_PUTRULE,
@@ -210,7 +208,6 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(menuItems().map((item) => item.textContent)).toEqual([
       "popup_translate_page",
       "text_style_alt",
-      "open_menu",
       "open_setting",
       "touch_paragraph",
     ]);
@@ -239,7 +236,6 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   test.each([
     [0, MSG_TRANS_TOGGLE],
     [1, MSG_TRANS_TOGGLE_STYLE],
-    [2, MSG_POPUP_TOGGLE],
   ])("menu item %i dispatches its action and closes", (index, action) => {
     render();
     clickFab();
@@ -290,11 +286,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     pressMenuKey("ArrowUp");
     expect(focusRoot.activeElement).toBe(menuItems()[1]);
     expect(pressMenuKey("End").defaultPrevented).toBe(true);
-    expect(focusRoot.activeElement).toBe(menuItems()[4]);
+    expect(focusRoot.activeElement).toBe(menuItems()[3]);
     pressMenuKey("ArrowDown");
     expect(focusRoot.activeElement).toBe(menuItems()[0]);
     pressMenuKey("ArrowUp");
-    expect(focusRoot.activeElement).toBe(menuItems()[4]);
+    expect(focusRoot.activeElement).toBe(menuItems()[3]);
     expect(pressMenuKey("Home").defaultPrevented).toBe(true);
     expect(focusRoot.activeElement).toBe(menuItems()[0]);
     expect(processActions).not.toHaveBeenCalled();
@@ -304,12 +300,12 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     render();
     clickFab();
 
-    expect(pressMenuKey("o").defaultPrevented).toBe(true);
-    expect(focusRoot.activeElement).toBe(menuItems()[2]);
-    pressMenuKey("o");
+    expect(pressMenuKey("t").defaultPrevented).toBe(true);
+    expect(focusRoot.activeElement).toBe(menuItems()[1]);
+    pressMenuKey("t");
     expect(focusRoot.activeElement).toBe(menuItems()[3]);
-    pressMenuKey("o");
-    expect(focusRoot.activeElement).toBe(menuItems()[2]);
+    pressMenuKey("t");
+    expect(focusRoot.activeElement).toBe(menuItems()[1]);
   });
 
   test("matches typed prefixes after the first character", () => {
@@ -320,7 +316,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       pressMenuKey(key);
     }
 
-    expect(focusRoot.activeElement).toBe(menuItems()[3]);
+    expect(focusRoot.activeElement).toBe(menuItems()[2]);
     expect(processActions).not.toHaveBeenCalled();
   });
 
@@ -343,7 +339,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     render();
     clickFab();
 
-    act(() => menuItems()[3].click());
+    act(() => menuItems()[2].click());
 
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS);
     expect(processActions).not.toHaveBeenCalled();
@@ -391,7 +387,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(draggableProps.expanded).toBe(true);
 
     act(() => draggableProps.onStart());
-    expect(menuItems()).toHaveLength(5);
+    expect(menuItems()).toHaveLength(4);
     act(() => draggableProps.onMove());
 
     expect(menuItems()).toHaveLength(0);
@@ -403,7 +399,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
 
     act(() => draggableProps.onStart());
     clickFab();
-    expect(menuItems()).toHaveLength(5);
+    expect(menuItems()).toHaveLength(4);
     expect(draggableProps.expanded).toBe(true);
   });
 
@@ -1014,7 +1010,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   test("entering video fullscreen closes an open menu", () => {
     render();
     clickFab();
-    expect(menuItems()).toHaveLength(5);
+    expect(menuItems()).toHaveLength(4);
 
     mockIsVideoFullscreen = true;
     act(() =>
