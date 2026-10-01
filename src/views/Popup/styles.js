@@ -269,6 +269,12 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-fab-control__body { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kt-popup-fab-control__global { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--kt-on); }
 .kt-popup-fab-control__site-btn.MuiButton-root { min-height: 28px; padding: 3px 10px; font-size: 11px; font-weight: 600; border-radius: var(--kt-radius-chip, 14px); text-transform: none; }
+.kt-popup-fab-control__sizes { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.kt-popup-fab-control__size-label { font-size: 11px; font-weight: 600; color: var(--kt-onv); }
+.kt-popup-fab-control__size-group { display: flex; gap: 4px; }
+.kt-popup-fab-control__size-chip { padding: 2px 8px; min-height: 26px; font-size: 11px; font-weight: 650; border-radius: 10px; border: 1px solid var(--kt-linev); background: var(--kt-sf0); color: var(--kt-on); cursor: pointer; transition: all 0.15s ease-out; }
+.kt-popup-fab-control__size-chip[aria-pressed="true"] { background: var(--kt-pric); color: var(--kt-onpric); border-color: transparent; }
+
 
 .kt-popup-disclosure-row { display: flex; align-items: center; gap: 4px; }
 .kt-popup-disclosure { width: auto; min-height: 38px; display: flex; flex: 1; align-items: center; gap: 8px; padding: 0 4px; border: 0; background: transparent; color: var(--kt-onv); cursor: pointer; font-size: 12.5px; font-weight: 650; }

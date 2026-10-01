@@ -46,7 +46,12 @@ import { createMenuKeyDownHandler } from "../../libs/menuFocus";
 import useWindowSize from "../../hooks/WindowSize";
 import { useFullscreenDetect } from "../../hooks/useFullscreenDetect";
 import { ACTION_STYLES } from "./styles";
-import { normalizeFabAppearance, isFabVisible } from "../../config/fab";
+import {
+  normalizeFabAppearance,
+  isFabVisible,
+  FAB_MAX_SIZE,
+  FAB_MIN_SIZE,
+} from "../../config/fab";
 import { isMatch } from "../../libs/utils";
 import FloatingButton from "../../components/FloatingButton";
 import FabQuickOptions from "./FabQuickOptions";
@@ -115,11 +120,33 @@ export function ContentFabContent({
     edge: fabEdge,
     fabClickAction = 0,
   } = fabConfig || {};
+  const [localSize, setLocalSize] = useState(null);
   const {
     halfHide,
     opacity,
-    size: fabSize,
+    size: baseFabSize,
   } = normalizeFabAppearance(fabConfig);
+  const fabSize = localSize ?? baseFabSize;
+
+  const handleSizeChange = useCallback(
+    (newSize) => {
+      const clamped = Math.round(
+        Math.min(FAB_MAX_SIZE, Math.max(FAB_MIN_SIZE, newSize))
+      );
+      setLocalSize(clamped);
+      void processActions?.({
+        action: MSG_FAB_TOGGLE,
+        args: {
+          fabConfig: { size: clamped },
+        },
+      });
+      void getStorageState(STOKEY_FAB, DEFAULT_FAB).save((previous) => ({
+        ...(previous || DEFAULT_FAB),
+        size: clamped,
+      }));
+    },
+    [processActions]
+  );
   // Use the current tab's runtime state, which can differ from stored settings.
   const selectionEnabled = useSyncExternalStore(
     subscribeSelectionEnabled,
@@ -557,26 +584,36 @@ export function ContentFabContent({
               onKeyDownCapture={handleMenuNavigation}
               onKeyDown={handleMenuKeyDown}
             >
-              {items.map(({ label, icon: Icon, action, disabled, pressed }) => (
-                <MenuItem
-                  className="kt-content-fab-menu__item"
-                  disabled={disabled}
-                  aria-pressed={pressed}
-                  onClick={disabled ? undefined : action}
-                  key={label}
-                >
-                  <ListItemIcon>
-                    <Icon />
-                  </ListItemIcon>
-                  <ListItemText>{label}</ListItemText>
-                </MenuItem>
-              ))}
+              {items.map(
+                ({ label, icon: Icon, action, disabled, pressed }, index) => (
+                  <MenuItem
+                    className={`kt-content-fab-menu__item ${
+                      index === 0
+                        ? "kt-content-fab-menu__item--hero"
+                        : index === 5
+                          ? "kt-content-fab-menu__item--touch"
+                          : ""
+                    }`}
+                    disabled={disabled}
+                    aria-pressed={pressed}
+                    onClick={disabled ? undefined : action}
+                    key={label}
+                  >
+                    <ListItemIcon>
+                      <Icon />
+                    </ListItemIcon>
+                    <ListItemText>{label}</ListItemText>
+                  </MenuItem>
+                )
+              )}
             </MenuList>
             <FabQuickOptions
               getFabPageState={getFabPageState}
               processActions={processActions}
               onPageRule={setPageRule}
               onHideOnSite={handleHideOnSite}
+              currentFabSize={fabSize}
+              onChangeFabSize={handleSizeChange}
             />
             {touchOpen && (
               <TouchTranslateControl processActions={processActions} />

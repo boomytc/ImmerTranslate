@@ -65,4 +65,18 @@ describe("content FAB Material 3 shape", () => {
       )
     ).toBe(true);
   });
+
+  test("uses grid layout for menu items and sites without rem units, with zoom isolation", () => {
+    expect(ACTION_STYLES).toMatch(/\.kt-content-fab-menu\s*\{[^}]*zoom:\s*1;/);
+    expect(ACTION_STYLES).toMatch(
+      /\.kt-content-fab-menu\s*\{[^}]*text-size-adjust:\s*100%\s*!important;/
+    );
+    expect(ACTION_STYLES).toMatch(
+      /\.kt-content-fab-menu\s+\.MuiMenu-list\s*\{[^}]*display:\s*grid;/
+    );
+    expect(ACTION_STYLES).toMatch(
+      /\.kt-content-fab-menu__sites\s*\{[^}]*display:\s*grid;/
+    );
+    expect(ACTION_STYLES).not.toContain("4.75rem");
+  });
 });

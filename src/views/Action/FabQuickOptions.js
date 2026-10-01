@@ -11,6 +11,7 @@ import {
   OPT_LANGS_TO,
   OPT_TRANS_QWENMT,
 } from "../../config";
+import { DEFAULT_FAB, FAB_SIZE_PRESETS } from "../../config/fab";
 import { getPresetModels } from "../../config/presetModels";
 import { useI18n } from "../../hooks/I18n";
 import { useRules } from "../../hooks/Rules";
@@ -52,6 +53,8 @@ export default function FabQuickOptions({
   processActions,
   onPageRule,
   onHideOnSite,
+  currentFabSize,
+  onChangeFabSize,
 }) {
   const i18n = useI18n();
   const { setting, updateSetting } = useSetting();
@@ -290,6 +293,30 @@ export default function FabQuickOptions({
           >
             {i18n("show_only_translations")}
           </button>
+        </div>
+      )}
+      {onChangeFabSize && (
+        <div className="kt-content-fab-menu__field">
+          <span id="kt-fab-size-label">{i18n("fab_size")}</span>
+          <div
+            className="kt-content-fab-menu__sizes"
+            role="group"
+            aria-labelledby="kt-fab-size-label"
+          >
+            {FAB_SIZE_PRESETS.map(({ size, labelKey }) => (
+              <button
+                key={size}
+                type="button"
+                className="kt-content-fab-menu__mode"
+                aria-pressed={
+                  Math.abs((currentFabSize || DEFAULT_FAB.size) - size) <= 4
+                }
+                onClick={() => onChangeFabSize(size)}
+              >
+                {i18n(labelKey)}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {rule && (
