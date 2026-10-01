@@ -8,6 +8,7 @@ import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
 } from "../../config";
+import { configuredByokApis } from "../../libs/apiKey";
 
 export default function OverviewHero() {
   const i18n = useI18n();
@@ -17,14 +18,17 @@ export default function OverviewHero() {
   const globalRule = rulesLoading
     ? null
     : rules.find((rule) => rule.pattern === "*") || GLOBLA_RULE;
+  const transApis = setting?.transApis || [];
+  const usableApis = configuredByokApis(transApis);
   const activeApi = globalRule
-    ? (setting.transApis || []).find(
-        (api) => api.apiSlug === globalRule.apiSlug
-      )
+    ? transApis.find((api) => api.apiSlug === globalRule.apiSlug)
     : null;
-  const serviceName = globalRule
-    ? activeApi?.apiName || activeApi?.apiType || globalRule.apiSlug || "—"
-    : "—";
+  const noUsableService = Boolean(globalRule) && usableApis.length === 0;
+  const serviceName = !globalRule
+    ? "—"
+    : noUsableService
+      ? i18n("fab_no_keyed_provider")
+      : activeApi?.apiName || activeApi?.apiType || globalRule.apiSlug || "—";
   const sourceLanguage = globalRule
     ? OPT_LANGS_FROM.find(([key]) => key === globalRule.fromLang)?.[1] ||
       globalRule.fromLang ||
@@ -65,7 +69,11 @@ export default function OverviewHero() {
           </span>
         </div>
         <div className="kt-overview-hero__summary">
-          <div className="kt-overview-hero__summary-item">
+          <div
+            className={`kt-overview-hero__summary-item${
+              noUsableService ? " kt-overview-hero__summary-item--empty" : ""
+            }`}
+          >
             <span>{i18n("translate_service")}</span>
             <strong>{serviceName}</strong>
           </div>
