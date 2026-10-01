@@ -20,6 +20,7 @@ const {
   I18N,
   OPT_DICT_BING,
   OPT_DICT_YOUDAO,
+  OPT_TRANS_MICROSOFT,
 } = require("../config");
 const {
   OPT_HIGHLIGHT_WORDS_AFTERTRANS,
@@ -2210,6 +2211,119 @@ describe("Translator rule styles", () => {
     expect(bubble.getAttribute("style")).toContain("font-size: 18px");
     expect(bubble.style.position).toBe("fixed");
     expect(bubble.style.zIndex).toBe("2147483647");
+  });
+
+  describe("hover bubble failure copy", () => {
+    const showBubbleFailure = async (error, setting = {}, rule = {}) => {
+      apiTranslate.mockRejectedValueOnce(error);
+      document.body.innerHTML =
+        '<main id="root"><p id="target">Hello hover</p></main>';
+      createTranslator(
+        { transOpen: "false", ...rule },
+        {
+          preInit: true,
+          uiLang: setting.uiLang || "zh",
+          transApis: setting.transApis || [createApiSetting("test-api")],
+          mouseHoverSetting: {
+            useMouseHover: true,
+            mouseHoverKey: [],
+            mouseHoverKey2: [],
+            displayMode: "bubble",
+            ...setting.mouseHoverSetting,
+          },
+        }
+      );
+      await hoverNode(document.getElementById("target"));
+      await flushAsync();
+      return document.querySelector(`.${Translator.KISS_CLASS.hoverBubble}`);
+    };
+
+    test("shows the connection-test network copy instead of the raw exception", async () => {
+      const error = new TypeError("Failed to fetch");
+      error.stack = "TypeError: Failed to fetch\n    at translate";
+      const bubble = await showBubbleFailure(error);
+
+      expect(bubble.dataset.state).toBe("error");
+      expect(bubble.textContent).toBe(I18N.test_connection_network.zh);
+      expect(bubble.textContent).not.toContain("Failed to fetch");
+      expect(bubble.textContent).not.toContain("TypeError");
+      expect(bubble.getAttribute("aria-label")).toBe(
+        `悬停翻译: ${I18N.test_connection_network.zh}`
+      );
+      expect(
+        document.querySelector(`.${Translator.KISS_CLASS.warpper}`)
+      ).toBeNull();
+    });
+
+    test("shows the connection-test http copy for a provider status error", async () => {
+      const bubble = await showBubbleFailure(
+        new Error(JSON.stringify({ status: 502, statusText: "Bad Gateway" }))
+      );
+      expect(bubble.textContent).toBe(I18N.test_connection_http.zh);
+      expect(bubble.textContent).not.toContain("502");
+    });
+
+    test("shows the connection-test invalid-key copy", async () => {
+      const bubble = await showBubbleFailure(new Error("invalid api key"));
+      expect(bubble.textContent).toBe(I18N.test_connection_invalid_key.zh);
+      expect(bubble.textContent).not.toContain("invalid api key");
+    });
+
+    test("shows service guidance when the hover service cannot be used", async () => {
+      const bubble = await showBubbleFailure(
+        new Error("genInit: url is empty"),
+        {
+          transApis: [createApiSetting("test-api", true)],
+          mouseHoverSetting: { apiSlug: "test-api" },
+        },
+        { apiSlug: "test-api" }
+      );
+      expect(bubble.textContent).toBe(
+        I18N.page_translate_service_unavailable.zh
+      );
+    });
+
+    test("shows an actionable hover fallback in English for an unknown failure", async () => {
+      const bubble = await showBubbleFailure(
+        new Error("translate got an unexpected result"),
+        { uiLang: "en" }
+      );
+      expect(bubble.textContent).toBe(I18N.hover_translate_failed.en);
+      expect(bubble.textContent).not.toContain("unexpected result");
+    });
+
+    test("keeps a successful keyless hover translation in the bubble", async () => {
+      document.body.innerHTML =
+        '<main id="root"><p id="target">Hello hover</p></main>';
+      createTranslator(
+        { transOpen: "false", apiSlug: OPT_TRANS_MICROSOFT },
+        {
+          preInit: true,
+          transApis: [
+            {
+              ...createApiSetting(OPT_TRANS_MICROSOFT),
+              apiType: OPT_TRANS_MICROSOFT,
+              key: "",
+            },
+          ],
+          mouseHoverSetting: {
+            useMouseHover: true,
+            mouseHoverKey: [],
+            mouseHoverKey2: [],
+            displayMode: "bubble",
+            apiSlug: OPT_TRANS_MICROSOFT,
+          },
+        }
+      );
+      await hoverNode(document.getElementById("target"));
+      await flushAsync();
+
+      const bubble = document.querySelector(
+        `.${Translator.KISS_CLASS.hoverBubble}`
+      );
+      expect(bubble.textContent).toBe("Translated");
+      expect(bubble.dataset.state).not.toBe("error");
+    });
   });
 
   test("uses the configured translation service only for hover bubbles", async () => {

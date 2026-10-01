@@ -4549,6 +4549,15 @@ export const I18N = {
     tr: `Bu çeviri hizmeti kullanılamıyor veya kapalı. Başka bir hizmete geçin veya ayarları açıp uç noktayı kontrol edin.`,
     vi: "Dịch vụ dịch này không dùng được hoặc đã tắt. Hãy đổi dịch vụ, hoặc mở cài đặt để kiểm tra địa chỉ.",
   },
+  hover_translate_failed: {
+    zh: `悬停翻译失败。请检查网络，或换一个翻译服务，也可以打开设置核对接口`,
+    en: `Hover translation failed. Check your network, switch translation service, or open settings and check the endpoint.`,
+    zh_TW: `懸停翻譯失敗。請檢查網路，或換一個翻譯服務，也可以開啟設定核對介面`,
+    ja: `ホバー翻訳に失敗しました。ネットワークを確認するか、別の翻訳サービスに切り替えるか、設定を開いてエンドポイントを確認してください。`,
+    ko: `마우스오버 번역에 실패했습니다. 네트워크를 확인하거나, 다른 번역 서비스로 바꾸거나, 설정을 열어 엔드포인트를 확인하세요.`,
+    tr: `Üzerine gelince çeviri başarısız oldu. Ağınızı kontrol edin, başka bir çeviri hizmetine geçin veya ayarları açıp uç noktayı kontrol edin.`,
+    vi: "Dịch khi di chuột thất bại. Hãy kiểm tra mạng, đổi dịch vụ dịch, hoặc mở cài đặt để kiểm tra địa chỉ.",
+  },
   fab_translation_mode: {
     zh: `译文显示`,
     en: `Translation display`,
