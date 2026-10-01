@@ -21,6 +21,7 @@ import {
   SETTINGS_VERSION_V2,
   CURRENT_SETTINGS_VERSION,
   DEFAULT_TRANBOX_SETTING,
+  migrateInputRuleShowDot,
   normalizeApiThinkingSettings,
   KV_SETTING_KEY,
   KV_RULES_KEY,
@@ -529,6 +530,7 @@ const mergeSettingWithDefault = (setting) => {
   // 设置读取时只在内存中归一化一次，避免每次请求重复解析模型能力。
   return {
     ...mergedSetting,
+    inputRule: migrateInputRuleShowDot(mergedSetting.inputRule),
     transApis: normalizeApiThinkingSettings(mergedSetting.transApis),
   };
 };

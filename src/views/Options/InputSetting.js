@@ -145,9 +145,11 @@ export default function InputSetting() {
           </SettingsRow>
           <SettingsRow label={i18n("show_translation_dot")}>
             <SettingsSegmented
-              value={showDot || OPT_INPUT_DOT_MOBILE}
+              value={showDot || DEFAULT_INPUT_RULE.showDot}
               label={i18n("show_translation_dot")}
-              onChange={(value) => updateInputRule({ showDot: value })}
+              onChange={(value) =>
+                updateInputRule({ showDot: value, showDotChosen: true })
+              }
               items={[
                 {
                   value: OPT_INPUT_DOT_DISABLE,

@@ -10,6 +10,9 @@ import {
   GEMINI_GENERATE_CONTENT_URL,
   getSettingVersion,
   KV_SETTING_KEY,
+  OPT_INPUT_DOT_ALWAYS,
+  OPT_INPUT_DOT_DISABLE,
+  OPT_INPUT_DOT_MOBILE,
   OPT_TRANS_GEMINI,
   STOKEY_SETTING,
   STOKEY_SYNC,
@@ -384,6 +387,42 @@ describe("settings normalization across the production persistence chain", () =>
       expect(findStorageState(STOKEY_SETTING).dirty).toBe(false);
       expect(findStorageState(STOKEY_SETTING).committedEditVersion).toBe(0);
       expect(syncData).not.toHaveBeenCalled();
+    }
+  );
+
+  test("reads an unmarked mobile input dot as always without persisting", async () => {
+    const bytes = await mount({
+      version: CURRENT_SETTINGS_VERSION,
+      darkMode: "auto",
+      uiLang: "en",
+      inputRule: { showDot: OPT_INPUT_DOT_MOBILE, toLang: "zh-CN" },
+    });
+
+    expect(settings.setting.inputRule).toMatchObject({
+      showDot: OPT_INPUT_DOT_ALWAYS,
+      toLang: "zh-CN",
+    });
+    expectReadOnly(bytes);
+  });
+
+  test.each([
+    [{ showDot: OPT_INPUT_DOT_DISABLE }, OPT_INPUT_DOT_DISABLE],
+    [
+      { showDot: OPT_INPUT_DOT_MOBILE, showDotChosen: true },
+      OPT_INPUT_DOT_MOBILE,
+    ],
+  ])(
+    "reads an explicit input dot without persisting %#",
+    async (inputRule, showDot) => {
+      const bytes = await mount({
+        version: CURRENT_SETTINGS_VERSION,
+        darkMode: "auto",
+        uiLang: "en",
+        inputRule,
+      });
+
+      expect(settings.setting.inputRule.showDot).toBe(showDot);
+      expectReadOnly(bytes);
     }
   );
 });

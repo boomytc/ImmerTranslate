@@ -12,6 +12,9 @@ import {
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_OPENAI,
   OPT_TRANS_TENCENT,
+  OPT_INPUT_DOT_ALWAYS,
+  OPT_INPUT_DOT_DISABLE,
+  OPT_INPUT_DOT_MOBILE,
 } from "../config";
 import { getSettingWithDefault, runDataMigration } from "./storage";
 
@@ -223,6 +226,44 @@ describe("settings storage migration", () => {
     );
     await expect(getSettingWithDefault()).resolves.toMatchObject({
       autoTranslateClipboard: true,
+    });
+  });
+
+  test("upgrades a stored mobile input dot without persisting", async () => {
+    const storedSetting = {
+      version: SETTINGS_VERSION_V3,
+      uiLang: "zh",
+      inputRule: { showDot: OPT_INPUT_DOT_MOBILE, toLang: "zh-CN" },
+    };
+    const serialized = JSON.stringify(storedSetting);
+    window.localStorage.setItem(STOKEY_SETTING, serialized);
+    const setItem = jest.spyOn(window.Storage.prototype, "setItem");
+    try {
+      await expect(getSettingWithDefault()).resolves.toMatchObject({
+        inputRule: { showDot: OPT_INPUT_DOT_ALWAYS, toLang: "zh-CN" },
+      });
+      expect(setItem).not.toHaveBeenCalled();
+      expect(window.localStorage.getItem(STOKEY_SETTING)).toBe(serialized);
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  test.each([
+    [{ showDot: OPT_INPUT_DOT_DISABLE }, OPT_INPUT_DOT_DISABLE],
+    [
+      { showDot: OPT_INPUT_DOT_MOBILE, showDotChosen: true },
+      OPT_INPUT_DOT_MOBILE,
+    ],
+    [{ showDot: OPT_INPUT_DOT_ALWAYS }, OPT_INPUT_DOT_ALWAYS],
+  ])("keeps an explicit input dot %#", async (inputRule, showDot) => {
+    window.localStorage.setItem(
+      STOKEY_SETTING,
+      JSON.stringify({ version: SETTINGS_VERSION_V3, inputRule })
+    );
+
+    await expect(getSettingWithDefault()).resolves.toMatchObject({
+      inputRule: { showDot },
     });
   });
 
