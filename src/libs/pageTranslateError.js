@@ -8,6 +8,8 @@ export const PAGE_TRANSLATE_NETWORK = "test_connection_network";
 export const PAGE_TRANSLATE_SERVICE = "page_translate_service_unavailable";
 /** Distinct: page translate can also switch service or open settings. */
 export const PAGE_TRANSLATE_FAILED = "page_translate_failed";
+/** Distinct: the hover bubble should not say the page translation failed. */
+export const HOVER_TRANSLATE_FAILED = "hover_translate_failed";
 
 const INVALID_KEY_RE =
   /invalid(?:\s+|[_-])?(?:api(?:\s+|[_-])?)?key|incorrect api key|api key is invalid|unauthorized/i;
@@ -63,4 +65,18 @@ export function pageTranslateFailureKey(error, apiSetting) {
     return PAGE_TRANSLATE_SERVICE;
   }
   return PAGE_TRANSLATE_FAILED;
+}
+
+/**
+ * Hover bubbles share the page-translate failure kinds. Network, HTTP,
+ * invalid-key, and unavailable-service copy stays the same; only the generic
+ * sentence is hover-specific.
+ *
+ * @param {unknown} error
+ * @param {{isDisabled?: boolean}|null|undefined} [apiSetting]
+ * @returns {string}
+ */
+export function hoverTranslateFailureKey(error, apiSetting) {
+  const key = pageTranslateFailureKey(error, apiSetting);
+  return key === PAGE_TRANSLATE_FAILED ? HOVER_TRANSLATE_FAILED : key;
 }

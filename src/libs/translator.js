@@ -66,7 +66,10 @@ import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
 import { isMissingRequiredApiKey } from "./apiKey";
 import { openOptionsApisPage } from "./optionsEntry";
-import { pageTranslateFailureKey } from "./pageTranslateError";
+import {
+  hoverTranslateFailureKey,
+  pageTranslateFailureKey,
+} from "./pageTranslateError";
 import { getDocInfo } from "./docInfo";
 import { visitTranslationTargets } from "./translationTargets";
 
@@ -4124,7 +4127,16 @@ overflow-wrap: anywhere !important;`;
       ) {
         return;
       }
-      this.#showHoverBubble(this.#formatTranslateError(err), "error");
+      // 气泡只显示可行动文案；原始异常留在日志里，避免把堆栈摊开。
+      kissLog(
+        "hover bubble translate error: ",
+        this.#formatTranslateError(err)
+      );
+      const i18n = newI18n(this.#setting.uiLang || "zh");
+      this.#showHoverBubble(
+        i18n(hoverTranslateFailureKey(err, this.#hoverBubbleApiSetting)),
+        "error"
+      );
     }
   }
 

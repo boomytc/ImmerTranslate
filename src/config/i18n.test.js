@@ -78,6 +78,12 @@ test("tells users to refresh after a missing connection setup", () => {
   expect(I18N.page_translate_service_unavailable.en).toBe(
     "This translation service is unavailable or turned off. Switch translation service, or open settings and check the endpoint."
   );
+  expect(I18N.hover_translate_failed.zh).toBe(
+    "悬停翻译失败。请检查网络，或换一个翻译服务，也可以打开设置核对接口"
+  );
+  expect(I18N.hover_translate_failed.en).toBe(
+    "Hover translation failed. Check your network, switch translation service, or open settings and check the endpoint."
+  );
   expect(I18N.test_connection_ok.zh).toBe("已连通");
   expect(I18N.test_connection_ok_empty.zh).toBe("已连通，模型列表为空");
 });
