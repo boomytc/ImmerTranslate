@@ -1,9 +1,11 @@
 import {
+  HOVER_TRANSLATE_FAILED,
   PAGE_TRANSLATE_FAILED,
   PAGE_TRANSLATE_HTTP,
   PAGE_TRANSLATE_INVALID_KEY,
   PAGE_TRANSLATE_NETWORK,
   PAGE_TRANSLATE_SERVICE,
+  hoverTranslateFailureKey,
   pageTranslateFailureKey,
 } from "./pageTranslateError";
 
@@ -90,5 +92,31 @@ describe("pageTranslateFailureKey", () => {
     expect(
       pageTranslateFailureKey(new Error("translate got an unexpected result"))
     ).toBe(PAGE_TRANSLATE_FAILED);
+  });
+});
+
+describe("hoverTranslateFailureKey", () => {
+  test("reuses connection-test and service copy for the same failure kinds", () => {
+    expect(hoverTranslateFailureKey(new TypeError("Failed to fetch"))).toBe(
+      PAGE_TRANSLATE_NETWORK
+    );
+    expect(hoverTranslateFailureKey({ status: 502 })).toBe(PAGE_TRANSLATE_HTTP);
+    expect(hoverTranslateFailureKey(new Error("invalid api key"))).toBe(
+      PAGE_TRANSLATE_INVALID_KEY
+    );
+    expect(hoverTranslateFailureKey(new Error("genInit: url is empty"))).toBe(
+      PAGE_TRANSLATE_SERVICE
+    );
+    expect(
+      hoverTranslateFailureKey(new TypeError("Failed to fetch"), {
+        isDisabled: true,
+      })
+    ).toBe(PAGE_TRANSLATE_NETWORK);
+  });
+
+  test("uses hover wording only for an unknown failure", () => {
+    expect(
+      hoverTranslateFailureKey(new Error("translate got an unexpected result"))
+    ).toBe(HOVER_TRANSLATE_FAILED);
   });
 });
