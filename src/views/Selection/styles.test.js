@@ -58,10 +58,8 @@ describe("selection Material 3 shapes", () => {
     )?.[1];
 
     expect(baseRule).toContain("border-radius: 50%");
-    expect(baseRule).toContain(`width: ${TRANBTN_SIZE}px`);
-    expect(baseRule).toContain(`height: ${TRANBTN_SIZE}px`);
-    expect(baseRule).toContain(`min-width: ${TRANBTN_SIZE}px`);
-    expect(baseRule).toContain(`min-height: ${TRANBTN_SIZE}px`);
+    expect(baseRule).toContain("var(--kt-tranbtn-size");
+    expect(baseRule).toContain(`${TRANBTN_SIZE}px`);
     expect(baseRule).toContain("border: 0");
     expect(baseRule).toContain("background-color: var(--kt-pric)");
     expect(baseRule).not.toContain("--kt-glass-tint");

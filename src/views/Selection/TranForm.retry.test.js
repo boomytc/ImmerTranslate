@@ -163,7 +163,7 @@ describe("Explicit translation submissions", () => {
     async (action) => {
       apiTranslate.mockRejectedValueOnce(new Error("Temporary network error"));
       await renderPanel();
-      expect(container.textContent).toContain("Temporary network error");
+      expect(container.textContent).toContain("test_connection_network");
       expect(apiTranslate).toHaveBeenCalledTimes(1);
       const firstRequest = apiTranslate.mock.calls[0][0];
 
@@ -188,7 +188,7 @@ describe("Explicit translation submissions", () => {
       expect(firstRequest.signal.aborted).toBe(true);
       expect(retryRequest.signal.aborted).toBe(false);
       expect(resultText()).toContain("Translated text");
-      expect(container.textContent).not.toContain("Temporary network error");
+      expect(container.textContent).not.toContain("test_connection_network");
     }
   );
 

@@ -3,10 +3,12 @@ import TranBox from "./TranBox";
 import useTranBoxState from "../../hooks/useTranBoxState";
 import useSelectionController from "../../hooks/useSelectionController";
 import useTranboxShortcuts from "../../hooks/useTranboxShortcuts";
+import { useFab } from "../../hooks/Fab";
 import ThemeProvider from "../../hooks/M3Theme";
 import { SettingProvider } from "../../hooks/Setting";
 import { SELECTION_STYLES } from "./styles";
 import { newI18n } from "../../config";
+import { normalizeFabAppearance } from "../../config/fab";
 
 /**
  * Entry point for selection translation interactions.
@@ -30,6 +32,9 @@ export default function Selection({
   extStyles,
 }) {
   const i18n = newI18n(uiLang || "zh");
+  const { fab } = useFab();
+  const { size: fabSize } = normalizeFabAppearance(fab);
+
   // 1. Manage the panel's size, position, simple mode, and click-away behavior.
   const {
     boxSize,
@@ -66,6 +71,7 @@ export default function Selection({
     boxSize,
     setBoxPosition,
     hideClickAway,
+    fabSize,
   });
 
   // 3. Register global panel shortcuts, including Escape to close.
@@ -116,6 +122,7 @@ export default function Selection({
             position={position}
             btnEvent={btnEvent}
             label={i18n("tranbtn_label", "Translate selection")}
+            size={fabSize}
             onTrigger={(e) => {
               e.stopPropagation();
               handleOpenTranbox();
