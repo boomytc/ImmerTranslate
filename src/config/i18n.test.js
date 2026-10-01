@@ -90,6 +90,12 @@ test("tells users to refresh after a missing connection setup", () => {
   expect(I18N.selection_translate_failed.en).toBe(
     "Selection translation failed. Check your network, switch translation service, or open settings and check the endpoint."
   );
+  expect(I18N.input_translate_failed.zh).toBe(
+    "输入框翻译失败。请检查网络，或换一个翻译服务，也可以打开设置核对接口"
+  );
+  expect(I18N.input_translate_failed.en).toBe(
+    "Input box translation failed. Check your network, switch translation service, or open settings and check the endpoint."
+  );
   expect(I18N.test_connection_ok.zh).toBe("已连通");
   expect(I18N.test_connection_ok_empty.zh).toBe("已连通，模型列表为空");
 });

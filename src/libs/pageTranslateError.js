@@ -12,6 +12,8 @@ export const PAGE_TRANSLATE_FAILED = "page_translate_failed";
 export const HOVER_TRANSLATE_FAILED = "hover_translate_failed";
 /** Distinct: the selection panel should not say the page or hover translation failed. */
 export const SELECTION_TRANSLATE_FAILED = "selection_translate_failed";
+/** Distinct: the input box should not say the page, hover, or selection translation failed. */
+export const INPUT_TRANSLATE_FAILED = "input_translate_failed";
 
 const INVALID_KEY_RE =
   /invalid(?:\s+|[_-])?(?:api(?:\s+|[_-])?)?key|incorrect api key|api key is invalid|unauthorized/i;
@@ -95,4 +97,18 @@ export function hoverTranslateFailureKey(error, apiSetting) {
 export function selectionTranslateFailureKey(error, apiSetting) {
   const key = pageTranslateFailureKey(error, apiSetting);
   return key === PAGE_TRANSLATE_FAILED ? SELECTION_TRANSLATE_FAILED : key;
+}
+
+/**
+ * Input-box translation shares the page-translate failure kinds. Network,
+ * HTTP, invalid-key, and unavailable-service copy stays the same; only the
+ * generic sentence is specific to the input box.
+ *
+ * @param {unknown} error
+ * @param {{isDisabled?: boolean}|null|undefined} [apiSetting]
+ * @returns {string}
+ */
+export function inputTranslateFailureKey(error, apiSetting) {
+  const key = pageTranslateFailureKey(error, apiSetting);
+  return key === PAGE_TRANSLATE_FAILED ? INPUT_TRANSLATE_FAILED : key;
 }
