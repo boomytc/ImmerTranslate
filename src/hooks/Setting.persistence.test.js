@@ -1,7 +1,13 @@
 /* eslint-disable testing-library/no-container, testing-library/no-unnecessary-act */
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { CURRENT_SETTINGS_VERSION, DEFAULT_SETTING } from "../config";
+import {
+  CURRENT_SETTINGS_VERSION,
+  DEFAULT_SETTING,
+  OPT_INPUT_DOT_ALWAYS,
+  OPT_INPUT_DOT_DISABLE,
+  OPT_INPUT_DOT_MOBILE,
+} from "../config";
 import { SettingProvider, useSetting } from "./Setting";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -90,5 +96,62 @@ describe("settings persistence results", () => {
     expect(settings.setting.darkMode).toBe("light");
     expect(mockSetting.darkMode).toBe(false);
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test("upgrades an unmarked mobile input dot without persisting", () => {
+    mockSetting = {
+      ...mockSetting,
+      inputRule: {
+        ...DEFAULT_SETTING.inputRule,
+        showDot: OPT_INPUT_DOT_MOBILE,
+        toLang: "zh-CN",
+      },
+    };
+    mountProvider();
+
+    expect(settings.setting.inputRule.showDot).toBe(OPT_INPUT_DOT_ALWAYS);
+    expect(settings.setting.inputRule.toLang).toBe("zh-CN");
+    expect(mockSetting.inputRule.showDot).toBe(OPT_INPUT_DOT_MOBILE);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [OPT_INPUT_DOT_DISABLE, { showDot: OPT_INPUT_DOT_DISABLE }],
+    [
+      OPT_INPUT_DOT_MOBILE,
+      { showDot: OPT_INPUT_DOT_MOBILE, showDotChosen: true },
+    ],
+  ])("keeps an explicit input dot %s", (showDot, inputPatch) => {
+    mockSetting = {
+      ...mockSetting,
+      inputRule: { ...DEFAULT_SETTING.inputRule, ...inputPatch },
+    };
+    mountProvider();
+
+    expect(settings.setting.inputRule.showDot).toBe(showDot);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test("persists an explicit mobile input dot instead of the upgraded default", () => {
+    mockSetting = {
+      ...DEFAULT_SETTING,
+      inputRule: {
+        ...DEFAULT_SETTING.inputRule,
+        showDot: OPT_INPUT_DOT_MOBILE,
+      },
+    };
+    mountProvider();
+    mockUpdate.mockReturnValueOnce(Promise.resolve({ changed: true }));
+
+    settings.updateChild("inputRule")({
+      showDot: OPT_INPUT_DOT_MOBILE,
+      showDotChosen: true,
+    });
+    const reduce = mockUpdate.mock.calls[0][0];
+
+    expect(reduce(mockSetting).inputRule).toMatchObject({
+      showDot: OPT_INPUT_DOT_MOBILE,
+      showDotChosen: true,
+    });
   });
 });

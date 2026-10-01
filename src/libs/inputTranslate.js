@@ -403,7 +403,8 @@ export class InputTranslator {
   showFloatButton(inputNode) {
     if (!this.#isEnabled) return;
 
-    const showDot = this.#config.inputRule.showDot || OPT_INPUT_DOT_MOBILE;
+    const showDot =
+      this.#config.inputRule.showDot || DEFAULT_INPUT_RULE.showDot;
     if (showDot === OPT_INPUT_DOT_DISABLE) return;
     if (showDot === OPT_INPUT_DOT_MOBILE) {
       const isTouch = isMobile || navigator.maxTouchPoints > 0;
