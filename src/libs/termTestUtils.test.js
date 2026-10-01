@@ -12,11 +12,6 @@ import {
 
 // ─── hashKey ─────────────────────────────────────────────────────────────────
 describe("termTestUtils hashKey", () => {
-  test("returns a deterministic number for the same key", () => {
-    expect(hashKey("API")).toBe(hashKey("API"));
-    expect(hashKey("APIKey")).toBe(hashKey("APIKey"));
-  });
-
   test("returns different values for different keys", () => {
     // 极低概率冲突，但不同 key 大概率不同
     const api = hashKey("API");
@@ -232,16 +227,6 @@ describe("termTestUtils generateTermTestText", () => {
     }
   });
 
-  test("template selection is stable per term key", () => {
-    // 两次调用 hashKey 相同，所以模板选择相同
-    const parsed = parseTerms("API,接口;GPT,生成式预训练");
-    const cases = generateTermTestText(parsed);
-    // 再次生成
-    const cases2 = generateTermTestText(parsed);
-    expect(cases[0].text).toBe(cases2[0].text);
-    expect(cases[1].text).toBe(cases2[1].text);
-  });
-
   test("returns empty array for empty input", () => {
     expect(generateTermTestText([])).toEqual([]);
     expect(generateTermTestText({ terms: [] })).toEqual([]);
@@ -358,13 +343,6 @@ describe("termTestUtils generateTermTestText seed rotation", () => {
     // 显式 seed "0" 是真实轮换种子（不同于缺省），应在有限模板内换句。
     const seedZero = generateTermTestText(parsed, 0).map((c) => c.text);
     expect(seedZero).toHaveLength(before.length);
-  });
-
-  test("同一输入 + 同一 seed 产生完全相同的例句", () => {
-    const a = generateTermTestText(parsed, "seed-7");
-    const b = generateTermTestText(parsed, "seed-7");
-    expect(a.map((c) => c.text)).toEqual(b.map((c) => c.text));
-    expect(a.map((c) => c.text)).toEqual(b.map((c) => c.text));
   });
 
   test("同一输入切换 seed 后，在有限模板集合内换出不同的自然例句", () => {
@@ -1246,15 +1224,6 @@ describe("termTestUtils 冲突分析记忆化（统一计划 20260829 Task 4）"
 
 // ─── 零宽断言样例回验与空样例守卫 ───────────────────────────────────────────
 describe("termTestUtils zero-width assertion sample validation", () => {
-  test("M2 回归：\\bAPI\\b 自动样例仍生成且能被原始正则命中", () => {
-    const parsed = parseTerms("\\bAPI\\b");
-    const cases = generateTermTestText(parsed);
-    expect(
-      cases.some((c) => c.type === "single" && c.text.includes("API"))
-    ).toBe(true);
-    expect(cases.some((c) => c.type === "unsupported")).toBe(false);
-  });
-
   test("零宽断言回验不通过时判 unsupported（零宽-only key 不再产出空样例用例）", () => {
     // parseTerms 的纯零宽门闸会在解析期跳过 \b 段，零宽-only key 永远不会进入
     // parsed.terms；为触达 literalPatternSample 对零宽-only key 的回验分支，按

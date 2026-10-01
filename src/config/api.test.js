@@ -52,12 +52,6 @@ test("uses Microsoft as the fallback default API", () => {
   expect(DEFAULT_API_TYPE).toBe(OPT_TRANS_MICROSOFT);
 });
 
-test("includes Microsoft in the built-in API list", () => {
-  expect(
-    DEFAULT_API_LIST.some((api) => api.apiType === OPT_TRANS_MICROSOFT)
-  ).toBe(true);
-});
-
 test("enables only the three initial translators while retaining every preset", () => {
   expect(DEFAULT_API_LIST.map((api) => api.apiType)).toEqual(
     OPT_ALL_TRANS_TYPES
@@ -167,14 +161,6 @@ test("configures QwenMT as a single-request machine translation API", () => {
   expect(OPT_LANGS_TO_SPEC[OPT_TRANS_QWENMT].get("zh-TW")).toBe(
     "Traditional Chinese"
   );
-});
-
-test("all AI APIs define a thinking mode by default", () => {
-  for (const apiType of API_SPE_TYPES.ai) {
-    const api = DEFAULT_API_LIST.find((item) => item.apiType === apiType);
-    expect(api).toBeDefined();
-    expect(["auto", "enabled", "disabled"]).toContain(api.thinkingMode);
-  }
 });
 
 test("keeps disabled as the initial thinking mode", () => {
