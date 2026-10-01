@@ -136,6 +136,54 @@ export const OPT_ALL_TRANS_TYPES = [
   OPT_TRANS_CUSTOMIZE,
 ];
 
+// 翻译服务官方 API Key 申请与控制台链接映射
+export const API_KEY_URLS = {
+  [OPT_TRANS_OPENAI]: "https://platform.openai.com/api-keys",
+  [OPT_TRANS_DEEPSEEK]: "https://platform.deepseek.com/api_keys",
+  [OPT_TRANS_CLAUDE]: "https://console.anthropic.com/settings/keys",
+  [OPT_TRANS_GEMINI]: "https://aistudio.google.com/app/apikey",
+  [OPT_TRANS_GEMINI_2]: "https://aistudio.google.com/app/apikey",
+  [OPT_TRANS_SILICONFLOW]: "https://cloud.siliconflow.cn/account/ak",
+  [OPT_TRANS_ALIYUNBAILIAN]: "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
+  [OPT_TRANS_QWENMT]: "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
+  [OPT_TRANS_MODELSCOPE]: "https://modelscope.cn/my/myaccesstoken",
+  [OPT_TRANS_OPENROUTER]: "https://openrouter.ai/keys",
+  [OPT_TRANS_DEEPL]: "https://www.deepl.com/your-account/keys",
+  [OPT_TRANS_AZUREAI]: "https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.CognitiveServices%2Faccounts",
+  [OPT_TRANS_GOOGLE_CLOUD]: "https://console.cloud.google.com/apis/credentials",
+  [OPT_TRANS_CEREBRAS]: "https://cloud.cerebras.ai/",
+  [OPT_TRANS_ZAI]: "https://open.bigmodel.cn/usercenter/apikeys",
+  [OPT_TRANS_XIAOMIMIMO]: "https://api.xiaomimimo.com/",
+  [OPT_TRANS_OPENCODEGO]: "https://opencode.ai/zen",
+  [OPT_TRANS_EPHONEAI]: "https://ephone.ai/",
+  [OPT_TRANS_APIMART]: "https://apimart.ai/",
+  [OPT_TRANS_ORCAROUTER]: "https://orcarouter.ai/",
+  [OPT_TRANS_REQUESTY]: "https://router.requesty.ai/",
+  [OPT_TRANS_CLOUDFLAREAI]: "https://dash.cloudflare.com/profile/api-tokens",
+  [OPT_TRANS_YANDEX]: "https://console.cloud.yandex.com/",
+};
+
+/**
+ * 获取翻译服务的官方 API Key 申请 / 控制台链接。
+ * @param {string|Object} apiOrType 翻译服务类型或配置对象。
+ * @returns {string|null} 对应的官方链接，无链接则返回 null。
+ */
+export const getApiKeyUrl = (apiOrType) => {
+  if (!apiOrType) return null;
+  if (typeof apiOrType === "string") {
+    return API_KEY_URLS[apiOrType] || null;
+  }
+  const customUrl = String(apiOrType.apiKeyUrl || "").trim();
+  if (customUrl) {
+    return customUrl;
+  }
+  return (
+    API_KEY_URLS[apiOrType.apiType] ||
+    API_KEY_URLS[apiOrType.apiSlug] ||
+    null
+  );
+};
+
 export const OPT_LANGDETECTOR_ALL = [
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_GOOGLE,
@@ -1585,6 +1633,7 @@ const defaultApi = {
   region: "", // Azure 专用
   sortOrder: 0, // 排序权重，数值越小越靠前
   placetagFormat: "compact", // 占位符格式：compact(<a1>) 或 attribute(<a i=1>)
+  apiKeyUrl: "", // 官方 API Key 申请链接
 };
 
 // AI 翻译接口默认参数
@@ -1820,6 +1869,8 @@ const DEFAULT_API_NAMES = {
 const defaultApiListItems = OPT_ALL_TRANS_TYPES.map((apiType) =>
   normalizeApiThinkingSetting({
     ...defaultApiOpts[apiType],
+    apiKeyUrl:
+      API_KEY_URLS[apiType] || defaultApiOpts[apiType]?.apiKeyUrl || "",
     apiSlug: apiType,
     apiName: DEFAULT_API_NAMES[apiType] || apiType,
     apiType,
