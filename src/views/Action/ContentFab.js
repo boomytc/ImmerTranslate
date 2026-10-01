@@ -579,6 +579,7 @@ export function ContentFabContent({
           <Paper ref={menuRef} className="kt-content-fab-menu" elevation={0}>
             <MenuList
               id="kt-content-fab-menu"
+              className="kt-content-fab-menu__list"
               aria-labelledby="kt-content-fab-button"
               autoFocusItem
               onKeyDownCapture={handleMenuNavigation}

@@ -72,10 +72,13 @@ describe("content FAB Material 3 shape", () => {
       /\.kt-content-fab-menu\s*\{[^}]*text-size-adjust:\s*100%\s*!important;/
     );
     expect(ACTION_STYLES).toMatch(
-      /\.kt-content-fab-menu\s+\.MuiMenu-list\s*\{[^}]*display:\s*grid;/
+      /\.kt-content-fab-menu__list[^{]*\{[^}]*display:\s*grid;/
     );
     expect(ACTION_STYLES).toMatch(
-      /\.kt-content-fab-menu__sites\s*\{[^}]*display:\s*grid;/
+      /\.kt-content-fab-menu__row\s*\{[^}]*display:\s*flex;/
+    );
+    expect(ACTION_STYLES).toMatch(
+      /\.kt-content-fab-menu__select[^{]*\{[^}]*appearance:\s*none;/
     );
     expect(ACTION_STYLES).not.toContain("4.75rem");
   });
