@@ -1,6 +1,7 @@
 import {
   STOKEY_SETTING,
   STOKEY_SETTING_BACKUP_V1_BEFORE_V2,
+  STOKEY_RULES,
   SETTINGS_VERSION_V2,
   SETTINGS_VERSION_V3,
   DEFAULT_SUBTITLE_SETTING,
@@ -16,7 +17,7 @@ import {
   OPT_INPUT_DOT_DISABLE,
   OPT_INPUT_DOT_MOBILE,
 } from "../config";
-import { getSettingWithDefault, runDataMigration } from "./storage";
+import { getRulesWithDefault, getSettingWithDefault, runDataMigration } from "./storage";
 
 // 存储测试不涉及流式解析，隔离 ESM-only 依赖以免 Jest 27 在加载阶段失败。
 jest.mock("@streamparser/json", () => ({ JSONParser: jest.fn() }));
@@ -334,7 +335,7 @@ describe("settings storage migration", () => {
     });
   });
 
-  test("enables only the initial four services for a fresh installation", async () => {
+  test("enables only the initial three services for a fresh installation", async () => {
     const setting = await getSettingWithDefault();
 
     expect(setting.transApis).toHaveLength(DEFAULT_API_LIST.length);
@@ -345,9 +346,37 @@ describe("settings storage migration", () => {
     ).toEqual([
       OPT_TRANS_BUILTINAI,
       OPT_TRANS_GOOGLE,
-      OPT_TRANS_GOOGLE_2,
       OPT_TRANS_MICROSOFT,
     ]);
+  });
+
+  test("migrates legacy Google2 references to Google in stored settings and rules", async () => {
+    window.localStorage.setItem(
+      STOKEY_SETTING,
+      JSON.stringify({
+        tranboxSetting: { apiSlugs: [OPT_TRANS_GOOGLE_2, OPT_TRANS_GOOGLE] },
+        inputRule: { apiSlug: OPT_TRANS_GOOGLE_2 },
+        subtitleSetting: { apiSlug: OPT_TRANS_GOOGLE_2 },
+        mouseHoverSetting: { apiSlug: OPT_TRANS_GOOGLE_2 },
+        transApis: [
+          { apiSlug: OPT_TRANS_GOOGLE_2, apiType: OPT_TRANS_GOOGLE_2, isDisabled: false },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      STOKEY_RULES,
+      JSON.stringify([{ pattern: "example.com", apiSlug: OPT_TRANS_GOOGLE_2 }])
+    );
+
+    const setting = await getSettingWithDefault();
+    expect(setting.tranboxSetting.apiSlugs).toEqual([OPT_TRANS_GOOGLE]);
+    expect(setting.inputRule.apiSlug).toBe(OPT_TRANS_GOOGLE);
+    expect(setting.subtitleSetting.apiSlug).toBe(OPT_TRANS_GOOGLE);
+    expect(setting.mouseHoverSetting.apiSlug).toBe(OPT_TRANS_GOOGLE);
+    expect(setting.transApis[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
+
+    const rules = await getRulesWithDefault();
+    expect(rules[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
   });
 
   test.each([1, SETTINGS_VERSION_V2, SETTINGS_VERSION_V3])(

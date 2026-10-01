@@ -1904,7 +1904,7 @@ export default function Apis() {
     () =>
       OPT_ALL_TRANS_TYPES.map((type) => ({
         type,
-        label: type,
+        label: getApiDisplayName({ apiType: type, apiSlug: type }),
       })),
     []
   );

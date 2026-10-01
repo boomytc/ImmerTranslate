@@ -3,6 +3,8 @@ import {
   GLOBAL_KEY,
   MSG_SAVE_RULE,
   MSG_TRANS_CURRULE,
+  OPT_TRANS_GOOGLE,
+  OPT_TRANS_GOOGLE_2,
 } from "../config";
 import { browser } from "./browser";
 import { isExt } from "./client";
@@ -32,7 +34,11 @@ export function pickSharedRulePatch(values) {
     if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
     const value = values[key];
     if (value == null || value === "") continue;
-    patch[key] = value === true ? "true" : value === false ? "false" : value;
+    let nextValue = value === true ? "true" : value === false ? "false" : value;
+    if (key === "apiSlug" && nextValue === OPT_TRANS_GOOGLE_2) {
+      nextValue = OPT_TRANS_GOOGLE;
+    }
+    patch[key] = nextValue;
   }
   return patch;
 }

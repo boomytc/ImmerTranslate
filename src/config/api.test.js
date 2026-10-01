@@ -41,6 +41,11 @@ import {
   OPT_TRANS_YANDEX,
   OPT_TRANS_YANDEXFREE,
   OPT_TRANS_ZAI,
+  GOOGLE_TRANSLATE_URL,
+  GOOGLE_PA_TRANSLATE_URL,
+  DEFAULT_API_NAME_GOOGLE,
+  normalizeApiSlug,
+  normalizeTransApis,
 } from "./api";
 
 test("uses Microsoft as the fallback default API", () => {
@@ -53,7 +58,7 @@ test("includes Microsoft in the built-in API list", () => {
   ).toBe(true);
 });
 
-test("enables only the four initial translators while retaining every preset", () => {
+test("enables only the three initial translators while retaining every preset", () => {
   expect(DEFAULT_API_LIST.map((api) => api.apiType)).toEqual(
     OPT_ALL_TRANS_TYPES
   );
@@ -62,7 +67,6 @@ test("enables only the four initial translators while retaining every preset", (
   ).toEqual([
     OPT_TRANS_BUILTINAI,
     OPT_TRANS_GOOGLE,
-    OPT_TRANS_GOOGLE_2,
     OPT_TRANS_MICROSOFT,
   ]);
   expect(
@@ -714,4 +718,137 @@ test("registers ModelScope and the six model-list presets", () => {
     DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_EPHONEAI)
       .modelListUrl
   ).toBe("https://api.ephone.ai/v1/models");
+});
+
+describe("unified Google configuration and normalization", () => {
+  test("configures Google with batch support and default tags", () => {
+    expect(API_SPE_TYPES.batch.has(OPT_TRANS_GOOGLE)).toBe(true);
+    const googleSetting = DEFAULT_API_LIST.find(
+      (api) => api.apiType === OPT_TRANS_GOOGLE
+    );
+    expect(googleSetting).toMatchObject({
+      apiSlug: OPT_TRANS_GOOGLE,
+      apiType: OPT_TRANS_GOOGLE,
+      apiName: DEFAULT_API_NAME_GOOGLE,
+      url: GOOGLE_TRANSLATE_URL,
+      useBatchFetch: true,
+      placetag: "a",
+      placetagFormat: "attribute",
+      isDisabled: false,
+    });
+  });
+
+  test("DEFAULT_API_LIST.find backward compatibility aliases Google2 to Google", () => {
+    const legacyItem = DEFAULT_API_LIST.find(
+      (api) => api.apiType === OPT_TRANS_GOOGLE_2
+    );
+    expect(legacyItem).toBeDefined();
+    expect(legacyItem.apiSlug).toBe(OPT_TRANS_GOOGLE_2);
+    expect(legacyItem.useBatchFetch).toBe(true);
+  });
+
+  test("normalizeApiSlug maps Google2 to Google and preserves other slugs", () => {
+    expect(normalizeApiSlug(OPT_TRANS_GOOGLE_2)).toBe(OPT_TRANS_GOOGLE);
+    expect(normalizeApiSlug(OPT_TRANS_GOOGLE)).toBe(OPT_TRANS_GOOGLE);
+    expect(normalizeApiSlug(OPT_TRANS_MICROSOFT)).toBe(OPT_TRANS_MICROSOFT);
+  });
+
+  test("normalizeTransApis merges Google2 into Google and updates options", () => {
+    const legacyApis = [
+      {
+        apiSlug: OPT_TRANS_MICROSOFT,
+        apiType: OPT_TRANS_MICROSOFT,
+        apiName: "Microsoft",
+        isDisabled: false,
+        sortOrder: 0,
+      },
+      {
+        apiSlug: OPT_TRANS_GOOGLE,
+        apiType: OPT_TRANS_GOOGLE,
+        apiName: "Google (常规/单句)",
+        isDisabled: true,
+        sortOrder: 1,
+        useBatchFetch: false,
+      },
+      {
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google (网页整页/PA)",
+        isDisabled: false,
+        sortOrder: 2,
+      },
+    ];
+
+    const normalized = normalizeTransApis(legacyApis);
+    expect(normalized).toHaveLength(2);
+    const google = normalized.find((api) => api.apiSlug === OPT_TRANS_GOOGLE);
+    expect(google).toBeDefined();
+    expect(google.apiName).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(google.isDisabled).toBe(false); // active because Google2 was enabled
+    expect(google.sortOrder).toBe(1);
+    expect(google.useBatchFetch).toBe(true);
+    expect(google.placetag).toBe("a");
+    expect(google.placetagFormat).toBe("attribute");
+  });
+
+  test("normalizeTransApis renames isolated Google2 to Google", () => {
+    const legacyApis = [
+      {
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google2",
+        isDisabled: false,
+      },
+    ];
+
+    const normalized = normalizeTransApis(legacyApis);
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
+    expect(normalized[0].apiType).toBe(OPT_TRANS_GOOGLE);
+    expect(normalized[0].apiName).toBe(DEFAULT_API_NAME_GOOGLE);
+    expect(normalized[0].useBatchFetch).toBe(true);
+  });
+
+  test("normalizeTransApis preserves custom user names on Google", () => {
+    const legacyApis = [
+      {
+        apiSlug: OPT_TRANS_GOOGLE,
+        apiType: OPT_TRANS_GOOGLE,
+        apiName: "My Custom Google",
+        isDisabled: false,
+      },
+      {
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google2",
+        isDisabled: true,
+      },
+    ];
+
+    const normalized = normalizeTransApis(legacyApis);
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0].apiName).toBe("My Custom Google");
+  });
+
+  test("normalizeTransApis merges multiple duplicate Google2 entries into one Google", () => {
+    const legacyApis = [
+      {
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google2",
+        isDisabled: true,
+      },
+      {
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+        apiName: "Google2",
+        isDisabled: false,
+      },
+    ];
+
+    const normalized = normalizeTransApis(legacyApis);
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
+    expect(normalized[0].isDisabled).toBe(false);
+  });
 });

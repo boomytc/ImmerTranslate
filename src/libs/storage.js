@@ -23,6 +23,9 @@ import {
   DEFAULT_TRANBOX_SETTING,
   migrateInputRuleShowDot,
   normalizeApiThinkingSettings,
+  normalizeTransApis,
+  OPT_TRANS_GOOGLE,
+  OPT_TRANS_GOOGLE_2,
   KV_SETTING_KEY,
   KV_RULES_KEY,
   KV_WORDS_KEY,
@@ -527,11 +530,47 @@ const mergeSettingWithDefault = (setting) => {
     version: setting?.version ?? DEFAULT_SETTING.version,
   };
 
+  if (Array.isArray(mergedSetting.tranboxSetting?.apiSlugs)) {
+    mergedSetting.tranboxSetting = {
+      ...mergedSetting.tranboxSetting,
+      apiSlugs: Array.from(
+        new Set(
+          mergedSetting.tranboxSetting.apiSlugs.map((slug) =>
+            slug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : slug
+          )
+        )
+      ),
+    };
+  }
+
+  if (mergedSetting.inputRule?.apiSlug === OPT_TRANS_GOOGLE_2) {
+    mergedSetting.inputRule = {
+      ...mergedSetting.inputRule,
+      apiSlug: OPT_TRANS_GOOGLE,
+    };
+  }
+
+  if (mergedSetting.subtitleSetting?.apiSlug === OPT_TRANS_GOOGLE_2) {
+    mergedSetting.subtitleSetting = {
+      ...mergedSetting.subtitleSetting,
+      apiSlug: OPT_TRANS_GOOGLE,
+    };
+  }
+
+  if (mergedSetting.mouseHoverSetting?.apiSlug === OPT_TRANS_GOOGLE_2) {
+    mergedSetting.mouseHoverSetting = {
+      ...mergedSetting.mouseHoverSetting,
+      apiSlug: OPT_TRANS_GOOGLE,
+    };
+  }
+
   // 设置读取时只在内存中归一化一次，避免每次请求重复解析模型能力。
   return {
     ...mergedSetting,
     inputRule: migrateInputRuleShowDot(mergedSetting.inputRule),
-    transApis: normalizeApiThinkingSettings(mergedSetting.transApis),
+    transApis: normalizeApiThinkingSettings(
+      normalizeTransApis(mergedSetting.transApis)
+    ),
   };
 };
 export const migrateStoredSettingToV2 = async (
@@ -605,8 +644,16 @@ export const putSetting = async (obj) => {
 // --- 用户翻译规则 (Rules) 数据存取 ---
 export const getRules = () => getObj(STOKEY_RULES);
 export const getRulesOld = () => getObj(STOKEY_RULES_OLD);
-export const getRulesWithDefault = async () =>
-  (await getRules()) || DEFAULT_RULES;
+export const getRulesWithDefault = async () => {
+  const rules = (await getRules()) || DEFAULT_RULES;
+  if (!Array.isArray(rules)) return rules;
+  return rules.map((rule) => {
+    if (rule?.apiSlug === OPT_TRANS_GOOGLE_2) {
+      return { ...rule, apiSlug: OPT_TRANS_GOOGLE };
+    }
+    return rule;
+  });
+};
 export const setRules = (val) => setObj(STOKEY_RULES, val);
 
 // --- 个人生词本词汇 (Fav Words) 数据存取 ---

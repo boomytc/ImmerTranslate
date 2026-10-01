@@ -10,6 +10,7 @@ import {
   OPT_TRANS_TENCENT,
   OPT_TRANS_VOLCENGINE,
   OPT_TRANS_YANDEXFREE,
+  normalizeTransApis,
 } from "../config";
 
 /**
@@ -58,7 +59,7 @@ export function isMissingRequiredApiKey(api) {
  * Disabled rows stay out. Key-required rows with a blank key stay out.
  */
 export const configuredByokApis = (transApis = []) =>
-  transApis
+  normalizeTransApis(transApis)
     .filter(
       (api) =>
         api &&

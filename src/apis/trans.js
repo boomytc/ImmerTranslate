@@ -3,6 +3,8 @@ import {
   OPT_TRANS_GOOGLE,
   OPT_TRANS_GOOGLE_2,
   OPT_TRANS_GOOGLE_CLOUD,
+  GOOGLE_TRANSLATE_URL,
+  GOOGLE_PA_TRANSLATE_URL,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_AZUREAI,
   OPT_TRANS_APIMART,
@@ -1032,6 +1034,8 @@ const applyThinkingParameters = (body, options) => {
 };
 
 const genGoogle = ({ texts, from, to, url, key }) => {
+  const gtxUrl =
+    !url || url === GOOGLE_PA_TRANSLATE_URL ? GOOGLE_TRANSLATE_URL : url;
   const params = queryString.stringify({
     client: "gtx",
     dt: "t",
@@ -1041,7 +1045,7 @@ const genGoogle = ({ texts, from, to, url, key }) => {
     tl: to,
     q: texts.join(" "),
   });
-  url = `${url}?${params}`;
+  const fullUrl = `${gtxUrl}?${params}`;
   const headers = {
     "Content-type": "application/json",
   };
@@ -1049,10 +1053,12 @@ const genGoogle = ({ texts, from, to, url, key }) => {
     headers.Authorization = `Bearer ${key}`;
   }
 
-  return { url, headers, method: "GET" };
+  return { url: fullUrl, headers, method: "GET" };
 };
 
 const genGoogle2 = ({ texts, from, to, url, key, textFormat = "text" }) => {
+  const paUrl =
+    !url || url === GOOGLE_TRANSLATE_URL ? GOOGLE_PA_TRANSLATE_URL : url;
   const requestTexts =
     textFormat === "html" ? texts : texts.map(encodeHTMLTranslationText);
   const body = [[requestTexts, from, to], "wt_lib"];
@@ -1061,7 +1067,22 @@ const genGoogle2 = ({ texts, from, to, url, key, textFormat = "text" }) => {
     "X-Goog-API-Key": key,
   };
 
-  return { url, body, headers };
+  return { url: paUrl, body, headers };
+};
+
+const isGoogleBatchOrHtml = (texts = [], textFormat = "text") =>
+  textFormat === "html" || (Array.isArray(texts) && texts.length > 1);
+
+const genGoogleRouter = (args) => {
+  const { texts = [], textFormat = "text", url } = args;
+  if (isGoogleBatchOrHtml(texts, textFormat) || args._useGooglePa) {
+    const paUrl =
+      !url || url === GOOGLE_TRANSLATE_URL ? GOOGLE_PA_TRANSLATE_URL : url;
+    return genGoogle2({ ...args, url: paUrl });
+  }
+  const gtxUrl =
+    !url || url === GOOGLE_PA_TRANSLATE_URL ? GOOGLE_TRANSLATE_URL : url;
+  return genGoogle({ ...args, url: gtxUrl });
 };
 
 const genGoogleCloud = ({ texts, from, to, url, key, textFormat = "text" }) => {
@@ -1734,7 +1755,7 @@ const genCustom = ({ texts, fromLang, toLang, url, key, useBatchFetch }) => {
 };
 
 const genReqFuncs = {
-  [OPT_TRANS_GOOGLE]: genGoogle,
+  [OPT_TRANS_GOOGLE]: genGoogleRouter,
   [OPT_TRANS_GOOGLE_2]: genGoogle2,
   [OPT_TRANS_GOOGLE_CLOUD]: genGoogleCloud,
   [OPT_TRANS_YANDEX]: genYandex,
@@ -2036,14 +2057,16 @@ export const parseTransRes = async (
   // todo: 根据结果抛出实际异常信息
   switch (apiType) {
     case OPT_TRANS_GOOGLE:
-      return [[res?.sentences?.map((item) => item.trans).join(" "), res?.src]];
     case OPT_TRANS_GOOGLE_2:
-      return res?.[0]?.map((_, i) => [
-        textFormat === "text"
-          ? decodeHTMLTranslationText(res?.[0]?.[i])
-          : res?.[0]?.[i],
-        res?.[1]?.[i],
-      ]);
+      if (Array.isArray(res) || Array.isArray(res?.[0])) {
+        return res?.[0]?.map((_, i) => [
+          textFormat === "text"
+            ? decodeHTMLTranslationText(res?.[0]?.[i])
+            : res?.[0]?.[i],
+          Array.isArray(res?.[1]) ? res?.[1]?.[i] : res?.[1],
+        ]);
+      }
+      return [[res?.sentences?.map((item) => item.trans).join(" "), res?.src]];
     case OPT_TRANS_GOOGLE_CLOUD:
       return res?.data?.translations?.map((item) => [
         textFormat === "text"
@@ -2480,16 +2503,63 @@ export async function* handleTranslate(
     });
 
   const runNonStream = async function* (input, init, userMsg) {
-    const response = await fetchData(input, init, {
-      useCache: false,
-      usePool,
-      fetchInterval,
-      fetchLimit,
-      httpTimeout,
-      signal,
-    });
-    if (!response) {
-      throw new Error("translate got empty response");
+    let response;
+    try {
+      response = await fetchData(input, init, {
+        useCache: false,
+        usePool,
+        fetchInterval,
+        fetchLimit,
+        httpTimeout,
+        signal,
+      });
+      if (!response) {
+        throw new Error("translate got empty response");
+      }
+    } catch (err) {
+      if (signal?.aborted || err?.name === "AbortError") {
+        throw err;
+      }
+      const isSinglePlainText =
+        textFormat === "text" && Array.isArray(texts) && texts.length === 1;
+      if (
+        (apiType === OPT_TRANS_GOOGLE || apiType === OPT_TRANS_GOOGLE_2) &&
+        isSinglePlainText &&
+        init?.method === "GET"
+      ) {
+        kissLog("Google GET failed, retrying with Google PA API", err);
+        const [fallbackInput, fallbackInit, fallbackUserMsg] =
+          await genTransReq({
+            ...apiSetting,
+            apiType: OPT_TRANS_GOOGLE,
+            _useGooglePa: true,
+            texts,
+            from,
+            to,
+            fromLang,
+            toLang,
+            langMap,
+            glossary,
+            textFormat,
+            hisMsgs,
+            useStream: false,
+            docInfo,
+          });
+        capture?.onRequest?.(fallbackInput, fallbackInit, fallbackUserMsg);
+        response = await fetchData(fallbackInput, fallbackInit, {
+          useCache: false,
+          usePool,
+          fetchInterval,
+          fetchLimit,
+          httpTimeout,
+          signal,
+        });
+        if (!response) {
+          throw new Error("translate got empty response on fallback");
+        }
+      } else {
+        throw err;
+      }
     }
     capture?.onResponse?.(response);
 
