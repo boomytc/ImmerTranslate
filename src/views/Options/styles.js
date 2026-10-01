@@ -242,6 +242,8 @@ export const OPTIONS_STYLES = String.raw`
 .kt-overview-hero__summary-item { min-width: 0; padding: 10px 12px; border-radius: var(--kt-radius-control, 16px); background: color-mix(in srgb, var(--kt-sf0) 45%, transparent); }
 .kt-overview-hero__summary-item span { display: block; overflow: hidden; font-size: 9.5px; opacity: .75; text-overflow: ellipsis; white-space: nowrap; }
 .kt-overview-hero__summary-item strong { display: block; margin-top: 3px; overflow: hidden; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.kt-overview-hero__summary-item--empty { grid-column: 1 / -1; }
+.kt-overview-hero__summary-item--empty strong { overflow: visible; white-space: normal; text-overflow: clip; }
 .kt-overview-shortcuts { padding: 8px 0 0; border-radius: 0; background: transparent; }
 .kt-overview-shortcuts h2 { margin: 0 0 12px; font-size: 13px; font-weight: 700; }
 .kt-overview-shortcut { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 25px; color: var(--kt-onv); font-size: 11.5px; }
