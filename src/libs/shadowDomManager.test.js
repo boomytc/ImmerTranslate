@@ -213,4 +213,37 @@ describe("ShadowDomManager fullscreen lifecycle", () => {
     enterFullscreen(document.body);
     expect(host.parentElement).toBe(document.documentElement);
   });
+
+  test("show(props) merges patch props with constructor props without discarding constructor props", () => {
+    function MultiPropComponent({ prefix = "pre:", label = "default", suffix = ":post" }) {
+      return (
+        <button id="multi-prop-btn">
+          {prefix}{label}{suffix}
+        </button>
+      );
+    }
+
+    const manager = new ShadowDomManager({
+      id: "multi-prop-panel",
+      reactComponent: MultiPropComponent,
+      props: { prefix: "start-", suffix: "-end" },
+    });
+    managers.push(manager);
+
+    // Call show with only a partial patch: label
+    act(() => manager.show({ label: "middle" }));
+
+    const host = document.getElementById("multi-prop-panel");
+    const button = host.shadowRoot.querySelector("#multi-prop-btn");
+    // Verify prefix and suffix from constructor props are preserved, and label from patch is merged
+    expect(button.textContent).toBe("start-middle-end");
+
+    // Calling setProps updates the component live
+    act(() => manager.setProps({ label: "updated" }));
+    expect(button.textContent).toBe("start-updated-end");
+
+    // Calling show with new props on already visible component updates props via setProps
+    act(() => manager.show({ suffix: "-newEnd" }));
+    expect(button.textContent).toBe("start-updated-newEnd");
+  });
 });

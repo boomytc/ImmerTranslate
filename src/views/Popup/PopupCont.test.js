@@ -98,6 +98,9 @@ jest.mock("../../libs/log", () => ({
   kissLog: jest.fn(),
 }));
 jest.mock("../../libs/rules", () => ({ saveRule: jest.fn() }));
+jest.mock("../../libs/sync", () => ({
+  syncData: jest.fn(),
+}));
 jest.mock("../../libs/popupDocument", () => ({
   isCurrentPopupDocument: jest.fn(async () => true),
 }));

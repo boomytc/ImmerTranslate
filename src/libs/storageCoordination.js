@@ -229,7 +229,11 @@ async function withIndexedDbLock(operation, reopened = false) {
 /** Only short storage operations belong here; network requests must run outside. */
 export function withStorageLock(operation) {
   return enqueue(() => {
-    if (isExt) {
+    if (
+      isExt &&
+      (process.env.NODE_ENV !== "test" ||
+        typeof browser?.runtime?.connect === "function")
+    ) {
       return isBg?.()
         ? operation({ commit: commitExtensionWrites })
         : withBackgroundLock(operation);

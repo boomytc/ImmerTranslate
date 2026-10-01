@@ -22,23 +22,32 @@ import {
 import ThemeProvider from "../../hooks/M3Theme";
 import Draggable from "./Draggable";
 import { SettingProvider } from "../../hooks/Setting";
+import Alert from "@mui/material/Alert";
+import Button from "@mui/material/Button";
+import Snackbar from "@mui/material/Snackbar";
 import {
+  DEFAULT_FAB,
   EVENT_KISS_INNER,
+  MSG_FAB_TOGGLE,
   MSG_OPEN_OPTIONS,
   MSG_OPEN_TRANBOX,
   MSG_POPUP_TOGGLE,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_STYLE,
   MSG_TRANSBOX_TOGGLE,
+  STOKEY_FAB,
 } from "../../config";
 import { useI18n } from "../../hooks/I18n";
+import { getStorageState } from "../../libs/storageState";
 import { isExt } from "../../libs/client";
+import { kissLog } from "../../libs/log";
 import { sendBgMsg } from "../../libs/msg";
 import { createMenuKeyDownHandler } from "../../libs/menuFocus";
 import useWindowSize from "../../hooks/WindowSize";
 import { useFullscreenDetect } from "../../hooks/useFullscreenDetect";
 import { ACTION_STYLES } from "./styles";
-import { normalizeFabAppearance } from "../../config/fab";
+import { normalizeFabAppearance, isFabVisible } from "../../config/fab";
+import { isMatch } from "../../libs/utils";
 import FloatingButton from "../../components/FloatingButton";
 import FabQuickOptions from "./FabQuickOptions";
 
@@ -63,15 +72,28 @@ export const FAB_POPPER_MODIFIERS = [
         "top-start",
         "bottom-end",
         "bottom-start",
-        "right",
+        "left-start",
+        "left-end",
+        "right-start",
+        "right-end",
+        "top",
+        "bottom",
         "left",
+        "right",
       ],
+      boundary: "viewport",
+      padding: 12,
     },
   },
   {
     name: "preventOverflow",
     enabled: true,
-    options: { padding: 12 },
+    options: {
+      padding: 12,
+      boundary: "viewport",
+      altAxis: true,
+      tether: false,
+    },
   },
   { name: "offset", options: { offset: [0, 10] } },
 ];
@@ -110,14 +132,25 @@ export function ContentFabContent({
   const [touchOpen, setTouchOpen] = useState(false);
   const [open, setOpen] = useState(false); // Action menu visibility.
   const [pageRule, setPageRule] = useState(null);
+  const [undoToast, setUndoToast] = useState({ open: false, domain: "" });
   const anchorRef = useRef(null);
   const menuRef = useRef(null);
   const popperRef = useRef(null);
+  const undoTimerRef = useRef(null);
+  const pendingDomainRef = useRef("");
+  const savedConfirmedRef = useRef(false);
+  const removedExceptionsRef = useRef([]);
   const handleMenuNavigation = useMemo(
     () => createMenuKeyDownHandler({ shadowOnly: true }),
     []
   );
   const { isVideoFullscreen } = useFullscreenDetect();
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) window.clearTimeout(undoTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setShowFab(!isVideoFullscreen);
@@ -132,6 +165,185 @@ export function ContentFabContent({
     setOpen(false);
     if (restoreFocus) anchorRef.current?.focus();
   }, []);
+
+  const handleHideOnSite = useCallback(async () => {
+    closeMenu();
+    setShowFab(false);
+    const domain = window.location?.hostname || "";
+    const href = window.location?.href || "";
+    pendingDomainRef.current = domain;
+    savedConfirmedRef.current = false;
+    removedExceptionsRef.current = [];
+    let savedConfig;
+    let removedEntries = [];
+    if (domain) {
+      try {
+        const fabState = getStorageState(STOKEY_FAB, DEFAULT_FAB);
+        const receipt = await fabState.save((previous) => {
+          const current =
+            typeof previous === "object" && previous !== null
+              ? previous
+              : DEFAULT_FAB;
+          const currentIsHide = Boolean(current?.isHide);
+          const entries = (current.hideExceptionList || "")
+            .split(/\n|,/)
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+
+          let nextEntries;
+          if (currentIsHide) {
+            removedEntries = entries.filter(
+              (entry) => entry === domain || isMatch(href, entry)
+            );
+            nextEntries = entries.filter(
+              (entry) => entry !== domain && !isMatch(href, entry)
+            );
+          } else {
+            removedEntries = [];
+            nextEntries = entries.includes(domain)
+              ? entries
+              : [...entries, domain];
+          }
+          return {
+            ...current,
+            hideExceptionList: nextEntries.join("\n"),
+          };
+        });
+        if (receipt?.value && typeof receipt.value === "object") {
+          savedConfig = receipt.value;
+        }
+        removedExceptionsRef.current = removedEntries;
+      } catch (e) {
+        kissLog("hide fab on site error", e);
+        pendingDomainRef.current = "";
+        setShowFab(true);
+        setUndoToast({ open: true, domain: "", error: true });
+        return;
+      }
+    }
+    setUndoToast({ open: true, domain });
+    if (undoTimerRef.current) window.clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = window.setTimeout(() => {
+      pendingDomainRef.current = "";
+      savedConfirmedRef.current = false;
+      setUndoToast({ open: false, domain: "" });
+      // 撤销条卸载时会清掉这个计时器。配置必须提前进入管理器，
+      // 否则 SPA 重建仍用旧名单把悬浮球挂回来。
+      void processActions?.({
+        action: MSG_FAB_TOGGLE,
+        args: savedConfig
+          ? { enabled: false, fabConfig: savedConfig }
+          : { enabled: false },
+      });
+    }, 4500);
+    if (savedConfig) {
+      void processActions?.({
+        action: MSG_FAB_TOGGLE,
+        args: { enabled: true, fabConfig: savedConfig },
+      });
+    }
+  }, [closeMenu, processActions]);
+
+  const handleUndoHide = useCallback(async () => {
+    if (undoTimerRef.current) {
+      window.clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    const domain =
+      pendingDomainRef.current ||
+      undoToast.domain ||
+      window.location?.hostname ||
+      "";
+    const href = window.location?.href || "";
+    const removedEntries = removedExceptionsRef.current;
+    let restoredConfig;
+    if (domain) {
+      try {
+        const fabState = getStorageState(STOKEY_FAB, DEFAULT_FAB);
+        const receipt = await fabState.save((previous) => {
+          const current =
+            typeof previous === "object" && previous !== null
+              ? previous
+              : DEFAULT_FAB;
+          const currentIsHide = Boolean(current?.isHide);
+          const entries = (current.hideExceptionList || "")
+            .split(/\n|,/)
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+
+          let nextEntries;
+          if (currentIsHide) {
+            // Restore every exception removed by this hide, while retaining
+            // entries added elsewhere during the undo window.
+            const restore = removedEntries.length ? removedEntries : [domain];
+            nextEntries = [...new Set([...entries, ...restore])];
+          } else {
+            nextEntries = entries.filter(
+              (entry) => entry !== domain && !isMatch(href, entry)
+            );
+          }
+          return {
+            ...current,
+            hideExceptionList: nextEntries.join("\n"),
+          };
+        });
+        if (receipt?.value && typeof receipt.value === "object") {
+          restoredConfig = receipt.value;
+        }
+      } catch (e) {
+        kissLog("undo hide fab error", e);
+        setUndoToast({ open: true, domain, error: true });
+        return;
+      }
+    }
+    pendingDomainRef.current = "";
+    savedConfirmedRef.current = false;
+    removedExceptionsRef.current = [];
+    setUndoToast({ open: false, domain: "" });
+    setShowFab(true);
+    if (restoredConfig) {
+      void processActions?.({
+        action: MSG_FAB_TOGGLE,
+        args: { enabled: true, fabConfig: restoredConfig },
+      });
+    }
+  }, [processActions, undoToast.domain]);
+
+  useEffect(() => {
+    if (!undoToast.open) {
+      savedConfirmedRef.current = false;
+      return;
+    }
+    const domain =
+      pendingDomainRef.current ||
+      undoToast.domain ||
+      window.location?.hostname ||
+      "";
+    if (!domain) return;
+    const href = window.location?.href || "";
+
+    const fabStorage = getStorageState(STOKEY_FAB, DEFAULT_FAB);
+    return fabStorage.subscribe((snapshot) => {
+      if (snapshot?.isLoading || snapshot?.isSaving || snapshot?.isRecovering) {
+        return;
+      }
+      const data = snapshot?.data;
+      const isVisibleNow = isFabVisible(href, data);
+
+      if (!isVisibleNow) {
+        savedConfirmedRef.current = true;
+      } else if (savedConfirmedRef.current) {
+        savedConfirmedRef.current = false;
+        if (undoTimerRef.current) {
+          window.clearTimeout(undoTimerRef.current);
+          undoTimerRef.current = null;
+        }
+        pendingDomainRef.current = "";
+        setUndoToast({ open: false, domain: "" });
+        setShowFab(true);
+      }
+    });
+  }, [undoToast.domain, undoToast.open]);
 
   useEffect(() => {
     if (!opensMenu || !open) return;
@@ -178,6 +390,12 @@ export function ContentFabContent({
   const updateMenuPosition = useCallback(() => {
     popperRef.current?.update();
   }, []);
+
+  useEffect(() => {
+    if (open) {
+      popperRef.current?.update();
+    }
+  }, [open, windowSize]);
 
   // Handle the start of a drag without changing ordinary click behavior.
   const handleStart = useCallback(() => {
@@ -289,79 +507,120 @@ export function ContentFabContent({
   ].filter((item) => !item.hidden);
 
   return (
-    <Draggable
-      key="fab"
-      snapEdge // Keep edge snapping independent of the half-hide preference.
-      halfHide={halfHide}
-      idleOpacity={opacity}
-      fitContent // The fixed menu must not be constrained by the FAB wrapper.
-      expanded={opensMenu && open} // Keep the anchor fully revealed while the menu is open.
-      {...fabProps}
-      show={showFab}
-      onStart={handleStart}
-      onMove={handleMove}
-      onDeactivate={closeMenu}
-      onPositionTransitionEnd={updateMenuPosition}
-      handler={
-        <FloatingButton
-          id="kt-content-fab-button"
-          ref={anchorRef}
-          size={fabSize}
-          opensMenu={opensMenu}
-          open={open}
-          aria-expanded={opensMenu ? open : undefined}
-          aria-haspopup={opensMenu ? "menu" : undefined}
-          aria-controls={opensMenu && open ? "kt-content-fab-menu" : undefined}
-          aria-label={i18n("translate")}
-          onClick={handleClick}
-        />
-      }
-    >
-      <Popper
-        popperRef={popperRef}
-        open={opensMenu && open && Boolean(anchorRef.current)}
-        anchorEl={anchorRef.current}
-        placement="top-end"
-        // Render inside the content page's shadow root to retain M3Theme styles;
-        // a portal to document.body would escape that root.
-        disablePortal
-        popperOptions={{ strategy: "fixed" }}
-        modifiers={FAB_POPPER_MODIFIERS}
-      >
-        <Paper ref={menuRef} className="kt-content-fab-menu" elevation={0}>
-          <MenuList
-            id="kt-content-fab-menu"
-            aria-labelledby="kt-content-fab-button"
-            autoFocusItem
-            onKeyDownCapture={handleMenuNavigation}
-            onKeyDown={handleMenuKeyDown}
-          >
-            {items.map(({ label, icon: Icon, action, disabled, pressed }) => (
-              <MenuItem
-                className="kt-content-fab-menu__item"
-                disabled={disabled}
-                aria-pressed={pressed}
-                onClick={disabled ? undefined : action}
-                key={label}
-              >
-                <ListItemIcon>
-                  <Icon />
-                </ListItemIcon>
-                <ListItemText>{label}</ListItemText>
-              </MenuItem>
-            ))}
-          </MenuList>
-          <FabQuickOptions
-            getFabPageState={getFabPageState}
-            processActions={processActions}
-            onPageRule={setPageRule}
+    <>
+      <Draggable
+        key="fab"
+        snapEdge // Keep edge snapping independent of the half-hide preference.
+        halfHide={halfHide}
+        idleOpacity={opacity}
+        fitContent // The fixed menu must not be constrained by the FAB wrapper.
+        expanded={opensMenu && open} // Keep the anchor fully revealed while the menu is open.
+        {...fabProps}
+        show={showFab}
+        onStart={handleStart}
+        onMove={handleMove}
+        onDeactivate={closeMenu}
+        onPositionTransitionEnd={updateMenuPosition}
+        handler={
+          <FloatingButton
+            id="kt-content-fab-button"
+            ref={anchorRef}
+            size={fabSize}
+            opensMenu={opensMenu}
+            open={open}
+            aria-expanded={opensMenu ? open : undefined}
+            aria-haspopup={opensMenu ? "menu" : undefined}
+            aria-controls={
+              opensMenu && open ? "kt-content-fab-menu" : undefined
+            }
+            aria-label={i18n("translate")}
+            onClick={handleClick}
           />
-          {touchOpen && (
-            <TouchTranslateControl processActions={processActions} />
-          )}
-        </Paper>
-      </Popper>
-    </Draggable>
+        }
+      >
+        <Popper
+          popperRef={popperRef}
+          open={opensMenu && open && Boolean(anchorRef.current)}
+          anchorEl={anchorRef.current}
+          placement="top-end"
+          // Render inside the content page's shadow root to retain M3Theme styles;
+          // a portal to document.body would escape that root.
+          disablePortal
+          popperOptions={{ strategy: "fixed" }}
+          modifiers={FAB_POPPER_MODIFIERS}
+        >
+          <Paper ref={menuRef} className="kt-content-fab-menu" elevation={0}>
+            <MenuList
+              id="kt-content-fab-menu"
+              aria-labelledby="kt-content-fab-button"
+              autoFocusItem
+              onKeyDownCapture={handleMenuNavigation}
+              onKeyDown={handleMenuKeyDown}
+            >
+              {items.map(({ label, icon: Icon, action, disabled, pressed }) => (
+                <MenuItem
+                  className="kt-content-fab-menu__item"
+                  disabled={disabled}
+                  aria-pressed={pressed}
+                  onClick={disabled ? undefined : action}
+                  key={label}
+                >
+                  <ListItemIcon>
+                    <Icon />
+                  </ListItemIcon>
+                  <ListItemText>{label}</ListItemText>
+                </MenuItem>
+              ))}
+            </MenuList>
+            <FabQuickOptions
+              getFabPageState={getFabPageState}
+              processActions={processActions}
+              onPageRule={setPageRule}
+              onHideOnSite={handleHideOnSite}
+            />
+            {touchOpen && (
+              <TouchTranslateControl processActions={processActions} />
+            )}
+          </Paper>
+        </Popper>
+      </Draggable>
+      {undoToast.open && (
+        <Snackbar
+          open={undoToast.open}
+          autoHideDuration={undoToast.error && !undoToast.domain ? 4500 : null}
+          onClose={() => {
+            if (undoToast.error && !undoToast.domain) {
+              setUndoToast({ open: false, domain: "" });
+            }
+          }}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+          className="kt-fab-undo-snackbar"
+        >
+          <Alert
+            severity={undoToast.error ? "error" : "info"}
+            variant="filled"
+            action={
+              undoToast.domain ? (
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={handleUndoHide}
+                  className="kt-fab-undo-btn"
+                >
+                  {i18n("fab_undo")}
+                </Button>
+              ) : undefined
+            }
+          >
+            {i18n(
+              undoToast.error
+                ? "error_got_some_wrong"
+                : "fab_hidden_on_site_toast"
+            )}
+          </Alert>
+        </Snackbar>
+      )}
+    </>
   );
 }
 

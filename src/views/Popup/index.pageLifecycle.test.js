@@ -82,6 +82,14 @@ jest.mock("../../hooks/I18n", () => ({ useI18n: () => (key) => key }));
 jest.mock("../../hooks/Setting", () => ({
   useSetting: () => ({ setting: mockSetting, updateSetting: jest.fn() }),
 }));
+// These tests exercise page lifetime, independently of persistence loading.
+jest.mock("../../hooks/Storage", () => ({
+  useStorage: (_key, defaultValue) => ({
+    data: defaultValue,
+    isLoading: false,
+    save: jest.fn(async () => ({})),
+  }),
+}));
 jest.mock("../../hooks/Commands", () => ({
   useOverviewShortcuts: () => ({ page: [], selection: [] }),
 }));

@@ -10,6 +10,7 @@
  * @returns {object|undefined} 浏览器插件 API polyfill 实例，非插件环境则返回 undefined
  */
 function _browser() {
+  if (globalThis.browser) return globalThis.browser;
   try {
     return require("webextension-polyfill");
   } catch (err) {

@@ -504,6 +504,7 @@ export default function Draggable({
         zIndex: 2147483647,
         display: show ? "block" : "none",
         willChange: "transform, opacity",
+        touchAction: "none",
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

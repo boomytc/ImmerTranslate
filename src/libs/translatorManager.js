@@ -38,10 +38,12 @@ import {
   MSG_OPEN_TRANBOX,
   MSG_TRANSBOX_TOGGLE,
   MSG_POPUP_TOGGLE,
+  MSG_FAB_TOGGLE,
   MSG_RULE_EDITOR,
   MSG_MOUSEHOVER_TOGGLE,
   MSG_TRANSINPUT_TOGGLE,
 } from "../config";
+import { isFabVisible } from "../config/fab";
 import { logger } from "./log";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { MSG_GET_FRAME_ID, MSG_VALIDATE_DOCUMENT } from "../config/msg";
@@ -937,6 +939,7 @@ export default class TranslatorManager {
       !fromExt &&
       !requiresInput &&
       action !== MSG_POPUP_TOGGLE &&
+      action !== MSG_FAB_TOGGLE &&
       action !== MSG_TRANS_GETRULE
     ) {
       sendIframeMsg(action, args);
@@ -1007,6 +1010,38 @@ export default class TranslatorManager {
       case MSG_POPUP_TOGGLE:
         this._popupManager?.toggle();
         break;
+      case MSG_FAB_TOGGLE: {
+        if (this.#isIframe || this.#transboxOnly) break;
+        if (args?.fabConfig) {
+          this.#fabConfig = { ...this.#fabConfig, ...args.fabConfig };
+        }
+        const href = window.location?.href || "";
+        const shouldShow =
+          typeof args?.enabled === "boolean"
+            ? args.enabled
+            : isFabVisible(href, this.#fabConfig);
+        if (shouldShow) {
+          const freshConfig = this.#cloneConfig(this.#fabConfig);
+          if (!this._fabManager) {
+            this._fabManager = new FabManager({
+              processActions: this.#processActions.bind(this),
+              fabConfig: freshConfig,
+              getSelectionEnabled: () =>
+                Boolean(this._transboxManager?.isEnabled()),
+              autoShow: false,
+            });
+          }
+          this._fabManager.show({ fabConfig: freshConfig });
+        } else {
+          this._fabManager?.destroy();
+          this._fabManager = null;
+        }
+        return {
+          ...this.#getRuntimeResponse(),
+          fabVisible: Boolean(this._fabManager?.isVisible),
+          fabConfig: this.#cloneConfig(this.#fabConfig),
+        };
+      }
       case MSG_TRANSBOX_TOGGLE:
         if (typeof args?.enabled === "boolean") {
           args.enabled

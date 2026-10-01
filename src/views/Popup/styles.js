@@ -243,6 +243,10 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-more-service svg { width: 17px; height: 17px; transition: transform var(--kt-dur, .2s) var(--kt-ease, ease-out); }
 .kt-popup-more-service[aria-expanded="true"] svg { transform: rotate(180deg); }
 
+.kt-popup-model-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 4px 8px; border: 1px solid var(--kt-border, var(--kt-linev)); border-radius: var(--kt-radius-md, 12px); background: var(--kt-sf0); }
+.kt-popup-model-label { flex: none; font-size: 11.5px; font-weight: 650; color: var(--kt-onv); }
+.kt-popup-model-select { flex: 1; min-width: 0; max-width: 100%; height: 26px; padding: 2px 6px; border: 0; border-radius: var(--kt-radius-chip, 14px); background: transparent; color: var(--kt-on); font-size: 12px; font-weight: 600; outline: 0; cursor: pointer; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+
 .kt-popup-site { padding: 12px 2px; border: 0; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); border-radius: 0; background: transparent; }
 .kt-popup-site__top { min-height: 28px; display: flex; align-items: center; gap: 6px; }
 .kt-popup-site__select { min-width: 0; min-height: 28px; flex: 1; padding: 3px 5px; border: 0; border-radius: var(--kt-radius-chip, 14px); outline: 0; background: transparent; color: var(--kt-on); }
@@ -251,6 +255,20 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-site__badge--blocked { background: var(--kt-errc); color: var(--kt-onerrc); }
 .kt-popup-site__actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-top: 4px; }
 .kt-popup-site__actions .MuiButton-root { min-width: 0; min-height: 34px; padding: 5px 8px; font-size: 11.5px; line-height: 1.35; overflow-wrap: anywhere; white-space: normal; }
+
+.kt-popup-site-policy { padding: 10px 2px 8px; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); }
+.kt-popup-policy-modes { display: flex; gap: 6px; }
+.kt-popup-policy-mode { flex: 1; min-width: 0; min-height: 32px; display: flex; align-items: center; justify-content: center; padding: 4px 6px; border: 1px solid var(--kt-border, var(--kt-linev)); border-radius: var(--kt-radius-chip, 14px); background: var(--kt-sf0); color: var(--kt-onv); cursor: pointer; font-size: 11.5px; font-weight: 650; transition: all var(--kt-dur, .15s) var(--kt-ease, ease-out); }
+@media (hover: hover) {
+  .kt-popup-policy-mode:hover { background: var(--kt-sf1); }
+}
+.kt-popup-policy-mode--active,
+.kt-popup-policy-mode[aria-pressed="true"] { border-color: var(--kt-pri); background: var(--kt-pric); color: var(--kt-onpric); font-weight: 700; }
+
+.kt-popup-fab-control { padding: 10px 2px 12px; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); }
+.kt-popup-fab-control__body { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kt-popup-fab-control__global { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--kt-on); }
+.kt-popup-fab-control__site-btn.MuiButton-root { min-height: 28px; padding: 3px 10px; font-size: 11px; font-weight: 600; border-radius: var(--kt-radius-chip, 14px); text-transform: none; }
 
 .kt-popup-disclosure-row { display: flex; align-items: center; gap: 4px; }
 .kt-popup-disclosure { width: auto; min-height: 38px; display: flex; flex: 1; align-items: center; gap: 8px; padding: 0 4px; border: 0; background: transparent; color: var(--kt-onv); cursor: pointer; font-size: 12.5px; font-weight: 650; }
