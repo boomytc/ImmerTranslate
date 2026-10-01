@@ -299,15 +299,9 @@ export async function run(isUserscript = false) {
     // 7. 匹配当前网页专用的规则 (三级规则合并：个人 > 订阅 > 内置全局)
     const rule = await matchRule(href, setting);
     const favWords = await getFavWords(rule);
+    // 保留存储里的全局配置。页面是否显示由 isFabVisible 统一计算，
+    // 这里再反转 isHide 会把站点特例套用第二次。
     const fabConfig = { ...(await getFabWithDefault()) };
-    // 名单命中时反转全局显隐：全局显示为黑名单，全局隐藏为白名单。
-    if (
-      !isIframe &&
-      !isPdfDocument &&
-      isInBlacklist(href, fabConfig.hideExceptionList)
-    ) {
-      fabConfig.isHide = !fabConfig.isHide;
-    }
 
     // 8. 创建翻译调度器管理器并启动
     const translatorManager = new TranslatorManager({

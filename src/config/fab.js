@@ -1,3 +1,5 @@
+import { isInBlacklist } from "../libs/blacklist";
+
 export const FAB_MIN_OPACITY = 0.1;
 export const FAB_MIN_SIZE = 24;
 export const FAB_MAX_SIZE = 96;
@@ -27,4 +29,16 @@ export function normalizeFabAppearance(config) {
           )
         : DEFAULT_FAB.size,
   };
+}
+
+/**
+ * 判断指定页面当前是否应当显示悬浮球。
+ * 全局显示时：未在特例名单中则显示，在名单中则隐藏；
+ * 全局隐藏时：在特例名单中则显示，未在名单中则隐藏。
+ */
+export function isFabVisible(href, fabConfig = {}) {
+  const safeHref = typeof href === "string" ? href : "";
+  const isGlobalHide = Boolean(fabConfig?.isHide);
+  const isException = isInBlacklist(safeHref, fabConfig?.hideExceptionList || "");
+  return isGlobalHide ? isException : !isException;
 }

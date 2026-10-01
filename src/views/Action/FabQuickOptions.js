@@ -51,6 +51,7 @@ export default function FabQuickOptions({
   getFabPageState,
   processActions,
   onPageRule,
+  onHideOnSite,
 }) {
   const i18n = useI18n();
   const { setting, updateSetting } = useSetting();
@@ -359,17 +360,30 @@ export default function FabQuickOptions({
           <select
             className="kt-content-fab-menu__model"
             aria-label={i18n("fab_model")}
+            title={selectedModel}
             value={modelOptions.includes(selectedModel) ? selectedModel : ""}
             onChange={(event) => applyModel(event.target.value)}
           >
             {!selectedModel && <option value="">{i18n("fab_model")}</option>}
             {modelOptions.map((model) => (
-              <option key={model} value={model}>
+              <option key={model} value={model} title={model}>
                 {model}
               </option>
             ))}
           </select>
         </label>
+      )}
+      {onHideOnSite && (
+        <div className="kt-content-fab-menu__field kt-content-fab-menu__field--hide-fab">
+          <button
+            type="button"
+            className="kt-content-fab-menu__mode kt-content-fab-menu__mode--hide-fab"
+            title={i18n("hide_fab_on_site")}
+            onClick={onHideOnSite}
+          >
+            {i18n("hide_fab_on_site")}
+          </button>
+        </div>
       )}
     </div>
   );

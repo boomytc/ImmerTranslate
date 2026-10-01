@@ -31,6 +31,7 @@ export const MSG_TRANS_PUTRULE = "trans_putrule"; // 保存或应用网页翻译
 export const MSG_TRANS_SET_MODEL = "trans_set_model"; // 切换当前引擎已保存的模型
 export const MSG_TRANS_CURRULE = "trans_currule"; // 发送当前页面所适配的有效规则
 export const MSG_TRANSBOX_TOGGLE = "toggle_transbox"; // 切换划词翻译框的显示与隐藏
+export const MSG_FAB_TOGGLE = "toggle_fab"; // 切换或更新悬浮球显隐状态
 export const MSG_POPUP_TOGGLE = "toggle_popup"; // 切换 Popup 弹窗的显隐状态
 export const MSG_MOUSEHOVER_TOGGLE = "toggle_mousehover"; // 切换鼠标悬停翻译功能
 export const MSG_HOVERNODE_TOGGLE = "toggle_hover_node"; // 切换针对某节点的悬浮高亮状态

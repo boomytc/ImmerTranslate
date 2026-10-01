@@ -16,7 +16,10 @@ export const SITE_TRANS_OPEN_OPTIONS = [
  * `*` follows the global rule; missing or unknown values do the same.
  */
 export function readSiteTransOpen(href, rules) {
-  const value = findMatchingRule(rules || [], href)?.transOpen;
+  const value =
+    typeof findMatchingRule === "function"
+      ? findMatchingRule(rules || [], href)?.transOpen
+      : undefined;
   return SITE_TRANS_OPEN.has(value) ? value : GLOBAL_KEY;
 }
 
@@ -25,9 +28,9 @@ export function readSiteTransOpen(href, rules) {
  * this page, or the current host when no personal rule exists yet.
  */
 export function siteRulePattern(href, rules) {
-  return (
-    findMatchingRule(rules || [], href)?.pattern ||
-    getDomainOptions(href)[0] ||
-    ""
-  );
+  const matched =
+    typeof findMatchingRule === "function"
+      ? findMatchingRule(rules || [], href)?.pattern
+      : undefined;
+  return matched || getDomainOptions(href)[0] || "";
 }
