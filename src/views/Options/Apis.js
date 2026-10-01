@@ -96,6 +96,7 @@ import {
 import ValidationInput from "../../hooks/ValidationInput";
 import { usePromptList } from "../../hooks/Prompt";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
+import { configuredByokApis } from "../../libs/apiKey";
 
 const API_LIST_CONTROL_SIZE = 24;
 const API_LIST_CONTROL_GAP = 0.5;
@@ -1912,6 +1913,9 @@ export default function Apis() {
     () => transApis.map((api) => ({ api })),
     [transApis]
   );
+  // Same usable set as FAB/Popup. The management list below stays complete,
+  // including keyed rows with a blank key, so they can still be enabled.
+  const usableApis = useMemo(() => configuredByokApis(transApis), [transApis]);
 
   const apiSortMode = useMemo(() => getApiSortMode(transApis), [transApis]);
   const canAlphabeticallySort = useMemo(
@@ -2214,6 +2218,40 @@ export default function Apis() {
             {i18n("goto_custom_api_example")}
           </Link>
         </Alert>
+
+        {usableApis.length === 0 ? (
+          <Alert
+            className="kt-api-usable-empty"
+            severity="warning"
+            role="status"
+          >
+            {i18n("fab_no_keyed_provider")}
+          </Alert>
+        ) : (
+          <Typography
+            className="kt-api-usable"
+            component="p"
+            role="status"
+            sx={{ fontSize: 13, color: "text.secondary" }}
+          >
+            <Box
+              component="span"
+              sx={{ fontWeight: 650, color: "text.primary" }}
+            >
+              {i18n("translate_service")}
+            </Box>
+            {usableApis.map((api) => (
+              <Box
+                key={api.apiSlug}
+                className="kt-api-usable__item"
+                component="span"
+                sx={{ ml: 1 }}
+              >
+                {getApiDisplayName(api)}
+              </Box>
+            ))}
+          </Typography>
+        )}
 
         <Box>
           <Stack

@@ -5,6 +5,10 @@ import OverviewHero from "./OverviewHero";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let mockRulesLoading = false;
+let mockTransApis = [
+  { apiSlug: "BuiltinAI", apiName: "BuiltinAI" },
+  { apiSlug: "Microsoft", apiName: "Microsoft" },
+];
 
 jest.mock("../../hooks/I18n", () => ({
   useI18n: () => (key) => key,
@@ -12,10 +16,7 @@ jest.mock("../../hooks/I18n", () => ({
 jest.mock("../../hooks/Setting", () => ({
   useSetting: () => ({
     setting: {
-      transApis: [
-        { apiSlug: "BuiltinAI", apiName: "BuiltinAI" },
-        { apiSlug: "Microsoft", apiName: "Microsoft" },
-      ],
+      transApis: mockTransApis,
     },
   }),
 }));
@@ -46,6 +47,10 @@ jest.mock("../../hooks/Commands", () => ({
 describe("OverviewHero", () => {
   beforeEach(() => {
     mockRulesLoading = false;
+    mockTransApis = [
+      { apiSlug: "BuiltinAI", apiName: "BuiltinAI" },
+      { apiSlug: "Microsoft", apiName: "Microsoft" },
+    ];
   });
 
   test("renders the global rule and actual command shortcuts", () => {
@@ -96,6 +101,65 @@ describe("OverviewHero", () => {
         container.querySelectorAll(".kt-overview-hero__summary-item strong")
       ).map((element) => element.textContent)
     ).toEqual(["—", "— → —"]);
+
+    act(() => root.unmount());
+  });
+
+  test("keeps an enabled keyless service out of the empty state", () => {
+    mockTransApis = [
+      {
+        apiSlug: "Microsoft",
+        apiName: "Microsoft",
+        apiType: "Microsoft",
+        key: "",
+        isDisabled: false,
+      },
+    ];
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    act(() => root.render(<OverviewHero />));
+
+    expect(container.textContent).toContain("Microsoft");
+    expect(container.textContent).not.toContain("fab_no_keyed_provider");
+    expect(container.textContent).not.toContain("missing_api_key_empty");
+    expect(
+      container.querySelector(".kt-overview-hero__summary-item--empty")
+    ).toBeNull();
+
+    act(() => root.unmount());
+  });
+
+  test("uses the no-service copy when nothing usable is enabled", () => {
+    mockTransApis = [
+      {
+        apiSlug: "DeepSeek",
+        apiName: "DeepSeek",
+        apiType: "DeepSeek",
+        key: "",
+        isDisabled: false,
+      },
+      {
+        apiSlug: "Google",
+        apiName: "Google",
+        apiType: "Google",
+        key: "",
+        isDisabled: true,
+      },
+    ];
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    act(() => root.render(<OverviewHero />));
+
+    const empty = container.querySelector(
+      ".kt-overview-hero__summary-item--empty"
+    );
+    expect(empty.textContent).toContain("fab_no_keyed_provider");
+    expect(container.textContent).not.toContain("missing_api_key_empty");
+    expect(container.textContent).not.toContain("DeepSeek");
+    expect(container.textContent).not.toContain("Google");
+    expect(container.textContent).not.toContain("Microsoft");
 
     act(() => root.unmount());
   });
