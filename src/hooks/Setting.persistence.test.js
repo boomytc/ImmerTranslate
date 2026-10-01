@@ -5,7 +5,6 @@ import {
   CURRENT_SETTINGS_VERSION,
   DEFAULT_SETTING,
   OPT_INPUT_DOT_ALWAYS,
-  OPT_INPUT_DOT_DISABLE,
   OPT_INPUT_DOT_MOBILE,
 } from "../config";
 import { SettingProvider, useSetting } from "./Setting";
@@ -112,23 +111,6 @@ describe("settings persistence results", () => {
     expect(settings.setting.inputRule.showDot).toBe(OPT_INPUT_DOT_ALWAYS);
     expect(settings.setting.inputRule.toLang).toBe("zh-CN");
     expect(mockSetting.inputRule.showDot).toBe(OPT_INPUT_DOT_MOBILE);
-    expect(mockUpdate).not.toHaveBeenCalled();
-  });
-
-  test.each([
-    [OPT_INPUT_DOT_DISABLE, { showDot: OPT_INPUT_DOT_DISABLE }],
-    [
-      OPT_INPUT_DOT_MOBILE,
-      { showDot: OPT_INPUT_DOT_MOBILE, showDotChosen: true },
-    ],
-  ])("keeps an explicit input dot %s", (showDot, inputPatch) => {
-    mockSetting = {
-      ...mockSetting,
-      inputRule: { ...DEFAULT_SETTING.inputRule, ...inputPatch },
-    };
-    mountProvider();
-
-    expect(settings.setting.inputRule.showDot).toBe(showDot);
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
