@@ -6,7 +6,10 @@ import {
   OPT_INPUT_DOT_DISABLE,
   OPT_INPUT_DOT_MOBILE,
 } from "../config";
+import { APP_LCNAME } from "../config/app";
+import { newI18n } from "../config/i18n";
 import { resolveApiPromptSettings } from "../config/prompt";
+import { inputTranslateFailureKey } from "./pageTranslateError";
 import { isMobile } from "./mobile";
 import { genEventName, removeEndchar, matchInputStr, sleep } from "./utils";
 import { parseMathInText } from "./mathParse";
@@ -232,6 +235,173 @@ function removeLoading(loadingId) {
   if (div) div.remove();
 }
 
+/** 失败提示自动消失前停留的时间。 */
+export const INPUT_FAILURE_NOTICE_MS = 8000;
+
+const NOTICE_MAX_WIDTH = 320;
+const NOTICE_GAP = 8;
+const NOTICE_MARGIN = 8;
+const NOTICE_FALLBACK_SIZE = { width: 280, height: 72 };
+
+const FAILURE_NOTICE_STYLE = `
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  width: max-content !important;
+  max-width: min(${NOTICE_MAX_WIDTH}px, calc(100vw - ${NOTICE_MARGIN * 2}px)) !important;
+  margin: 0 !important;
+  padding: 10px 36px 10px 12px !important;
+  border: 1px solid #f0c2c2 !important;
+  border-radius: 10px !important;
+  background: #fff8f7 !important;
+  color: #3b1214 !important;
+  box-shadow: 0 8px 24px rgba(23, 24, 28, 0.18) !important;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: normal !important;
+  text-align: start !important;
+  text-transform: none !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  visibility: hidden !important;
+`;
+
+const FAILURE_MESSAGE_STYLE = `
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #3b1214 !important;
+  background: transparent !important;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: normal !important;
+  text-align: start !important;
+  text-transform: none !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+`;
+
+const FAILURE_CLOSE_STYLE = `
+  position: absolute !important;
+  top: 4px !important;
+  right: 4px !important;
+  width: 28px !important;
+  height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: #3b1214 !important;
+  font: 18px/28px sans-serif !important;
+  line-height: 28px !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+`;
+
+/**
+ * 生成输入框翻译失败的可读提示。
+ * 调用方负责插入、定位，以及自动消失的定时器。
+ * 点关闭时不会把焦点从输入框上挪走。
+ *
+ * @param {{message: string, closeLabel: string, onDismiss?: () => void}} options
+ * @returns {HTMLDivElement}
+ */
+export function createInputTranslateFailureNotice({
+  message,
+  closeLabel,
+  onDismiss,
+}) {
+  const notice = document.createElement("div");
+  notice.className = `${APP_LCNAME}-input-translate-error notranslate`;
+  notice.setAttribute("role", "alert");
+  notice.setAttribute("translate", "no");
+  notice.style.cssText = FAILURE_NOTICE_STYLE;
+
+  const text = document.createElement("div");
+  text.dataset.inputTranslateMessage = "true";
+  text.textContent = message;
+  text.style.cssText = FAILURE_MESSAGE_STYLE;
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.setAttribute("aria-label", closeLabel);
+  close.textContent = "×";
+  close.style.cssText = FAILURE_CLOSE_STYLE;
+  close.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDismiss?.();
+  });
+
+  // 按住提示时不要抢走输入框焦点，否则「译」点会跟着失焦消失。
+  notice.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+  });
+
+  notice.append(text, close);
+  return notice;
+}
+
+/**
+ * 把提示放在输入框旁；「译」点可见时放在它上方，并保持在视口内。
+ *
+ * @param {{
+ *   inputRect: {top: number, right: number, bottom: number},
+ *   buttonRect?: {top: number, right: number, bottom: number}|null,
+ *   viewport: {width: number, height: number},
+ *   noticeSize: {width: number, height: number},
+ * }} options
+ * @returns {{top: number, left: number, width: number}}
+ */
+export function anchorInputFailureNotice({
+  inputRect,
+  buttonRect = null,
+  viewport,
+  noticeSize,
+}) {
+  const maxWidth = Math.max(0, viewport.width - NOTICE_MARGIN * 2);
+  const width = Math.min(NOTICE_MAX_WIDTH, noticeSize.width, maxWidth);
+  const height = noticeSize.height;
+  const anchorBottom = buttonRect
+    ? Math.min(inputRect.top, buttonRect.top)
+    : inputRect.top;
+  const anchorRight = buttonRect
+    ? Math.max(inputRect.right, buttonRect.right)
+    : inputRect.right;
+
+  let top = anchorBottom - height - NOTICE_GAP;
+  if (top < NOTICE_MARGIN) {
+    const belowAnchor = buttonRect
+      ? Math.max(inputRect.bottom, buttonRect.bottom)
+      : inputRect.bottom;
+    top = belowAnchor + NOTICE_GAP;
+  }
+
+  let left = anchorRight - width;
+  left = Math.max(
+    NOTICE_MARGIN,
+    Math.min(left, viewport.width - width - NOTICE_MARGIN)
+  );
+  const maxTop = Math.max(
+    NOTICE_MARGIN,
+    viewport.height - height - NOTICE_MARGIN
+  );
+  top = Math.max(NOTICE_MARGIN, Math.min(top, maxTop));
+  return { top, left, width };
+}
+
+function measureFailureNotice(notice) {
+  const rect = notice.getBoundingClientRect();
+  const width = rect.width || notice.offsetWidth;
+  const height = rect.height || notice.offsetHeight;
+  if (width >= 1 && height >= 1) return { width, height };
+  return NOTICE_FALLBACK_SIZE;
+}
+
 // ==========================================
 // 主类：InputTranslator
 // ==========================================
@@ -247,6 +417,11 @@ export class InputTranslator {
   #floatBtn = null; // 悬浮按钮 DOM
   #resizeObserver = null; // 监听输入框尺寸变化
   #blurTimer = null; // 存储失焦隐藏的定时器 ID
+  #failureNotice = null; // 输入框旁的失败提示
+  #failureTimer = null; // 失败提示自动消失的定时器
+  #translateRunId = 0; // 用来丢弃过期的失败提示
+  #queuedFailure = null; // 等悬浮点恢复后再摆放的失败
+  #uiLang = "zh";
 
   // 绑定的事件处理函数
   #boundFocusIn;
@@ -260,6 +435,7 @@ export class InputTranslator {
     subtitleSetting = {},
     translateVariants = true,
     parseLatex = false,
+    uiLang = "zh",
   } = {}) {
     this.#config = {
       inputRule,
@@ -269,6 +445,7 @@ export class InputTranslator {
       translateVariants,
       parseLatex,
     };
+    this.#uiLang = uiLang || "zh";
 
     const { triggerShortcut: initialTriggerShortcut } = this.#config.inputRule;
     this.#triggerShortcut =
@@ -342,6 +519,7 @@ export class InputTranslator {
     // 3. 清理 UI 和 观察器
     // [修复问题2-A]：彻底销毁 DOM，防止僵尸状态
     this.removeFloatButton();
+    this.#clearFailureNotice();
 
     if (this.#resizeObserver) {
       this.#resizeObserver.disconnect();
@@ -370,6 +548,13 @@ export class InputTranslator {
 
     const target = getDeepActiveElement();
     if (isEditableTarget(target)) {
+      if (
+        this.#failureNotice &&
+        this.#activeInput &&
+        target !== this.#activeInput
+      ) {
+        this.#clearFailureNotice();
+      }
       this.#activeInput = target;
 
       if (this.#resizeObserver) this.#resizeObserver.disconnect();
@@ -484,6 +669,10 @@ export class InputTranslator {
   }
 
   updateBtnPosition() {
+    if (this.#failureNotice && this.#activeInput) {
+      this.#positionFailureNotice(this.#activeInput);
+    }
+
     // 增加对 activeInput 是否还在文档中的检查
     if (
       !this.#activeInput ||
@@ -570,6 +759,10 @@ export class InputTranslator {
 
     if (!initText.trim()) return;
 
+    const runId = ++this.#translateRunId;
+    this.#queuedFailure = null;
+    this.#clearFailureNotice();
+
     // 5. 解析语言指令 (例如 "en:你好")
     let text = initText;
     if (transSign) {
@@ -594,56 +787,148 @@ export class InputTranslator {
       }
     }
 
-    const rawApiSetting =
-      this.#config.transApis.find((api) => api.apiSlug === apiSlug) ||
-      DEFAULT_API_SETTING;
+    const matchedApi = this.#config.transApis.find(
+      (api) => api.apiSlug === apiSlug
+    );
+    const rawApiSetting = matchedApi || DEFAULT_API_SETTING;
 
     const apiSetting = resolveApiPromptSettings(
       rawApiSetting,
       this.#config.prompts,
       this.#config.subtitleSetting
     );
+    // 已停用或列表里没有这条服务时，免钥接口仍可能翻译成功。先拦住，不要发请求。
+    const serviceUnavailable =
+      !matchedApi || matchedApi.isDisabled || apiSetting?.isDisabled;
 
     const loadingId = "kiss-loading-" + genEventName();
 
     try {
-      addLoading(node, loadingId);
-      this.hideFloatButton(); // 翻译期间隐藏按钮
+      if (serviceUnavailable) {
+        if (runId === this.#translateRunId) {
+          this.#queuedFailure = {
+            node,
+            error: new Error("translator is disabled"),
+            apiSetting: {
+              ...(apiSetting || rawApiSetting || {}),
+              isDisabled: true,
+            },
+          };
+        }
+      } else {
+        addLoading(node, loadingId);
+        this.hideFloatButton(); // 翻译期间隐藏按钮
 
-      // 调用翻译 API
-      const { trText, isSame } = await apiTranslate({
-        text,
-        fromLang,
-        toLang,
-        apiSetting,
-        textFormat: "text",
-        translateVariants: this.#config.translateVariants,
-      });
+        // 调用翻译 API
+        const { trText, isSame } = await apiTranslate({
+          text,
+          fromLang,
+          toLang,
+          apiSetting,
+          textFormat: "text",
+          translateVariants: this.#config.translateVariants,
+        });
 
-      // 输入框写回纯文本，开启后将模型输出的行内 LaTeX 转成可读的 Unicode
-      const trimmedText = trText?.trim() || "";
-      const newText = this.#config.parseLatex
-        ? parseMathInText(trimmedText)
-        : trimmedText;
-      if (!newText || isSame) return;
+        // 输入框写回纯文本，开启后将模型输出的行内 LaTeX 转成可读的 Unicode
+        const trimmedText = trText?.trim() || "";
+        const newText = this.#config.parseLatex
+          ? parseMathInText(trimmedText)
+          : trimmedText;
+        if (!newText || isSame) return;
 
-      // 6. 执行替换 (使用新的智能替换函数)
-      const success = await smartReplaceText(node, newText);
-      if (!success) {
-        logger.warn("Text replacement failed after all strategies.");
+        // 6. 执行替换 (使用新的智能替换函数)
+        const success = await smartReplaceText(node, newText);
+        if (!success) {
+          logger.warn("Text replacement failed after all strategies.");
+        }
       }
     } catch (err) {
+      // 只把可行动文案放到输入框旁；原始异常留在日志里。
       logger.error("Translate input error:", err);
+      if (runId === this.#translateRunId) {
+        this.#queuedFailure = { node, error: err, apiSetting };
+      }
     } finally {
       removeLoading(loadingId);
-      // 恢复显示按钮
+      // 恢复显示按钮后再摆放提示，避免盖住「译」点。
       if (this.#activeInput === node) {
         this.showFloatButton(node);
+      }
+      if (runId === this.#translateRunId && this.#queuedFailure) {
+        const queued = this.#queuedFailure;
+        this.#queuedFailure = null;
+        this.#showFailureNotice(queued.node, queued.error, queued.apiSetting);
       }
     }
   }
 
-  updateConfig({ inputRule, transApis, prompts, subtitleSetting }) {
+  #clearFailureNotice() {
+    if (this.#failureTimer) {
+      clearTimeout(this.#failureTimer);
+      this.#failureTimer = null;
+    }
+    if (this.#failureNotice) {
+      this.#failureNotice.remove();
+      this.#failureNotice = null;
+    }
+  }
+
+  #visibleButtonRect() {
+    const button = this.#floatBtn;
+    if (!button || button.style.display === "none" || !button.isConnected) {
+      return null;
+    }
+    const rect = button.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return null;
+    return rect;
+  }
+
+  #positionFailureNotice(node) {
+    const notice = this.#failureNotice;
+    if (!notice) return;
+
+    if (!node?.isConnected) {
+      notice.style.setProperty("top", `${NOTICE_MARGIN}px`, "important");
+      notice.style.setProperty("right", `${NOTICE_MARGIN}px`, "important");
+      notice.style.setProperty("left", "auto", "important");
+      notice.style.setProperty("visibility", "visible", "important");
+      return;
+    }
+
+    const { top, left, width } = anchorInputFailureNotice({
+      inputRect: node.getBoundingClientRect(),
+      buttonRect: this.#visibleButtonRect(),
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+      noticeSize: measureFailureNotice(notice),
+    });
+    notice.style.setProperty("width", `${width}px`, "important");
+    notice.style.setProperty("left", `${left}px`, "important");
+    notice.style.setProperty("right", "auto", "important");
+    notice.style.setProperty("top", `${top}px`, "important");
+    notice.style.setProperty("visibility", "visible", "important");
+  }
+
+  #showFailureNotice(node, error, apiSetting) {
+    this.#clearFailureNotice();
+    const i18n = newI18n(this.#uiLang || "zh");
+    const notice = createInputTranslateFailureNotice({
+      message: i18n(inputTranslateFailureKey(error, apiSetting)),
+      closeLabel: i18n("close"),
+      onDismiss: () => this.#clearFailureNotice(),
+    });
+    document.body.appendChild(notice);
+    this.#failureNotice = notice;
+    this.#positionFailureNotice(node);
+    this.#failureTimer = setTimeout(
+      () => this.#clearFailureNotice(),
+      INPUT_FAILURE_NOTICE_MS
+    );
+  }
+
+  updateConfig({ inputRule, transApis, prompts, subtitleSetting, uiLang }) {
     const wasEnabled = this.#isEnabled;
     if (wasEnabled) this.disable();
 
@@ -655,6 +940,7 @@ export class InputTranslator {
     if (transApis) {
       this.#config.transApis = transApis;
     }
+    if (uiLang) this.#uiLang = uiLang;
 
     const { triggerShortcut } = this.#config.inputRule;
     this.#triggerShortcut =
