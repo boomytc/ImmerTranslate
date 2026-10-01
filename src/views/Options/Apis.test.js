@@ -17,6 +17,7 @@ import {
   OPT_TRANS_QWENMT,
   OPT_TRANS_YANDEX,
   OPT_TRANS_YANDEXFREE,
+  OPT_TRANS_CUSTOMIZE,
   PROMPT_CATEGORY_BATCH_SYSTEM,
 } from "../../config";
 import { fetchModelCatalog } from "../../libs/modelList";
@@ -2670,5 +2671,163 @@ describe("Apis usable services", () => {
     ).not.toBeNull();
 
     view.unmount();
+  });
+});
+
+describe("Apis API Key official links and visual presentation", () => {
+  test("renders official API key button and empty-state alert for keyed providers with empty key", async () => {
+    const view = await renderApis(
+      createApi({
+        apiSlug: "openai",
+        apiName: "OpenAI",
+        apiType: OPT_TRANS_OPENAI,
+        key: "",
+      })
+    );
+
+    const linkButton = view.container.querySelector(".kt-api-key-link-button");
+    expect(linkButton).not.toBeNull();
+    expect(linkButton.getAttribute("href")).toBe(
+      "https://platform.openai.com/api-keys"
+    );
+    expect(linkButton.getAttribute("target")).toBe("_blank");
+    expect(linkButton.getAttribute("rel")).toContain("noopener");
+    expect(linkButton.textContent).toContain("get_api_key");
+
+    const statusBadge = view.container.querySelector(".kt-api-key-status");
+    expect(statusBadge).not.toBeNull();
+    expect(statusBadge.textContent).toBe("key_required");
+
+    const alert = view.container.querySelector(".kt-api-key-empty-alert");
+    expect(alert).not.toBeNull();
+    expect(alert.textContent).toContain("api_key_missing_tip");
+
+    const alertLink = view.container.querySelector(
+      ".kt-api-key-empty-alert-link"
+    );
+    expect(alertLink.getAttribute("href")).toBe(
+      "https://platform.openai.com/api-keys"
+    );
+
+    const helperLink = view.container.querySelector(
+      ".kt-api-key-helper-link"
+    );
+    expect(helperLink).not.toBeNull();
+    expect(helperLink.getAttribute("href")).toBe(
+      "https://platform.openai.com/api-keys"
+    );
+
+    // Detail header renders provider icon
+    const headerIcon = view.container.querySelector(
+      ".kt-api-detail__header .kt-api-provider-icon"
+    );
+    expect(headerIcon).not.toBeNull();
+
+    view.unmount();
+  });
+
+  test("updates status to configured and hides empty alert when key is filled", async () => {
+    const view = await renderApis(
+      createApi({
+        apiSlug: "deepseek",
+        apiName: "DeepSeek",
+        apiType: OPT_TRANS_DEEPSEEK,
+        key: "sk-test-deepseek",
+      })
+    );
+
+    const linkButton = view.container.querySelector(".kt-api-key-link-button");
+    expect(linkButton).not.toBeNull();
+    expect(linkButton.getAttribute("href")).toBe(
+      "https://platform.deepseek.com/api_keys"
+    );
+
+    const statusBadge = view.container.querySelector(".kt-api-key-status");
+    expect(statusBadge).not.toBeNull();
+    expect(statusBadge.textContent).toBe("key_configured");
+
+    const alert = view.container.querySelector(".kt-api-key-empty-alert");
+    expect(alert).toBeNull();
+
+    view.unmount();
+  });
+
+  test("does not render API key button or alert for keyless services", async () => {
+    const view = await renderApis(
+      createApi({
+        apiSlug: "microsoft",
+        apiName: "Microsoft",
+        apiType: OPT_TRANS_MICROSOFT,
+        key: "",
+      })
+    );
+
+    expect(
+      view.container.querySelector(".kt-api-key-link-button")
+    ).toBeNull();
+    expect(
+      view.container.querySelector(".kt-api-key-empty-alert")
+    ).toBeNull();
+    expect(view.container.querySelector('[name="key"]')).toBeNull();
+
+    view.unmount();
+  });
+
+  test("renders category badge and list key warning for empty key, and custom service gracefully handles missing apiKeyUrl", async () => {
+    const view = await renderApis(
+      createApi({
+        apiSlug: "openai",
+        apiName: "OpenAI",
+        apiType: OPT_TRANS_OPENAI,
+        key: "",
+        isDisabled: false,
+      })
+    );
+
+    // Header category badge
+    const categoryBadge = view.container.querySelector(
+      ".kt-api-detail__header .kt-api-category-badge"
+    );
+    expect(categoryBadge).not.toBeNull();
+    expect(categoryBadge.textContent).toBe("service_category_ai");
+
+    // List warning badge for missing key on enabled keyed service
+    const listWarning = view.container.querySelector(
+      ".kt-api-list__key-warning"
+    );
+    expect(listWarning).not.toBeNull();
+    expect(listWarning.textContent).toBe("key_required");
+
+    view.unmount();
+
+    // Custom API should render Key field header and input, but no link button
+    const customView = await renderApis(
+      createApi({
+        apiSlug: "custom_1",
+        apiName: "Custom Service",
+        apiType: OPT_TRANS_CUSTOMIZE,
+        key: "",
+      })
+    );
+
+    const customCategory = customView.container.querySelector(
+      ".kt-api-detail__header .kt-api-category-badge"
+    );
+    expect(customCategory).not.toBeNull();
+    expect(customCategory.textContent).toBe("service_category_custom");
+
+    // Header for Key exists
+    const keyHeader = customView.container.querySelector(".kt-api-key-header");
+    expect(keyHeader).not.toBeNull();
+    expect(customView.container.querySelector('[name="key"]')).not.toBeNull();
+    // But no official button or alert for custom
+    expect(
+      customView.container.querySelector(".kt-api-key-link-button")
+    ).toBeNull();
+    expect(
+      customView.container.querySelector(".kt-api-key-empty-alert")
+    ).toBeNull();
+
+    customView.unmount();
   });
 });

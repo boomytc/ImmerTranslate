@@ -34,6 +34,7 @@ import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import CheckBoxRoundedIcon from "@mui/icons-material/CheckBoxRounded";
 import CheckBoxOutlineBlankRoundedIcon from "@mui/icons-material/CheckBoxOutlineBlankRounded";
 import Link from "@mui/material/Link";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useSetting } from "../../hooks/Setting";
 import { useAlert } from "../../hooks/Alert";
 import {
@@ -54,11 +55,14 @@ import ReusableAutocomplete from "./ReusableAutocomplete";
 import ShowMoreButton from "./ShowMoreButton";
 import {
   OPT_TRANS_DEEPLX,
+  OPT_TRANS_DEEPLFREE,
+  OPT_TRANS_MICROSOFT,
   // OPT_TRANS_OLLAMA,
   OPT_TRANS_CUSTOMIZE,
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_QWENMT,
   OPT_TRANS_YANDEX,
+  OPT_TRANS_YANDEXFREE,
   OPT_TRANS_OPENROUTER,
   OPT_TRANS_GEMINI,
   OPT_TRANS_GEMINI_2,
@@ -92,11 +96,37 @@ import {
   getDictionaryPromptOptions,
   getPromptDisplayName,
   getSubtitlePromptOptions,
+  getApiKeyUrl,
 } from "../../config";
 import ValidationInput from "../../hooks/ValidationInput";
 import { usePromptList } from "../../hooks/Prompt";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
-import { configuredByokApis } from "../../libs/apiKey";
+import {
+  configuredByokApis,
+  apiRequiresKey,
+  apiTypeOf,
+  isMissingRequiredApiKey,
+} from "../../libs/apiKey";
+
+function getApiCategoryLabel(apiType, i18n) {
+  if (apiType === OPT_TRANS_CUSTOMIZE) {
+    return i18n("service_category_custom");
+  }
+  if (API_SPE_TYPES.ai.has(apiType)) {
+    return i18n("service_category_ai");
+  }
+  if (API_SPE_TYPES.machine.has(apiType)) {
+    if (
+      apiType === OPT_TRANS_DEEPLFREE ||
+      apiType === OPT_TRANS_YANDEXFREE ||
+      apiType === OPT_TRANS_MICROSOFT
+    ) {
+      return i18n("service_category_free_machine");
+    }
+    return i18n("service_category_machine");
+  }
+  return i18n("service_category_machine");
+}
 
 const API_LIST_CONTROL_SIZE = 24;
 const API_LIST_CONTROL_GAP = 0.5;
@@ -573,6 +603,10 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
   const showKeyField =
     (!API_SPE_TYPES.machine.has(apiType) || apiType === OPT_TRANS_QWENMT) &&
     apiType !== OPT_TRANS_BUILTINAI;
+  const apiKeyUrl = getApiKeyUrl(activeFormData);
+  const requiresKey =
+    apiRequiresKey(activeFormData) && apiType !== OPT_TRANS_CUSTOMIZE;
+  const isKeyEmpty = !key || !String(key).trim();
   const connectionFeedback = describeConnectionResult(connectionResult, i18n);
   const connectionRequestRef = useRef(0);
 
@@ -830,17 +864,67 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
         useFlexGap
         flexWrap="wrap"
       >
-        <Box sx={{ minWidth: 0 }}>
-          <Typography
-            component="h2"
-            sx={{ fontSize: 16, fontWeight: 700, lineHeight: 1.3 }}
-          >
-            {getApiDisplayName(activeFormData)}
-          </Typography>
-          <Typography color="text.secondary" sx={{ mt: 0.25, fontSize: 12 }}>
-            {apiType}
-          </Typography>
-        </Box>
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1.5}
+          sx={{ minWidth: 0 }}
+        >
+          <ApiProviderIcon
+            className="kt-api-provider-icon"
+            apiType={apiType}
+            size={38}
+            imageSize={22}
+            disabled={isDisabled}
+            lightSurface
+          />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              component="h2"
+              sx={{ fontSize: 16, fontWeight: 700, lineHeight: 1.3 }}
+            >
+              {getApiDisplayName(activeFormData)}
+            </Typography>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.75}
+              sx={{ mt: 0.25 }}
+              flexWrap="wrap"
+              useFlexGap
+            >
+              <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+                {apiType}
+              </Typography>
+              <Box
+                component="span"
+                className="kt-api-category-badge"
+              >
+                {getApiCategoryLabel(apiType, i18n)}
+              </Box>
+              {API_SPE_TYPES.sponsors.has(apiType) && (
+                <Box
+                  component="span"
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.25,
+                    fontSize: "11px",
+                    px: 0.75,
+                    py: 0.1,
+                    borderRadius: "4px",
+                    bgcolor: "warning.main",
+                    color: "warning.contrastText",
+                    fontWeight: 650,
+                  }}
+                >
+                  <StarIcon sx={{ fontSize: 13 }} />
+                  <span>Sponsor</span>
+                </Box>
+              )}
+            </Stack>
+          </Box>
+        </Stack>
         <Stack
           className="kt-api-detail__status-actions"
           direction="row"
@@ -891,7 +975,14 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       </Box>
 
       {showKeyField && (
-        <>
+        <Box
+          className="kt-api-key-block"
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
           <TextField
             size="small"
             label={"URL"}
@@ -904,17 +995,163 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
               apiType === OPT_TRANS_DEEPLX ? i18n("mulkeys_help") : ""
             }
           />
-          <SensitiveTextField
-            size="small"
-            label={"Key"}
-            name="key"
-            value={key}
-            onChange={handleChange}
-            multiline={API_SPE_TYPES.mulkeys.has(apiType)}
-            maxRows={10}
-            helperText={keyHelper}
-          />
-        </>
+          <Box className="kt-api-key-field-wrap">
+            <Box
+              className="kt-api-key-header"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 0.75,
+                gap: 1,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 650,
+                    color: "text.primary",
+                    fontSize: 12,
+                  }}
+                >
+                  API Key
+                </Typography>
+                {requiresKey && (
+                  <Box
+                    component="span"
+                    className={`kt-api-key-status ${
+                      isKeyEmpty
+                        ? "kt-api-key-status--required"
+                        : "kt-api-key-status--configured"
+                    }`}
+                  >
+                    {isKeyEmpty
+                      ? i18n("key_required")
+                      : i18n("key_configured")}
+                  </Box>
+                )}
+              </Box>
+              {apiKeyUrl && (
+                <Button
+                  component="a"
+                  href={apiKeyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="small"
+                  variant="outlined"
+                  className="kt-api-key-link-button"
+                  endIcon={
+                    <OpenInNewIcon sx={{ fontSize: "14px !important" }} />
+                  }
+                  sx={{
+                    fontSize: 12,
+                    py: 0.25,
+                    px: 1,
+                    minHeight: 28,
+                    textTransform: "none",
+                    fontWeight: 600,
+                    borderRadius: "6px",
+                  }}
+                >
+                  {i18n("get_api_key")}
+                </Button>
+              )}
+            </Box>
+            <SensitiveTextField
+              size="small"
+              fullWidth
+              label={"Key"}
+              name="key"
+              value={key}
+              onChange={handleChange}
+              multiline={API_SPE_TYPES.mulkeys.has(apiType)}
+              maxRows={10}
+              helperText={
+                <Box
+                  component="span"
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 1,
+                    mt: 0.25,
+                  }}
+                >
+                  <Box component="span">{keyHelper}</Box>
+                  {apiKeyUrl && (
+                    <Link
+                      href={apiKeyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="kt-api-key-helper-link"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.25,
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        color: "primary.main",
+                        textDecoration: "none",
+                        cursor: "pointer",
+                        "&:hover": {
+                          textDecoration: "underline",
+                        },
+                      }}
+                    >
+                      <span>{i18n("get_api_key")}</span>
+                      <OpenInNewIcon sx={{ fontSize: 13 }} />
+                    </Link>
+                  )}
+                </Box>
+              }
+            />
+            {requiresKey && isKeyEmpty && apiKeyUrl && (
+              <Alert
+                severity="info"
+                variant="outlined"
+                className="kt-api-key-empty-alert"
+                sx={{
+                  mt: 1,
+                  py: 0.5,
+                  px: 1.5,
+                  fontSize: 12,
+                  "& .MuiAlert-message": {
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    flexWrap: "wrap",
+                    gap: 1,
+                  },
+                }}
+              >
+                <span>{i18n("api_key_missing_tip")}</span>
+                <Link
+                  href={apiKeyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="kt-api-key-empty-alert-link"
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    fontWeight: 600,
+                    fontSize: 12,
+                    color: "primary.main",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    "&:hover": { textDecoration: "underline" },
+                  }}
+                >
+                  {i18n("get_api_key", "获取 API Key")}
+                  <OpenInNewIcon sx={{ fontSize: 13 }} />
+                </Link>
+              </Alert>
+            )}
+          </Box>
+        </Box>
       )}
 
       {apiType === OPT_TRANS_AZUREAI && (
@@ -1702,6 +1939,7 @@ function ApiListItem({
   onDragEnd,
   onMove,
 }) {
+  const i18n = useI18n();
   const handleContentClick = (event) => {
     if (bulkMode) {
       onCheck(event, api.apiSlug);
@@ -1846,15 +2084,35 @@ function ApiListItem({
             opacity: api.isDisabled ? 0.5 : 1,
           }}
         >
-          <Typography
+          <Box
             sx={{
-              fontSize: 14,
-              fontWeight: 650,
-              overflowWrap: "anywhere",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 0.5,
             }}
           >
-            {displayName}
-          </Typography>
+            <Typography
+              sx={{
+                fontSize: 14,
+                fontWeight: 650,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {displayName}
+            </Typography>
+            {!api.isDisabled &&
+              isMissingRequiredApiKey(api) &&
+              apiTypeOf(api) !== OPT_TRANS_CUSTOMIZE && (
+                <Box
+                  component="span"
+                  className="kt-api-list__key-warning"
+                  title={i18n("key_required")}
+                >
+                  {i18n("key_required")}
+                </Box>
+              )}
+          </Box>
           <Typography
             className="kt-api-list__secondary"
             color="text.secondary"

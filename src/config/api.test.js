@@ -41,11 +41,18 @@ import {
   OPT_TRANS_YANDEX,
   OPT_TRANS_YANDEXFREE,
   OPT_TRANS_ZAI,
+  OPT_TRANS_DEEPL,
+  OPT_TRANS_AZUREAI,
+  OPT_TRANS_GOOGLE_CLOUD,
+  OPT_TRANS_ORCAROUTER,
+  OPT_TRANS_REQUESTY,
   GOOGLE_TRANSLATE_URL,
   GOOGLE_PA_TRANSLATE_URL,
   DEFAULT_API_NAME_GOOGLE,
   normalizeApiSlug,
   normalizeTransApis,
+  API_KEY_URLS,
+  getApiKeyUrl,
 } from "./api";
 
 test("uses Microsoft as the fallback default API", () => {
@@ -836,5 +843,103 @@ describe("unified Google configuration and normalization", () => {
     expect(normalized).toHaveLength(1);
     expect(normalized[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
     expect(normalized[0].isDisabled).toBe(false);
+  });
+});
+
+describe("API Key official URLs and helpers", () => {
+  test("defines valid HTTPS official API key URLs for key-requiring providers", () => {
+    const expectedKeyedProviders = [
+      OPT_TRANS_OPENAI,
+      OPT_TRANS_DEEPSEEK,
+      OPT_TRANS_CLAUDE,
+      OPT_TRANS_GEMINI,
+      OPT_TRANS_GEMINI_2,
+      OPT_TRANS_SILICONFLOW,
+      OPT_TRANS_ALIYUNBAILIAN,
+      OPT_TRANS_QWENMT,
+      OPT_TRANS_MODELSCOPE,
+      OPT_TRANS_OPENROUTER,
+      OPT_TRANS_DEEPL,
+      OPT_TRANS_AZUREAI,
+      OPT_TRANS_GOOGLE_CLOUD,
+      OPT_TRANS_CEREBRAS,
+      OPT_TRANS_ZAI,
+      OPT_TRANS_XIAOMIMIMO,
+      OPT_TRANS_OPENCODEGO,
+      OPT_TRANS_EPHONEAI,
+      OPT_TRANS_APIMART,
+      OPT_TRANS_ORCAROUTER,
+      OPT_TRANS_REQUESTY,
+      OPT_TRANS_CLOUDFLAREAI,
+      OPT_TRANS_YANDEX,
+    ];
+
+    for (const provider of expectedKeyedProviders) {
+      expect(API_KEY_URLS[provider]).toBeDefined();
+      expect(API_KEY_URLS[provider]).toMatch(/^https:\/\//);
+    }
+
+    expect(API_KEY_URLS[OPT_TRANS_OPENAI]).toBe(
+      "https://platform.openai.com/api-keys"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_DEEPSEEK]).toBe(
+      "https://platform.deepseek.com/api_keys"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_CLAUDE]).toBe(
+      "https://console.anthropic.com/settings/keys"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_GEMINI]).toBe(
+      "https://aistudio.google.com/app/apikey"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_SILICONFLOW]).toBe(
+      "https://cloud.siliconflow.cn/account/ak"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_ALIYUNBAILIAN]).toBe(
+      "https://bailian.console.aliyun.com/?apiKey=1#/api-key"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_OPENROUTER]).toBe(
+      "https://openrouter.ai/keys"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_DEEPL]).toBe(
+      "https://www.deepl.com/your-account/keys"
+    );
+  });
+
+  test("getApiKeyUrl resolves from string apiType, config object, or custom apiKeyUrl", () => {
+    expect(getApiKeyUrl(OPT_TRANS_OPENAI)).toBe(
+      "https://platform.openai.com/api-keys"
+    );
+    expect(getApiKeyUrl({ apiType: OPT_TRANS_DEEPSEEK })).toBe(
+      "https://platform.deepseek.com/api_keys"
+    );
+    expect(
+      getApiKeyUrl({
+        apiType: OPT_TRANS_OPENAI,
+        apiKeyUrl: "https://custom.key.url",
+      })
+    ).toBe("https://custom.key.url");
+    expect(getApiKeyUrl({ apiSlug: OPT_TRANS_CLAUDE })).toBe(
+      "https://console.anthropic.com/settings/keys"
+    );
+    expect(getApiKeyUrl(OPT_TRANS_MICROSOFT)).toBeNull();
+    expect(getApiKeyUrl(OPT_TRANS_BUILTINAI)).toBeNull();
+    expect(getApiKeyUrl(null)).toBeNull();
+  });
+
+  test("populates apiKeyUrl in defaultApiListItems for keyed engines", () => {
+    const openAi = DEFAULT_API_LIST.find(
+      (api) => api.apiType === OPT_TRANS_OPENAI
+    );
+    expect(openAi.apiKeyUrl).toBe("https://platform.openai.com/api-keys");
+
+    const deepseek = DEFAULT_API_LIST.find(
+      (api) => api.apiType === OPT_TRANS_DEEPSEEK
+    );
+    expect(deepseek.apiKeyUrl).toBe("https://platform.deepseek.com/api_keys");
+
+    const microsoft = DEFAULT_API_LIST.find(
+      (api) => api.apiType === OPT_TRANS_MICROSOFT
+    );
+    expect(microsoft.apiKeyUrl).toBe("");
   });
 });
