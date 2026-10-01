@@ -93,8 +93,36 @@ export const DEFAULT_INPUT_RULE = {
   triggerCount: 1, // 快捷键连续敲击次数
   triggerTime: 200, // 敲击时间间隔 (毫秒)
   transSign: OPT_INPUT_TRANS_SIGNS[0], // 默认以斜杠（"/"）结尾时触发翻译
-  showDot: OPT_INPUT_DOT_MOBILE, // 图标指示器显示策略
+  showDot: OPT_INPUT_DOT_ALWAYS, // 图标指示器：桌面和移动端都显示
 };
+
+/**
+ * 读入设置时，把仍携带旧默认（仅移动端）的圆点策略升为始终显示。
+ * 只改内存，不在读取时写回；下次用户保存才会落盘，与主题归一化相同。
+ *
+ * 能区分出来的显式选择保持原样：关闭（"-"），以及选项里重新选定的移动端
+ * （showDotChosen）。未标记的 "mobile" 与旧默认是同一个值，按旧默认升级。
+ *
+ * @param {Object} inputRule 已存储或合并后的输入框规则
+ * @returns {Object} 升级后的规则；无需改动时返回原对象
+ */
+export function migrateInputRuleShowDot(inputRule) {
+  if (!inputRule || typeof inputRule !== "object" || Array.isArray(inputRule)) {
+    return inputRule;
+  }
+
+  const showDot = inputRule.showDot;
+  if (showDot === OPT_INPUT_DOT_DISABLE || showDot === OPT_INPUT_DOT_ALWAYS) {
+    return inputRule;
+  }
+  if (showDot === OPT_INPUT_DOT_MOBILE && inputRule.showDotChosen === true) {
+    return inputRule;
+  }
+  if (showDot === OPT_INPUT_DOT_MOBILE || showDot == null || showDot === "") {
+    return { ...inputRule, showDot: OPT_INPUT_DOT_ALWAYS };
+  }
+  return inputRule;
+}
 
 // --- 划词/选区翻译配置 ---
 export const PHONIC_MAP = {
