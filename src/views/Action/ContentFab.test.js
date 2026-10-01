@@ -503,12 +503,14 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       await Promise.resolve();
     });
 
-    const modes = container
-      .querySelector('[aria-label="fab_translation_mode"]')
-      .querySelectorAll(".kt-content-fab-menu__mode");
-    expect(modes[0].getAttribute("aria-pressed")).toBe("true");
-    expect(modes[1].textContent).toBe("show_only_translations");
-    act(() => modes[1].click());
+    const modeSelect = container.querySelector(
+      ".kt-content-fab-menu__mode-select"
+    );
+    expect(modeSelect.value).toBe("bilingual");
+    act(() => {
+      modeSelect.value = "trans_only";
+      modeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_TRANS_PUTRULE,
       args: { transOnly: "true" },
@@ -620,26 +622,16 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       await Promise.resolve();
     });
 
-    const services = () =>
-      Array.from(
-        container.querySelectorAll(
-          ".kt-content-fab-menu__services .kt-content-fab-menu__mode"
-        )
-      );
+    const serviceSelect = container.querySelector(
+      ".kt-content-fab-menu__service-select"
+    );
     expect(container.querySelector("#kt-fab-service-label").textContent).toBe(
       "translate_service"
     );
-    expect(services().map((button) => button.textContent)).toEqual([
-      "Microsoft",
-      "My Proxy",
-      "DeepSeek",
-    ]);
-    expect(services()[0].getAttribute("aria-pressed")).toBe("true");
     expect(
-      services()
-        .slice(1)
-        .every((button) => button.getAttribute("aria-pressed") === "false")
-    ).toBe(true);
+      Array.from(serviceSelect.options).map((option) => option.textContent)
+    ).toEqual(["Microsoft", "My Proxy", "DeepSeek"]);
+    expect(serviceSelect.value).toBe("Microsoft");
     expect(
       container.querySelectorAll(".kt-content-fab-menu__model")
     ).toHaveLength(0);
@@ -648,7 +640,8 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(container.textContent).not.toContain("sk-claude-secret");
 
     await act(async () => {
-      services()[2].click();
+      serviceSelect.value = "DeepSeek";
+      serviceSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_TRANS_PUTRULE,
@@ -658,7 +651,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       expect.objectContaining({ action: MSG_TRANS_SET_MODEL })
     );
     expect(mockFabUpdateSetting).not.toHaveBeenCalled();
-    expect(services()[2].getAttribute("aria-pressed")).toBe("true");
+    expect(serviceSelect.value).toBe("DeepSeek");
     expect(container.querySelector(".kt-content-fab-menu")).not.toBeNull();
     expect(
       container.querySelectorAll(".kt-content-fab-menu__model")
@@ -666,19 +659,19 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
 
     processActions.mockClear();
     await act(async () => {
-      services()[2].click();
+      serviceSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(processActions).not.toHaveBeenCalled();
 
     await act(async () => {
-      services()[1].click();
+      serviceSelect.value = "Custom_1";
+      serviceSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_TRANS_PUTRULE,
       args: { apiSlug: "Custom_1" },
     });
-    expect(services()[1].getAttribute("aria-pressed")).toBe("true");
-    expect(services()[2].getAttribute("aria-pressed")).toBe("false");
+    expect(serviceSelect.value).toBe("Custom_1");
   });
 
   test("shows an empty service state when no enabled provider can be used", async () => {
@@ -780,12 +773,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
 
     const empty = container.querySelector(".kt-content-fab-menu__empty");
     expect(empty.textContent).toContain("missing_api_key_empty");
+    const serviceSelect = container.querySelector(
+      ".kt-content-fab-menu__service-select"
+    );
     expect(
-      Array.from(
-        container.querySelectorAll(
-          ".kt-content-fab-menu__services .kt-content-fab-menu__mode"
-        )
-      ).map((button) => button.textContent)
+      Array.from(serviceSelect.options).map((option) => option.textContent)
     ).toEqual(["OpenAI"]);
     expect(container.textContent).not.toContain("sk-openai-secret");
 
@@ -815,21 +807,17 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       await Promise.resolve();
     });
 
-    const siteButtons = () =>
-      Array.from(
-        container.querySelectorAll(
-          ".kt-content-fab-menu__sites .kt-content-fab-menu__mode"
-        )
-      );
-    expect(siteButtons().map((button) => button.textContent)).toEqual([
-      "site_trans_follow",
-      "site_trans_on",
-      "site_trans_off",
-    ]);
-    expect(siteButtons()[2].getAttribute("aria-pressed")).toBe("true");
+    const siteSelect = container.querySelector(
+      ".kt-content-fab-menu__site-select"
+    );
+    expect(
+      Array.from(siteSelect.options).map((option) => option.textContent)
+    ).toEqual(["site_trans_follow", "site_trans_on", "site_trans_off"]);
+    expect(siteSelect.value).toBe("false");
 
     await act(async () => {
-      siteButtons()[0].click();
+      siteSelect.value = "*";
+      siteSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
       pattern,
@@ -838,18 +826,19 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(processActions).not.toHaveBeenCalledWith(
       expect.objectContaining({ action: MSG_TRANS_PUTRULE })
     );
-    expect(siteButtons()[0].getAttribute("aria-pressed")).toBe("true");
+    expect(siteSelect.value).toBe("*");
     expect(container.querySelector(".kt-content-fab-menu")).not.toBeNull();
 
     sendBgMsg.mockClear();
     await act(async () => {
-      siteButtons()[2].click();
+      siteSelect.value = "false";
+      siteSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
       pattern,
       transOpen: "false",
     });
-    expect(siteButtons()[2].getAttribute("aria-pressed")).toBe("true");
+    expect(siteSelect.value).toBe("false");
   });
 
   test("follows a popup rule and writes the target language back", async () => {
@@ -920,20 +909,14 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       );
     });
 
-    const services = () =>
-      Array.from(
-        container.querySelectorAll(
-          ".kt-content-fab-menu__services .kt-content-fab-menu__mode"
-        )
-      );
-    const deepseek = services().find(
-      (button) => button.textContent === "DeepSeek"
+    const serviceSelect = container.querySelector(
+      ".kt-content-fab-menu__service-select"
     );
-    expect(deepseek.getAttribute("aria-pressed")).toBe("true");
-    const modes = container
-      .querySelector('[aria-label="fab_translation_mode"]')
-      .querySelectorAll(".kt-content-fab-menu__mode");
-    expect(modes[1].getAttribute("aria-pressed")).toBe("true");
+    expect(serviceSelect.value).toBe("DeepSeek");
+    const modeSelect = container.querySelector(
+      ".kt-content-fab-menu__mode-select"
+    );
+    expect(modeSelect.value).toBe("trans_only");
     expect(lang.value).toBe("fr");
     expect(
       container
@@ -976,16 +959,13 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       await Promise.resolve();
     });
 
-    const siteButtons = () =>
-      Array.from(
-        container.querySelectorAll(
-          ".kt-content-fab-menu__sites .kt-content-fab-menu__mode"
-        )
-      );
-    expect(siteButtons()[0].getAttribute("aria-pressed")).toBe("true");
+    const siteSelect = () =>
+      container.querySelector(".kt-content-fab-menu__site-select");
+    expect(siteSelect().value).toBe("*");
 
     await act(async () => {
-      siteButtons()[2].click();
+      siteSelect().value = "false";
+      siteSelect().dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
       pattern,
@@ -1013,7 +993,8 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       )
     );
     await act(async () => {
-      siteButtons()[0].click();
+      siteSelect().value = "*";
+      siteSelect().dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_SAVE_RULE, {
       pattern,
@@ -1390,17 +1371,18 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(heroItem).not.toBeNull();
     expect(heroItem.textContent).toBe("popup_translate_page");
 
-    const sizeButtons = container.querySelectorAll(
-      ".kt-content-fab-menu__sizes button"
+    const sizeSelect = container.querySelector(
+      ".kt-content-fab-menu__size-select"
     );
-    expect(sizeButtons).toHaveLength(3);
-    expect(sizeButtons[2].getAttribute("aria-pressed")).toBe("true");
+    expect(sizeSelect).not.toBeNull();
+    expect(sizeSelect.value).toBe("56");
 
     await act(async () => {
-      sizeButtons[0].click();
+      sizeSelect.value = "36";
+      sizeSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    expect(sizeButtons[0].getAttribute("aria-pressed")).toBe("true");
+    expect(sizeSelect.value).toBe("36");
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_FAB_TOGGLE,
       args: { fabConfig: { size: 36 } },

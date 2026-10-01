@@ -246,84 +246,127 @@ export default function FabQuickOptions({
       ? [[toLang, toLang], ...OPT_LANGS_TO]
       : OPT_LANGS_TO;
 
+  const matchedFabSize =
+    FAB_SIZE_PRESETS.find(
+      (preset) =>
+        Math.abs((currentFabSize || DEFAULT_FAB.size) - preset.size) <= 4
+    )?.size ?? FAB_SIZE_PRESETS[1].size;
+
   return (
     <div className="kt-content-fab-menu__options">
       {showSite && (
-        <div className="kt-content-fab-menu__field">
-          <span id="kt-site-trans-open-label">{i18n("site_trans_open")}</span>
-          <div
-            className="kt-content-fab-menu__sites"
-            role="group"
+        <label className="kt-content-fab-menu__row">
+          <span
+            className="kt-content-fab-menu__row-label"
+            id="kt-site-trans-open-label"
+          >
+            {i18n("site_trans_open")}
+          </span>
+          <select
+            className="kt-content-fab-menu__select kt-content-fab-menu__site-select"
             aria-labelledby="kt-site-trans-open-label"
+            aria-label={i18n("site_trans_open")}
+            value={siteTransOpen}
+            disabled={rulesLoading}
+            onChange={(event) => selectSiteTransOpen(event.target.value)}
           >
             {SITE_TRANS_OPEN_OPTIONS.map(({ value, labelKey }) => (
-              <button
-                key={value}
-                type="button"
-                className="kt-content-fab-menu__mode"
-                aria-pressed={siteTransOpen === value}
-                disabled={rulesLoading}
-                onClick={() => selectSiteTransOpen(value)}
-              >
+              <option key={value} value={value}>
                 {i18n(labelKey)}
-              </button>
+              </option>
             ))}
-          </div>
-        </div>
+          </select>
+        </label>
       )}
+
       {rule && (
-        <div
-          className="kt-content-fab-menu__modes"
-          role="group"
-          aria-label={i18n("fab_translation_mode")}
-        >
-          <button
-            type="button"
-            className="kt-content-fab-menu__mode"
-            aria-pressed={!translationOnly}
-            onClick={() => setTranslationOnly(false)}
-          >
-            {i18n("fab_bilingual")}
-          </button>
-          <button
-            type="button"
-            className="kt-content-fab-menu__mode"
-            aria-pressed={translationOnly}
-            onClick={() => setTranslationOnly(true)}
-          >
-            {i18n("show_only_translations")}
-          </button>
-        </div>
-      )}
-      {onChangeFabSize && (
-        <div className="kt-content-fab-menu__field">
-          <span id="kt-fab-size-label">{i18n("fab_size")}</span>
-          <div
-            className="kt-content-fab-menu__sizes"
-            role="group"
-            aria-labelledby="kt-fab-size-label"
-          >
-            {FAB_SIZE_PRESETS.map(({ size, labelKey }) => (
-              <button
-                key={size}
-                type="button"
-                className="kt-content-fab-menu__mode"
-                aria-pressed={
-                  Math.abs((currentFabSize || DEFAULT_FAB.size) - size) <= 4
-                }
-                onClick={() => onChangeFabSize(size)}
+        <div className="kt-content-fab-menu__service-field">
+          <label className="kt-content-fab-menu__row">
+            <span
+              className="kt-content-fab-menu__row-label"
+              id="kt-fab-service-label"
+            >
+              {i18n("translate_service")}
+            </span>
+            {configuredApis.length === 0 ? (
+              <span className="kt-content-fab-menu__row-empty">
+                {i18n("fab_no_keyed_provider")}
+              </span>
+            ) : (
+              <select
+                className="kt-content-fab-menu__select kt-content-fab-menu__service-select"
+                aria-labelledby="kt-fab-service-label"
+                aria-label={i18n("translate_service")}
+                value={rule.apiSlug || ""}
+                onChange={(event) => applyService(event.target.value)}
               >
-                {i18n(labelKey)}
-              </button>
-            ))}
-          </div>
+                {!rule.apiSlug && (
+                  <option value="">{i18n("translate_service")}</option>
+                )}
+                {configuredApis.map((api) => (
+                  <option key={api.apiSlug} value={api.apiSlug}>
+                    {api.apiName || api.apiSlug}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+          {configuredApis.length === 0 ? (
+            <ApiKeyEmptyState
+              className="kt-content-fab-menu__empty"
+              messageKey={
+                missingCurrentKey
+                  ? "missing_api_key_empty"
+                  : "fab_no_keyed_provider"
+              }
+            />
+          ) : (
+            missingCurrentKey && (
+              <ApiKeyEmptyState
+                className="kt-content-fab-menu__empty"
+                messageKey="missing_api_key_empty"
+              />
+            )
+          )}
         </div>
       )}
-      {rule && (
-        <label className="kt-content-fab-menu__field">
-          <span id="kt-fab-lang-label">{i18n("to_lang")}</span>
+
+      {rule && supportsModel && (
+        <label className="kt-content-fab-menu__row">
+          <span
+            className="kt-content-fab-menu__row-label"
+            id="kt-fab-model-label"
+          >
+            {i18n("fab_model")}
+          </span>
           <select
-            className="kt-content-fab-menu__lang"
+            className="kt-content-fab-menu__select kt-content-fab-menu__model"
+            aria-labelledby="kt-fab-model-label"
+            aria-label={i18n("fab_model")}
+            title={selectedModel}
+            value={modelOptions.includes(selectedModel) ? selectedModel : ""}
+            onChange={(event) => applyModel(event.target.value)}
+          >
+            {!selectedModel && <option value="">{i18n("fab_model")}</option>}
+            {modelOptions.map((model) => (
+              <option key={model} value={model} title={model}>
+                {model}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {rule && (
+        <label className="kt-content-fab-menu__row">
+          <span
+            className="kt-content-fab-menu__row-label"
+            id="kt-fab-lang-label"
+          >
+            {i18n("to_lang")}
+          </span>
+          <select
+            className="kt-content-fab-menu__select kt-content-fab-menu__lang"
             aria-labelledby="kt-fab-lang-label"
             aria-label={i18n("to_lang")}
             value={
@@ -340,66 +383,54 @@ export default function FabQuickOptions({
           </select>
         </label>
       )}
+
       {rule && (
-        <div className="kt-content-fab-menu__field">
-          <span id="kt-fab-service-label">{i18n("translate_service")}</span>
-          {configuredApis.length === 0 ? (
-            <ApiKeyEmptyState
-              className="kt-content-fab-menu__empty"
-              messageKey={
-                missingCurrentKey
-                  ? "missing_api_key_empty"
-                  : "fab_no_keyed_provider"
-              }
-            />
-          ) : (
-            <>
-              {missingCurrentKey && (
-                <ApiKeyEmptyState
-                  className="kt-content-fab-menu__empty"
-                  messageKey="missing_api_key_empty"
-                />
-              )}
-              <div
-                className="kt-content-fab-menu__services"
-                role="group"
-                aria-labelledby="kt-fab-service-label"
-              >
-                {configuredApis.map((api) => (
-                  <button
-                    key={api.apiSlug}
-                    type="button"
-                    className="kt-content-fab-menu__mode"
-                    aria-pressed={rule.apiSlug === api.apiSlug}
-                    onClick={() => applyService(api.apiSlug)}
-                  >
-                    {api.apiName || api.apiSlug}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-      {rule && supportsModel && (
-        <label className="kt-content-fab-menu__field">
-          <span>{i18n("fab_model")}</span>
-          <select
-            className="kt-content-fab-menu__model"
-            aria-label={i18n("fab_model")}
-            title={selectedModel}
-            value={modelOptions.includes(selectedModel) ? selectedModel : ""}
-            onChange={(event) => applyModel(event.target.value)}
+        <label className="kt-content-fab-menu__row">
+          <span
+            className="kt-content-fab-menu__row-label"
+            id="kt-fab-mode-label"
           >
-            {!selectedModel && <option value="">{i18n("fab_model")}</option>}
-            {modelOptions.map((model) => (
-              <option key={model} value={model} title={model}>
-                {model}
+            {i18n("fab_translation_mode")}
+          </span>
+          <select
+            className="kt-content-fab-menu__select kt-content-fab-menu__mode-select"
+            aria-labelledby="kt-fab-mode-label"
+            aria-label={i18n("fab_translation_mode")}
+            value={translationOnly ? "trans_only" : "bilingual"}
+            onChange={(event) =>
+              setTranslationOnly(event.target.value === "trans_only")
+            }
+          >
+            <option value="bilingual">{i18n("fab_bilingual")}</option>
+            <option value="trans_only">{i18n("show_only_translations")}</option>
+          </select>
+        </label>
+      )}
+
+      {onChangeFabSize && (
+        <label className="kt-content-fab-menu__row">
+          <span
+            className="kt-content-fab-menu__row-label"
+            id="kt-fab-size-label"
+          >
+            {i18n("fab_size")}
+          </span>
+          <select
+            className="kt-content-fab-menu__select kt-content-fab-menu__size-select"
+            aria-labelledby="kt-fab-size-label"
+            aria-label={i18n("fab_size")}
+            value={matchedFabSize}
+            onChange={(event) => onChangeFabSize(Number(event.target.value))}
+          >
+            {FAB_SIZE_PRESETS.map(({ size, labelKey }) => (
+              <option key={size} value={size}>
+                {i18n(labelKey)}
               </option>
             ))}
           </select>
         </label>
       )}
+
       {onHideOnSite && (
         <div className="kt-content-fab-menu__field kt-content-fab-menu__field--hide-fab">
           <button
