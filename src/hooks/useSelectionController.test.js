@@ -480,7 +480,7 @@ describe("useSelectionController", () => {
     });
     await dispatchWindowMouseup();
 
-    expect(controller.state.position).toEqual({ x: 268, y: 188 });
+    expect(controller.state.position).toEqual({ x: 256, y: 176 });
 
     act(() => {
       controller.root.unmount();
@@ -532,7 +532,7 @@ describe("useSelectionController", () => {
     currentSelection = makeSelection("library", pageParagraph);
     await dispatchWindowMouseup(200, { clientX: 318, clientY: 238 });
 
-    expect(controller.state.position).toEqual({ x: 268, y: 188 });
+    expect(controller.state.position).toEqual({ x: 256, y: 176 });
 
     act(() => {
       controller.root.unmount();
@@ -562,7 +562,7 @@ describe("useSelectionController", () => {
       height: 20,
     });
     await dispatchWindowMouseup();
-    expect(controller.state.position).toEqual({ x: 268, y: 188 });
+    expect(controller.state.position).toEqual({ x: 256, y: 176 });
 
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -576,7 +576,7 @@ describe("useSelectionController", () => {
     });
     act(() => window.dispatchEvent(new Event("resize")));
 
-    expect(controller.state.position).toEqual({ x: 148, y: 98 });
+    expect(controller.state.position).toEqual({ x: 136, y: 86 });
 
     act(() => {
       controller.root.unmount();
