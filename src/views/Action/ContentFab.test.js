@@ -210,7 +210,6 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(menuItems().map((item) => item.textContent)).toEqual([
       "popup_translate_page",
       "text_style_alt",
-      "selection_translate",
       "open_menu",
       "open_setting",
       "touch_paragraph",
@@ -240,8 +239,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   test.each([
     [0, MSG_TRANS_TOGGLE],
     [1, MSG_TRANS_TOGGLE_STYLE],
-    [2, MSG_OPEN_TRANBOX],
-    [3, MSG_POPUP_TOGGLE],
+    [2, MSG_POPUP_TOGGLE],
   ])("menu item %i dispatches its action and closes", (index, action) => {
     render();
     clickFab();
@@ -281,58 +279,6 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     }
   );
 
-  test("disables selection translation while its runtime is disabled", () => {
-    selectionEnabled = false;
-    render();
-    clickFab();
-
-    expect(menuItems()[2].getAttribute("aria-disabled")).toBe("true");
-    act(() => menuItems()[2].click());
-    expect(processActions).not.toHaveBeenCalled();
-    expect(menuItems()).toHaveLength(6);
-
-    pressMenuKey("ArrowDown");
-    expect(focusRoot.activeElement).toBe(menuItems()[1]);
-    pressMenuKey("ArrowDown");
-    expect(focusRoot.activeElement).toBe(menuItems()[3]);
-  });
-
-  test("updates an open menu when the current tab changes selection availability", () => {
-    selectionEnabled = false;
-    render();
-    clickFab();
-
-    for (const enabled of [true, true, false, true]) {
-      act(() => {
-        selectionEnabled = enabled;
-        document.dispatchEvent(
-          new CustomEvent(EVENT_KISS_INNER, {
-            detail: { action: MSG_TRANSBOX_TOGGLE },
-          })
-        );
-      });
-      expect(menuItems()[2].getAttribute("aria-disabled")).toBe(
-        enabled ? null : "true"
-      );
-    }
-
-    act(() => menuItems()[2].click());
-    expect(processActions).toHaveBeenCalledWith({ action: MSG_OPEN_TRANBOX });
-  });
-
-  test("removes the selection availability listener when unmounted", () => {
-    const addListener = jest.spyOn(document, "addEventListener");
-    const removeListener = jest.spyOn(document, "removeEventListener");
-    render();
-    const listener = addListener.mock.calls.find(
-      ([type]) => type === EVENT_KISS_INNER
-    )[1];
-
-    act(() => root.render(null));
-
-    expect(removeListener).toHaveBeenCalledWith(EVENT_KISS_INNER, listener);
-  });
-
   test("moves focus with arrow keys, wraps, and supports Home and End", () => {
     render();
     clickFab();
@@ -344,11 +290,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     pressMenuKey("ArrowUp");
     expect(focusRoot.activeElement).toBe(menuItems()[1]);
     expect(pressMenuKey("End").defaultPrevented).toBe(true);
-    expect(focusRoot.activeElement).toBe(menuItems()[5]);
+    expect(focusRoot.activeElement).toBe(menuItems()[4]);
     pressMenuKey("ArrowDown");
     expect(focusRoot.activeElement).toBe(menuItems()[0]);
     pressMenuKey("ArrowUp");
-    expect(focusRoot.activeElement).toBe(menuItems()[5]);
+    expect(focusRoot.activeElement).toBe(menuItems()[4]);
     expect(pressMenuKey("Home").defaultPrevented).toBe(true);
     expect(focusRoot.activeElement).toBe(menuItems()[0]);
     expect(processActions).not.toHaveBeenCalled();
@@ -359,11 +305,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     clickFab();
 
     expect(pressMenuKey("o").defaultPrevented).toBe(true);
-    expect(focusRoot.activeElement).toBe(menuItems()[3]);
-    pressMenuKey("o");
-    expect(focusRoot.activeElement).toBe(menuItems()[4]);
+    expect(focusRoot.activeElement).toBe(menuItems()[2]);
     pressMenuKey("o");
     expect(focusRoot.activeElement).toBe(menuItems()[3]);
+    pressMenuKey("o");
+    expect(focusRoot.activeElement).toBe(menuItems()[2]);
   });
 
   test("matches typed prefixes after the first character", () => {
@@ -374,7 +320,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       pressMenuKey(key);
     }
 
-    expect(focusRoot.activeElement).toBe(menuItems()[4]);
+    expect(focusRoot.activeElement).toBe(menuItems()[3]);
     expect(processActions).not.toHaveBeenCalled();
   });
 
@@ -384,7 +330,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     render();
     clickFab();
     pressMenuKey("o");
-    expect(focusRoot.activeElement).toBe(menuItems()[3]);
+    expect(focusRoot.activeElement).toBe(menuItems()[2]);
 
     pressMenuKey("Escape");
     clickFab();
@@ -397,7 +343,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     render();
     clickFab();
 
-    act(() => menuItems()[4].click());
+    act(() => menuItems()[3].click());
 
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS);
     expect(processActions).not.toHaveBeenCalled();
@@ -445,7 +391,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(draggableProps.expanded).toBe(true);
 
     act(() => draggableProps.onStart());
-    expect(menuItems()).toHaveLength(6);
+    expect(menuItems()).toHaveLength(5);
     act(() => draggableProps.onMove());
 
     expect(menuItems()).toHaveLength(0);
@@ -457,7 +403,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
 
     act(() => draggableProps.onStart());
     clickFab();
-    expect(menuItems()).toHaveLength(6);
+    expect(menuItems()).toHaveLength(5);
     expect(draggableProps.expanded).toBe(true);
   });
 
@@ -1068,7 +1014,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   test("entering video fullscreen closes an open menu", () => {
     render();
     clickFab();
-    expect(menuItems()).toHaveLength(6);
+    expect(menuItems()).toHaveLength(5);
 
     mockIsVideoFullscreen = true;
     act(() =>

@@ -46,6 +46,8 @@ import {
   STOKEY_FAB,
   STOKEY_RULES,
   DEFAULT_RULES,
+  DEFAULT_TRANBOX_SETTING,
+  MSG_TRANSBOX_TOGGLE,
 } from "../../config";
 import { getPresetModels } from "../../config/presetModels";
 import { fetchModelCatalog } from "../../libs/modelList";
@@ -876,6 +878,49 @@ export default function PopupCont({
     ]
   );
 
+  const [localSelectionTranslateOpen, setLocalSelectionTranslateOpen] =
+    useState(null);
+  const activeTranboxSetting =
+    contextSetting?.tranboxSetting ||
+    setting?.tranboxSetting ||
+    DEFAULT_TRANBOX_SETTING;
+  const selectionTranslateOpen =
+    localSelectionTranslateOpen ?? (activeTranboxSetting?.transOpen !== false);
+
+  const handleToggleSelectionTranslate = useCallback(
+    async (enabled) => {
+      setLocalSelectionTranslateOpen(enabled);
+      try {
+        if (canTranslatePage) {
+          const args = { enabled };
+          if (processActions) {
+            await processActions({ action: MSG_TRANSBOX_TOGGLE, args });
+          } else {
+            await sendPageMessage(MSG_TRANSBOX_TOGGLE, args);
+          }
+        }
+        await updateSetting((previous) => ({
+          ...previous,
+          tranboxSetting: {
+            ...(previous?.tranboxSetting ||
+              setting?.tranboxSetting ||
+              DEFAULT_TRANBOX_SETTING),
+            transOpen: enabled,
+          },
+        }));
+      } catch (error) {
+        kissLog("toggle selection translate error", error);
+      }
+    },
+    [
+      canTranslatePage,
+      processActions,
+      sendPageMessage,
+      setting?.tranboxSetting,
+      updateSetting,
+    ]
+  );
+
   const { data: rulesData, isLoading: rulesLoading } = useStorage(
     STOKEY_RULES,
     DEFAULT_RULES
@@ -1287,6 +1332,19 @@ export default function PopupCont({
               )}
             </Button>
           )}
+        </div>
+        <div className="kt-popup-fab-control__row">
+          <div className="kt-popup-fab-control__global">
+            <span>{i18n("selection_translate")}</span>
+            <Switch
+              size="small"
+              checked={selectionTranslateOpen}
+              onChange={(_event, checked) =>
+                void handleToggleSelectionTranslate(checked)
+              }
+              inputProps={{ "aria-label": i18n("selection_translate") }}
+            />
+          </div>
         </div>
         <div className="kt-popup-fab-control__sizes">
           <span className="kt-popup-fab-control__size-label">

@@ -267,6 +267,7 @@ export const POPUP_STYLES = String.raw`
 
 .kt-popup-fab-control { padding: 10px 2px 12px; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); }
 .kt-popup-fab-control__body { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kt-popup-fab-control__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .kt-popup-fab-control__global { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--kt-on); }
 .kt-popup-fab-control__site-btn.MuiButton-root { min-height: 28px; padding: 3px 10px; font-size: 11px; font-weight: 600; border-radius: var(--kt-radius-chip, 14px); text-transform: none; }
 .kt-popup-fab-control__sizes { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
