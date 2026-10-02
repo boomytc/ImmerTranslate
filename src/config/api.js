@@ -1854,7 +1854,6 @@ const defaultApiOpts = {
 const DEFAULT_ENABLED_API_TYPES = new Set([
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_BUILTINAI,
 ]);
 
 export const DEFAULT_API_NAME_GOOGLE = "Google";

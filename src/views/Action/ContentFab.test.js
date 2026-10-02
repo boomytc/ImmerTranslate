@@ -17,6 +17,7 @@ import {
   MSG_TRANSBOX_TOGGLE,
   OPT_STYLE_LINE,
   OPT_STYLE_NONE,
+  DEFAULT_API_LIST,
 } from "../../config";
 import * as storageStateModule from "../../libs/storageState";
 import { fetchModelCatalog } from "../../libs/modelList";
@@ -1445,5 +1446,11 @@ describe("configuredByokApis", () => {
     ]);
 
     expect(list.map((api) => api.apiSlug)).toEqual(["BuiltinAI"]);
+  });
+
+  test("excludes BuiltinAI from DEFAULT_API_LIST by default, returning only Google and Microsoft", () => {
+    const list = configuredByokApis(DEFAULT_API_LIST);
+    expect(list.map((api) => api.apiSlug)).toEqual(["Google", "Microsoft"]);
+    expect(list.some((api) => api.apiSlug === "BuiltinAI")).toBe(false);
   });
 });
