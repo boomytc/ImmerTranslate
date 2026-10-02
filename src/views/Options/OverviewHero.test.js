@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import OverviewHero from "./OverviewHero";
+import { DEFAULT_API_LIST } from "../../config";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -160,6 +161,20 @@ describe("OverviewHero", () => {
     expect(container.textContent).not.toContain("DeepSeek");
     expect(container.textContent).not.toContain("Google");
     expect(container.textContent).not.toContain("Microsoft");
+
+    act(() => root.unmount());
+  });
+
+  test("resolves default active service and excludes BuiltinAI when using DEFAULT_API_LIST", () => {
+    mockTransApis = DEFAULT_API_LIST;
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    act(() => root.render(<OverviewHero />));
+
+    expect(container.textContent).toContain("Microsoft");
+    expect(container.textContent).not.toContain("BuiltinAI");
+    expect(container.textContent).not.toContain("fab_no_keyed_provider");
 
     act(() => root.unmount());
   });
