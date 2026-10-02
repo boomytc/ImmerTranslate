@@ -63,3 +63,85 @@ describe("configuredByokApis default behavior", () => {
     ).toBeUndefined();
   });
 });
+
+describe("configuredByokApis BuiltinAI environment check", () => {
+  const originalLanguageDetector = globalThis.LanguageDetector;
+  const originalTranslator = globalThis.Translator;
+
+  afterEach(() => {
+    globalThis.LanguageDetector = originalLanguageDetector;
+    globalThis.Translator = originalTranslator;
+  });
+
+  test("filters out BuiltinAI when host environment does not support it even if enabled", () => {
+    delete globalThis.LanguageDetector;
+    delete globalThis.Translator;
+
+    const list = configuredByokApis([
+      {
+        apiSlug: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        key: "",
+        isDisabled: false,
+        sortOrder: 0,
+      },
+      {
+        apiSlug: "Microsoft",
+        apiType: OPT_TRANS_MICROSOFT,
+        key: "",
+        isDisabled: false,
+        sortOrder: 1,
+      },
+    ]);
+
+    expect(list.map((api) => api.apiSlug)).toEqual(["Microsoft"]);
+  });
+
+  test("includes BuiltinAI when host environment supports it and it is enabled", () => {
+    globalThis.LanguageDetector = {};
+    globalThis.Translator = { availability: () => Promise.resolve("readily") };
+
+    const list = configuredByokApis([
+      {
+        apiSlug: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        key: "",
+        isDisabled: false,
+        sortOrder: 0,
+      },
+      {
+        apiSlug: "Microsoft",
+        apiType: OPT_TRANS_MICROSOFT,
+        key: "",
+        isDisabled: false,
+        sortOrder: 1,
+      },
+    ]);
+
+    expect(list.map((api) => api.apiSlug)).toEqual(["BuiltinAI", "Microsoft"]);
+  });
+
+  test("excludes BuiltinAI when disabled even if host environment supports it", () => {
+    globalThis.LanguageDetector = {};
+    globalThis.Translator = { availability: () => Promise.resolve("readily") };
+
+    const list = configuredByokApis([
+      {
+        apiSlug: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        key: "",
+        isDisabled: true,
+        sortOrder: 0,
+      },
+      {
+        apiSlug: "Microsoft",
+        apiType: OPT_TRANS_MICROSOFT,
+        key: "",
+        isDisabled: false,
+        sortOrder: 1,
+      },
+    ]);
+
+    expect(list.map((api) => api.apiSlug)).toEqual(["Microsoft"]);
+  });
+});

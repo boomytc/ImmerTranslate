@@ -169,4 +169,124 @@ describe("testApiConnection", () => {
       message: "test_connection_unparseable",
     });
   });
+
+  describe("BuiltinAI connection test", () => {
+    const originalTranslator = globalThis.Translator;
+
+    afterEach(() => {
+      globalThis.Translator = originalTranslator;
+    });
+
+    test("returns unavailable when Translator is missing from environment", async () => {
+      delete globalThis.Translator;
+
+      const result = await testApiConnection({ apiType: "BuiltinAI" });
+      expect(result).toEqual({
+        ok: false,
+        kind: "builtin",
+        availability: "unavailable",
+        message: "builtin_ai_status_unavailable",
+      });
+    });
+
+    test("returns readily when Translator.availability resolves to readily", async () => {
+      const mockAvailability = jest.fn().mockResolvedValue("readily");
+      globalThis.Translator = { availability: mockAvailability };
+
+      const result = await testApiConnection({ apiType: "BuiltinAI" });
+      expect(mockAvailability).toHaveBeenCalledWith({
+        sourceLanguage: "en",
+        targetLanguage: "zh",
+      });
+      expect(result).toEqual({
+        ok: true,
+        kind: "builtin",
+        availability: "readily",
+        message: "builtin_ai_status_readily",
+      });
+    });
+
+    test("returns after-download when Translator.availability resolves to after-download", async () => {
+      const mockAvailability = jest.fn().mockResolvedValue("after-download");
+      globalThis.Translator = { availability: mockAvailability };
+
+      const result = await testApiConnection({ apiType: "BuiltinAI" });
+      expect(mockAvailability).toHaveBeenCalledWith({
+        sourceLanguage: "en",
+        targetLanguage: "zh",
+      });
+      expect(result).toEqual({
+        ok: true,
+        kind: "builtin",
+        availability: "after-download",
+        message: "builtin_ai_status_after_download",
+      });
+    });
+
+    test("returns unavailable when Translator.availability resolves to unavailable", async () => {
+      const mockAvailability = jest.fn().mockResolvedValue("unavailable");
+      globalThis.Translator = { availability: mockAvailability };
+
+      const result = await testApiConnection({ apiType: "BuiltinAI" });
+      expect(result).toEqual({
+        ok: false,
+        kind: "builtin",
+        availability: "unavailable",
+        message: "builtin_ai_status_unavailable",
+      });
+    });
+
+    test("returns readily when Translator.availability resolves to available (WICG standard)", async () => {
+      const mockAvailability = jest.fn().mockResolvedValue("available");
+      globalThis.Translator = { availability: mockAvailability };
+
+      const result = await testApiConnection({ apiSlug: "BuiltinAI" });
+      expect(result).toEqual({
+        ok: true,
+        kind: "builtin",
+        availability: "readily",
+        message: "builtin_ai_status_readily",
+      });
+    });
+
+    test("returns after-download when Translator.availability resolves to downloadable or downloading (WICG standard)", async () => {
+      globalThis.Translator = {
+        availability: jest.fn().mockResolvedValue("downloadable"),
+      };
+
+      const result1 = await testApiConnection({ apiType: "BuiltinAI" });
+      expect(result1).toEqual({
+        ok: true,
+        kind: "builtin",
+        availability: "after-download",
+        message: "builtin_ai_status_after_download",
+      });
+
+      globalThis.Translator = {
+        availability: jest.fn().mockResolvedValue("downloading"),
+      };
+
+      const result2 = await testApiConnection({ apiType: "BuiltinAI" });
+      expect(result2).toEqual({
+        ok: true,
+        kind: "builtin",
+        availability: "after-download",
+        message: "builtin_ai_status_after_download",
+      });
+    });
+
+    test("returns unavailable when Translator.availability throws an error", async () => {
+      globalThis.Translator = {
+        availability: jest.fn().mockRejectedValue(new Error("API disabled")),
+      };
+
+      const result = await testApiConnection({ apiType: "BuiltinAI" });
+      expect(result).toEqual({
+        ok: false,
+        kind: "builtin",
+        availability: "unavailable",
+        message: "builtin_ai_status_unavailable",
+      });
+    });
+  });
 });

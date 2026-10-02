@@ -106,6 +106,7 @@ import {
   apiRequiresKey,
   apiTypeOf,
   isMissingRequiredApiKey,
+  isBuiltinAiSupported,
 } from "../../libs/apiKey";
 
 function getApiCategoryLabel(apiType, i18n) {
@@ -152,6 +153,31 @@ const apiFieldsGridSx = {
 
 function describeConnectionResult(result, i18n) {
   if (!result) return null;
+  if (result.availability) {
+    if (
+      result.availability === "readily" ||
+      result.availability === "available"
+    ) {
+      return {
+        ok: true,
+        text: i18n("builtin_ai_status_readily"),
+      };
+    }
+    if (
+      result.availability === "after-download" ||
+      result.availability === "downloadable" ||
+      result.availability === "downloading"
+    ) {
+      return {
+        ok: true,
+        text: i18n("builtin_ai_status_after_download"),
+      };
+    }
+    return {
+      ok: false,
+      text: i18n("builtin_ai_status_unavailable"),
+    };
+  }
   if (result.ok) {
     return {
       ok: true,
@@ -343,6 +369,10 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     [api, apiSlug, formData]
   );
 
+  const isBuiltin = apiTypeOf(activeFormData) === OPT_TRANS_BUILTINAI;
+  const builtinAvailable = isBuiltinAiSupported();
+  const isBuiltinUnsupported = isBuiltin && !builtinAvailable;
+
   const isModified = useMemo(() => {
     if (!api || activeFormData?.apiSlug !== apiSlug) {
       return false;
@@ -403,6 +433,12 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       }
 
       if (name === "isDisabled") {
+        const isBuiltinUnsupported =
+          apiTypeOf(baseData) === OPT_TRANS_BUILTINAI &&
+          !isBuiltinAiSupported();
+        if (isBuiltinUnsupported && !value) {
+          return prevData;
+        }
         newData.sortOrder = value ? 999 : 0;
       }
 
@@ -498,6 +534,10 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
 
   const handleSave = () => {
     const nextFormData = { ...activeFormData };
+    if (isBuiltinUnsupported) {
+      nextFormData.isDisabled = true;
+      nextFormData.sortOrder = 999;
+    }
     if (thinkingParam) {
       // Revalidate the final fields so test requests and saved settings stay aligned.
       Object.assign(
@@ -607,6 +647,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
   const requiresKey =
     apiRequiresKey(activeFormData) && apiType !== OPT_TRANS_CUSTOMIZE;
   const isKeyEmpty = !key || !String(key).trim();
+  const canTestConnection = showKeyField || isBuiltin;
   const connectionFeedback = describeConnectionResult(connectionResult, i18n);
   const connectionRequestRef = useRef(0);
 
@@ -624,6 +665,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       const listUrl = (modelListUrl || "").trim() || (url || "").trim();
       const result = await testApiConnection({
         apiType,
+        apiSlug,
         modelListUrl: listUrl,
         key,
       });
@@ -875,7 +917,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
             apiType={apiType}
             size={38}
             imageSize={22}
-            disabled={isDisabled}
+            disabled={isBuiltinUnsupported || isDisabled}
             lightSurface
           />
           <Box sx={{ minWidth: 0 }}>
@@ -896,12 +938,17 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
               <Typography color="text.secondary" sx={{ fontSize: 12 }}>
                 {apiType}
               </Typography>
-              <Box
-                component="span"
-                className="kt-api-category-badge"
-              >
+              <Box component="span" className="kt-api-category-badge">
                 {getApiCategoryLabel(apiType, i18n)}
               </Box>
+              {isBuiltin && builtinAvailable && (
+                <Box
+                  component="span"
+                  className="kt-api-builtin-ready kt-api-key-status kt-api-key-status--configured"
+                >
+                  {i18n("builtin_ai_ready")}
+                </Box>
+              )}
               {API_SPE_TYPES.sponsors.has(apiType) && (
                 <Box
                   component="span"
@@ -938,7 +985,8 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
               <Switch
                 size="small"
                 name="isDisabled"
-                checked={isDisabled}
+                checked={isBuiltinUnsupported ? true : isDisabled}
+                disabled={isBuiltinUnsupported}
                 onChange={handleChange}
               />
             }
@@ -956,13 +1004,27 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                     sortOrder: event.target.checked ? -1 : 0,
                   }));
                 }}
-                disabled={isDisabled}
+                disabled={isBuiltinUnsupported || isDisabled}
               />
             }
             label={i18n("is_pinned")}
           />
         </Stack>
       </Stack>
+      {isBuiltinUnsupported && (
+        <Alert
+          severity="warning"
+          variant="outlined"
+          className="kt-api-builtin-unsupported-alert"
+          sx={{
+            py: 0.5,
+            px: 1.5,
+            fontSize: 12,
+          }}
+        >
+          {i18n("builtin_ai_unsupported_hint")}
+        </Alert>
+      )}
       <Box>
         <TextField
           size="small"
@@ -1026,9 +1088,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                         : "kt-api-key-status--configured"
                     }`}
                   >
-                    {isKeyEmpty
-                      ? i18n("key_required")
-                      : i18n("key_configured")}
+                    {isKeyEmpty ? i18n("key_required") : i18n("key_configured")}
                   </Box>
                 )}
               </Box>
@@ -1856,7 +1916,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
             {i18n("save")}
           </Button>
           <TestButton api={activeFormData} />
-          {showKeyField && (
+          {canTestConnection && (
             <LoadingButton
               size="small"
               variant="outlined"
@@ -1905,7 +1965,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
           </MenuItem>
         </Menu>
       </Stack>
-      {showKeyField && connectionFeedback && (
+      {canTestConnection && connectionFeedback && (
         <Box
           className={`kt-test-connection ${
             connectionFeedback.ok
