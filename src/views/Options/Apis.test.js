@@ -2709,9 +2709,7 @@ describe("Apis API Key official links and visual presentation", () => {
       "https://platform.openai.com/api-keys"
     );
 
-    const helperLink = view.container.querySelector(
-      ".kt-api-key-helper-link"
-    );
+    const helperLink = view.container.querySelector(".kt-api-key-helper-link");
     expect(helperLink).not.toBeNull();
     expect(helperLink.getAttribute("href")).toBe(
       "https://platform.openai.com/api-keys"
@@ -2762,12 +2760,8 @@ describe("Apis API Key official links and visual presentation", () => {
       })
     );
 
-    expect(
-      view.container.querySelector(".kt-api-key-link-button")
-    ).toBeNull();
-    expect(
-      view.container.querySelector(".kt-api-key-empty-alert")
-    ).toBeNull();
+    expect(view.container.querySelector(".kt-api-key-link-button")).toBeNull();
+    expect(view.container.querySelector(".kt-api-key-empty-alert")).toBeNull();
     expect(view.container.querySelector('[name="key"]')).toBeNull();
 
     view.unmount();
@@ -2829,5 +2823,234 @@ describe("Apis API Key official links and visual presentation", () => {
     ).toBeNull();
 
     customView.unmount();
+  });
+});
+
+describe("Apis BuiltinAI environment detection and connection test", () => {
+  const originalLanguageDetector = globalThis.LanguageDetector;
+  const originalTranslator = globalThis.Translator;
+
+  const connectionButton = (container) =>
+    Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "test_connection"
+    );
+
+  const usableNames = (container) =>
+    Array.from(container.querySelectorAll(".kt-api-usable__item")).map(
+      (node) => node.textContent
+    );
+
+  afterEach(() => {
+    globalThis.LanguageDetector = originalLanguageDetector;
+    globalThis.Translator = originalTranslator;
+    document.body.innerHTML = "";
+    jest.clearAllMocks();
+  });
+
+  test("renders native ready badge and connection test button when BuiltinAI is supported", async () => {
+    globalThis.LanguageDetector = {};
+    globalThis.Translator = {
+      availability: jest.fn().mockResolvedValue("readily"),
+    };
+
+    const view = await renderApis(
+      createApi({
+        apiSlug: "BuiltinAI",
+        apiName: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        isDisabled: false,
+      })
+    );
+
+    const readyBadge = view.container.querySelector(".kt-api-builtin-ready");
+    expect(readyBadge).not.toBeNull();
+    expect(readyBadge.textContent).toBe("builtin_ai_ready");
+
+    const unsupportedAlert = view.container.querySelector(
+      ".kt-api-builtin-unsupported-alert"
+    );
+    expect(unsupportedAlert).toBeNull();
+
+    const testBtn = connectionButton(view.container);
+    expect(testBtn).toBeDefined();
+
+    const switchEl = view.container.querySelector('input[name="isDisabled"]');
+    expect(switchEl).not.toBeNull();
+    expect(switchEl.disabled).toBe(false);
+
+    view.unmount();
+  });
+
+  test("tests BuiltinAI connection and shows readily success feedback", async () => {
+    const mockAvailability = jest.fn().mockResolvedValue("readily");
+    globalThis.LanguageDetector = {};
+    globalThis.Translator = { availability: mockAvailability };
+
+    const view = await renderApis(
+      createApi({
+        apiSlug: "BuiltinAI",
+        apiName: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        isDisabled: false,
+      })
+    );
+
+    await act(async () => {
+      connectionButton(view.container).click();
+      await Promise.resolve();
+    });
+
+    expect(mockAvailability).toHaveBeenCalledWith({
+      sourceLanguage: "en",
+      targetLanguage: "zh",
+    });
+
+    const status = view.container.querySelector(".kt-test-connection");
+    expect(status).not.toBeNull();
+    expect(status.className).toContain("kt-test-connection--ok");
+    expect(status.textContent).toBe("builtin_ai_status_readily");
+
+    view.unmount();
+  });
+
+  test("tests BuiltinAI connection and shows after-download feedback", async () => {
+    const mockAvailability = jest.fn().mockResolvedValue("after-download");
+    globalThis.LanguageDetector = {};
+    globalThis.Translator = { availability: mockAvailability };
+
+    const view = await renderApis(
+      createApi({
+        apiSlug: "BuiltinAI",
+        apiName: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        isDisabled: false,
+      })
+    );
+
+    await act(async () => {
+      connectionButton(view.container).click();
+      await Promise.resolve();
+    });
+
+    const status = view.container.querySelector(".kt-test-connection");
+    expect(status).not.toBeNull();
+    expect(status.className).toContain("kt-test-connection--ok");
+    expect(status.textContent).toBe("builtin_ai_status_after_download");
+
+    view.unmount();
+  });
+
+  test("tests BuiltinAI connection and shows unavailable failure feedback", async () => {
+    const mockAvailability = jest.fn().mockResolvedValue("unavailable");
+    globalThis.LanguageDetector = {};
+    globalThis.Translator = { availability: mockAvailability };
+
+    const view = await renderApis(
+      createApi({
+        apiSlug: "BuiltinAI",
+        apiName: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        isDisabled: false,
+      })
+    );
+
+    await act(async () => {
+      connectionButton(view.container).click();
+      await Promise.resolve();
+    });
+
+    const status = view.container.querySelector(".kt-test-connection");
+    expect(status).not.toBeNull();
+    expect(status.className).toContain("kt-test-connection--fail");
+    expect(status.textContent).toBe("builtin_ai_status_unavailable");
+
+    view.unmount();
+  });
+
+  test("shows warning alert card, disables switch, and excludes from usable services when BuiltinAI is unsupported", async () => {
+    delete globalThis.LanguageDetector;
+    delete globalThis.Translator;
+
+    const view = await renderApis([
+      createApi({
+        apiSlug: "BuiltinAI",
+        apiName: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        key: "",
+        isDisabled: false,
+        sortOrder: 0,
+      }),
+      createApi({
+        apiSlug: "Microsoft",
+        apiName: "Microsoft",
+        apiType: OPT_TRANS_MICROSOFT,
+        key: "",
+        isDisabled: false,
+        sortOrder: 1,
+      }),
+    ]);
+
+    // Unsupported alert is displayed with hint text
+    const unsupportedAlert = view.container.querySelector(
+      ".kt-api-builtin-unsupported-alert"
+    );
+    expect(unsupportedAlert).not.toBeNull();
+    expect(unsupportedAlert.textContent).toBe("builtin_ai_unsupported_hint");
+
+    // Native ready badge is NOT rendered
+    expect(view.container.querySelector(".kt-api-builtin-ready")).toBeNull();
+
+    // Disable switch is checked (disabled state) and disabled
+    const switchEl = view.container.querySelector('input[name="isDisabled"]');
+    expect(switchEl).not.toBeNull();
+    expect(switchEl.checked).toBe(true);
+    expect(switchEl.disabled).toBe(true);
+
+    // Filtered out from usable services list
+    expect(usableNames(view.container)).toEqual(["Microsoft"]);
+
+    view.unmount();
+  });
+
+  test("tests BuiltinAI connection with WICG available and downloadable statuses", async () => {
+    globalThis.LanguageDetector = {};
+    globalThis.Translator = {
+      availability: jest.fn().mockResolvedValue("available"),
+    };
+
+    const view = await renderApis(
+      createApi({
+        apiSlug: "BuiltinAI",
+        apiName: "BuiltinAI",
+        apiType: OPT_TRANS_BUILTINAI,
+        isDisabled: false,
+      })
+    );
+
+    await act(async () => {
+      connectionButton(view.container).click();
+      await Promise.resolve();
+    });
+
+    let status = view.container.querySelector(".kt-test-connection");
+    expect(status).not.toBeNull();
+    expect(status.className).toContain("kt-test-connection--ok");
+    expect(status.textContent).toBe("builtin_ai_status_readily");
+
+    globalThis.Translator.availability = jest
+      .fn()
+      .mockResolvedValue("downloadable");
+
+    await act(async () => {
+      connectionButton(view.container).click();
+      await Promise.resolve();
+    });
+
+    status = view.container.querySelector(".kt-test-connection");
+    expect(status).not.toBeNull();
+    expect(status.className).toContain("kt-test-connection--ok");
+    expect(status.textContent).toBe("builtin_ai_status_after_download");
+
+    view.unmount();
   });
 });

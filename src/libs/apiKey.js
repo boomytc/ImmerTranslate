@@ -12,6 +12,22 @@ import {
   OPT_TRANS_YANDEXFREE,
   normalizeTransApis,
 } from "../config";
+import { isBuiltinAIAvailable } from "./browser";
+
+/**
+ * 判断当前宿主环境是否支持原生内置 AI (LanguageDetector 和 Translator)。
+ * 优先响应显式 mock 的 isBuiltinAIAvailable，并动态检测 globalThis 环境能力。
+ */
+export const isBuiltinAiSupported = () => {
+  if (typeof isBuiltinAIAvailable === "boolean" && !isBuiltinAIAvailable) {
+    return false;
+  }
+  return (
+    typeof globalThis !== "undefined" &&
+    "LanguageDetector" in globalThis &&
+    "Translator" in globalThis
+  );
+};
 
 /**
  * Engines that translate without a user-supplied API key.
@@ -57,13 +73,18 @@ export function isMissingRequiredApiKey(api) {
  * A row qualifies when it has a non-empty key, or when it does not require
  * one (keyless engines such as Microsoft, Google, and BuiltinAI).
  * Disabled rows stay out. Key-required rows with a blank key stay out.
+ * BuiltinAI requires host environment support; otherwise filtered out.
  */
-export const configuredByokApis = (transApis = []) =>
-  normalizeTransApis(transApis)
-    .filter(
-      (api) =>
-        api &&
-        !api.isDisabled &&
-        (String(api.key || "").trim() || !apiRequiresKey(api))
-    )
+export const configuredByokApis = (transApis = []) => {
+  const builtinSupported = isBuiltinAiSupported();
+  return normalizeTransApis(transApis)
+    .filter((api) => {
+      if (!api || api.isDisabled) return false;
+      const apiType = apiTypeOf(api);
+      if (apiType === OPT_TRANS_BUILTINAI && !builtinSupported) {
+        return false;
+      }
+      return Boolean(String(api.key || "").trim() || !apiRequiresKey(api));
+    })
     .sort((left, right) => (left.sortOrder || 0) - (right.sortOrder || 0));
+};
