@@ -1,4 +1,5 @@
 import {
+  DEFAULT_API_LIST,
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_DEEPL,
   OPT_TRANS_DEEPLFREE,
@@ -10,7 +11,11 @@ import {
   OPT_TRANS_OLLAMA,
   OPT_TRANS_YANDEXFREE,
 } from "../config";
-import { apiRequiresKey, isMissingRequiredApiKey } from "./apiKey";
+import {
+  apiRequiresKey,
+  configuredByokApis,
+  isMissingRequiredApiKey,
+} from "./apiKey";
 
 describe("api key requirement", () => {
   test.each([
@@ -44,4 +49,17 @@ describe("api key requirement", () => {
       ).toBe(false);
     }
   );
+});
+
+describe("configuredByokApis default behavior", () => {
+  test("retains only Google and Microsoft from DEFAULT_API_LIST and excludes BuiltinAI", () => {
+    const list = configuredByokApis(DEFAULT_API_LIST);
+    expect(list.map((api) => api.apiType)).toEqual([
+      OPT_TRANS_GOOGLE,
+      OPT_TRANS_MICROSOFT,
+    ]);
+    expect(
+      list.find((api) => api.apiType === OPT_TRANS_BUILTINAI)
+    ).toBeUndefined();
+  });
 });

@@ -59,17 +59,19 @@ test("uses Microsoft as the fallback default API", () => {
   expect(DEFAULT_API_TYPE).toBe(OPT_TRANS_MICROSOFT);
 });
 
-test("enables only the three initial translators while retaining every preset", () => {
+test("enables only the two initial translators while retaining every preset", () => {
   expect(DEFAULT_API_LIST.map((api) => api.apiType)).toEqual(
     OPT_ALL_TRANS_TYPES
   );
   expect(
     DEFAULT_API_LIST.filter((api) => !api.isDisabled).map((api) => api.apiType)
   ).toEqual([
-    OPT_TRANS_BUILTINAI,
     OPT_TRANS_GOOGLE,
     OPT_TRANS_MICROSOFT,
   ]);
+  expect(
+    DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_BUILTINAI)
+  ).toMatchObject({ isDisabled: true, sortOrder: 999 });
   expect(
     DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_OPENAI)
   ).toMatchObject({ isDisabled: true, key: "", sortOrder: 999 });

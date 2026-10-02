@@ -335,7 +335,7 @@ describe("settings storage migration", () => {
     });
   });
 
-  test("enables only the initial three services for a fresh installation", async () => {
+  test("enables only the initial two services for a fresh installation", async () => {
     const setting = await getSettingWithDefault();
 
     expect(setting.transApis).toHaveLength(DEFAULT_API_LIST.length);
@@ -344,10 +344,15 @@ describe("settings storage migration", () => {
         .filter((api) => !api.isDisabled)
         .map((api) => api.apiType)
     ).toEqual([
-      OPT_TRANS_BUILTINAI,
       OPT_TRANS_GOOGLE,
       OPT_TRANS_MICROSOFT,
     ]);
+    expect(
+      setting.transApis.find((api) => api.apiType === OPT_TRANS_BUILTINAI)
+    ).toMatchObject({
+      isDisabled: true,
+      sortOrder: 999,
+    });
   });
 
   test("migrates legacy Google2 references to Google in stored settings and rules", async () => {

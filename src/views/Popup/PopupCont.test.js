@@ -33,6 +33,7 @@ import {
   MSG_TRANS_TOGGLE,
   MSG_TOUCH_TRANSLATE_MODE_SET,
   MSG_TOUCH_TRANSLATE_STATE,
+  DEFAULT_API_LIST,
 } from "../../config";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -1999,6 +2000,28 @@ describe("missing API key empty state", () => {
         view.container.querySelectorAll(".kt-popup-service__name")
       ).map((node) => node.textContent)
     ).toEqual(["Microsoft", "Google"]);
+    view.cleanup();
+  });
+
+  test("shows only Google and Microsoft from DEFAULT_API_LIST without BuiltinAI or expand button", async () => {
+    const view = renderPopupCont({
+      rule: { apiSlug: "Microsoft", transOpen: "true" },
+      setting: {
+        transApis: DEFAULT_API_LIST,
+        shortcuts: { toggleTranslate: ["AltLeft", "KeyQ"] },
+      },
+    });
+    await flushEffects();
+
+    expect(view.container.querySelector(".kt-popup-key-empty")).toBeNull();
+    const serviceNames = Array.from(
+      view.container.querySelectorAll(".kt-popup-service__name")
+    ).map((node) => node.textContent);
+    expect(serviceNames).toEqual(["Google", "Microsoft"]);
+    expect(view.container.textContent).not.toContain("BuiltinAI");
+    expect(
+      view.container.querySelector(".kt-popup-more-service")
+    ).toBeNull();
     view.cleanup();
   });
 
