@@ -144,12 +144,14 @@ export const API_KEY_URLS = {
   [OPT_TRANS_GEMINI]: "https://aistudio.google.com/app/apikey",
   [OPT_TRANS_GEMINI_2]: "https://aistudio.google.com/app/apikey",
   [OPT_TRANS_SILICONFLOW]: "https://cloud.siliconflow.cn/account/ak",
-  [OPT_TRANS_ALIYUNBAILIAN]: "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
+  [OPT_TRANS_ALIYUNBAILIAN]:
+    "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
   [OPT_TRANS_QWENMT]: "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
   [OPT_TRANS_MODELSCOPE]: "https://modelscope.cn/my/myaccesstoken",
   [OPT_TRANS_OPENROUTER]: "https://openrouter.ai/keys",
   [OPT_TRANS_DEEPL]: "https://www.deepl.com/your-account/keys",
-  [OPT_TRANS_AZUREAI]: "https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.CognitiveServices%2Faccounts",
+  [OPT_TRANS_AZUREAI]:
+    "https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.CognitiveServices%2Faccounts",
   [OPT_TRANS_GOOGLE_CLOUD]: "https://console.cloud.google.com/apis/credentials",
   [OPT_TRANS_CEREBRAS]: "https://cloud.cerebras.ai/",
   [OPT_TRANS_ZAI]: "https://open.bigmodel.cn/usercenter/apikeys",
@@ -178,9 +180,7 @@ export const getApiKeyUrl = (apiOrType) => {
     return customUrl;
   }
   return (
-    API_KEY_URLS[apiOrType.apiType] ||
-    API_KEY_URLS[apiOrType.apiSlug] ||
-    null
+    API_KEY_URLS[apiOrType.apiType] || API_KEY_URLS[apiOrType.apiSlug] || null
   );
 };
 
@@ -1858,10 +1858,14 @@ const DEFAULT_ENABLED_API_TYPES = new Set([
 
 export const DEFAULT_API_NAME_GOOGLE = "Google";
 export const DEFAULT_API_NAME_GOOGLE_2 = "Google";
+export const DEFAULT_API_NAME_GEMINI = "Gemini";
+export const DEFAULT_API_NAME_GEMINI_2 = "Gemini (OpenAI 兼容)";
 
 const DEFAULT_API_NAMES = {
   [OPT_TRANS_GOOGLE]: DEFAULT_API_NAME_GOOGLE,
   [OPT_TRANS_GOOGLE_2]: DEFAULT_API_NAME_GOOGLE_2,
+  [OPT_TRANS_GEMINI]: DEFAULT_API_NAME_GEMINI,
+  [OPT_TRANS_GEMINI_2]: DEFAULT_API_NAME_GEMINI_2,
 };
 
 // 带 Key 的预置（含 OpenAI、Claude、DeepSeek）默认禁用，由用户在接口列表里启用后再填写。
@@ -1914,7 +1918,7 @@ export const DEFAULT_API_LIST = Object.defineProperty(
 );
 
 /**
- * 获取翻译服务的展示名称，统一 Google 和历史 Google2 服务名称为 "Google"。
+ * 获取翻译服务的展示名称，统一 Google 和历史 Google2 服务名称为 "Google"，规范 Gemini2 兼容服务展示名称。
  * @param {object} api API 配置对象
  * @returns {string} 用于 UI 展示的名称
  */
@@ -1939,6 +1943,19 @@ export function getApiDisplayName(api = {}) {
       rawName === "Google (网页整页/PA)")
   ) {
     return DEFAULT_API_NAME_GOOGLE;
+  }
+
+  const isGemini2 =
+    api.apiType === OPT_TRANS_GEMINI_2 || api.apiSlug === OPT_TRANS_GEMINI_2;
+
+  if (
+    isGemini2 &&
+    (!rawName ||
+      rawName === "Gemini2" ||
+      rawName === "Gemini (OpenAI 兼容)" ||
+      rawName === "Gemini (OpenAI-compatible)")
+  ) {
+    return DEFAULT_API_NAME_GEMINI_2;
   }
 
   return rawName;

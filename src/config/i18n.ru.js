@@ -136,6 +136,8 @@ export const RU_I18N = {
   custom_body: `Свои параметры тела запроса`,
   custom_body_help: `В формате JSON, например "top_p": 0.7`,
   gemini_interactions_custom_body_help: `Используйте поля JSON верхнего уровня Interactions API. Request Hook также получает запрос в формате Interactions.`,
+  gemini_url_help: `Официальный нативный API Google AI Studio (поддерживает протокол Interactions и generateContent)`,
+  gemini_2_url_help: `OpenAI-совместимый API Google AI Studio (/v1beta/openai/chat/completions), подходит для прокси/шлюзов`,
   min_translate_length: `Минимальная длина текста для перевода (1-100)`,
   max_translate_length: `Максимальная длина текста для перевода (100-100000)`,
   num_of_newline_characters: `Количество символов переноса строки (1-1000)`,
