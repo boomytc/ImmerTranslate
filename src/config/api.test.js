@@ -2,6 +2,7 @@ import {
   API_SPE_TYPES,
   OPT_ALL_TRANS_TYPES,
   DEFAULT_API_LIST,
+  DEFAULT_API_NAME_GEMINI_2,
   DEFAULT_API_TYPE,
   OPT_LANGS_FROM_SPEC,
   OPT_LANGS_TO_SPEC,
@@ -65,10 +66,7 @@ test("enables only the two initial translators while retaining every preset", ()
   );
   expect(
     DEFAULT_API_LIST.filter((api) => !api.isDisabled).map((api) => api.apiType)
-  ).toEqual([
-    OPT_TRANS_GOOGLE,
-    OPT_TRANS_MICROSOFT,
-  ]);
+  ).toEqual([OPT_TRANS_GOOGLE, OPT_TRANS_MICROSOFT]);
   expect(
     DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_BUILTINAI)
   ).toMatchObject({ isDisabled: true, sortOrder: 999 });
@@ -481,12 +479,13 @@ test("Gemini uses stable Interactions while the model list stays on v1beta", () 
   });
 });
 
-test("Gemini2 defaults to a model that can disable thinking", () => {
+test("Gemini2 defaults to a model that can disable thinking and uses disambiguated name", () => {
   const gemini2 = DEFAULT_API_LIST.find(
     (api) => api.apiType === OPT_TRANS_GEMINI_2
   );
 
   expect(gemini2).toMatchObject({
+    apiName: DEFAULT_API_NAME_GEMINI_2,
     model: "gemini-3.6-flash",
     thinkingMode: "disabled",
   });

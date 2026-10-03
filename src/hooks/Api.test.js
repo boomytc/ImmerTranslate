@@ -4,8 +4,12 @@ import {
   DEFAULT_API_LIST,
   DEFAULT_API_NAME_GOOGLE,
   DEFAULT_API_NAME_GOOGLE_2,
+  DEFAULT_API_NAME_GEMINI,
+  DEFAULT_API_NAME_GEMINI_2,
   OPT_TRANS_GOOGLE,
   OPT_TRANS_GOOGLE_2,
+  OPT_TRANS_GEMINI,
+  OPT_TRANS_GEMINI_2,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_OPENAI,
 } from "../config";
@@ -444,5 +448,58 @@ describe("getApiDisplayName", () => {
         apiName: "Page Translator Pro",
       })
     ).toBe("Page Translator Pro");
+  });
+
+  test("resolves unified Gemini and Gemini2 display names with disambiguation", () => {
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GEMINI,
+        apiType: OPT_TRANS_GEMINI,
+      })
+    ).toBe(DEFAULT_API_NAME_GEMINI);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GEMINI,
+        apiType: OPT_TRANS_GEMINI,
+        apiName: "Gemini",
+      })
+    ).toBe(DEFAULT_API_NAME_GEMINI);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GEMINI_2,
+        apiType: OPT_TRANS_GEMINI_2,
+      })
+    ).toBe(DEFAULT_API_NAME_GEMINI_2);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GEMINI_2,
+        apiType: OPT_TRANS_GEMINI_2,
+        apiName: "Gemini2",
+      })
+    ).toBe(DEFAULT_API_NAME_GEMINI_2);
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GEMINI_2,
+        apiType: OPT_TRANS_GEMINI_2,
+        apiName: "Gemini (OpenAI 兼容)",
+      })
+    ).toBe(DEFAULT_API_NAME_GEMINI_2);
+  });
+
+  test("preserves custom user-defined names for Gemini APIs", () => {
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GEMINI,
+        apiType: OPT_TRANS_GEMINI,
+        apiName: "My Custom Gemini",
+      })
+    ).toBe("My Custom Gemini");
+    expect(
+      getApiDisplayName({
+        apiSlug: OPT_TRANS_GEMINI_2,
+        apiType: OPT_TRANS_GEMINI_2,
+        apiName: "My OpenAI Relay",
+      })
+    ).toBe("My OpenAI Relay");
   });
 });
