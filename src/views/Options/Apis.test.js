@@ -1969,6 +1969,34 @@ describe("Apis temperature input", () => {
     ).toBeNull();
     gemini2View.unmount();
   });
+
+  test("renders protocol-specific URL helper text and disambiguated title for Gemini and Gemini2", async () => {
+    const geminiView = await renderApis(
+      createApi({
+        apiType: OPT_TRANS_GEMINI,
+        apiSlug: OPT_TRANS_GEMINI,
+        apiName: "Gemini",
+      })
+    );
+    expect(geminiView.container.textContent).toContain("gemini_url_help");
+    expect(geminiView.container.querySelector("h2")?.textContent).toBe(
+      "Gemini"
+    );
+    geminiView.unmount();
+
+    const gemini2View = await renderApis(
+      createApi({
+        apiType: OPT_TRANS_GEMINI_2,
+        apiSlug: OPT_TRANS_GEMINI_2,
+        apiName: "Gemini2",
+      })
+    );
+    expect(gemini2View.container.textContent).toContain("gemini_2_url_help");
+    expect(gemini2View.container.querySelector("h2")?.textContent).toBe(
+      "Gemini (OpenAI 兼容)"
+    );
+    gemini2View.unmount();
+  });
 });
 
 describe("Apis QwenMT fields", () => {

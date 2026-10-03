@@ -1054,7 +1054,13 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
             multiline={apiType === OPT_TRANS_DEEPLX}
             maxRows={10}
             helperText={
-              apiType === OPT_TRANS_DEEPLX ? i18n("mulkeys_help") : ""
+              apiType === OPT_TRANS_DEEPLX
+                ? i18n("mulkeys_help")
+                : apiType === OPT_TRANS_GEMINI
+                  ? i18n("gemini_url_help")
+                  : apiType === OPT_TRANS_GEMINI_2
+                    ? i18n("gemini_2_url_help")
+                    : ""
             }
           />
           <Box className="kt-api-key-field-wrap">
