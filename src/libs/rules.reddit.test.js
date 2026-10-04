@@ -1,4 +1,4 @@
-import { findMatchingRule, mergeRules } from "./rules";
+import { deriveRuleContext, findMatchingRule, mergeRules } from "./rules";
 import { BUILTIN_RULES, GLOBLA_RULE } from "../config/rules";
 import { visitTranslationTargets } from "./translationTargets";
 
@@ -79,6 +79,9 @@ describe("reddit builtin page rules", () => {
       expect(rule.ignoreSelector.startsWith("+")).toBe(true);
       expect(rule.ignoreSelector).toContain("+#left-sidebar-container");
       expect(rule.ignoreSelector).toContain("+auth-flow-link");
+      expect(rule.ignoreSelector).toContain("+.legal-links");
+      expect(rule.ignoreSelector).toContain('+[slot="post-locked-banner"]');
+      expect(rule.ignoreSelector).toContain("+shreddit-sort-dropdown");
       expect(rule.ignoreSelector).not.toMatch(/^[^+-]/);
       expect(rule.selector).toContain('[id^="post-title"]');
       expect(rule.selector).toContain('[data-testid="post-title-text"]');
@@ -136,6 +139,9 @@ describe("reddit builtin page rules", () => {
     expect(effective.ignoreSelector).toContain('[role="navigation"]');
     expect(effective.ignoreSelector).toContain("#left-sidebar-container");
     expect(effective.ignoreSelector).toContain("auth-flow-link");
+    expect(effective.ignoreSelector).toContain(".legal-links");
+    expect(effective.ignoreSelector).toContain('[slot="post-locked-banner"]');
+    expect(effective.ignoreSelector).toContain("shreddit-sort-dropdown");
     expect(effective.ignoreSelector).not.toContain("+auth-flow-link");
     expect(effective.ignoreSelector).not.toBe(rule.ignoreSelector);
     for (const piece of GLOBLA_RULE.ignoreSelector.split(",")) {
@@ -347,5 +353,262 @@ describe("reddit builtin page rules", () => {
     expect(targets.some((node) => node.closest("pre, button, nav"))).toBe(
       false
     );
+  });
+});
+
+const BLOCK_TAGS = new Set([
+  "DIV",
+  "P",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "LI",
+  "UL",
+  "OL",
+  "NAV",
+  "HEADER",
+  "FOOTER",
+  "ASIDE",
+  "SECTION",
+  "ARTICLE",
+  "MAIN",
+  "BLOCKQUOTE",
+  "PRE",
+]);
+
+// 与 2026-08 首页、2026-01 帖页存档一致：注册文案是 span/p，页脚是
+// .legal-links 里的 a，归档提示和 Sort by 也不在 button/nav/footer 里。
+const LIVE_PAGE = `
+  <header>
+    <nav>
+      <a id="login-button" class="button"><span id="login">Log In</span></a>
+      <a id="signup-button" class="button"><span id="signup">Sign Up</span></a>
+    </nav>
+  </header>
+  <div id="left-sidebar-container">
+    <p id="join-pitch">Join the most real place on the internet</p>
+    <auth-flow-sso-buttons>
+      <button id="apple">Continue with Apple</button>
+    </auth-flow-sso-buttons>
+    <div><span id="google">Continue with Google</span></div>
+    <auth-flow-link>
+      <span id="phone">Continue with Phone Number</span>
+    </auth-flow-link>
+    <auth-flow-link>
+      <span id="email">Continue with Email</span>
+    </auth-flow-link>
+  </div>
+  <shreddit-post>
+    <a id="post-title-t3_1vcc9rg" slot="title">Reddit Stock Collapses 23%</a>
+    <div id="t3_1vbwgwq-post-rtjson-content">
+      <p id="body">In college, I paid for a history paper.</p>
+      <pre id="fence"><code id="inline">const keep = 1;</code></pre>
+    </div>
+    <div slot="post-locked-banner">
+      <span id="archived">Archived post. New comments cannot be posted and votes cannot be cast.</span>
+    </div>
+    <div id="t1_abc-comment-rtjson-content" slot="comment">
+      <p id="comment">Comment body</p>
+    </div>
+    <button id="share">Share</button>
+    <button id="award">Award</button>
+  </shreddit-post>
+  <shreddit-sort-dropdown header-text="Sort by">
+    <span id="sort-by">Sort by</span>
+    <div slot="selected-item" id="sort-selected">Best</div>
+  </shreddit-sort-dropdown>
+  <div class="legal-links">
+    <ul>
+      <li><faceplate-tracker source="nav"><a id="foot-home" href="/?feed=home">Home</a></faceplate-tracker></li>
+      <li><faceplate-tracker source="nav"><a id="foot-popular" href="/r/popular/">Popular</a></faceplate-tracker></li>
+      <li><faceplate-tracker source="nav"><a id="foot-news" href="/news/">News</a></faceplate-tracker></li>
+      <li><faceplate-tracker source="nav"><a id="foot-explore" href="/explore/">Explore</a></faceplate-tracker></li>
+    </ul>
+  </div>
+  <recent-posts><h3 id="recent">List title</h3></recent-posts>
+`;
+
+const CHROME_IDS = [
+  "login",
+  "signup",
+  "join-pitch",
+  "apple",
+  "google",
+  "phone",
+  "email",
+  "archived",
+  "share",
+  "award",
+  "sort-by",
+  "sort-selected",
+  "foot-home",
+  "foot-popular",
+  "foot-news",
+  "foot-explore",
+  "fence",
+  "inline",
+];
+
+function visitWith(html, rule) {
+  document.body.innerHTML = html;
+  const targets = [];
+  visitTranslationTargets(
+    document.body,
+    {
+      autoScan: rule.autoScan,
+      selector: rule.selector,
+      ignoreSelector: rule.ignoreSelector,
+      isBlock: (node) => BLOCK_TAGS.has(node.nodeName),
+      hasText: (node) =>
+        Array.from(node.childNodes).some(
+          (child) =>
+            child.nodeType === Node.TEXT_NODE && /\S/.test(child.nodeValue)
+        ),
+      wrapperClass: "kiss-wrapper",
+    },
+    (node) => targets.push(node)
+  );
+  return targets;
+}
+
+function redditAfterSubscription(href) {
+  return deriveRuleContext(href, {
+    personalRules: [],
+    subRules: [
+      { pattern: "old.reddit.com", selector: ".usertext", autoScan: "false" },
+      {
+        pattern: "github.com",
+        selector: ".from-subscription",
+        autoScan: "false",
+      },
+    ],
+  }).effective;
+}
+
+describe("reddit rules after the v2 subscription sync", () => {
+  test.each(REDDIT_HOSTS)(
+    "uses the builtin %s rule when v2 only has old.reddit.com",
+    (host) => {
+      const effective = redditAfterSubscription(`https://${host}/r/test/`);
+      const targets = visitWith(LIVE_PAGE, effective);
+
+      expect(effective.pattern).toBe(host);
+      expect(effective.autoScan).toBe("false");
+      expect(effective.keepSelector).toContain("code");
+      expect(effective.ignoreSelector).toContain("pre");
+      expect(effective.ignoreSelector).toContain("button");
+      expect(effective.ignoreSelector).toContain("nav");
+      expect(targetIds(targets)).toEqual(
+        expect.arrayContaining([
+          "post-title-t3_1vcc9rg",
+          "body",
+          "comment",
+          "recent",
+        ])
+      );
+      expect(targetIds(targets)).not.toEqual(
+        expect.arrayContaining(CHROME_IDS)
+      );
+    }
+  );
+
+  test("global autoScan still translates the live chrome the builtin rule skips", () => {
+    const targets = visitWith(LIVE_PAGE, GLOBLA_RULE);
+    expect(targetIds(targets)).toEqual(
+      expect.arrayContaining([
+        "join-pitch",
+        "google",
+        "phone",
+        "email",
+        "archived",
+        "sort-by",
+        "foot-home",
+        "foot-popular",
+        "foot-news",
+        "foot-explore",
+        "post-title-t3_1vcc9rg",
+        "body",
+        "comment",
+      ])
+    );
+    expect(targetIds(targets)).not.toEqual(
+      expect.arrayContaining(["login", "signup", "apple", "share", "award"])
+    );
+  });
+
+  test("does not fall back when injection is off or the subscription already covers the host", () => {
+    const off = deriveRuleContext("https://www.reddit.com/", {
+      personalRules: [],
+      subRules: [],
+    });
+    expect(off.effective.pattern).toBe("*");
+    expect(off.effective.autoScan).toBe("true");
+
+    const disabled = deriveRuleContext("https://www.reddit.com/", {
+      personalRules: [],
+      subRules: [
+        {
+          pattern: "www.reddit.com",
+          selector: ".from-subscription",
+          autoScan: "true",
+        },
+      ],
+      disabledPatterns: ["www.reddit.com"],
+    });
+    expect(disabled.subscription).toBeNull();
+    expect(disabled.effective.pattern).toBe("*");
+    expect(disabled.effective.autoScan).toBe("true");
+
+    const turnedOff = deriveRuleContext("https://new.reddit.com/", {
+      personalRules: [],
+      subRules: [
+        {
+          pattern: "new.reddit.com",
+          enabled: false,
+          selector: ".from-subscription",
+          autoScan: "true",
+        },
+        { pattern: "old.reddit.com", selector: ".usertext" },
+      ],
+    });
+    expect(turnedOff.effective.pattern).toBe("*");
+    expect(turnedOff.effective.autoScan).toBe("true");
+  });
+
+  test("keeps a personal reddit rule and a subscribed github rule ahead of builtins", () => {
+    const personal = deriveRuleContext("https://www.reddit.com/r/test/", {
+      personalRules: [{ pattern: "www.reddit.com", selector: ".personal" }],
+      subRules: [{ pattern: "old.reddit.com", selector: ".usertext" }],
+    });
+    expect(personal.effective.selector).toBe(".personal");
+    expect(personal.effective.pattern).toBe("www.reddit.com");
+
+    const github = deriveRuleContext(
+      "https://github.com/boomytc/ImmerTranslate",
+      {
+        personalRules: [],
+        subRules: [
+          {
+            pattern: "github.com",
+            selector: ".from-subscription",
+            autoScan: "false",
+          },
+          { pattern: "old.reddit.com", selector: ".usertext" },
+        ],
+      }
+    );
+    expect(github.subscription.pattern).toBe("github.com");
+    expect(github.effective.selector).toBe(".from-subscription");
+    expect(github.effective.pattern).toBe("github.com");
+
+    const wiki = deriveRuleContext("https://en.wikipedia.org/wiki/Reddit", {
+      personalRules: [],
+      subRules: [{ pattern: "old.reddit.com", selector: ".usertext" }],
+    });
+    expect(wiki.effective.pattern).toBe("*");
+    expect(wiki.effective.autoScan).toBe("true");
   });
 });

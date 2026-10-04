@@ -180,12 +180,15 @@ export const DEFAULT_RULES = [GLOBLA_RULE];
 // 也不把会包住代码块的 class 前缀或整段评论容器写进来。
 // 不写 keepSelector。ignoreSelector 只用「+」追加，避免整段替换后丢掉全局 pre、button、nav。
 // 正文和评论只钉 rtjson / slot，不把整个 AppRouter 里的 h/p 都拿来译。
-// 否则左侧注册卡标题、非 button 的登录链接，以及不在 nav/footer 里的页脚导航会被一起译掉。
+// 活页面上的界面文案不是 button/nav/footer：左侧注册卡是 p 和 auth-flow-link 里的 span，
+// Continue with Google 也会落在 light DOM 的 span 上；页脚 Home/Popular/News/Explore 在
+// .legal-links 的 a 里；锁定/归档提示在 [slot="post-locked-banner"]；Sort by 在
+// shreddit-sort-dropdown。这些区域只追加忽略，不替换全局 pre/button/nav。
 const REDDIT_TEXT = `h1, h2, h3, h4, h5, h6, p, dd, blockquote`;
 const REDDIT_PAGE_RULE = {
   autoScan: `false`,
   selector: `[id^="post-title"], [data-testid="post-title-text"], [id$="-post-rtjson-content"] :is(${REDDIT_TEXT}), [id$="-comment-rtjson-content"] :is(${REDDIT_TEXT}), :is([slot="text-body"], [slot="comment"]) :is(${REDDIT_TEXT}), recent-posts h3`,
-  ignoreSelector: `+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer`,
+  ignoreSelector: `+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer, +.legal-links, +[slot="post-locked-banner"], +shreddit-sort-dropdown`,
 };
 
 const RULES_MAP = {

@@ -10,6 +10,7 @@ import {
   OPT_LANGS_TO,
   DEFAULT_RULE,
   GLOBLA_RULE,
+  BUILTIN_RULES,
   STOKEY_RULES,
   OPT_SPLIT_PARAGRAPH_ALL,
   OPT_HIGHLIGHT_WORDS_ALL,
@@ -120,6 +121,22 @@ export const findMatchingRule = (rules, href) => {
       matchesRulePattern(href, r.pattern)
   );
 };
+
+// kiss-rules v2 只有 old.reddit.com。www/new/sh 被同步覆盖后若没有回落，
+// 会一直用全局 autoScan。只回落这三台，github 等已有订阅规则保持原样。
+const BUILTIN_FALLBACK_PATTERNS = new Set([
+  "www.reddit.com",
+  "new.reddit.com",
+  "sh.reddit.com",
+]);
+
+const subscriptionCoversPage = (subRules, href) =>
+  subRules.some(
+    (rule) =>
+      rule?.pattern &&
+      rule.pattern !== GLOBAL_KEY &&
+      matchesRulePattern(href, rule.pattern)
+  );
 
 /**
  * 合并两条规则，高优先级（overrideRule）覆盖基准低优先级规则（baseRule）
@@ -250,9 +267,27 @@ export const deriveRuleContext = (
     candidate && !disabledPatterns.includes(candidate.pattern)
       ? candidate
       : null;
+  // 订阅命中（含 enabled:false 或已停用）时不回落，否则停用会失效。
+  // 订阅列表为空表示用户关闭了规则注入，此时不套内置站点规则。
+  // 未覆盖时若退回全局 autoScan，左侧注册卡、页脚 legal-links、
+  // 锁定/归档提示和 Sort by 这些不在 button/nav/footer 里的文案会被译掉。
+  const builtinCandidate =
+    !subscriptionCoversPage(subRules, href) &&
+    subRules.some((rule) => rule?.pattern && rule.pattern !== GLOBAL_KEY)
+      ? findMatchingRule(BUILTIN_RULES, href)
+      : null;
+  const matchedBuiltinRule =
+    builtinCandidate &&
+    BUILTIN_FALLBACK_PATTERNS.has(builtinCandidate.pattern) &&
+    !disabledPatterns.includes(builtinCandidate.pattern)
+      ? builtinCandidate
+      : null;
 
   // Apply global, subscribed and personal rules in increasing priority.
-  const inherited = mergeRules(globalRule, matchedSubRule);
+  const inherited = mergeRules(
+    globalRule,
+    matchedSubRule || matchedBuiltinRule
+  );
   const finalRule = mergeRules(inherited, matchedPersonalRule);
 
   return {
