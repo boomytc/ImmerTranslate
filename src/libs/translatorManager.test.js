@@ -574,6 +574,60 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(Translator).toHaveBeenCalledTimes(1);
   });
 
+  test("keeps the github.com rule when a turbo frame navigates inside the repo", () => {
+    const rule = {
+      pattern: "github.com",
+      autoScan: "false",
+      selector: "h1, p, [data-testid='issue-title-sticky']",
+      ignoreSelector: "button, p.pinned-item-desc+p",
+      transOpen: "true",
+    };
+    const manager = createManager({ rule });
+    manager.start();
+
+    document.body.innerHTML =
+      '<turbo-frame id="repo-content-turbo-frame"><article class="markdown-body"><p>Repo readme</p></article></turbo-frame>';
+    const frame = document.querySelector("turbo-frame");
+    frame.innerHTML =
+      '<h1><bdi data-testid="issue-title">Issue title</bdi></h1><bdi data-testid="issue-title-sticky">Issue title</bdi><div class="comment-body markdown-body"><p>Comment body</p></div>';
+    frame.dispatchEvent(new Event("turbo:frame-load", { bubbles: true }));
+    jest.runOnlyPendingTimers();
+
+    expect(Translator).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].rescan).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].rule).toMatchObject({
+      pattern: "github.com",
+      autoScan: "false",
+      selector: rule.selector,
+      transOpen: "true",
+    });
+  });
+
+  test("keeps github.com selectors when a turbo visit replaces the body", async () => {
+    const rule = {
+      pattern: "github.com",
+      autoScan: "false",
+      selector: "h1, .markdown-body li, p",
+      ignoreSelector: "button, p.pinned-item-desc+p",
+      transOpen: "true",
+    };
+    const manager = createManager({ rule });
+    manager.start();
+
+    replaceBody();
+    await flushMutationObserver();
+    jest.runOnlyPendingTimers();
+
+    expect(Translator).toHaveBeenCalledTimes(2);
+    expect(mockTranslatorArgs[1].rule).toMatchObject({
+      pattern: "github.com",
+      autoScan: "false",
+      selector: rule.selector,
+      ignoreSelector: rule.ignoreSelector,
+      transOpen: "true",
+    });
+  });
+
   test("starts only the transbox and message listener in transbox-only mode", () => {
     const manager = createManager({ transboxOnly: true });
     manager.start();
