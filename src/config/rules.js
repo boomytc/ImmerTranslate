@@ -178,12 +178,14 @@ export const DEFAULT_RULES = [GLOBLA_RULE];
 // 模糊匹配下写成「reddit.com」会把 old.reddit.com 和聊天子域一起命中。
 // 选择器只取 kiss-rules v1 里仍能指到帖子的稳定线索，不搬 v2 的 old.reddit「.usertext」，
 // 也不把会包住代码块的 class 前缀或整段评论容器写进来。
-// 不写 keepSelector。ignoreSelector 只用「+」追加页眉和导航地标，避免整段替换后丢掉全局 pre、button、nav。
+// 不写 keepSelector。ignoreSelector 只用「+」追加，避免整段替换后丢掉全局 pre、button、nav。
+// 正文和评论只钉 rtjson / slot，不把整个 AppRouter 里的 h/p 都拿来译。
+// 否则左侧注册卡标题、非 button 的登录链接，以及不在 nav/footer 里的页脚导航会被一起译掉。
+const REDDIT_TEXT = `h1, h2, h3, h4, h5, h6, p, dd, blockquote`;
 const REDDIT_PAGE_RULE = {
   autoScan: `false`,
-  selector: `[id^="post-title"], [data-testid="post-title-text"], :is([slot="text-body"], [slot="comment"]) :is(h1, h2, h3, h4, h5, h6, li, p, dd, blockquote), recent-posts h3, :is(#AppRouter-main-content, #overlayScrollContainer) :is(h1, h2, h3, h4, h5, h6, p, dd, blockquote)`,
-  // 「+」是补丁合并，不是整段替换。全局 pre / button / nav 会留下来。
-  ignoreSelector: `+header, +[role="navigation"], +[role="banner"]`,
+  selector: `[id^="post-title"], [data-testid="post-title-text"], [id$="-post-rtjson-content"] :is(${REDDIT_TEXT}), [id$="-comment-rtjson-content"] :is(${REDDIT_TEXT}), :is([slot="text-body"], [slot="comment"]) :is(${REDDIT_TEXT}), recent-posts h3`,
+  ignoreSelector: `+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer`,
 };
 
 const RULES_MAP = {

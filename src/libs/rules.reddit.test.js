@@ -76,16 +76,19 @@ describe("reddit builtin page rules", () => {
       const rule = redditRule(pattern);
       expect(rule.autoScan).toBe("false");
       expect(rule.keepSelector).toBeUndefined();
-      expect(rule.ignoreSelector).toBe(
-        '+header, +[role="navigation"], +[role="banner"]'
-      );
+      expect(rule.ignoreSelector.startsWith("+")).toBe(true);
+      expect(rule.ignoreSelector).toContain("+#left-sidebar-container");
+      expect(rule.ignoreSelector).toContain("+auth-flow-link");
+      expect(rule.ignoreSelector).not.toMatch(/^[^+-]/);
       expect(rule.selector).toContain('[id^="post-title"]');
       expect(rule.selector).toContain('[data-testid="post-title-text"]');
       expect(rule.selector).toContain('[slot="text-body"]');
       expect(rule.selector).toContain('[slot="comment"]');
+      expect(rule.selector).toContain("-post-rtjson-content");
+      expect(rule.selector).toContain("-comment-rtjson-content");
       expect(rule.selector).toContain("recent-posts h3");
-      expect(rule.selector).toContain("#AppRouter-main-content");
-      expect(rule.selector).toContain("#overlayScrollContainer");
+      expect(rule.selector).not.toContain("#AppRouter-main-content");
+      expect(rule.selector).not.toContain("#overlayScrollContainer");
       expect(rule.selector).not.toContain("[class^=");
       expect(rule.selector).not.toContain(">>>");
       expect(rule.selector).not.toContain(".usertext");
@@ -131,6 +134,9 @@ describe("reddit builtin page rules", () => {
     expect(effective.ignoreSelector).toContain("nav");
     expect(effective.ignoreSelector).toContain("header");
     expect(effective.ignoreSelector).toContain('[role="navigation"]');
+    expect(effective.ignoreSelector).toContain("#left-sidebar-container");
+    expect(effective.ignoreSelector).toContain("auth-flow-link");
+    expect(effective.ignoreSelector).not.toContain("+auth-flow-link");
     expect(effective.ignoreSelector).not.toBe(rule.ignoreSelector);
     for (const piece of GLOBLA_RULE.ignoreSelector.split(",")) {
       expect(effective.ignoreSelector).toContain(piece.trim());
@@ -140,7 +146,7 @@ describe("reddit builtin page rules", () => {
 
   test("translates feed titles and leaves code, buttons and navigation alone", () => {
     const { targets } = collectTargets(`
-      <div id="AppRouter-main-content">
+      <div id="main-content">
         <nav>
           <h2 id="nav-title">Home</h2>
           <a id="nav-link">Popular</a>
@@ -186,7 +192,7 @@ describe("reddit builtin page rules", () => {
       <shreddit-comment>
         <div slot="comment" id="comment-slot">
           <p id="comment">See the steps.</p>
-          <ul><li id="step">Open the thread</li></ul>
+          <ul><li><p id="step">Open the thread</p></li></ul>
           <pre id="comment-code"><code>npm start</code></pre>
         </div>
       </shreddit-comment>
@@ -218,21 +224,101 @@ describe("reddit builtin page rules", () => {
   test("translates an overlay post inside the old app shell", () => {
     const { targets } = collectTargets(`
       <div id="overlayScrollContainer">
-        <h1 id="overlay-title">Overlay title</h1>
-        <p id="overlay-body">Overlay body</p>
-        <blockquote id="overlay-quote">Quoted line</blockquote>
-        <pre id="overlay-code">code</pre>
+        <h1 id="post-title-t3_overlay">Overlay title</h1>
+        <div id="t3_overlay-post-rtjson-content">
+          <p id="overlay-body">Overlay body</p>
+          <blockquote id="overlay-quote">Quoted line</blockquote>
+          <pre id="overlay-code">code</pre>
+        </div>
+        <h2 id="shell-heading">Create Post</h2>
+        <p id="shell-copy">Join the worldwide conversation</p>
         <nav><h2 id="overlay-nav">Menu</h2></nav>
         <button id="overlay-close">Close</button>
       </div>
     `);
 
     expect(targetIds(targets)).toEqual(
-      expect.arrayContaining(["overlay-title", "overlay-body", "overlay-quote"])
+      expect.arrayContaining([
+        "post-title-t3_overlay",
+        "overlay-body",
+        "overlay-quote",
+      ])
     );
     expect(targetIds(targets)).not.toEqual(
-      expect.arrayContaining(["overlay-code", "overlay-nav", "overlay-close"])
+      expect.arrayContaining([
+        "overlay-code",
+        "overlay-nav",
+        "overlay-close",
+        "shell-heading",
+        "shell-copy",
+      ])
     );
+  });
+
+  test("leaves the signup card and footer navigation untranslated", () => {
+    const { targets } = collectTargets(`
+      <main id="main-content">
+        <h1 id="post-title-t3_pg006s">COVID denialism and policy clarifications</h1>
+        <div id="t3_pg006s-post-rtjson-content" property="schema:articleBody">
+          <p id="body">Happy Wednesday</p>
+          <pre id="fence"><code id="inline">const keep = 1;</code></pre>
+        </div>
+        <div id="t1_abc-comment-rtjson-content" slot="comment">
+          <p id="comment">Comment body</p>
+        </div>
+      </main>
+      <div id="right-sidebar-container">
+        <aside>
+          <span id="signup-title">New to Reddit?</span>
+          <p id="signup-blurb">Create your account and connect with a world of communities.</p>
+          <auth-flow-sso-buttons>
+            <button id="google">Continue with Google</button>
+          </auth-flow-sso-buttons>
+          <auth-flow-link>
+            <div><span id="email">Continue with Email</span></div>
+          </auth-flow-link>
+          <auth-flow-link>
+            <div><p id="phone">Continue with Phone Number</p></div>
+          </auth-flow-link>
+          <a id="login" class="button"><span>Log In</span></a>
+          <button id="signup">Sign Up</button>
+        </aside>
+      </div>
+      <div id="left-sidebar-container">
+        <h2 id="nav-home">Home</h2>
+        <p id="nav-popular">Popular</p>
+        <a id="nav-news">News</a>
+        <a id="nav-explore">Explore</a>
+      </div>
+      <div id="footer">
+        <h2 id="foot-home">Home</h2>
+        <p id="foot-popular">Popular</p>
+      </div>
+    `);
+
+    expect(targetIds(targets)).toEqual(
+      expect.arrayContaining(["post-title-t3_pg006s", "body", "comment"])
+    );
+    expect(targetIds(targets)).not.toEqual(
+      expect.arrayContaining([
+        "signup-title",
+        "signup-blurb",
+        "google",
+        "email",
+        "phone",
+        "login",
+        "signup",
+        "nav-home",
+        "nav-popular",
+        "nav-news",
+        "nav-explore",
+        "foot-home",
+        "foot-popular",
+        "fence",
+        "inline",
+      ])
+    );
+    expect(targets.some((node) => node.closest("pre, button"))).toBe(false);
   });
 
   test("still matches a post after the listing container is replaced", () => {
