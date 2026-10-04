@@ -183,16 +183,15 @@ export const DEFAULT_RULES = [GLOBLA_RULE];
 // 活页面上的界面文案不是 button/nav/footer：左侧注册卡是 p 和 auth-flow-link 里的 span，
 // 页脚 Home/Popular/News/Explore 在 .legal-links 的 a 里；锁定/归档提示在
 // [slot="post-locked-banner"]；Sort by 在 shreddit-sort-dropdown。
-// Continue with Google 不是 button。auth-flow-sso-buttons 把 GIS 按钮插进
-// slot="auth-flow-sso-buttons-google-*"，这个节点挂在最外层 shadow host 上，
-// 不在 auth-flow-sso-buttons / auth-flow-link / #left-sidebar-container 里面。
-// 文案在 div.nsm7Bb-HzV7m-LgbsSe[role="button"] > span.nsm7Bb-HzV7m-LgbsSe-BPrWId。
+// Continue with Google 在 GIS 子 frame（accounts.google.com/gsi/button 或 about:blank）里，
+// 不在顶层 document。顶层 ignore 的 closest() 穿不过 frame，也不要再猜 GIS 的 class。
+// 子 frame 改用外层这三台的 URL 选规则，见 redditFrame.js。
 // 这些只追加忽略，不替换全局 pre/button/nav，也不忽略所有 span。
 const REDDIT_TEXT = `h1, h2, h3, h4, h5, h6, p, dd, blockquote`;
 const REDDIT_PAGE_RULE = {
   autoScan: `false`,
   selector: `[id^="post-title"], [data-testid="post-title-text"], [id$="-post-rtjson-content"] :is(${REDDIT_TEXT}), [id$="-comment-rtjson-content"] :is(${REDDIT_TEXT}), :is([slot="text-body"], [slot="comment"]) :is(${REDDIT_TEXT}), recent-posts h3`,
-  ignoreSelector: `+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer, +.legal-links, +[slot="post-locked-banner"], +shreddit-sort-dropdown, +[slot^="auth-flow-sso-buttons-google-"], +.nsm7Bb-HzV7m-LgbsSe, +.nsm7Bb-HzV7m-LgbsSe-BPrWId`,
+  ignoreSelector: `+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer, +.legal-links, +[slot="post-locked-banner"], +shreddit-sort-dropdown`,
 };
 
 const RULES_MAP = {

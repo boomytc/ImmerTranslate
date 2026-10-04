@@ -5,6 +5,7 @@ import {
   getWordsWithDefault,
 } from "./libs/storage";
 import { isIframe } from "./libs/iframe";
+import { readRedditEmbeddingHref } from "./libs/redditFrame";
 import { genEventName } from "./libs/utils";
 import { handlePing, injectScript } from "./libs/gm";
 import { matchRule } from "./libs/rules";
@@ -297,7 +298,11 @@ export async function run(isUserscript = false) {
     }
 
     // 7. 匹配当前网页专用的规则 (三级规则合并：个人 > 订阅 > 内置全局)
-    const rule = await matchRule(href, setting);
+    // www/new/sh 的子 frame（GIS iframe、about:blank）自己的 href 匹配不到站点规则，
+    // 会退回全局 autoScan，把 frame 里的按钮文案译掉。改用外层页面 URL 选同一条规则。
+    // 顶层帖文 document 仍用自己的 href。黑名单继续看子 frame 自己的地址。
+    const ruleHref = readRedditEmbeddingHref(window, isIframe) || href;
+    const rule = await matchRule(ruleHref, setting);
     const favWords = await getFavWords(rule);
     // 保留存储里的全局配置。页面是否显示由 isFabVisible 统一计算，
     // 这里再反转 isHide 会把站点特例套用第二次。

@@ -1,6 +1,7 @@
 import { deriveRuleContext, findMatchingRule, mergeRules } from "./rules";
 import { BUILTIN_RULES, GLOBLA_RULE } from "../config/rules";
 import { visitTranslationTargets } from "./translationTargets";
+import { redditEmbeddingHref } from "./redditFrame";
 
 jest.mock("./storage", () => ({
   getRulesWithDefault: jest.fn(),
@@ -82,11 +83,9 @@ describe("reddit builtin page rules", () => {
       expect(rule.ignoreSelector).toContain("+.legal-links");
       expect(rule.ignoreSelector).toContain('+[slot="post-locked-banner"]');
       expect(rule.ignoreSelector).toContain("+shreddit-sort-dropdown");
-      expect(rule.ignoreSelector).toContain(
-        '+[slot^="auth-flow-sso-buttons-google-"]'
-      );
-      expect(rule.ignoreSelector).toContain("+.nsm7Bb-HzV7m-LgbsSe");
-      expect(rule.ignoreSelector).toContain("+.nsm7Bb-HzV7m-LgbsSe-BPrWId");
+      expect(rule.ignoreSelector).not.toContain("nsm7Bb");
+      expect(rule.ignoreSelector).not.toContain("auth-flow-sso-buttons-google");
+      expect(rule.ignoreSelector).not.toContain("span");
       expect(rule.ignoreSelector).not.toMatch(/^[^+-]/);
       expect(rule.selector).toContain('[id^="post-title"]');
       expect(rule.selector).toContain('[data-testid="post-title-text"]');
@@ -147,10 +146,10 @@ describe("reddit builtin page rules", () => {
     expect(effective.ignoreSelector).toContain(".legal-links");
     expect(effective.ignoreSelector).toContain('[slot="post-locked-banner"]');
     expect(effective.ignoreSelector).toContain("shreddit-sort-dropdown");
-    expect(effective.ignoreSelector).toContain(
-      '[slot^="auth-flow-sso-buttons-google-"]'
+    expect(effective.ignoreSelector).not.toContain("nsm7Bb");
+    expect(effective.ignoreSelector).not.toContain(
+      "auth-flow-sso-buttons-google"
     );
-    expect(effective.ignoreSelector).toContain(".nsm7Bb-HzV7m-LgbsSe");
     expect(effective.ignoreSelector).not.toContain("+shreddit-sort-dropdown");
     expect(effective.ignoreSelector).not.toContain("+auth-flow-link");
     expect(effective.ignoreSelector).not.toBe(rule.ignoreSelector);
@@ -622,27 +621,13 @@ describe("reddit rules after the v2 subscription sync", () => {
     expect(wiki.effective.autoScan).toBe("true");
   });
 
-  test("leaves the hoisted Continue with Google label in English", () => {
-    // GIS renderButton writes a div[role=button], not a <button>. Reddit appends
-    // that slot to the outermost shadow host, outside auth-flow-sso-buttons.
+  test("leaves a top-document Google label alone without a GIS class ignore", () => {
     const html = `
-      <div id="left-sidebar-container">
-        <p id="join-pitch">Join the most real place on the internet</p>
-        <auth-flow-sso-buttons>
-          <button id="apple">Continue with Apple</button>
-        </auth-flow-sso-buttons>
-        <button id="phone">Continue with Phone Number</button>
-        <button id="email">Continue with Email</button>
-      </div>
       <shreddit-app>
-        <div slot="auth-flow-sso-buttons-google-abc123">
-          <div class="S9gUrf-YoZ4jf">
-            <div role="button" class="nsm7Bb-HzV7m-LgbsSe hJDwNd-SxQuSe" id="google-widget">
-              <span class="nsm7Bb-HzV7m-LgbsSe-BPrWId" id="google-label">Continue with Google</span>
-              <span class="L6cTce" id="button-label">Continue with Google. Opens in new tab</span>
-            </div>
-          </div>
+        <div role="button" id="google-widget">
+          <span id="google-label">Continue with Google</span>
         </div>
+        <button id="apple">Continue with Apple</button>
         <a id="post-title-t3_pg006s" slot="title">COVID denialism and policy clarifications</a>
         <div id="t3_pg006s-post-rtjson-content">
           <p id="body">Happy Wednesday</p>
@@ -650,9 +635,6 @@ describe("reddit rules after the v2 subscription sync", () => {
         </div>
         <div id="t1_abc-comment-rtjson-content" slot="comment">
           <p id="comment">Comment body</p>
-          <div class="nsm7Bb-HzV7m-LgbsSe" role="button">
-            <p id="google-p">Continue with Google</p>
-          </div>
         </div>
         <recent-posts><h3 id="recent">List title</h3></recent-posts>
       </shreddit-app>
@@ -674,20 +656,191 @@ describe("reddit rules after the v2 subscription sync", () => {
       expect.arrayContaining([
         "google-widget",
         "google-label",
-        "button-label",
-        "google-p",
-        "join-pitch",
         "apple",
-        "phone",
-        "email",
         "fence",
         "inline",
       ])
     );
+  });
+});
 
-    const leaked = visitWith(html, GLOBLA_RULE);
-    expect(targetIds(leaked)).toEqual(
-      expect.arrayContaining(["google-widget", "join-pitch", "body", "comment"])
+// GIS button iframe document. The label is a span, not a <button>, and this
+// document is not the reddit post. No remembered GIS class.
+const GIS_BUTTON_FRAME = `
+  <div id="container-div">
+    <div role="button" id="google-widget">
+      <span id="google-label">Continue with Google</span>
+    </div>
+    <button id="apple">Continue with Apple</button>
+    <button id="phone">Continue with Phone Number</button>
+    <button id="email">Continue with Email</button>
+  </div>
+`;
+
+const V2_SUB_RULES = [
+  { pattern: "old.reddit.com", selector: ".usertext", autoScan: "false" },
+  { pattern: "github.com", selector: ".from-subscription", autoScan: "false" },
+];
+
+describe("reddit child frames", () => {
+  test.each([
+    [
+      "cross-origin GIS iframe",
+      {
+        isIframe: true,
+        topHref: "",
+        ancestorOrigins: [
+          "https://accounts.google.com",
+          "https://www.reddit.com",
+        ],
+        referrer: "",
+      },
+      "https://www.reddit.com",
+    ],
+    [
+      "about:blank frame",
+      {
+        isIframe: true,
+        topHref:
+          "https://www.reddit.com/r/announcements/comments/pg006s/covid_denialism_and_policy_clarifications/",
+        ancestorOrigins: ["https://www.reddit.com"],
+        referrer:
+          "https://www.reddit.com/r/announcements/comments/pg006s/covid_denialism_and_policy_clarifications/",
+      },
+      "https://www.reddit.com/r/announcements/comments/pg006s/covid_denialism_and_policy_clarifications/",
+    ],
+    [
+      "new.reddit.com referrer only",
+      {
+        isIframe: true,
+        topHref: "",
+        ancestorOrigins: [],
+        referrer: "https://new.reddit.com/r/announcements/",
+      },
+      "https://new.reddit.com/r/announcements/",
+    ],
+    [
+      "sh.reddit.com ancestor origin",
+      {
+        isIframe: true,
+        topHref: "",
+        ancestorOrigins: ["https://sh.reddit.com"],
+        referrer: "",
+      },
+      "https://sh.reddit.com",
+    ],
+  ])(
+    "does not translate Continue with Google in a %s",
+    (_name, frame, expectedHref) => {
+      expect(redditEmbeddingHref(frame)).toBe(expectedHref);
+      const effective = deriveRuleContext(expectedHref, {
+        personalRules: [],
+        subRules: V2_SUB_RULES,
+      }).effective;
+      const targets = visitWith(GIS_BUTTON_FRAME, effective);
+
+      expect(effective.pattern).toMatch(/reddit\.com$/);
+      expect(effective.autoScan).toBe("false");
+      expect(targets).toEqual([]);
+
+      const frameRule = deriveRuleContext(
+        "https://accounts.google.com/gsi/button",
+        { personalRules: [], subRules: V2_SUB_RULES }
+      ).effective;
+      expect(frameRule.autoScan).toBe("true");
+      expect(targetIds(visitWith(GIS_BUTTON_FRAME, frameRule))).toEqual(
+        expect.arrayContaining(["google-label"])
+      );
+      expect(targetIds(visitWith(GIS_BUTTON_FRAME, frameRule))).not.toEqual(
+        expect.arrayContaining(["apple", "phone", "email"])
+      );
+    }
+  );
+
+  test("keeps translating the top-document post, comment and list title", () => {
+    const effective = redditAfterSubscription(
+      "https://www.reddit.com/r/announcements/comments/pg006s/covid_denialism_and_policy_clarifications/"
     );
+    const targets = visitWith(LIVE_PAGE, effective);
+    expect(targetIds(targets)).toEqual(
+      expect.arrayContaining([
+        "post-title-t3_1vcc9rg",
+        "body",
+        "comment",
+        "recent",
+      ])
+    );
+    expect(targetIds(targets)).not.toEqual(expect.arrayContaining(CHROME_IDS));
+  });
+
+  test("does not borrow the www rule for old.reddit, chat, example or github frames", () => {
+    expect(
+      redditEmbeddingHref({
+        isIframe: true,
+        topHref: "https://old.reddit.com/r/test/comments/abc/title/",
+        ancestorOrigins: ["https://old.reddit.com"],
+        referrer: "https://old.reddit.com/r/test/",
+      })
+    ).toBe("");
+    expect(
+      redditEmbeddingHref({
+        isIframe: true,
+        topHref: "https://chat.reddit.com/",
+        ancestorOrigins: ["https://chat.reddit.com"],
+      })
+    ).toBe("");
+    expect(
+      redditEmbeddingHref({
+        isIframe: true,
+        topHref: "",
+        ancestorOrigins: ["https://example.com"],
+        referrer: "https://example.com/page?next=https://www.reddit.com/",
+      })
+    ).toBe("");
+    expect(
+      redditEmbeddingHref({
+        isIframe: true,
+        topHref: "https://github.com/boomytc/ImmerTranslate",
+        ancestorOrigins: ["https://github.com"],
+        referrer: "https://github.com/boomytc/ImmerTranslate",
+      })
+    ).toBe("");
+    expect(
+      redditEmbeddingHref({
+        isIframe: true,
+        topHref: "https://www.reddit.com.evil.example/",
+        ancestorOrigins: ["https://preview.www.reddit.com"],
+      })
+    ).toBe("");
+    expect(
+      redditEmbeddingHref({
+        isIframe: false,
+        topHref: "https://www.reddit.com/r/announcements/",
+        ancestorOrigins: ["https://www.reddit.com"],
+      })
+    ).toBe("");
+
+    const exampleFrame = deriveRuleContext(
+      "https://accounts.google.com/gsi/button",
+      {
+        personalRules: [],
+        subRules: V2_SUB_RULES,
+      }
+    ).effective;
+    expect(exampleFrame.pattern).toBe("*");
+    expect(exampleFrame.autoScan).toBe("true");
+    expect(targetIds(visitWith(GIS_BUTTON_FRAME, exampleFrame))).toContain(
+      "google-label"
+    );
+
+    const github = deriveRuleContext(
+      "https://github.com/boomytc/ImmerTranslate",
+      {
+        personalRules: [],
+        subRules: V2_SUB_RULES,
+      }
+    );
+    expect(github.subscription.pattern).toBe("github.com");
+    expect(github.effective.selector).toBe(".from-subscription");
   });
 });
