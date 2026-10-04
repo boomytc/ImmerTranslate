@@ -249,6 +249,18 @@ const RULES_MAP = {
     autoScan: `false`,
     selector: `article :is(h1, h2, h3, h4, h5, h6, li, p, dd, blockquote)`,
   },
+  // 只登记 stackoverflow.com。v1 把它和 serverfault、superuser、*.stackexchange.com、
+  // askubuntu、stackapps、mathoverflow 写在同一条。这里不搬那条多站规则，也不抄 .kiss-p。
+  // 模糊的「stackoverflow.com」还会命中 meta/pt 等子域，以及查询串里带这段字的网址。
+  // hostname: 只匹配这一台主机。
+  // keepSelector 用「+」追加 .math-container。不带 +/- 会整段替换全局 keep，
+  // 丢掉 code、cite、math、.math、a:has(code)。不写 ignoreSelector，全局 pre、button、nav 保持不变。
+  // autoScan 关掉，顶栏、nav、button 不会被扫进去。
+  "hostname:stackoverflow.com": {
+    autoScan: `false`,
+    selector: `.s-prose :is(li, p, h1, h2, h3, h4, h5, h6, dd, blockquote), [itemprop="comment"] [itemprop="text"], .question-hyperlink, .s-post-summary--content-title, .s-post-summary--content-excerpt`,
+    keepSelector: `+.math-container`,
+  },
 };
 
 // 格式化 RULES_MAP 为内置规则数组，供扩展初始化或同步逻辑使用
