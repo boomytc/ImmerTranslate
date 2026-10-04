@@ -1,5 +1,11 @@
 import { deriveRuleContext, findMatchingRule, mergeRules } from "./rules";
-import { BUILTIN_RULES, GLOBLA_RULE } from "../config/rules";
+import {
+  BUILTIN_RULES,
+  DEFAULT_IGNORE_SELECTOR,
+  DEFAULT_KEEP_SELECTOR,
+  DEFAULT_SELECTOR,
+  GLOBLA_RULE,
+} from "../config/rules";
 import { visitTranslationTargets } from "./translationTargets";
 import { redditEmbeddingHref } from "./redditFrame";
 
@@ -101,6 +107,130 @@ describe("reddit builtin page rules", () => {
       expect(rule.selector).not.toContain(".usertext");
       expect(rule.selector).not.toContain("aside");
     }
+  });
+
+  test("extends the shared selector with pinned and related title nodes only", () => {
+    const previous =
+      '[id^="post-title"], [data-testid="post-title-text"], [id$="-post-rtjson-content"] :is(h1, h2, h3, h4, h5, h6, p, dd, blockquote), [id$="-comment-rtjson-content"] :is(h1, h2, h3, h4, h5, h6, p, dd, blockquote), :is([slot="text-body"], [slot="comment"]) :is(h1, h2, h3, h4, h5, h6, p, dd, blockquote), recent-posts h3';
+    const pinnedTitle = 'community-highlight-card h2[slot="title"]';
+    const relatedTitle = "reddit-pdp-right-rail-post h3";
+    const selector = `${previous}, ${pinnedTitle}, ${relatedTitle}`;
+
+    for (const pattern of REDDIT_HOSTS) {
+      const rule = redditRule(pattern);
+      expect(rule.selector).toBe(selector);
+      expect(rule.selector.split(pinnedTitle)).toHaveLength(2);
+      expect(rule.selector.split(relatedTitle)).toHaveLength(2);
+      expect(rule.selector.split('[id^="post-title"]')).toHaveLength(2);
+      expect(
+        rule.selector.split('[data-testid="post-title-text"]')
+      ).toHaveLength(2);
+      expect(rule.selector.split("recent-posts h3")).toHaveLength(2);
+      expect(rule.autoScan).toBe("false");
+      expect(rule.keepSelector).toBeUndefined();
+      expect(rule.ignoreSelector).toBe(
+        '+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer, +.legal-links, +[slot="post-locked-banner"], +shreddit-sort-dropdown'
+      );
+      expect(rule.selector).not.toContain("aside");
+      expect(rule.selector).not.toContain(".usertext");
+      expect(rule.selector).not.toContain("[class^=");
+      expect(rule.selector).not.toContain("span:has(>h2)");
+    }
+
+    expect(DEFAULT_SELECTOR).toBe(
+      "h1, h2, h3, h4, h5, h6, li, p, dd, blockquote, figcaption, label, legend"
+    );
+    expect(DEFAULT_IGNORE_SELECTOR).toBe(
+      "button, footer, pre, mark, nav, svg, img[src*='.svg'], [class*='logo'] svg, [id*='logo'] svg, [role=\"navigation\"]"
+    );
+    expect(DEFAULT_KEEP_SELECTOR).toBe("code, cite, math, .math, a:has(code)");
+    expect(GLOBLA_RULE.selector).toBe(DEFAULT_SELECTOR);
+    expect(GLOBLA_RULE.ignoreSelector).toBe(DEFAULT_IGNORE_SELECTOR);
+    expect(GLOBLA_RULE.keepSelector).toBe(DEFAULT_KEEP_SELECTOR);
+    expect(GLOBLA_RULE.autoScan).toBe("true");
+
+    const unchanged = {
+      "en.wikipedia.org": {
+        ignoreSelector:
+          ".button, code, footer, form, mark, pre, .mwe-math-element, .mw-editsection",
+      },
+      "news.ycombinator.com": {
+        selector:
+          "p, .titleline, .commtext, .hn-item-title, .hn-comment-text, .hn-story-title",
+        keepSelector: "code, img, svg, pre, .sitebit",
+        ignoreSelector:
+          "button, code, footer, form, header, mark, nav, pre, .reply",
+        autoScan: "false",
+      },
+      "github.com": {
+        autoScan: "false",
+        ignoreSelector: "button, p.pinned-item-desc+p",
+        selector:
+          'h1, h2, h3, h4, h5, h6, .markdown-body li, p, dd, blockquote, figcaption, label, legend, .user-profile-bio>div, [data-testid="results-list"] .search-match, .Subhead-description, [class^="prc-SelectPanel-Subtitle-"], [class^="prc-ActionList-ItemLabel-"], [role="dialog"] .overflow-auto, .h4, .repos-list-description, .discussion-title, [class*="PinnedIssue-module__Link"] span, [class*="PinnedIssueCard-module__Link"] [data-component="Text"], [data-testid="issue-title-sticky"], .js-wiki-sidebar-page-container :is(.Truncate-text, .Link--primary), .markdown-body :is(th, td)',
+      },
+      "medium.com": {
+        autoScan: "false",
+        selector: "article :is(h1, h2, h3, h4, h5, h6, li, p, dd, blockquote)",
+      },
+      "hostname:stackoverflow.com": {
+        autoScan: "false",
+        keepSelector: "+.math-container",
+        selector:
+          '.s-prose :is(li, p, h1, h2, h3, h4, h5, h6, dd, blockquote), [itemprop="comment"] [itemprop="text"], .question-hyperlink, .s-post-summary--content-title, .s-post-summary--content-excerpt',
+      },
+    };
+    for (const [pattern, fields] of Object.entries(unchanged)) {
+      const rule = BUILTIN_RULES.find((item) => item.pattern === pattern);
+      for (const [key, value] of Object.entries(fields)) {
+        expect(rule[key]).toBe(value);
+      }
+    }
+
+    const { targets } = collectTargets(`
+      <community-highlight-carousel>
+        <h3 id="highlights-heading" slot="title">Highlights</h3>
+        <community-highlight-card id="highlight_card_t3_pin">
+          <h2 id="pinned-title" slot="title">Pinned announcement</h2>
+          <span id="pinned-label" slot="label">Announcement</span>
+          <span id="pinned-votes" slot="upvotes-and-comments">0 votes</span>
+        </community-highlight-card>
+      </community-highlight-carousel>
+      <a id="post-title-t3_feed" slot="title">Feed title</a>
+      <span id="card-title" data-testid="post-title-text">Card title</span>
+      <div id="t3_feed-post-rtjson-content">
+        <p id="body">Post body</p>
+      </div>
+      <recent-posts><h3 id="recent">Recent title</h3></recent-posts>
+      <aside aria-label="Related Posts Section">
+        <h1 id="related-heading">More posts you may like</h1>
+        <reddit-pdp-right-rail-post>
+          <h3 id="related-title">Related post title</h3>
+          <div id="related-votes">158 upvotes</div>
+        </reddit-pdp-right-rail-post>
+        <p id="signup-blurb">Create your account and connect with a world of communities.</p>
+      </aside>
+    `);
+
+    expect(targetIds(targets)).toEqual(
+      expect.arrayContaining([
+        "pinned-title",
+        "related-title",
+        "post-title-t3_feed",
+        "card-title",
+        "body",
+        "recent",
+      ])
+    );
+    expect(targetIds(targets)).not.toEqual(
+      expect.arrayContaining([
+        "highlights-heading",
+        "pinned-label",
+        "pinned-votes",
+        "related-heading",
+        "related-votes",
+        "signup-blurb",
+      ])
+    );
   });
 
   test("matches each public host and does not claim old.reddit.com", () => {
