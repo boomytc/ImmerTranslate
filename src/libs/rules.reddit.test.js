@@ -82,6 +82,11 @@ describe("reddit builtin page rules", () => {
       expect(rule.ignoreSelector).toContain("+.legal-links");
       expect(rule.ignoreSelector).toContain('+[slot="post-locked-banner"]');
       expect(rule.ignoreSelector).toContain("+shreddit-sort-dropdown");
+      expect(rule.ignoreSelector).toContain(
+        '+[slot^="auth-flow-sso-buttons-google-"]'
+      );
+      expect(rule.ignoreSelector).toContain("+.nsm7Bb-HzV7m-LgbsSe");
+      expect(rule.ignoreSelector).toContain("+.nsm7Bb-HzV7m-LgbsSe-BPrWId");
       expect(rule.ignoreSelector).not.toMatch(/^[^+-]/);
       expect(rule.selector).toContain('[id^="post-title"]');
       expect(rule.selector).toContain('[data-testid="post-title-text"]');
@@ -142,6 +147,11 @@ describe("reddit builtin page rules", () => {
     expect(effective.ignoreSelector).toContain(".legal-links");
     expect(effective.ignoreSelector).toContain('[slot="post-locked-banner"]');
     expect(effective.ignoreSelector).toContain("shreddit-sort-dropdown");
+    expect(effective.ignoreSelector).toContain(
+      '[slot^="auth-flow-sso-buttons-google-"]'
+    );
+    expect(effective.ignoreSelector).toContain(".nsm7Bb-HzV7m-LgbsSe");
+    expect(effective.ignoreSelector).not.toContain("+shreddit-sort-dropdown");
     expect(effective.ignoreSelector).not.toContain("+auth-flow-link");
     expect(effective.ignoreSelector).not.toBe(rule.ignoreSelector);
     for (const piece of GLOBLA_RULE.ignoreSelector.split(",")) {
@@ -610,5 +620,74 @@ describe("reddit rules after the v2 subscription sync", () => {
     });
     expect(wiki.effective.pattern).toBe("*");
     expect(wiki.effective.autoScan).toBe("true");
+  });
+
+  test("leaves the hoisted Continue with Google label in English", () => {
+    // GIS renderButton writes a div[role=button], not a <button>. Reddit appends
+    // that slot to the outermost shadow host, outside auth-flow-sso-buttons.
+    const html = `
+      <div id="left-sidebar-container">
+        <p id="join-pitch">Join the most real place on the internet</p>
+        <auth-flow-sso-buttons>
+          <button id="apple">Continue with Apple</button>
+        </auth-flow-sso-buttons>
+        <button id="phone">Continue with Phone Number</button>
+        <button id="email">Continue with Email</button>
+      </div>
+      <shreddit-app>
+        <div slot="auth-flow-sso-buttons-google-abc123">
+          <div class="S9gUrf-YoZ4jf">
+            <div role="button" class="nsm7Bb-HzV7m-LgbsSe hJDwNd-SxQuSe" id="google-widget">
+              <span class="nsm7Bb-HzV7m-LgbsSe-BPrWId" id="google-label">Continue with Google</span>
+              <span class="L6cTce" id="button-label">Continue with Google. Opens in new tab</span>
+            </div>
+          </div>
+        </div>
+        <a id="post-title-t3_pg006s" slot="title">COVID denialism and policy clarifications</a>
+        <div id="t3_pg006s-post-rtjson-content">
+          <p id="body">Happy Wednesday</p>
+          <pre id="fence"><code id="inline">const keep = 1;</code></pre>
+        </div>
+        <div id="t1_abc-comment-rtjson-content" slot="comment">
+          <p id="comment">Comment body</p>
+          <div class="nsm7Bb-HzV7m-LgbsSe" role="button">
+            <p id="google-p">Continue with Google</p>
+          </div>
+        </div>
+        <recent-posts><h3 id="recent">List title</h3></recent-posts>
+      </shreddit-app>
+    `;
+    const effective = redditAfterSubscription(
+      "https://www.reddit.com/r/announcements/comments/pg006s/covid_denialism_and_policy_clarifications/"
+    );
+    const targets = visitWith(html, effective);
+
+    expect(targetIds(targets)).toEqual(
+      expect.arrayContaining([
+        "post-title-t3_pg006s",
+        "body",
+        "comment",
+        "recent",
+      ])
+    );
+    expect(targetIds(targets)).not.toEqual(
+      expect.arrayContaining([
+        "google-widget",
+        "google-label",
+        "button-label",
+        "google-p",
+        "join-pitch",
+        "apple",
+        "phone",
+        "email",
+        "fence",
+        "inline",
+      ])
+    );
+
+    const leaked = visitWith(html, GLOBLA_RULE);
+    expect(targetIds(leaked)).toEqual(
+      expect.arrayContaining(["google-widget", "join-pitch", "body", "comment"])
+    );
   });
 });
