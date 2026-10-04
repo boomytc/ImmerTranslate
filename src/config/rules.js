@@ -190,7 +190,7 @@ export const DEFAULT_RULES = [GLOBLA_RULE];
 const REDDIT_TEXT = `h1, h2, h3, h4, h5, h6, p, dd, blockquote`;
 const REDDIT_PAGE_RULE = {
   autoScan: `false`,
-  selector: `[id^="post-title"], [data-testid="post-title-text"], [id$="-post-rtjson-content"] :is(${REDDIT_TEXT}), [id$="-comment-rtjson-content"] :is(${REDDIT_TEXT}), :is([slot="text-body"], [slot="comment"]) :is(${REDDIT_TEXT}), recent-posts h3`,
+  selector: `[id^="post-title"], [data-testid="post-title-text"], [id$="-post-rtjson-content"] :is(${REDDIT_TEXT}), [id$="-comment-rtjson-content"] :is(${REDDIT_TEXT}), :is([slot="text-body"], [slot="comment"]) :is(${REDDIT_TEXT}), recent-posts h3, community-highlight-card h2[slot="title"], reddit-pdp-right-rail-post h3`,
   ignoreSelector: `+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer, +.legal-links, +[slot="post-locked-banner"], +shreddit-sort-dropdown`,
 };
 
