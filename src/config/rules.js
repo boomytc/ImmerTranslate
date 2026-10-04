@@ -239,6 +239,16 @@ const RULES_MAP = {
   "www.reddit.com": { ...REDDIT_PAGE_RULE },
   "new.reddit.com": { ...REDDIT_PAGE_RULE },
   "sh.reddit.com": { ...REDDIT_PAGE_RULE },
+  // 只登记 medium.com。v1 曾把它和 npm、Chrome 文档、react.dev、pytorch 写在同一条，
+  // 选择器是 article 加上 li, p, h1–h6, dd, blockquote。v2 没有 medium.com，这里不搬那条多站规则。
+  // 不写 keepSelector，也不写不带 +/- 的 ignoreSelector，避免替换掉全局 code / pre / button / nav。
+  // 2026-10 文章页：标题是 article 里的 h1，正文是 p / h2 / h3 / li，代码块是 pre 里的 code。
+  // 顶栏和付费墙在 article 外面；付费墙不进选择器，也不去绕过。
+  // 首页、列表和文章都是 medium.com，站内换页后同一条规则继续命中新出现的 article。
+  "medium.com": {
+    autoScan: `false`,
+    selector: `article :is(h1, h2, h3, h4, h5, h6, li, p, dd, blockquote)`,
+  },
 };
 
 // 格式化 RULES_MAP 为内置规则数组，供扩展初始化或同步逻辑使用

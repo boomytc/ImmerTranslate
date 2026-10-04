@@ -122,12 +122,14 @@ export const findMatchingRule = (rules, href) => {
   );
 };
 
-// kiss-rules v2 只有 old.reddit.com。www/new/sh 被同步覆盖后若没有回落，
-// 会一直用全局 autoScan。只回落这三台，github 等已有订阅规则保持原样。
+// kiss-rules v2 只有 old.reddit.com，也没有 medium.com。
+// www/new/sh 和 medium.com 被同步覆盖后若没有回落，会一直用全局 autoScan。
+// 只回落这几台，github 等已有订阅规则保持原样。
 const BUILTIN_FALLBACK_PATTERNS = new Set([
   "www.reddit.com",
   "new.reddit.com",
   "sh.reddit.com",
+  "medium.com",
 ]);
 
 const subscriptionCoversPage = (subRules, href) =>
