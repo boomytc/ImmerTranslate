@@ -133,9 +133,9 @@ describe("medium.com builtin page rule", () => {
   });
 
   test("matches medium.com pages and does not claim custom domains", () => {
-    expect(
-      findMatchingRule(BUILTIN_RULES, "https://medium.com/").pattern
-    ).toBe("medium.com");
+    expect(findMatchingRule(BUILTIN_RULES, "https://medium.com/").pattern).toBe(
+      "medium.com"
+    );
     expect(
       findMatchingRule(BUILTIN_RULES, "https://medium.com/tag/programming")
         .pattern
@@ -244,9 +244,7 @@ describe("medium.com builtin page rule", () => {
         "paywall-copy",
       ])
     );
-    expect(
-      findMatchingRule(BUILTIN_RULES, "https://medium.com/").pattern
-    ).toBe(
+    expect(findMatchingRule(BUILTIN_RULES, "https://medium.com/").pattern).toBe(
       findMatchingRule(
         BUILTIN_RULES,
         "https://medium.com/@user/public-story-abc123def456"
@@ -308,10 +306,13 @@ describe("medium.com after the v2 subscription sync", () => {
     expect(off.effective.pattern).toBe("*");
     expect(off.effective.autoScan).toBe("true");
 
-    const github = deriveRuleContext("https://github.com/boomytc/ImmerTranslate", {
-      personalRules: [],
-      subRules: v2WithoutMedium,
-    });
+    const github = deriveRuleContext(
+      "https://github.com/boomytc/ImmerTranslate",
+      {
+        personalRules: [],
+        subRules: v2WithoutMedium,
+      }
+    );
     expect(github.effective.pattern).toBe("github.com");
     expect(github.effective.selector).toBe(".from-subscription");
 
@@ -319,7 +320,11 @@ describe("medium.com after the v2 subscription sync", () => {
       personalRules: [],
       subRules: [
         ...v2WithoutMedium,
-        { pattern: "medium.com", selector: ".from-subscription", autoScan: "false" },
+        {
+          pattern: "medium.com",
+          selector: ".from-subscription",
+          autoScan: "false",
+        },
       ],
     });
     expect(covered.effective.pattern).toBe("medium.com");
