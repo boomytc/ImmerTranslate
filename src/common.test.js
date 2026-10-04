@@ -18,6 +18,10 @@ jest.mock("./libs/iframe", () => ({
   },
 }));
 
+jest.mock("./libs/redditFrame", () => ({
+  readRedditEmbeddingHref: jest.fn(() => ""),
+}));
+
 jest.mock("./libs/gm", () => ({
   handlePing: jest.fn(),
   injectScript: jest.fn(),
@@ -64,6 +68,7 @@ const {
   runDataMigration,
 } = require("./libs/storage");
 const { matchRule } = require("./libs/rules");
+const { readRedditEmbeddingHref } = require("./libs/redditFrame");
 const { isInBlacklist } = require("./libs/blacklist");
 const { runSubtitle } = require("./subtitle/subtitle");
 const { injectInlineJs } = require("./libs/injector");
@@ -108,6 +113,7 @@ describe("common iframe startup", () => {
       "http://localhost:3000/options.html";
     delete globalThis.unsafeWindow;
     jest.clearAllMocks();
+    readRedditEmbeddingHref.mockReturnValue("");
     isInBlacklist.mockImplementation(() => false);
 
     TranslatorManager.mockImplementation(() => ({
@@ -155,9 +161,31 @@ describe("common iframe startup", () => {
     await run();
 
     expect(matchRule).toHaveBeenCalledTimes(1);
+    expect(matchRule).toHaveBeenCalledWith(
+      window.location.href,
+      expect.any(Object)
+    );
     expect(TranslatorManager).toHaveBeenCalledTimes(1);
     expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
     expect(runSubtitle).not.toHaveBeenCalled();
+  });
+
+  test("matches rules with the embedding reddit page inside a child frame", async () => {
+    mockIsIframe = true;
+    document.body.innerHTML = "<span>Continue with Google</span>";
+    const embedding =
+      "https://www.reddit.com/r/announcements/comments/pg006s/covid_denialism_and_policy_clarifications/";
+    readRedditEmbeddingHref.mockReturnValue(embedding);
+
+    await run();
+
+    expect(readRedditEmbeddingHref).toHaveBeenCalledWith(window, true);
+    expect(matchRule).toHaveBeenCalledWith(embedding, expect.any(Object));
+    expect(isInBlacklist).toHaveBeenCalledWith(
+      window.location.href,
+      expect.any(String)
+    );
+    expect(TranslatorManager).toHaveBeenCalledTimes(1);
   });
 
   test("skips empty iframe before rule matching and manager startup", async () => {

@@ -173,6 +173,27 @@ export const DEFAULT_RULES = [GLOBLA_RULE];
 
 // REVIEW: 针对特定高频复杂网页做特殊定制的内置规则映射表。
 // 这些预置规则解决了各大平台（如维基百科、黑客新闻、X/Twitter、YouTube直播、GitHub）由于动态加载、复杂的 CSS 结构、大量的干扰元素所导致的翻译错位或不完整问题。
+
+// www / new / sh.reddit.com 共用同一条页面规则，但必须分成三个 pattern。
+// 模糊匹配下写成「reddit.com」会把 old.reddit.com 和聊天子域一起命中。
+// 选择器只取 kiss-rules v1 里仍能指到帖子的稳定线索，不搬 v2 的 old.reddit「.usertext」，
+// 也不把会包住代码块的 class 前缀或整段评论容器写进来。
+// 不写 keepSelector。ignoreSelector 只用「+」追加，避免整段替换后丢掉全局 pre、button、nav。
+// 正文和评论只钉 rtjson / slot，不把整个 AppRouter 里的 h/p 都拿来译。
+// 活页面上的界面文案不是 button/nav/footer：左侧注册卡是 p 和 auth-flow-link 里的 span，
+// 页脚 Home/Popular/News/Explore 在 .legal-links 的 a 里；锁定/归档提示在
+// [slot="post-locked-banner"]；Sort by 在 shreddit-sort-dropdown。
+// Continue with Google 在 GIS 子 frame（accounts.google.com/gsi/button 或 about:blank）里，
+// 不在顶层 document。顶层 ignore 的 closest() 穿不过 frame，也不要再猜 GIS 的 class。
+// 子 frame 改用外层这三台的 URL 选规则，见 redditFrame.js。
+// 这些只追加忽略，不替换全局 pre/button/nav，也不忽略所有 span。
+const REDDIT_TEXT = `h1, h2, h3, h4, h5, h6, p, dd, blockquote`;
+const REDDIT_PAGE_RULE = {
+  autoScan: `false`,
+  selector: `[id^="post-title"], [data-testid="post-title-text"], [id$="-post-rtjson-content"] :is(${REDDIT_TEXT}), [id$="-comment-rtjson-content"] :is(${REDDIT_TEXT}), :is([slot="text-body"], [slot="comment"]) :is(${REDDIT_TEXT}), recent-posts h3`,
+  ignoreSelector: `+header, +[role="navigation"], +[role="banner"], +#left-sidebar-container, +#flex-left-nav-container, +flex-left-nav-container, +auth-flow-link, +auth-flow-sso-buttons, +#footer, +.legal-links, +[slot="post-locked-banner"], +shreddit-sort-dropdown`,
+};
+
 const RULES_MAP = {
   // "www.google.com/search": {
   //   rootsSelector: `#rcnt`,
@@ -215,6 +236,9 @@ const RULES_MAP = {
     selector: `h1, h2, h3, h4, h5, h6, .markdown-body li, p, dd, blockquote, figcaption, label, legend, .user-profile-bio>div, [data-testid="results-list"] .search-match, .Subhead-description, [class^="prc-SelectPanel-Subtitle-"], [class^="prc-ActionList-ItemLabel-"], [role="dialog"] .overflow-auto, .h4, .repos-list-description, .discussion-title, [class*="PinnedIssue-module__Link"] span, [class*="PinnedIssueCard-module__Link"] [data-component="Text"], [data-testid="issue-title-sticky"], .js-wiki-sidebar-page-container :is(.Truncate-text, .Link--primary), .markdown-body :is(th, td)`,
     ignoreSelector: `button, p.pinned-item-desc+p`,
   },
+  "www.reddit.com": { ...REDDIT_PAGE_RULE },
+  "new.reddit.com": { ...REDDIT_PAGE_RULE },
+  "sh.reddit.com": { ...REDDIT_PAGE_RULE },
 };
 
 // 格式化 RULES_MAP 为内置规则数组，供扩展初始化或同步逻辑使用
