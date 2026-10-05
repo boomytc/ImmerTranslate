@@ -75,7 +75,7 @@ function renderSyncSetting(initialSyncType) {
     ...container.querySelectorAll('.kt-sync-method[role="radio"]'),
   ];
   const radioFor = (syncType) =>
-    radios().find((radio) => radio.textContent.includes(syncType));
+    radios().find((radio) => radio.getAttribute("data-sync-type") === syncType);
 
   return {
     container,

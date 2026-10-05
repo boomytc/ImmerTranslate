@@ -2329,7 +2329,7 @@ export class Translator {
     this.#hoverOriginalTimerTarget = null;
   }
 
-  // 快捷键为空时，沿用“悬浮显示原文延迟”的时长后再展示气泡。
+  // 快捷键为空时，使用“悬浮显示原文延迟”的时长后再展示气泡。
   #scheduleOriginalHoverBubble(wrapper) {
     if (
       this.#hoverBubbleTarget === wrapper &&

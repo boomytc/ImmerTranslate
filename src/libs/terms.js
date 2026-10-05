@@ -13,9 +13,9 @@
 // - 多条术语以换行或 ; 分隔；每条形如 key,value，key 与 value 用最后一个英文逗号分隔（key 本身允许含逗号）。
 // - key 按正则源码校验（new RegExp(key)），非法则跳过并收集进 invalid 数组（每项 { key, error }）。
 // - value 允许为空（= 不翻译，替换时保留原文并包裹标记）。"省略译文"的推荐写法是整段只写
-//   key（无逗号）；尾巴逗号 key, 同样按保留原文处理（兼容上游，非致命提醒，不阻断替换测试）。
+//   key（无逗号）；尾巴逗号 key, 同样按保留原文处理（非致命提醒，不阻断替换测试）。
 // - 相同 key 只保留首次出现；按 key.length 降序排序。
-// - 匹配语义：key 一律按正则源码包装为 (key) 参与 alternation，与上游一致、无单词边界，
+// - 匹配语义：key 一律按正则源码包装为 (key) 参与 alternation，无单词边界，
 //   术语在原文任意位置（含其他字母内部，如 APIKeys/APIs/myAPI）都会命中。
 //   isWord（/^[A-Za-z0-9_]+$/ 判定）仅作诊断元数据保留，不再参与模式构建。
 // - 非法输入诊断：空源术语（,value）、非法正则、同源不同译文冲突（conflicting-mapping）与
@@ -594,7 +594,7 @@ export function parseTerms(termsString, options = {}) {
     }
 
     // 多余逗号：`key,`（逗号后没有译文）。
-    // 兼容上游行为：`key,` 视为 value="" 的保留原文合法术语（替换时保留原文并 <i> 高亮），
+    // `key,` 视为 value="" 的保留原文合法术语（替换时保留原文并 <i> 高亮），
     // 仅作非致命提醒；不 continue，继续走后续校验并正常入表。更推荐的写法是只写 key 不加尾巴逗号。
     if (hasComma && value === "") {
       diagnostics.push({
@@ -696,7 +696,7 @@ export function parseTerms(termsString, options = {}) {
     }
 
     // isWord 仅作诊断元数据（Playground/测试引用），不参与模式构建：
-    // 生产匹配与上游一致，key 一律按正则源码包装为 (key)，无单词边界。
+    // 生产匹配中，key 一律按正则源码包装为 (key)，无单词边界。
     const isWord = WORD_KEY_REGEX.test(key);
     const pattern = `(${key})`;
     const entry = { key, value, pattern, isWord };

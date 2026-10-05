@@ -333,7 +333,7 @@ export async function run(isUserscript = false) {
       trySyncAllSubRules(setting);
     }
   } catch (err) {
-    console.error("[KISS-Translator]", err);
+    console.error("[ImmerTranslate]", err);
     showErr(err.message); // 向前台页面绘制报错 Banner，便于用户感知与排查问题
   }
 }

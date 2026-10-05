@@ -498,7 +498,7 @@ function getMimeTypeFromFilename(filename) {
  * @param {string} str 文件数据字符串
  * @param {string} filename 导出的保存文件名
  */
-export function downloadBlobFile(str, filename = "kiss-file.txt") {
+export function downloadBlobFile(str, filename = "immer-file.txt") {
   const mimeType = getMimeTypeFromFilename(filename);
   const blob = new Blob([str], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -506,7 +506,7 @@ export function downloadBlobFile(str, filename = "kiss-file.txt") {
   const a = document.createElement("a");
   a.style.display = "none";
   a.href = url;
-  a.download = filename || `kiss-file.txt`;
+  a.download = filename || `immer-file.txt`;
 
   document.body.appendChild(a);
   a.click();

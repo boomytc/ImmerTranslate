@@ -176,7 +176,7 @@ export const DEFAULT_RULES = [GLOBLA_RULE];
 
 // www / new / sh.reddit.com 共用同一条页面规则，但必须分成三个 pattern。
 // 模糊匹配下写成「reddit.com」会把 old.reddit.com 和聊天子域一起命中。
-// 选择器只取 kiss-rules v1 里仍能指到帖子的稳定线索，不搬 v2 的 old.reddit「.usertext」，
+// 选择器只保留仍能指到帖子的稳定线索，不使用 old.reddit 的「.usertext」，
 // 也不把会包住代码块的 class 前缀或整段评论容器写进来。
 // 不写 keepSelector。ignoreSelector 只用「+」追加，避免整段替换后丢掉全局 pre、button、nav。
 // 正文和评论只钉 rtjson / slot，不把整个 AppRouter 里的 h/p 都拿来译。
@@ -239,8 +239,8 @@ const RULES_MAP = {
   "www.reddit.com": { ...REDDIT_PAGE_RULE },
   "new.reddit.com": { ...REDDIT_PAGE_RULE },
   "sh.reddit.com": { ...REDDIT_PAGE_RULE },
-  // 只登记 medium.com。v1 曾把它和 npm、Chrome 文档、react.dev、pytorch 写在同一条，
-  // 选择器是 article 加上 li, p, h1–h6, dd, blockquote。v2 没有 medium.com，这里不搬那条多站规则。
+  // 只登记 medium.com，不把 npm、文档站和其它站点写进同一条。
+  // 选择器覆盖 article 内的标题与正文。
   // 不写 keepSelector，也不写不带 +/- 的 ignoreSelector，避免替换掉全局 code / pre / button / nav。
   // 2026-10 文章页：标题是 article 里的 h1，正文是 p / h2 / h3 / li，代码块是 pre 里的 code。
   // 顶栏和付费墙在 article 外面；付费墙不进选择器，也不去绕过。
@@ -249,8 +249,8 @@ const RULES_MAP = {
     autoScan: `false`,
     selector: `article :is(h1, h2, h3, h4, h5, h6, li, p, dd, blockquote)`,
   },
-  // 只登记 stackoverflow.com。v1 把它和 serverfault、superuser、*.stackexchange.com、
-  // askubuntu、stackapps、mathoverflow 写在同一条。这里不搬那条多站规则，也不抄 .kiss-p。
+  // 只登记 stackoverflow.com，不把 serverfault、superuser、stackexchange 等站点写进同一条。
+  // 选择器覆盖问答正文，不使用换行包装类。
   // 模糊的「stackoverflow.com」还会命中 meta/pt 等子域，以及查询串里带这段字的网址。
   // hostname: 只匹配这一台主机。
   // keepSelector 用「+」追加 .math-container。不带 +/- 会整段替换全局 keep，

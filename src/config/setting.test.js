@@ -86,7 +86,7 @@ describe("translation box defaults", () => {
     expect(DEFAULT_SETTING).not.toHaveProperty("deletedTransApiSlugs");
   });
 
-  test("keeps public kiss-rules v2 as the default site match source", () => {
+  test("keeps the default subscription rules URL as the site match source", () => {
     const selected = DEFAULT_SUBRULES_LIST.find((item) => item.selected);
     expect(selected.url).toMatch(/kiss-rules_v2\.json$/);
     const patterns = BUILTIN_RULES.map((rule) => rule.pattern);

@@ -216,7 +216,7 @@ export async function getSubtitleEvents(capUrl, potUrl, responseText) {
   }
 
   try {
-    // REVIEW: 这里沿用原有就地修改 potUrl.searchParams 的行为。
+    // REVIEW: 这里会就地修改 potUrl.searchParams。
     // 如果 potUrl 被其他调用方共享，可能产生副作用；本次拆分不改变该行为。
     potUrl.searchParams.delete("tlang");
     potUrl.searchParams.delete("name");

@@ -114,7 +114,7 @@ async (args, req = args.req) => {
 };
 ```
 
-第二个参数 `req`（亦可通过 `args.req` 获取）是已构造好的请求。保留它的 URL、body、method 和 userMsg，只补充请求头即可沿用原有翻译协议，`Response Hook` 无需更改。请勿在每次调用时重新生成随机 ID；开始新的翻译会话时再更换它。
+第二个参数 `req`（亦可通过 `args.req` 获取）是已构造好的请求。保留它的 URL、body、method 和 userMsg，只补充请求头，翻译协议保持不变，`Response Hook` 无需更改。请勿在每次调用时重新生成随机 ID；开始新的翻译会话时再更换它。
 
 字幕请求不执行 `Request Hook`。需要为字幕手动指定 ID 时，请在“自定义请求头”中配置 JSON，例如 `{"x-opencode-session":"8fd946a1-bb92-4aa6-9766-724c9e435832"}`；内置接口会保留这个显式配置。
 

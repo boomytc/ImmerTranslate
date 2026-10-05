@@ -977,7 +977,7 @@ const THINKING_ADAPTERS = {
 
 /**
  * 把“关闭思考”解析成适配器可直接写入的模式和强度。
- * 已经归一化的 disabled + 具体关闭值（含 null）直接沿用。
+ * 已经归一化的 disabled + 具体关闭值（含 null）直接使用。
  * auto、缺省模式，以及仍是 _default 的关闭设置，按 disabled 重新解析，
  * 避免把“不发送字段”当成关闭。
  * @param {Object} options 原始思考设置。

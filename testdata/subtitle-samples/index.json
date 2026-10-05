@@ -59,7 +59,7 @@
       "id": "english-asr-long-sentences",
       "name": "英文自动字幕：规则长句",
       "language": "en",
-      "path": "kiss-subtitles-raw-mSw8xFPpn2o.json",
+      "path": "subtitles-raw-mSw8xFPpn2o.json",
       "videoUrl": "https://www.youtube.com/watch?v=mSw8xFPpn2o",
       "size": 175962,
       "sha256": "551a62dd1f8ff95270a49f6b04e22e3fc9021c73ac4a50d08123d5e4c8b93718",
