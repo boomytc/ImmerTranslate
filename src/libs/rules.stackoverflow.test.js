@@ -288,7 +288,7 @@ describe("stackoverflow.com builtin page rule", () => {
         "definition",
         "answer",
         "comment",
-        "kiss",
+        "marker",
       ])
     );
     expect(targetIds(targets)).not.toEqual(expect.arrayContaining(CHROME_IDS));
