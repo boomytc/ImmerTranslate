@@ -35,6 +35,11 @@ import {
 } from "../config";
 import { resolveApiPromptSettings } from "../config/prompt";
 import { interpreter } from "./interpreter";
+import {
+  applyRuleStartHookResult,
+  narrowApiConfig,
+  shouldRunRuleScript,
+} from "./ruleScript";
 import { clearFetchPool } from "./pool";
 import { debounce, scheduleIdle, genEventName, parseAITerms } from "./utils";
 import {
@@ -3449,10 +3454,12 @@ export class Translator {
     // A blank key must not insert a translation that looks finished.
     if (isMissingRequiredApiKey(apiSetting)) return;
     const currentRunId = this.#runId;
+    const hookRule = options.touch
+      ? { ...this.#rule, transOnly: "false", transOrder: "original-first" }
+      : this.#rule;
     const {
       transTag,
       textStyle,
-      transEndHook,
       transOnly,
       termsStyle,
       textExtStyle,
@@ -3466,9 +3473,7 @@ export class Translator {
       transOrder = "original-first",
       wrapOriginal,
       originalTextStyle,
-    } = options.touch
-      ? { ...this.#rule, transOnly: "false", transOrder: "original-first" }
-      : this.#rule;
+    } = hookRule;
     const {
       newlineLength,
       // langDetector，
@@ -3740,8 +3745,9 @@ export class Translator {
           // 由于 interpreter 是全局单例，当页面中同时有多个并发的 translateNodeGroup 任务异步执行时，
           // 同步运行的 `interpreter.run('exports.transEndHook = ...')` 会直接覆盖上一个任务尚未执行完毕的 exports.transEndHook 引用。
           // 这可能导致后一个任务的 Hook 函数被错误地执行多次，或者前一个任务执行了不匹配的、新覆盖的 Hook 函数，出现非预期的运行时状态混乱。
-          if (transEndHook?.trim()) {
+          if (shouldRunRuleScript(hookRule, "transEndHook")) {
             try {
+              const transEndHook = hookRule.transEndHook;
               interpreter.run(`exports.transEndHook = ${transEndHook}`);
               interpreter.exports.transEndHook(
                 {
@@ -4378,7 +4384,7 @@ overflow-wrap: anywhere !important;`;
     onStreamChunk = null,
     apiSettingOverride = null
   ) {
-    const { toLang, transStartHook } = this.#rule;
+    const { toLang } = this.#rule;
     const fromLang = deLang || this.#rule.fromLang;
     const rawApiSetting = { ...(apiSettingOverride || this.#apiSetting) };
 
@@ -4389,7 +4395,6 @@ overflow-wrap: anywhere !important;`;
     );
 
     const glossary = { ...this.#glossary };
-    const apisMap = this.#apisMap;
 
     const args = {
       text,
@@ -4407,16 +4412,22 @@ overflow-wrap: anywhere !important;`;
     // 由于 interpreter 是全局单例，当短时间内有多个并发的 translateFetch 触发时，
     // 同步执行的 `interpreter.run('exports.transStartHook = ...')` 会直接覆盖上一个翻译请求的 exports.transStartHook。
     // 这可能导致先前发起的、仍在执行准备阶段的请求，在调用 transStartHook 时执行成了后一个翻译源的钩子逻辑。
-    if (transStartHook?.trim()) {
+    if (shouldRunRuleScript(this.#rule, "transStartHook")) {
       try {
+        const transStartHook = this.#rule.transStartHook;
         interpreter.run(`exports.transStartHook = ${transStartHook}`);
+        // 不把 apiSetting / apisMap 交给钩子。回传的接口对象也不写回请求。
         const hookResult = interpreter.exports.transStartHook({
-          ...args,
-          apisMap,
+          text: args.text,
+          fromLang: args.fromLang,
+          toLang: args.toLang,
+          glossary: args.glossary,
+          onStreamChunk: args.onStreamChunk,
+          textFormat: args.textFormat,
+          translateVariants: args.translateVariants,
+          api: narrowApiConfig(apiSetting),
         });
-        if (hookResult) {
-          Object.assign(args, hookResult);
-        }
+        applyRuleStartHookResult(args, hookResult);
       } catch (err) {
         kissLog("transStartHook", err);
       }
@@ -5148,7 +5159,7 @@ overflow-wrap: anywhere !important;`;
       //   injectCss && injectInternalCss(injectCss);
       // }
 
-      const { injectJs, injectCss, toLang } = this.#rule;
+      const { injectCss, toLang } = this.#rule;
 
       if (isExt) {
         injectCss && sendBgMsg(MSG_INJECT_CSS, injectCss);
@@ -5156,19 +5167,17 @@ overflow-wrap: anywhere !important;`;
         injectCss && injectInternalCss(injectCss);
       }
 
-      if (injectJs?.trim()) {
-        const apiSetting = { ...this.#apiSetting };
+      if (shouldRunRuleScript(this.#rule, "injectJs")) {
+        const injectJs = this.#rule.injectJs;
         const glossary = { ...this.#glossary };
-        const apisMap = this.#apisMap;
         const apiDectect = tryDetectLang;
         interpreter.import({
           KT: {
             apiTranslate,
             apiDectect,
-            apiSetting,
-            apisMap,
             toLang,
             glossary,
+            api: narrowApiConfig(this.#apiSetting),
           },
         });
         interpreter.run(injectJs);
@@ -5365,6 +5374,9 @@ overflow-wrap: anywhere !important;`;
 
   // 更新规则
   updateRule(newRule) {
+    if (Object.prototype.hasOwnProperty.call(newRule, "scriptFieldOrigins")) {
+      this.#rule.scriptFieldOrigins = newRule.scriptFieldOrigins;
+    }
     if (newRule.textStyle && newRule.textStyle !== OPT_STYLE_NONE) {
       this.#lastActiveTextStyle = newRule.textStyle;
     }
