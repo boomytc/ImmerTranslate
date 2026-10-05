@@ -4,7 +4,7 @@
 
 ImmerTranslate is a bilingual web-page translation extension. Repository: [boomytc/ImmerTranslate](https://github.com/boomytc/ImmerTranslate). License: GPL-3.0.
 
-Lineage only (not this product's name): [fishjar/kiss-translator](https://github.com/fishjar/kiss-translator), [fishjar/kiss-rules](https://github.com/fishjar/kiss-rules).
+[Based on a GPL-3.0 open-source project](https://github.com/fishjar/kiss-translator)
 
 ## Load
 

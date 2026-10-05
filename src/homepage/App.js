@@ -30,7 +30,11 @@ import ThemeProvider from "@mui/material/styles/ThemeProvider";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { homepageContent, languageOptions } from "./content";
+import {
+  homepageContent,
+  languageOptions,
+  LICENSE_SOURCE_URL,
+} from "./content";
 import { getHomepageTheme, getHomepageTokens } from "./theme";
 import { useHomepageSettings } from "./useHomepageSettings";
 
@@ -50,13 +54,6 @@ const externalLinkProps = {
   target: "_blank",
   rel: "noopener noreferrer",
 };
-
-const introductionVideoIds = [
-  "KcU2RpGkyvM",
-  "l8lbWnyeda4",
-  "QAiz68_jCQQ",
-  "vo-XbIQ_GKg",
-];
 
 function LogoMark({ tokens }) {
   return (
@@ -435,73 +432,6 @@ function InstallMatrix({ content, tokens }) {
   );
 }
 
-function VideoShowcase({ content, tokens }) {
-  return (
-    <Box component="section" sx={{ py: { xs: 3, sm: 5 } }}>
-      <SectionHeader
-        title={content.videoTitle}
-        subtitle={content.videoSubtitle}
-      />
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
-          gap: 1.5,
-        }}
-      >
-        {introductionVideoIds.map((videoId, index) => (
-          <Card
-            key={videoId}
-            elevation={0}
-            sx={{
-              overflow: "hidden",
-              border: `1px solid ${tokens.border}`,
-              bgcolor: tokens.panel,
-            }}
-          >
-            <Box sx={{ position: "relative", aspectRatio: "16 / 9" }}>
-              <Box
-                component="iframe"
-                src={`https://www.youtube.com/embed/${videoId}`}
-                title={`${content.videoLabel} ${index + 1}`}
-                loading="lazy"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-                sx={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  border: 0,
-                }}
-              />
-            </Box>
-            <Link
-              href={`https://www.youtube.com/watch?v=${videoId}`}
-              {...externalLinkProps}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 0.75,
-                px: 2,
-                py: 1.25,
-                borderTop: `1px solid ${tokens.border}`,
-                fontWeight: 700,
-                textDecoration: "none",
-              }}
-            >
-              {content.watchOnYouTube}
-              <OpenInNewIcon fontSize="small" />
-            </Link>
-          </Card>
-        ))}
-      </Box>
-    </Box>
-  );
-}
-
 function SectionHeader({ title, subtitle }) {
   return (
     <Stack spacing={1} sx={{ mb: { xs: 2, sm: 2.5 }, maxWidth: 760 }}>
@@ -585,92 +515,25 @@ function FeatureDashboard({ content, tokens }) {
   );
 }
 
-function Ecosystem({ content, tokens }) {
+function Footer({ content, tokens }) {
   return (
     <Box
-      component="section"
+      component="footer"
       sx={{
-        py: { xs: 4, sm: 6 },
+        py: { xs: 3, sm: 4 },
         borderTop: `1px solid ${tokens.border}`,
       }}
     >
-      <SectionHeader
-        title={content.ecosystemTitle}
-        subtitle={content.ecosystemSubtitle}
-      />
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-          gap: 1.5,
-          mb: 2,
-        }}
-      >
-        {content.ecosystemProjects.map((project) => (
-          <Card
-            key={project.name}
-            component={Link}
-            href={project.href}
-            {...externalLinkProps}
-            elevation={0}
-            underline="none"
-            sx={{
-              p: 2,
-              minHeight: 132,
-              border: `1px solid ${tokens.border}`,
-              bgcolor: tokens.panel,
-              color: "text.primary",
-              transition: "border-color 160ms ease, transform 160ms ease",
-              "&:hover": {
-                borderColor: tokens.borderStrong,
-                transform: "translateY(-2px)",
-              },
-            }}
-          >
-            <Stack spacing={1.2} sx={{ height: "100%" }}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                spacing={2}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 760 }}>
-                  {project.name}
-                </Typography>
-                <OpenInNewIcon
-                  fontSize="small"
-                  sx={{ color: "text.secondary", flex: "0 0 auto" }}
-                />
-              </Stack>
-              <Typography
-                variant="body2"
-                sx={{ color: "text.secondary", lineHeight: 1.68 }}
-              >
-                {project.description}
-              </Typography>
-            </Stack>
-          </Card>
-        ))}
-      </Box>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1 }}>
-        {[
-          "WebDAV",
-          "Hooks",
-          "Streaming",
-          "Context memory",
-          "Custom terminology",
-        ].map((item) => (
-          <Chip
-            key={item}
-            label={item}
-            sx={{
-              bgcolor: tokens.panelSoft,
-              border: `1px solid ${tokens.border}`,
-              fontWeight: 760,
-            }}
-          />
-        ))}
-      </Stack>
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+        <Link
+          href={LICENSE_SOURCE_URL}
+          {...externalLinkProps}
+          color="inherit"
+          underline="hover"
+        >
+          {content.licenseAttribution}
+        </Link>
+      </Typography>
     </Box>
   );
 }
@@ -715,10 +578,9 @@ function Homepage() {
             tokens={tokens}
           />
           <Hero content={content} tokens={tokens} />
-          <VideoShowcase content={content} tokens={tokens} />
           <InstallMatrix content={content} tokens={tokens} />
           <FeatureDashboard content={content} tokens={tokens} />
-          <Ecosystem content={content} tokens={tokens} />
+          <Footer content={content} tokens={tokens} />
         </Box>
       </Box>
     </ThemeProvider>

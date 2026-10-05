@@ -1,4 +1,8 @@
-import { homepageContent, languageOptions } from "./content";
+import {
+  homepageContent,
+  languageOptions,
+  LICENSE_SOURCE_URL,
+} from "./content";
 
 const expectedStoreLocales = {
   en: { chromium: "en", firefox: "en-US" },
@@ -11,6 +15,29 @@ const expectedStoreLocales = {
   es: { chromium: "es", firefox: "es" },
   vi: { chromium: "vi", firefox: "vi" },
   ru: { chromium: "ru", firefox: "ru" },
+};
+
+const removedContentKeys = [
+  "videoTitle",
+  "videoSubtitle",
+  "videoLabel",
+  "watchOnYouTube",
+  "ecosystemTitle",
+  "ecosystemSubtitle",
+  "ecosystemProjects",
+];
+
+const expectedLicenseAttribution = {
+  en: "Based on a GPL-3.0 open-source project",
+  zh_CN: "基于 GPL-3.0 开源项目二次开发",
+  zh_TW: "基於 GPL-3.0 開源專案二次開發",
+  ja: "GPL-3.0 のオープンソースプロジェクトを基に二次開発",
+  ko: "GPL-3.0 오픈소스 프로젝트를 기반으로 이차 개발",
+  fr: "Développement dérivé d'un projet open source GPL-3.0",
+  de: "Weiterentwicklung eines Open-Source-Projekts unter GPL-3.0",
+  es: "Desarrollo derivado de un proyecto de código abierto GPL-3.0",
+  vi: "Phát triển dựa trên dự án mã nguồn mở GPL-3.0",
+  ru: "Вторичная разработка на основе проекта с открытым кодом под GPL-3.0",
 };
 
 const expectedOpenOptions = {
@@ -32,23 +59,37 @@ describe("homepage content", () => {
       Object.keys(expectedStoreLocales)
     );
 
+    const upstreamName = ["ki", "ss"].join("");
+    const upstreamAuthor = ["fish", "jar"].join("");
+
     languageOptions.forEach(({ value }) => {
       const content = homepageContent[value];
 
       expect(content.title).toBeTruthy();
       expect(content.subtitle).toBeTruthy();
-      expect(content.videoTitle).toBeTruthy();
-      expect(content.videoSubtitle).toBeTruthy();
-      expect(content.videoLabel).toBeTruthy();
-      expect(content.watchOnYouTube).toBeTruthy();
       expect(content.features).toHaveLength(9);
       expect(content.installs).toHaveLength(6);
-      expect(content.ecosystemProjects).toHaveLength(2);
-      expect(content.ecosystemProjects.map(({ name }) => name)).toEqual([
-        "kiss-worker",
-        "kiss-rules",
-      ]);
+      expect(content.licenseAttribution).toBe(
+        expectedLicenseAttribution[value]
+      );
+      removedContentKeys.forEach((key) => {
+        expect(content[key]).toBeUndefined();
+      });
+      expect(JSON.stringify(content)).not.toMatch(
+        new RegExp(`${upstreamName}|${upstreamAuthor}`, "i")
+      );
     });
+  });
+
+  test("keeps a single license source link", () => {
+    expect(LICENSE_SOURCE_URL.startsWith("https://github.com/")).toBe(true);
+    expect(
+      Object.values(homepageContent).map(
+        (content) => content.licenseAttribution
+      )
+    ).toEqual(
+      languageOptions.map(({ value }) => expectedLicenseAttribution[value])
+    );
   });
 
   test("uses localized browser store links", () => {
