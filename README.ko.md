@@ -4,7 +4,7 @@
 
 ImmerTranslate는 이중 언어 웹 페이지 번역 확장 프로그램입니다. 저장소: [boomytc/ImmerTranslate](https://github.com/boomytc/ImmerTranslate). 라이선스: GPL-3.0.
 
-계보 참고(이 제품의 이름이 아닙니다): [fishjar/kiss-translator](https://github.com/fishjar/kiss-translator), [fishjar/kiss-rules](https://github.com/fishjar/kiss-rules).
+[GPL-3.0 오픈소스 프로젝트를 기반으로 이차 개발](https://github.com/fishjar/kiss-translator)
 
 ## 불러오기
 

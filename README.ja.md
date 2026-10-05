@@ -4,7 +4,7 @@
 
 ImmerTranslate はバイリンガルウェブ翻訳拡張機能です。リポジトリ：[boomytc/ImmerTranslate](https://github.com/boomytc/ImmerTranslate)。ライセンス：GPL-3.0。
 
-系譜の参照（本製品の名称ではありません）：[fishjar/kiss-translator](https://github.com/fishjar/kiss-translator)、[fishjar/kiss-rules](https://github.com/fishjar/kiss-rules)。
+[GPL-3.0 のオープンソースプロジェクトを基に二次開発](https://github.com/fishjar/kiss-translator)
 
 ## 読み込み
 
