@@ -9,7 +9,7 @@ const mockUpdateProps = jest.fn();
 jest.mock("../libs/domManager.js", () => jest.fn());
 
 jest.mock("../config", () => ({
-  APP_NAME: "Kiss Translator",
+  APP_NAME: "ImmerTranslate",
 }));
 
 jest.mock("../libs/svg.js", () => ({

@@ -420,7 +420,7 @@ const getOpenAIThinkingCapability = (model = "") => {
 
   if (normalizedModel === "gpt-6-astra") {
     // https://developers.openai.com/api/docs/models/gpt-6-astra
-    // Astra 不支持关闭思考；沿用最低强度降级及其 UI 提示。
+    // Astra 不支持关闭思考；改用最低强度降级及其界面提示。
     return createOpenAIThinkingCapability(
       ["max", "xhigh", "high", "medium", "low"],
       { disable: null }
@@ -801,7 +801,7 @@ export const normalizeThinkingSettings = ({
     openRouterMetadata,
   });
   if (!capability) {
-    // OpenRouter 的具体强度只会由设置页目录确认；重新打开设置时允许直接沿用该最终值。
+    // OpenRouter 的具体强度只会由设置页目录确认；重新打开设置时允许直接使用该最终值。
     const hasConfirmedOpenRouterEffort =
       apiType === OPT_TRANS_OPENROUTER &&
       thinkingEffort !== undefined &&

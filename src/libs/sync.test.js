@@ -376,7 +376,7 @@ describe("GitHub Gist sync", () => {
   test("returns remote value when an existing gist file is newer", async () => {
     getSyncWithDefault.mockResolvedValue({
       syncType: "GitHub Gist",
-      syncUrl: "https://gist.github.com/fishjar/existing-gist",
+      syncUrl: "https://gist.github.com/example-user/existing-gist",
       syncKey: SYNC_KEY,
       syncEncryptKey: SYNC_ENCRYPT_KEY,
       syncMeta: {

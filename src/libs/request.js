@@ -68,7 +68,7 @@ export const mergeAbortSignals = (signals = []) => {
       abort(signal);
       break;
     }
-    // 这里必须监听每个上游信号，确保用户取消与超时取消都能穿透到同一个底层 fetch。
+    // 这里必须监听每一路取消信号，确保用户取消与超时取消都能穿透到同一个底层 fetch。
     signal.addEventListener("abort", () => abort(signal), { once: true });
   }
 

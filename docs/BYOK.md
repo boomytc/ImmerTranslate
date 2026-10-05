@@ -1,10 +1,10 @@
 # 六家预置与 BYOK
 
-Six built-in engines, all disabled until you enable them. Fill base URL, key, and model yourself. Keys stay in the extension's local storage and must not be committed. This fork is GPL-3.0 (see `LICENSE`); if you distribute a modified build, keep the license and offer the corresponding source. Upstream: [fishjar/kiss-translator](https://github.com/fishjar/kiss-translator).
+Six built-in engines, all disabled until you enable them. Fill base URL, key, and model yourself. Keys stay in the extension's local storage and must not be committed. The project is GPL-3.0 (see `LICENSE`); if you distribute a modified build, keep the license and offer the corresponding source.
 
 ## 加载未打包的 Chrome 扩展
 
-需要 Node.js 与 pnpm（上游 CI 使用 Node 24）。
+需要 Node.js 与 pnpm（建议使用 Node 24）。
 
 ```sh
 pnpm install
@@ -39,10 +39,10 @@ OpenAI 兼容拉列表时，地址收成 `{base}/models`（已是 `/models` 则�
 
 表里还有其它 OpenAI 兼容行（如 OpenRouter）。同样默认禁用，启用后自填。上面六家是这次要配置的预置。
 
-双语译文沿用 kiss 现有插入方式：默认保留原文（`transOnly` 关闭），译文样式默认无额外装饰，字号、字重、行高、颜色尽量继承所在段落。不要另做一套排版。
+双语译文默认保留原文（`transOnly` 关闭），译文样式默认无额外装饰，字号、字重、行高、颜色尽量继承所在段落。不要另做一套排版。
 
 ## 网站规则
 
 生效顺序：**个人规则 > 订阅规则 > 全局规则**。
 
-没有内置的 x.com 时间线适配器。时间线翻译依赖订阅规则 [fishjar/kiss-rules](https://github.com/fishjar/kiss-rules)（默认 `https://fishjar.github.io/kiss-rules/kiss-rules_v2.json`，并在「基本设置」保持注入订阅规则）。订阅规则若写了具体翻译服务而不是 `*`，该站用订阅里的接口。
+没有内置的 x.com 时间线适配器。时间线翻译依赖默认订阅规则地址，并在「基本设置」保持注入订阅规则。订阅规则若写了具体翻译服务而不是 `*`，该站用订阅里的接口。

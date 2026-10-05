@@ -106,9 +106,8 @@ describe("common iframe startup", () => {
     setReadyState("complete");
     setContentType("text/html");
     mockIsIframe = false;
-    process.env.REACT_APP_OPTIONSPAGE = "https://kiss.example/options.html";
-    process.env.REACT_APP_OPTIONSPAGE_DEV =
-      "https://kiss-dev.example/options.html";
+    process.env.REACT_APP_OPTIONSPAGE = "https://page.example/options.html";
+    process.env.REACT_APP_OPTIONSPAGE_DEV = "https://dev.example/options.html";
     process.env.REACT_APP_OPTIONSPAGE_LOCAL =
       "http://localhost:3000/options.html";
     delete globalThis.unsafeWindow;
@@ -236,34 +235,34 @@ describe("common iframe startup", () => {
   test("passes the stored FAB config through unchanged when the page matches its exception list", async () => {
     getFabWithDefault.mockResolvedValue({
       isHide: false,
-      hideExceptionList: "kiss.example",
+      hideExceptionList: "page.example",
     });
     isInBlacklist.mockImplementation(
-      (_href, blacklist) => blacklist === "kiss.example"
+      (_href, blacklist) => blacklist === "page.example"
     );
 
     await run();
 
     expect(TranslatorManager.mock.calls[0][0].fabConfig).toEqual({
       isHide: false,
-      hideExceptionList: "kiss.example",
+      hideExceptionList: "page.example",
     });
   });
 
   test("passes a globally hidden FAB config through unchanged when the page is listed", async () => {
     getFabWithDefault.mockResolvedValue({
       isHide: true,
-      hideExceptionList: "kiss.example",
+      hideExceptionList: "page.example",
     });
     isInBlacklist.mockImplementation(
-      (_href, blacklist) => blacklist === "kiss.example"
+      (_href, blacklist) => blacklist === "page.example"
     );
 
     await run();
 
     expect(TranslatorManager.mock.calls[0][0].fabConfig).toEqual({
       isHide: true,
-      hideExceptionList: "kiss.example",
+      hideExceptionList: "page.example",
     });
   });
 
@@ -271,10 +270,10 @@ describe("common iframe startup", () => {
     setContentType("application/pdf");
     getFabWithDefault.mockResolvedValue({
       isHide: false,
-      hideExceptionList: "kiss.example",
+      hideExceptionList: "page.example",
     });
     isInBlacklist.mockImplementation(
-      (_href, blacklist) => blacklist === "kiss.example"
+      (_href, blacklist) => blacklist === "page.example"
     );
 
     await run();

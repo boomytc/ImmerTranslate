@@ -201,5 +201,16 @@ export const SETTINGS_I18N = {
     ko: `자체 호스팅 Cloudflare Worker`,
     tr: `Kendi barındırdığınız Cloudflare Worker`,
     vi: `Cloudflare Worker tự lưu trữ`,
+    ru: `Самостоятельно размещённый Cloudflare Worker`,
+  },
+  sync_method_worker_name: {
+    zh: `Worker`,
+    en: `Worker`,
+    zh_TW: `Worker`,
+    ja: `Worker`,
+    ko: `Worker`,
+    tr: `Worker`,
+    vi: `Worker`,
+    ru: `Worker`,
   },
 };
