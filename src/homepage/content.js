@@ -1,6 +1,8 @@
 export const LANG_STORAGE_KEY = "kiss-homepage-lang";
 export const THEME_STORAGE_KEY = "kiss-homepage-theme";
 
+export const LICENSE_SOURCE_URL = "https://github.com/fishjar/kiss-translator";
+
 export const languageOptions = [
   { value: "en", label: "English" },
   { value: "zh_CN", label: "简体中文" },
@@ -70,17 +72,9 @@ const baseContent = {
     status: ["Extension", "Userscript", "AI APIs", "Rules", "Sync"],
     installTitle: "Install targets",
     installSubtitle: "Pick the client that fits your browser and workflow.",
-    videoTitle: "See ImmerTranslate in action",
-    videoSubtitle:
-      "Watch these introductions to explore the main features and workflows.",
-    videoLabel: "ImmerTranslate introduction video",
-    watchOnYouTube: "Watch on YouTube",
     featureTitle: "Translation workspace",
     featureSubtitle:
       "A compact dashboard for reading, selecting, writing, watching, and building with your preferred translation providers.",
-    ecosystemTitle: "Built for control",
-    ecosystemSubtitle:
-      "Use hosted services, local models, custom API hooks, shared rules, and private sync without turning the project into a heavy platform.",
     features: [
       {
         title: "Webpage bilingual translation",
@@ -116,7 +110,7 @@ const baseContent = {
       },
       {
         title: "Private sync",
-        body: "Synchronize settings through WebDAV or self-hosted KISS-Worker while keeping data under your control.",
+        body: "Synchronize settings through WebDAV or a self-hosted proxy while keeping data under your control.",
       },
     ],
     providers: [
@@ -136,145 +130,17 @@ const baseContent = {
   },
 };
 
-const ecosystemProjects = {
-  en: [
-    {
-      name: "kiss-worker",
-      description:
-        "Private data sync for ImmerTranslate, deployable to Cloudflare Workers or self-hosted with Docker.",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "Collects and generates website compatibility subscription rules for ImmerTranslate.",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  zh_CN: [
-    {
-      name: "kiss-worker",
-      description:
-        "ImmerTranslate 的私有数据同步服务，可部署到 Cloudflare Workers 或通过 Docker 自托管。",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description: "收录并生成 ImmerTranslate 的网页适配订阅规则。",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  zh_TW: [
-    {
-      name: "kiss-worker",
-      description:
-        "ImmerTranslate 的私有資料同步服務，可部署至 Cloudflare Workers 或透過 Docker 自行架設。",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description: "收錄並產生 ImmerTranslate 的網站相容性訂閱規則。",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  ja: [
-    {
-      name: "kiss-worker",
-      description:
-        "ImmerTranslate のプライベートデータ同期サービス。Cloudflare Workers または Docker でセルフホストできます。",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "ImmerTranslate 向けの Web サイト互換サブスクリプションルールを収集・生成します。",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  ko: [
-    {
-      name: "kiss-worker",
-      description:
-        "ImmerTranslate용 비공개 데이터 동기화 서비스로, Cloudflare Workers 또는 Docker에 직접 배포할 수 있습니다.",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "ImmerTranslate의 웹사이트 호환 구독 규칙을 수집하고 생성합니다.",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  fr: [
-    {
-      name: "kiss-worker",
-      description:
-        "Service privé de synchronisation pour ImmerTranslate, déployable sur Cloudflare Workers ou auto-hébergeable avec Docker.",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "Collecte et génère des règles d'abonnement de compatibilité Web pour ImmerTranslate.",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  de: [
-    {
-      name: "kiss-worker",
-      description:
-        "Privater Datensynchronisierungsdienst für ImmerTranslate, bereitstellbar auf Cloudflare Workers oder selbst gehostet mit Docker.",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "Sammelt und erzeugt Website-Kompatibilitätsregeln für ImmerTranslate-Abonnements.",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  es: [
-    {
-      name: "kiss-worker",
-      description:
-        "Servicio privado de sincronización para ImmerTranslate, desplegable en Cloudflare Workers o autoalojado con Docker.",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "Recopila y genera reglas de suscripción de compatibilidad web para ImmerTranslate.",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  vi: [
-    {
-      name: "kiss-worker",
-      description:
-        "Dịch vụ đồng bộ dữ liệu riêng tư cho ImmerTranslate, có thể triển khai trên Cloudflare Workers hoặc tự lưu trữ bằng Docker.",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "Thu thập và tạo các quy tắc đăng ký tương thích trang web cho ImmerTranslate.",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
-  ru: [
-    {
-      name: "kiss-worker",
-      description:
-        "Сервис приватной синхронизации данных ImmerTranslate с развёртыванием в Cloudflare Workers или самостоятельным размещением через Docker.",
-      href: "https://github.com/fishjar/kiss-worker",
-    },
-    {
-      name: "kiss-rules",
-      description:
-        "Собирает и создаёт правила подписки для совместимости сайтов с ImmerTranslate.",
-      href: "https://github.com/fishjar/kiss-rules",
-    },
-  ],
+const licenseAttribution = {
+  en: "Based on a GPL-3.0 open-source project",
+  zh_CN: "基于 GPL-3.0 开源项目二次开发",
+  zh_TW: "基於 GPL-3.0 開源專案二次開發",
+  ja: "GPL-3.0 のオープンソースプロジェクトを基に二次開発",
+  ko: "GPL-3.0 오픈소스 프로젝트를 기반으로 이차 개발",
+  fr: "Développement dérivé d'un projet open source GPL-3.0",
+  de: "Weiterentwicklung eines Open-Source-Projekts unter GPL-3.0",
+  es: "Desarrollo derivado de un proyecto de código abierto GPL-3.0",
+  vi: "Phát triển dựa trên dự án mã nguồn mở GPL-3.0",
+  ru: "Вторичная разработка на основе проекта с открытым кодом под GPL-3.0",
 };
 
 const translations = {
@@ -295,17 +161,9 @@ const translations = {
     status: ["浏览器扩展", "油猴脚本", "AI 接口", "规则", "同步"],
     installTitle: "安装入口",
     installSubtitle: "选择适合你的浏览器和使用方式的客户端。",
-    videoTitle: "视频介绍",
-    videoSubtitle:
-      "通过这些介绍视频了解 ImmerTranslate 的主要功能和使用方式。",
-    videoLabel: "ImmerTranslate 介绍视频",
-    watchOnYouTube: "在 YouTube 观看",
     featureTitle: "翻译工作台",
     featureSubtitle:
       "覆盖阅读、划词、写作、视频字幕和自定义接口的紧凑能力面板。",
-    ecosystemTitle: "为可控而设计",
-    ecosystemSubtitle:
-      "你可以使用在线服务、本地模型、自定义 API Hook、共享规则和私有同步，而不必接受臃肿平台。",
     features: [
       {
         title: "网页双语翻译",
@@ -341,7 +199,7 @@ const translations = {
       },
       {
         title: "私有同步",
-        body: "通过 WebDAV 或自部署 KISS-Worker 同步配置，数据自己掌控。",
+        body: "通过 WebDAV 或自托管代理同步配置，数据自己掌控。",
       },
     ],
   },
@@ -362,16 +220,8 @@ const translations = {
     status: ["瀏覽器擴充", "使用者腳本", "AI 介面", "規則", "同步"],
     installTitle: "安裝入口",
     installSubtitle: "選擇適合你的瀏覽器與工作流程的用戶端。",
-    videoTitle: "影片介紹",
-    videoSubtitle:
-      "透過這些介紹影片瞭解 ImmerTranslate 的主要功能與使用方式。",
-    videoLabel: "ImmerTranslate 介紹影片",
-    watchOnYouTube: "在 YouTube 觀看",
     featureTitle: "翻譯工作台",
     featureSubtitle: "覆蓋閱讀、劃詞、寫作、影片字幕和自訂介面的緊湊能力面板。",
-    ecosystemTitle: "為可控而設計",
-    ecosystemSubtitle:
-      "使用雲端服務、本地模型、自訂 API Hook、共享規則和私有同步，不必變成沉重平台。",
     features: [
       {
         title: "網頁雙語翻譯",
@@ -407,7 +257,7 @@ const translations = {
       },
       {
         title: "私有同步",
-        body: "透過 WebDAV 或自部署 KISS-Worker 同步設定，資料自己掌控。",
+        body: "透過 WebDAV 或自架代理同步設定，資料自己掌控。",
       },
     ],
   },
@@ -428,17 +278,9 @@ const translations = {
     status: ["拡張機能", "Userscript", "AI API", "ルール", "同期"],
     installTitle: "インストール先",
     installSubtitle: "ブラウザと使い方に合うクライアントを選べます。",
-    videoTitle: "紹介動画",
-    videoSubtitle:
-      "紹介動画で ImmerTranslate の主な機能と使い方をご覧ください。",
-    videoLabel: "ImmerTranslate 紹介動画",
-    watchOnYouTube: "YouTube で見る",
     featureTitle: "翻訳ワークスペース",
     featureSubtitle:
       "読む、選ぶ、書く、見る、作るための翻訳機能をコンパクトにまとめました。",
-    ecosystemTitle: "自分で制御できる設計",
-    ecosystemSubtitle:
-      "クラウドサービス、ローカルモデル、カスタム API Hook、共有ルール、プライベート同期を必要な分だけ使えます。",
     features: [
       {
         title: "Web ページ対訳翻訳",
@@ -474,7 +316,7 @@ const translations = {
       },
       {
         title: "プライベート同期",
-        body: "WebDAV または自前の KISS-Worker で設定を同期し、データを管理できます。",
+        body: "WebDAV または自前のプロキシで設定を同期し、データを管理できます。",
       },
     ],
   },
@@ -495,17 +337,9 @@ const translations = {
     status: ["확장", "Userscript", "AI API", "규칙", "동기화"],
     installTitle: "설치 대상",
     installSubtitle: "브라우저와 작업 방식에 맞는 클라이언트를 선택하세요.",
-    videoTitle: "소개 동영상",
-    videoSubtitle:
-      "소개 동영상에서 ImmerTranslate의 주요 기능과 사용 방법을 확인하세요.",
-    videoLabel: "ImmerTranslate 소개 동영상",
-    watchOnYouTube: "YouTube에서 보기",
     featureTitle: "번역 작업 공간",
     featureSubtitle:
       "읽기, 선택, 작성, 시청, 커스텀 API 구성을 위한 번역 기능을 한곳에 모았습니다.",
-    ecosystemTitle: "제어 가능한 설계",
-    ecosystemSubtitle:
-      "클라우드 서비스, 로컬 모델, 커스텀 API Hook, 공유 규칙, 개인 동기화를 필요한 만큼 사용할 수 있습니다.",
     features: [
       {
         title: "웹페이지 이중 언어 번역",
@@ -541,7 +375,7 @@ const translations = {
       },
       {
         title: "개인 동기화",
-        body: "WebDAV 또는 자체 KISS-Worker로 설정을 동기화하고 데이터를 직접 관리합니다.",
+        body: "WebDAV 또는 자체 호스팅 프록시로 설정을 동기화하고 데이터를 직접 관리합니다.",
       },
     ],
   },
@@ -564,17 +398,9 @@ const translations = {
     installTitle: "Cibles d'installation",
     installSubtitle:
       "Choisissez le client adapte a votre navigateur et a votre flux de travail.",
-    videoTitle: "Vidéos de présentation",
-    videoSubtitle:
-      "Découvrez les principales fonctions et méthodes de travail de ImmerTranslate.",
-    videoLabel: "Vidéo de présentation de ImmerTranslate",
-    watchOnYouTube: "Regarder sur YouTube",
     featureTitle: "Espace de traduction",
     featureSubtitle:
       "Un tableau de bord compact pour lire, selectionner, ecrire, regarder et brancher vos services de traduction.",
-    ecosystemTitle: "Concu pour garder le controle",
-    ecosystemSubtitle:
-      "Services cloud, modeles locaux, hooks d'API, regles partagees et synchronisation privee sans plateforme lourde.",
     features: [
       {
         title: "Traduction bilingue de pages",
@@ -610,7 +436,7 @@ const translations = {
       },
       {
         title: "Synchronisation privee",
-        body: "Synchronisez via WebDAV ou KISS-Worker auto-heberge en gardant vos donnees sous controle.",
+        body: "Synchronisez via WebDAV ou un proxy auto-heberge en gardant vos donnees sous controle.",
       },
     ],
   },
@@ -633,17 +459,9 @@ const translations = {
     installTitle: "Installationsziele",
     installSubtitle:
       "Wahlen Sie den Client fur Ihren Browser und Arbeitsablauf.",
-    videoTitle: "Einführungsvideos",
-    videoSubtitle:
-      "Lernen Sie die wichtigsten Funktionen und Arbeitsabläufe von ImmerTranslate kennen.",
-    videoLabel: "ImmerTranslate Einführungsvideo",
-    watchOnYouTube: "Auf YouTube ansehen",
     featureTitle: "Ubersetzungsarbeitsplatz",
     featureSubtitle:
       "Ein kompaktes Dashboard zum Lesen, Auswahlen, Schreiben, Anschauen und Anbinden Ihrer Ubersetzungsdienste.",
-    ecosystemTitle: "Fur Kontrolle gebaut",
-    ecosystemSubtitle:
-      "Cloud-Dienste, lokale Modelle, eigene API-Hooks, geteilte Regeln und private Synchronisierung ohne schwere Plattform.",
     features: [
       {
         title: "Zweisprachige Seitenubersetzung",
@@ -679,7 +497,7 @@ const translations = {
       },
       {
         title: "Private Synchronisierung",
-        body: "Synchronisieren Sie uber WebDAV oder selbst gehosteten KISS-Worker und behalten Sie die Datenkontrolle.",
+        body: "Synchronisieren Sie uber WebDAV oder einen selbst gehosteten Proxy und behalten Sie die Datenkontrolle.",
       },
     ],
   },
@@ -702,17 +520,9 @@ const translations = {
     installTitle: "Destinos de instalacion",
     installSubtitle:
       "Elige el cliente que encaje con tu navegador y flujo de trabajo.",
-    videoTitle: "Vídeos de introducción",
-    videoSubtitle:
-      "Descubre las funciones y los flujos de trabajo principales de ImmerTranslate.",
-    videoLabel: "Vídeo de introducción de ImmerTranslate",
-    watchOnYouTube: "Ver en YouTube",
     featureTitle: "Espacio de traduccion",
     featureSubtitle:
       "Un panel compacto para leer, seleccionar, escribir, ver videos y conectar tus proveedores de traduccion.",
-    ecosystemTitle: "Hecho para mantener el control",
-    ecosystemSubtitle:
-      "Servicios en la nube, modelos locales, hooks de API, reglas compartidas y sincronizacion privada sin una plataforma pesada.",
     features: [
       {
         title: "Traduccion bilingue de paginas",
@@ -748,7 +558,7 @@ const translations = {
       },
       {
         title: "Sincronizacion privada",
-        body: "Sincroniza con WebDAV o KISS-Worker autoalojado manteniendo tus datos bajo control.",
+        body: "Sincroniza con WebDAV o un proxy autoalojado manteniendo tus datos bajo control.",
       },
     ],
   },
@@ -771,11 +581,6 @@ const translations = {
     installTitle: "Nơi cài đặt",
     installSubtitle:
       "Chọn ứng dụng phù hợp với trình duyệt và cách làm việc của bạn.",
-    videoTitle: "Video giới thiệu",
-    videoSubtitle:
-      "Khám phá các tính năng và quy trình làm việc chính của ImmerTranslate qua các video này.",
-    videoLabel: "Video giới thiệu ImmerTranslate",
-    watchOnYouTube: "Xem trên YouTube",
     installMeta: {
       extension: "Tiện ích trình duyệt",
       release: "Gói phát hành",
@@ -783,9 +588,6 @@ const translations = {
     featureTitle: "Không gian dịch thuật",
     featureSubtitle:
       "Bảng điều khiển gọn nhẹ để đọc, chọn, viết, xem video và kết nối các dịch vụ dịch thuật bạn ưa dùng.",
-    ecosystemTitle: "Được thiết kế để bạn làm chủ",
-    ecosystemSubtitle:
-      "Sử dụng dịch vụ đám mây, mô hình cục bộ, hook API tùy chỉnh, quy tắc chia sẻ và đồng bộ riêng tư mà không cần một nền tảng cồng kềnh.",
     features: [
       {
         title: "Dịch trang web song ngữ",
@@ -821,7 +623,7 @@ const translations = {
       },
       {
         title: "Đồng bộ riêng tư",
-        body: "Đồng bộ cài đặt qua WebDAV hoặc KISS-Worker tự lưu trữ trong khi vẫn làm chủ dữ liệu.",
+        body: "Đồng bộ cài đặt qua WebDAV hoặc proxy tự lưu trữ trong khi vẫn làm chủ dữ liệu.",
       },
     ],
   },
@@ -843,11 +645,6 @@ const translations = {
     installTitle: "Варианты установки",
     installSubtitle:
       "Выберите клиент, подходящий для вашего браузера и рабочего процесса.",
-    videoTitle: "Обзорные видео",
-    videoSubtitle:
-      "Познакомьтесь с основными функциями и сценариями работы ImmerTranslate.",
-    videoLabel: "Обзорное видео ImmerTranslate",
-    watchOnYouTube: "Смотреть на YouTube",
     installMeta: {
       extension: "Расширение браузера",
       release: "Пакет выпуска",
@@ -855,9 +652,6 @@ const translations = {
     featureTitle: "Рабочее пространство перевода",
     featureSubtitle:
       "Компактная панель для чтения, выделения, письма, просмотра видео и подключения предпочитаемых сервисов перевода.",
-    ecosystemTitle: "Полный контроль",
-    ecosystemSubtitle:
-      "Используйте облачные сервисы, локальные модели, собственные API-хуки, общие правила и приватную синхронизацию без громоздкой платформы.",
     features: [
       {
         title: "Двуязычный перевод страниц",
@@ -893,7 +687,7 @@ const translations = {
       },
       {
         title: "Приватная синхронизация",
-        body: "Синхронизируйте настройки через WebDAV или собственный KISS-Worker, сохраняя контроль над данными.",
+        body: "Синхронизируйте настройки через WebDAV или собственный прокси, сохраняя контроль над данными.",
       },
     ],
   },
@@ -906,7 +700,7 @@ export const homepageContent = Object.fromEntries(
       ...baseContent.en,
       ...translations[value],
       installs: createInstalls(translations[value]?.installMeta),
-      ecosystemProjects: ecosystemProjects[value] ?? ecosystemProjects.en,
+      licenseAttribution: licenseAttribution[value],
       providers: translations[value]?.providers ?? baseContent.en.providers,
     },
   ])
