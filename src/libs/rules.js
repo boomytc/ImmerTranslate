@@ -18,6 +18,14 @@ import {
   OPT_TRANS_GOOGLE_2,
 } from "../config";
 import { loadOrFetchSubRules } from "./subRules";
+import {
+  SCRIPT_SOURCE_BUILTIN,
+  SCRIPT_SOURCE_PERSONAL,
+  SCRIPT_SOURCE_SUBSCRIPTION,
+  assignScriptSources,
+  mergeRuleScriptFields,
+  withScriptSources,
+} from "./ruleScript";
 import { getRulesWithDefault, saveEdit, getDisabledSubRules } from "./storage";
 import { trySyncRules } from "./sync";
 import { kissLog } from "./log";
@@ -149,9 +157,17 @@ const subscriptionCoversPage = (subRules, href) =>
  * @param {Object} overrideRule 覆盖高优先级规则
  * @returns {Object} 合并后的最终规则
  */
+const copyRule = (rule) => {
+  const merged = { ...rule };
+  if (merged.scriptFieldOrigins) {
+    merged.scriptFieldOrigins = { ...merged.scriptFieldOrigins };
+  }
+  return merged;
+};
+
 export const mergeRules = (baseRule, overrideRule) => {
-  if (!overrideRule) return { ...baseRule };
-  if (!baseRule) return { ...overrideRule };
+  if (!overrideRule) return copyRule(baseRule);
+  if (!baseRule) return copyRule(overrideRule);
 
   const merged = { ...baseRule };
 
@@ -176,16 +192,16 @@ export const mergeRules = (baseRule, overrideRule) => {
     "selectStyle",
     "parentStyle",
     "grandStyle",
-    "injectJs",
     "injectCss",
-    "transStartHook",
-    "transEndHook",
-    // "transRemoveHook",
   ].forEach((key) => {
     if (overrideRule[key]?.trim()) {
       merged[key] = overrideRule[key];
     }
   });
+
+  // 脚本字段单独合并，并在返回前记下每个字段的来源。
+  // 订阅里的文本保留，执行点用 scriptFieldOrigins 决定是否运行。
+  mergeRuleScriptFields(merged, overrideRule);
 
   // 3. 合并枚举类型的属性，若高优先级属性为星号 '*' 则继续继承，否则直接覆盖
   [
@@ -230,7 +246,7 @@ export const mergeRules = (baseRule, overrideRule) => {
     merged.pattern = overrideRule.pattern;
   }
 
-  return merged;
+  return assignScriptSources(merged, baseRule, overrideRule);
 };
 
 /** Resolve rule precedence without storage access or network requests. */
@@ -286,12 +302,22 @@ export const deriveRuleContext = (
       ? builtinCandidate
       : null;
 
-  // Apply global, subscribed and personal rules in increasing priority.
+  // 来源只打在合并用的副本上。返回的 personal / global / subscription
+  // 仍是存储里的原对象，避免编辑器把来源标记当成规则冲突。
   const inherited = mergeRules(
-    globalRule,
-    matchedSubRule || matchedBuiltinRule
+    withScriptSources(globalRule, SCRIPT_SOURCE_PERSONAL),
+    matchedSubRule
+      ? withScriptSources(matchedSubRule, SCRIPT_SOURCE_SUBSCRIPTION)
+      : matchedBuiltinRule
+        ? withScriptSources(matchedBuiltinRule, SCRIPT_SOURCE_BUILTIN)
+        : null
   );
-  const finalRule = mergeRules(inherited, matchedPersonalRule);
+  const finalRule = mergeRules(
+    inherited,
+    matchedPersonalRule
+      ? withScriptSources(matchedPersonalRule, SCRIPT_SOURCE_PERSONAL)
+      : null
+  );
 
   return {
     effective: finalRule,
@@ -299,7 +325,12 @@ export const deriveRuleContext = (
     // Restore the page rule after previewing an off-page rule.
     pageEffective:
       matchedPersonalRule !== activePersonalRule
-        ? mergeRules(inherited, activePersonalRule)
+        ? mergeRules(
+            inherited,
+            activePersonalRule
+              ? withScriptSources(activePersonalRule, SCRIPT_SOURCE_PERSONAL)
+              : null
+          )
         : null,
     personal: matchedPersonalRule || null,
     subscription: matchedSubRule,
