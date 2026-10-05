@@ -41,6 +41,8 @@ jest.mock("../libs/request", () => ({
       ? normalizedTimeout
       : normalizedTimeout * 1000;
   },
+  // 该测试用的任务池直接调用 fn(args)，没有第二参 signal。
+  attachPoolSignal: (args, signal) => (signal ? { ...args, signal } : args),
 }));
 
 const mockSha256 = jest.fn();

@@ -3776,6 +3776,15 @@ export class Translator {
       // 也避免在已脱离文档的容器里渲染重试按钮。
       if (wrapper && !wrapper.isConnected) return;
 
+      // 清空任务池或调用方取消只会中止这一轮，不能写成页面上的失败重试。
+      if (err?.name === "AbortError") {
+        if (wrapper?.isConnected) {
+          touchTranslationOwners.delete(wrapper);
+          wrapper.remove();
+        }
+        return;
+      }
+
       const errorText = this.#formatTranslateError(err);
       kissLog("translate group error: ", errorText);
       if (err?.message === "Request terminated") {
@@ -4154,6 +4163,10 @@ overflow-wrap: anywhere !important;`;
         this.#hoverBubbleRunId !== currentRunId ||
         this.#hoverBubbleTarget !== node
       ) {
+        return;
+      }
+      if (err?.name === "AbortError") {
+        this.#hideHoverBubble();
         return;
       }
       // 气泡只显示可行动文案；原始异常留在日志里，避免把堆栈摊开。
