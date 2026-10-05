@@ -63,6 +63,77 @@ describe("TaskPool cancellation", () => {
     expect(nextTask).toHaveBeenCalledTimes(1);
   });
 
+  test("does not start a retry that is waiting on a timer after clear", async () => {
+    const task = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("Temporary failure"))
+      .mockResolvedValue("should not run");
+    const pending = pool.push(task);
+    const outcome = pending.then(
+      (value) => ({ status: "resolved", value }),
+      (error) => ({ status: "rejected", error })
+    );
+
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(1);
+
+    pool.clear();
+    expect(jest.getTimerCount()).toBe(0);
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(task).toHaveBeenCalledTimes(1);
+    await expect(outcome).resolves.toMatchObject({
+      status: "rejected",
+      error: expect.objectContaining({ name: "AbortError" }),
+    });
+  });
+
+  test("aborts an in-flight task without retrying or producing a failure result", async () => {
+    let taskSignal;
+    let rejectRunning;
+    const running = jest.fn(
+      (_args, signal) =>
+        new Promise((_resolve, reject) => {
+          taskSignal = signal;
+          rejectRunning = reject;
+        })
+    );
+    const pending = pool.push(running);
+    const outcome = pending.then(
+      (value) => ({ status: "resolved", value }),
+      (error) => ({ status: "rejected", error })
+    );
+
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+    expect(running).toHaveBeenCalledTimes(1);
+    expect(taskSignal).toBeInstanceOf(AbortSignal);
+    expect(taskSignal.aborted).toBe(false);
+
+    pool.clear();
+    expect(taskSignal.aborted).toBe(true);
+    rejectRunning(new Error("provider failed after stop"));
+    await flushPromises();
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+
+    const result = await outcome;
+    expect(result.status).toBe("rejected");
+    expect(result.error).toMatchObject({ name: "AbortError" });
+    expect(result.error.message).not.toContain("provider failed");
+    expect(running).toHaveBeenCalledTimes(1);
+
+    const next = jest.fn().mockResolvedValue("next result");
+    const nextResult = pool.push(next);
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+    await expect(nextResult).resolves.toBe("next result");
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
   test("continues retrying ordinary failures", async () => {
     const task = jest
       .fn()

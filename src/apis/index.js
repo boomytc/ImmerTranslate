@@ -47,7 +47,7 @@ import { getBatchQueue } from "../libs/batchQueue";
 import { isBuiltinAIAvailable } from "../libs/browser";
 import { chromeDetect, chromeTranslate } from "../libs/builtinAI";
 import { fnPolyfill } from "../libs/fetch";
-import { normalizeHttpTimeout } from "../libs/request";
+import { attachPoolSignal, normalizeHttpTimeout } from "../libs/request";
 import { getFetchPool } from "../libs/pool";
 import { trustedTypesHelper } from "../libs/trustedTypes";
 import { getDocInfo } from "../libs/docInfo";
@@ -636,13 +636,16 @@ const apiBuiltinAITranslate = async ({ text, from, to, apiSetting }) => {
 
   // 2. 执行带有超时机制 (withTimeout) 的本地 AI 翻译
   const result = await withTimeout(
-    fetchPool.push(fnPolyfill, {
-      fn: chromeTranslate,
-      msg: MSG_BUILTINAI_TRANSLATE,
-      text,
-      from,
-      to,
-    }),
+    fetchPool.push(
+      (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
+      {
+        fn: chromeTranslate,
+        msg: MSG_BUILTINAI_TRANSLATE,
+        text,
+        from,
+        to,
+      }
+    ),
     normalizeHttpTimeout(httpTimeout)
   );
 
@@ -662,13 +665,16 @@ const apiBuiltinAITranslate = async ({ text, from, to, apiSetting }) => {
         const mappedFrom =
           OPT_LANGS_FROM_SPEC[OPT_TRANS_BUILTINAI].get(deLang) || deLang;
         const retry = await withTimeout(
-          fetchPool.push(fnPolyfill, {
-            fn: chromeTranslate,
-            msg: MSG_BUILTINAI_TRANSLATE,
-            text,
-            from: mappedFrom,
-            to,
-          }),
+          fetchPool.push(
+            (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
+            {
+              fn: chromeTranslate,
+              msg: MSG_BUILTINAI_TRANSLATE,
+              text,
+              from: mappedFrom,
+              to,
+            }
+          ),
           normalizeHttpTimeout(httpTimeout)
         );
         if (!retry) {

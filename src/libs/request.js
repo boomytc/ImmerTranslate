@@ -76,6 +76,25 @@ export const mergeAbortSignals = (signals = []) => {
 };
 
 /**
+ * 把任务池本次尝试的取消信号并入请求参数。
+ * 没有池信号时返回原对象，避免改变不经过任务池的调用。
+ *
+ * @param {Object} args 传给请求函数的参数。
+ * @param {AbortSignal} [signal] 任务池为本次尝试创建的取消信号。
+ * @returns {Object} 带有合并后 opts.signal 的参数；无池信号时为原对象。
+ */
+export const attachPoolSignal = (args, signal) => {
+  if (!signal) return args;
+  return {
+    ...args,
+    opts: {
+      ...args?.opts,
+      signal: mergeAbortSignals([args?.opts?.signal, signal]),
+    },
+  };
+};
+
+/**
  * 创建带超时控制的 AbortSignal。
  *
  * @param {number} timeout 超时时间，单位毫秒。

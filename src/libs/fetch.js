@@ -13,6 +13,7 @@ import {
   fetchHandle,
   fnPolyfill,
   mergeAbortSignals,
+  attachPoolSignal,
 } from "./request";
 import { fetchStreamNative, requestStream } from "./requestStream";
 
@@ -49,7 +50,10 @@ export const fetchData = async (
 
   if (usePool) {
     const fetchPool = getFetchPool(fetchInterval, fetchLimit);
-    return fetchPool.push(fnPolyfill, { fn: fetchHandle, input, init, opts });
+    return fetchPool.push(
+      (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
+      { fn: fetchHandle, input, init, opts }
+    );
   }
 
   return fnPolyfill({ fn: fetchHandle, input, init, opts });
@@ -89,13 +93,17 @@ export async function* fetchStream(
     const fetchPool = getFetchPool(fetchInterval, fetchLimit);
     const asyncQueue = createAsyncQueue();
     const streamController = new AbortController();
-    const streamOpts = {
-      ...opts,
-      signal: mergeAbortSignals([opts.signal, streamController.signal]),
-    };
 
     const streamPromise = fetchPool
-      .push(async () => {
+      .push(async (_args, poolSignal) => {
+        const streamOpts = {
+          ...opts,
+          signal: mergeAbortSignals([
+            opts.signal,
+            streamController.signal,
+            poolSignal,
+          ]),
+        };
         try {
           for await (const chunk of requestStream(input, init, streamOpts)) {
             asyncQueue.push(chunk);
