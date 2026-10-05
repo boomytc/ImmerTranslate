@@ -457,6 +457,19 @@ describe("InputTranslator failure copy", () => {
     jest.useRealTimers();
   });
 
+  test("does not show a failure notice when input translation is cancelled", async () => {
+    const error = new DOMException("The operation was aborted.", "AbortError");
+    apiTranslate.mockRejectedValueOnce(error);
+    const target = prepareInput(translator);
+
+    await translator.handleTranslate({ isBtnTrigger: true });
+
+    expect(failureMessage()).toBe("");
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(target.value).toBe("Hello");
+  });
+
   test("shows the connection-test network copy instead of the raw exception", async () => {
     const error = new TypeError("Failed to fetch");
     error.stack = "TypeError: Failed to fetch\n    at translate";

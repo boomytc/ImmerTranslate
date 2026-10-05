@@ -2297,6 +2297,13 @@ describe("Translator rule styles", () => {
       );
     });
 
+    test("does not show a hover failure when translation is cancelled", async () => {
+      const bubble = await showBubbleFailure(
+        new DOMException("The operation was aborted.", "AbortError")
+      );
+      expect(bubble).toBeNull();
+    });
+
     test("shows an actionable hover fallback in English for an unknown failure", async () => {
       const bubble = await showBubbleFailure(
         new Error("translate got an unexpected result"),
@@ -6744,6 +6751,19 @@ backdrop-filter: blur(8px);`,
       expect(message.textContent).toBe(
         I18N.page_translate_service_unavailable.zh
       );
+    });
+
+    test("does not write a page failure when translation is cancelled", async () => {
+      await failPage(
+        new DOMException("The operation was aborted.", "AbortError")
+      );
+      expect(document.querySelector(errorClass)).toBeNull();
+      expect(
+        document.querySelector(`.${Translator.KISS_CLASS.retry}`)
+      ).toBeNull();
+      expect(
+        document.querySelector(`.${Translator.KISS_CLASS.warpper}`)
+      ).toBeNull();
     });
 
     test("shows an actionable fallback in English for an unknown failure", async () => {

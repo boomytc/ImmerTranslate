@@ -843,6 +843,10 @@ export class InputTranslator {
         }
       }
     } catch (err) {
+      // 取消不是输入框翻译失败，不弹出失败提示。
+      if (err?.name === "AbortError") {
+        return;
+      }
       // 只把可行动文案放到输入框旁；原始异常留在日志里。
       logger.error("Translate input error:", err);
       if (runId === this.#translateRunId) {
