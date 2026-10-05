@@ -1,6 +1,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import Homepage from "./App";
+import { homepageContent, LICENSE_SOURCE_URL } from "./content";
 
 jest.mock("@mui/material/styles/ThemeProvider", () => {
   return function MockThemeProvider({ children }) {
@@ -8,9 +9,7 @@ jest.mock("@mui/material/styles/ThemeProvider", () => {
   };
 });
 
-const videoIds = ["KcU2RpGkyvM", "l8lbWnyeda4", "QAiz68_jCQQ", "vo-XbIQ_GKg"];
-
-describe("homepage video showcase", () => {
+describe("homepage", () => {
   let container;
   let root;
 
@@ -35,34 +34,27 @@ describe("homepage video showcase", () => {
     delete global.IS_REACT_ACT_ENVIRONMENT;
   });
 
-  test("uses official YouTube embeds with external watch fallbacks", () => {
+  test("does not embed introduction videos", () => {
     act(() => root.render(<Homepage />));
 
-    const iframes = [...container.querySelectorAll("iframe")];
-    const watchLinks = [
-      ...container.querySelectorAll(
-        'a[href^="https://www.youtube.com/watch?v="]'
-      ),
-    ];
+    const markup = container.innerHTML.toLowerCase();
 
-    expect(iframes).toHaveLength(videoIds.length);
-    expect(watchLinks).toHaveLength(videoIds.length);
+    expect(container.querySelectorAll("iframe")).toHaveLength(0);
+    expect(markup).not.toContain("youtube.com/" + "embed");
+    expect(markup).not.toContain("youtube.com/" + "watch");
+  });
 
-    videoIds.forEach((videoId, index) => {
-      expect(iframes[index].getAttribute("src")).toBe(
-        `https://www.youtube.com/embed/${videoId}`
-      );
-      expect(iframes[index].getAttribute("referrerpolicy")).toBe(
-        "strict-origin-when-cross-origin"
-      );
-      expect(iframes[index].getAttribute("src")).not.toContain("si=");
-      expect(watchLinks[index].getAttribute("href")).toBe(
-        `https://www.youtube.com/watch?v=${videoId}`
-      );
-      expect(watchLinks[index].getAttribute("target")).toBe("_blank");
-      expect(watchLinks[index].getAttribute("rel")).toBe("noopener noreferrer");
-    });
+  test("shows one license attribution line in the footer", () => {
+    act(() => root.render(<Homepage />));
 
-    expect(container.innerHTML).not.toContain("youtube-nocookie.com");
+    const footer = container.querySelector("footer");
+    const links = [...footer.querySelectorAll("a")];
+
+    expect(links).toHaveLength(1);
+    expect(links[0].textContent).toBe(homepageContent.en.licenseAttribution);
+    expect(links[0].getAttribute("href")).toBe(LICENSE_SOURCE_URL);
+    expect(links[0].getAttribute("target")).toBe("_blank");
+    expect(links[0].getAttribute("rel")).toBe("noopener noreferrer");
+    expect(container.querySelectorAll("footer")).toHaveLength(1);
   });
 });

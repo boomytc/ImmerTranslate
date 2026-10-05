@@ -4,7 +4,7 @@
 
 ImmerTranslate 是双语网页翻译扩展。仓库：[boomytc/ImmerTranslate](https://github.com/boomytc/ImmerTranslate)。许可证：GPL-3.0。
 
-谱系参考（不是本产品名称）：[fishjar/kiss-translator](https://github.com/fishjar/kiss-translator)、[fishjar/kiss-rules](https://github.com/fishjar/kiss-rules)。
+[基于 GPL-3.0 开源项目二次开发](https://github.com/fishjar/kiss-translator)
 
 ## 加载
 
