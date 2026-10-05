@@ -129,7 +129,7 @@ const QUESTION_PAGE = `
       <blockquote id="quote">Quoted line</blockquote>
       <dl><dd id="definition">A definition</dd></dl>
       <pre id="fence"><code>const keep = 1;</code></pre>
-      <p class="kiss-p" id="kiss">Do not require kiss-p</p>
+      <p class="kiss-p" id="marker">Paragraph wrapper class is not required</p>
     </div>
   </div>
   <div class="answer">
@@ -288,7 +288,7 @@ describe("stackoverflow.com builtin page rule", () => {
         "definition",
         "answer",
         "comment",
-        "kiss",
+        "marker",
       ])
     );
     expect(targetIds(targets)).not.toEqual(expect.arrayContaining(CHROME_IDS));

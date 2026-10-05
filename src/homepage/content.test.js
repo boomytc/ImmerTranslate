@@ -59,8 +59,8 @@ describe("homepage content", () => {
       Object.keys(expectedStoreLocales)
     );
 
-    const upstreamName = ["ki", "ss"].join("");
-    const upstreamAuthor = ["fish", "jar"].join("");
+    const retiredProductName = ["ki", "ss"].join("");
+    const retiredAuthorName = ["fish", "jar"].join("");
 
     languageOptions.forEach(({ value }) => {
       const content = homepageContent[value];
@@ -76,7 +76,7 @@ describe("homepage content", () => {
         expect(content[key]).toBeUndefined();
       });
       expect(JSON.stringify(content)).not.toMatch(
-        new RegExp(`${upstreamName}|${upstreamAuthor}`, "i")
+        new RegExp(`${retiredProductName}|${retiredAuthorName}`, "i")
       );
     });
   });

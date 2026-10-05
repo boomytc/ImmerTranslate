@@ -291,7 +291,7 @@ describe("Subtitle segmentation warning", () => {
 describe("Subtitle CSS round-trip", () => {
   // 拖动任意样式滑块都会把整块 CSS 经 parse -> object -> serialize 重写一遍。
   // 分号会合法地出现在引号、括号和注释内部，裸 split(";") 会把值拦腰截断，
-  // 而截断结果会被写回存储，无法恢复。这是上游 dev 上就存在的问题，不是本分支引入的。
+  // 而截断结果会被写回存储，无法恢复。这是既有问题，不是本次改动引入的。
   const roundTrip = (css) => objectToCss(parseCssToObject(css));
   const normalize = (css) => css.trim().replace(/;$/, "");
 

@@ -94,7 +94,7 @@ export function createRetrySVG() {
 }
 
 /**
- * 动态创建 Kiss-Translator 主徽标 LOGO SVG 元素节点
+ * 动态创建 ImmerTranslate 主徽标 LOGO SVG 元素节点
  * @param {Object} [options]
  * @param {string} [options.width] - 宽度
  * @param {string} [options.height] - 高度

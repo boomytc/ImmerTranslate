@@ -271,7 +271,7 @@ export class YouTubeCaptionProvider {
           if (node.matches(adLayoutSelector)) {
             logger.debug("Youtube Provider: AD start playing!", node);
             if (videoEl && skipAd) {
-              // REVIEW: 沿用原有直接 16 倍速并跳到广告末尾的行为，可能触发 YouTube 风控。
+              // REVIEW: 这里会直接设为 16 倍速并跳到广告末尾，可能触发 YouTube 风控。
               // REVIEW: 广告结束时仍会重置到 1 倍速，可能覆盖用户自定义倍速；后续应单独修复。
               videoEl.playbackRate = 16;
               videoEl.currentTime = videoEl.duration;
@@ -447,7 +447,7 @@ export class YouTubeCaptionProvider {
       const vtt = buildBilingualVtt(this.#subtitles);
       downloadBlobFile(
         vtt,
-        `kiss-subtitles-${this.#videoId}_${Date.now()}.vtt`
+        `immer-subtitles-${this.#videoId}_${Date.now()}.vtt`
       );
     } catch (error) {
       logger.info("Youtube Provider: download subtitles:", error);

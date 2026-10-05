@@ -11,7 +11,7 @@ import {
 import { detectTermConflicts } from "./termTestUtils";
 
 // 术语替换纯函数测试（Task 1）
-// 覆盖：解析规格、排序、去重、非法正则、无单词边界匹配（上游语义）、冲突矩阵 4 类、空译文语义、旧引擎复现
+// 覆盖：解析规格、排序、去重、非法正则、无单词边界匹配、冲突矩阵 4 类、空译文语义、旧引擎复现
 describe("terms parseTerms", () => {
   test("parses key,value pairs separated by newline or semicolon", () => {
     const { terms, invalid, originalOrder } = parseTerms(
@@ -74,7 +74,7 @@ describe("terms parseTerms", () => {
     expect(byKey["API\\.\\d+"].isWord).toBe(false);
   });
 
-  test("wraps all keys as (key) with no word boundaries (上游语义)", () => {
+  test("wraps all keys as (key) with no word boundaries", () => {
     const { terms } = parseTerms("API,接口;手机,手机;API\\.\\d+,x");
     const byKey = Object.fromEntries(terms.map((t) => [t.key, t]));
     expect(byKey["API"].pattern).toBe("(API)");
@@ -245,7 +245,7 @@ describe("terms applyTermReplace", () => {
     expect(output).toBe("新phone壳");
   });
 
-  test("keys match inside longer ASCII words (上游无单词边界)", () => {
+  test("keys match inside longer ASCII words (no word boundary)", () => {
     const { terms } = parseTerms("API,接口");
     const { output, spans } = applyTermReplace("myAPIkey", terms, replacer);
     expect(output).toBe("my接口key");
@@ -1079,7 +1079,7 @@ describe("terms 严格非法输入诊断（Task 10）", () => {
     const term = parsed.terms.find((t) => t.key === "API");
     expect(term).toBeDefined();
     expect(term.value).toBe("");
-    // 运行时按上游 value || fullMatch 保留原文并包裹 <i> 高亮
+    // 运行时按 value || fullMatch 保留原文并包裹 <i> 高亮
     const { output } = applyTermReplace(
       "call the API now",
       parsed,

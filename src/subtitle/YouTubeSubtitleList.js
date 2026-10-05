@@ -305,7 +305,7 @@ export class YouTubeSubtitleList {
 
   /**
    * 重置虚拟列表的高度和窗口缓存。
-   * @param {{ preserveHeights?: boolean }} options preserveHeights 为 true 时尽量沿用旧高度，
+   * @param {{ preserveHeights?: boolean }} options preserveHeights 为 true 时尽量保留上一次的高度，
    * 用于翻译文本增量更新后保持滚动位置稳定；全量重建时则重新回到估算高度。
    */
   _resetVirtualMetrics({ preserveHeights = false } = {}) {
@@ -638,7 +638,7 @@ export class YouTubeSubtitleList {
 
       downloadBlobFile(
         vttContent,
-        `kiss-subtitles-${videoId}_${Date.now()}.vtt`
+        `immer-subtitles-${videoId}_${Date.now()}.vtt`
       );
     } catch (error) {
       logger.error("Youtube Provider: download subtitles error:", error);
@@ -660,7 +660,7 @@ export class YouTubeSubtitleList {
 
       downloadBlobFile(
         vttContent,
-        `kiss-subtitles-translation-${videoId}_${Date.now()}.vtt`
+        `immer-subtitles-translation-${videoId}_${Date.now()}.vtt`
       );
     } catch (error) {
       logger.error(
@@ -682,7 +682,7 @@ export class YouTubeSubtitleList {
 
       downloadBlobFile(
         jsonContent,
-        `kiss-subtitles-raw-${videoId}_${Date.now()}.json`
+        `immer-subtitles-raw-${videoId}_${Date.now()}.json`
       );
     } catch (error) {
       logger.error("Youtube Provider: download raw subtitles error:", error);
@@ -1716,7 +1716,7 @@ export class YouTubeSubtitleList {
     const blob = new Blob([content], { type: mimeType });
     downloadBlobFile(
       blob,
-      `kiss-vocabulary-${new Date().toISOString().slice(0, 10)}.${extension}`
+      `immer-vocabulary-${new Date().toISOString().slice(0, 10)}.${extension}`
     );
   }
 

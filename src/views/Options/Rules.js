@@ -118,7 +118,7 @@ export function queueDisabledSubRuleRemoval(
 
 // 计算规则的初始表单值
 const calculateInitialValues = (rule) => {
-  // REVIEW: GLOBLA_RULE 存在拼写错误，疑似应为 GLOBAL_RULE。此处为兼容底层导出的拼写而沿用。
+  // REVIEW: GLOBLA_RULE 存在拼写错误，疑似应为 GLOBAL_RULE。此处为兼容底层导出的拼写而继续使用。
   const base = rule?.pattern === "*" ? GLOBLA_RULE : DEFAULT_RULE;
   return { ...base, ...(rule || {}) };
 };
@@ -270,7 +270,7 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
   const handleRestore = (e) => {
     e.preventDefault();
     setFormValues(({ pattern }) => ({
-      // REVIEW: GLOBLA_RULE 存在拼写错误。此处继续沿用。
+      // REVIEW: GLOBLA_RULE 存在拼写错误。此处继续使用这一拼写。
       ...(pattern === "*" ? GLOBLA_RULE : DEFAULT_RULE),
       pattern,
     }));
@@ -1312,7 +1312,7 @@ function UserRules({ subRules, rules }) {
         <DownloadButton
           handleData={() => JSON.stringify([...rules.list], null, 2)}
           text={i18n("export")}
-          fileName={`kiss-rules_v2_${Date.now()}.json`}
+          fileName={`immer-rules_v2_${Date.now()}.json`}
         />
 
         <ShareButton

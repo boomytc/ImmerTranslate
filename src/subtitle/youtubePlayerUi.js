@@ -43,7 +43,7 @@ export function waitForElement(selector, callback) {
 }
 
 /**
- * 管理 YouTube 播放器上的 Kiss Translator 按钮、菜单和通知。
+ * 管理 YouTube 播放器上的 ImmerTranslate 按钮、菜单和通知。
  */
 export class YouTubePlayerUi {
   #getSetting;
@@ -81,7 +81,7 @@ export class YouTubePlayerUi {
   }
 
   /**
-   * 向 YouTube 右侧控制栏注入 Kiss Translator 字幕菜单按钮。
+   * 向 YouTube 右侧控制栏注入 ImmerTranslate 字幕菜单按钮。
    *
    * @param {HTMLElement|null} ytControls YouTube 原生右侧控制栏容器。
    * @returns {void}

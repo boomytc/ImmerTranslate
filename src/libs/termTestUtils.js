@@ -74,7 +74,7 @@ function literalPatternSample(source) {
     try {
       if (sample === "" || !new RegExp(source).test(sample)) return null;
     } catch {
-      // 非法正则源码（上游 parseTerms 已拦截，此处兜底）按不支持处理。
+      // 非法正则源码（parseTerms 已拦截，此处兜底）按不支持处理。
       return null;
     }
   }
@@ -327,7 +327,8 @@ export function generateTermTestText(parsedTerms, seed = "", options = {}) {
   // 内部自算时透传字面模式：treatKeysAsLiteral 语义必须同时覆盖冲突分析与
   // 样例生成，否则调用方只传字面选项而不传 conflicts 时会拿到正则语义冲突集。
   const conflicts =
-    options?.conflicts ?? detectTermConflicts(parsedTerms, { treatKeysAsLiteral });
+    options?.conflicts ??
+    detectTermConflicts(parsedTerms, { treatKeysAsLiteral });
   for (const conflict of conflicts) {
     const { short, long, shortHasValue, longHasValue } = conflict;
     const shortSample = resolveSample(short.key);
@@ -378,7 +379,10 @@ export function generateTermTestText(parsedTerms, seed = "", options = {}) {
   // 2. 无冲突术语的单术语用例
   const conflictKeys = new Set();
   for (const c of conflicts) {
-    if (resolveSample(c.short.key) === null || resolveSample(c.long.key) === null) {
+    if (
+      resolveSample(c.short.key) === null ||
+      resolveSample(c.long.key) === null
+    ) {
       continue;
     }
     if (
@@ -848,7 +852,7 @@ function spanInsideKey(text, span, key) {
   // 否则转义 key 恒 -1、永不判中。解码失败（非纯字面形态）时放弃判定。
   const sample = literalPatternSample(key);
   if (sample === null) return false;
-  // 空样例（理论上游已回验拦截，此处兜底）：空串 indexOf 恒命中且越界后
+  // 空样例（解析阶段已拦截，此处兜底）：空串 indexOf 恒命中且越界后
   // 永不返回 -1，会让下方 while 陷入死循环，必须直接放弃判定。
   if (sample === "") return false;
   let index = text.indexOf(sample);

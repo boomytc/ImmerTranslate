@@ -16,7 +16,7 @@ jest.mock("../config/app", () => {
   const actual = jest.requireActual("../config/app");
   return {
     ...actual,
-    APP_NAME: "KISS-Translator",
+    APP_NAME: "ImmerTranslate",
     APP_LCNAME: "kiss-translator",
     APP_CONSTS: {
       fabID: "kiss-translator-fab",
@@ -1851,7 +1851,7 @@ describe("Translator rule styles", () => {
     expect(apiTranslate).not.toHaveBeenCalled();
   });
 
-  test("does not query shadow roots inside KISS translator elements when scanAll is enabled", async () => {
+  test("does not query shadow roots inside translator elements when scanAll is enabled", async () => {
     document.body.innerHTML = `
       <main id="root">
         <div id="page-host">Page content</div>

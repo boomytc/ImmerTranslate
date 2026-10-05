@@ -141,7 +141,7 @@ export const OPT_TRANBOX_TRIGGER_ALL = [
   OPT_TRANBOX_TRIGGER_DBLCLICK,
 ];
 // 划词后弹出按钮的定位模式
-export const OPT_TRANBOX_BTN_POSITION_FIXED = "fixed"; // 沿用当前逻辑，固定显示在选区右下角
+export const OPT_TRANBOX_BTN_POSITION_FIXED = "fixed"; // 固定显示在选区右下角
 export const OPT_TRANBOX_BTN_POSITION_MOUSE = "mouse"; // 跟随鼠标或触摸结束位置显示
 export const OPT_TRANBOX_BTN_POSITION_ALL = [
   OPT_TRANBOX_BTN_POSITION_FIXED,

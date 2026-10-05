@@ -51,6 +51,7 @@ const SYNC_METHOD_METADATA = {
   [OPT_SYNCTYPE_WORKER]: {
     Icon: CloudSyncRoundedIcon,
     descriptionKey: "sync_method_worker_description",
+    nameKey: "sync_method_worker_name",
   },
 };
 
@@ -321,12 +322,14 @@ export default function SyncSetting() {
           aria-label={i18n("data_sync_type")}
         >
           {OPT_SYNCTYPE_ALL.map((item, index) => {
-            const { Icon, descriptionKey } = SYNC_METHOD_METADATA[item];
+            const { Icon, descriptionKey, nameKey } =
+              SYNC_METHOD_METADATA[item];
             return (
               <button
                 type="button"
                 className="kt-sync-method"
                 role="radio"
+                data-sync-type={item}
                 aria-checked={syncType === item}
                 tabIndex={index === tabbableSyncMethodIndex ? 0 : -1}
                 ref={(element) => {
@@ -337,7 +340,9 @@ export default function SyncSetting() {
                 onKeyDown={(event) => handleSyncTypeKeyDown(event, index)}
               >
                 <Icon />
-                <span className="kt-sync-method__name">{item}</span>
+                <span className="kt-sync-method__name">
+                  {nameKey ? i18n(nameKey) : item}
+                </span>
                 <span className="kt-sync-method__description">
                   {i18n(descriptionKey)}
                 </span>

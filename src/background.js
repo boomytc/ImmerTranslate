@@ -1020,7 +1020,7 @@ async function handleStreamFetch(port, args) {
       port.postMessage({ type: "done" });
     }
   } catch (error) {
-    // 过滤用户主动取消导致的 AbortError，保留真正的上游请求错误。
+    // 过滤用户主动取消导致的 AbortError，保留真正的远端请求错误。
     if (error.name !== "AbortError") {
       if (!disconnected) {
         port.postMessage({ type: "error", error: error.message });

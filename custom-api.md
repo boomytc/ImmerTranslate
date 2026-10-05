@@ -1,6 +1,6 @@
 # 自定义接口示例（本文档已过期，新版不再适用）
 
-V2版的示例请查看这里：[custom-api_v2.md](https://github.com/fishjar/kiss-translator/blob/master/custom-api_v2.md)
+V2版的示例请查看这里：[custom-api_v2.md](https://github.com/boomytc/ImmerTranslate/blob/main/custom-api_v2.md)
 
 以下示例为网友提供，仅供学习参考。
 
@@ -254,7 +254,7 @@ Response Hook
 
 ## 接入 deepl 接口
 
-> 来源： https://github.com/fishjar/kiss-translator/issues/101#issuecomment-2123786236
+> 示例
 
 Request Hook
 
@@ -283,7 +283,7 @@ Response Hook
 
 ## 接入智谱AI大模型
 
-> 来源： https://github.com/fishjar/kiss-translator/issues/205#issuecomment-2642422679
+> 示例
 
 Request Hook
 
@@ -312,7 +312,7 @@ Request Hook
 
 ## 接入谷歌新接口
 
-> 由网友 Bush2021 提供，来源：https://github.com/fishjar/kiss-translator/issues/225#issuecomment-2810950717
+> 由网友 Bush2021 提供
 
 URL
 
