@@ -33,6 +33,7 @@ import {
   normalizeLanguageCode,
 } from "../libs/language";
 import { getCacheDigest } from "../libs/cacheDigest";
+import { getRequestConfigSig } from "../libs/requestConfig";
 import {
   handleTranslate,
   handleDict,
@@ -762,6 +763,7 @@ export const apiTranslate = async ({
     getTranslatePromptCacheScope(apiSetting),
     glossary
   );
+  const reqSig = await getRequestConfigSig(apiSetting);
   const cacheOpts = {
     apiSlug,
     text,
@@ -771,6 +773,7 @@ export const apiTranslate = async ({
     translateVariants,
     version: [v1, v2].join("."),
     promptSig,
+    reqSig,
     ...(docInfo?.summary && { ctx: docInfo.summary.slice(0, 50) }),
   };
   const cacheInput = `${URL_CACHE_TRAN}?${queryString.stringify(cacheOpts)}`;
@@ -779,9 +782,17 @@ export const apiTranslate = async ({
   if (useCache) {
     let cache = await getHttpCachePolyfill(cacheInput);
     if (!cache?.trText && apiSlug === OPT_TRANS_GOOGLE) {
+      // 新格式回退键使用 Google2 的 slug/type 重新计算指纹，和当前规范化后的
+      // Google 键区分开。升级前没有 reqSig 的旧条目不会命中，这里不做迁移。
+      const legacyReqSig = await getRequestConfigSig({
+        ...apiSetting,
+        apiSlug: OPT_TRANS_GOOGLE_2,
+        apiType: OPT_TRANS_GOOGLE_2,
+      });
       const legacyCacheInput = `${URL_CACHE_TRAN}?${queryString.stringify({
         ...cacheOpts,
         apiSlug: OPT_TRANS_GOOGLE_2,
+        reqSig: legacyReqSig,
       })}`;
       cache = await getHttpCachePolyfill(legacyCacheInput);
     }
@@ -834,7 +845,7 @@ export const apiTranslate = async ({
             configuredBatchConcurrency >= 1
           ? Math.floor(configuredBatchConcurrency)
           : 1;
-    const key = `${apiSlug}_${fromLang}_${toLang}_${textFormat}_${enableStream ? "stream" : "batch"}_${promptSig}_${effectiveBatchConcurrency}`;
+    const key = `${apiSlug}_${fromLang}_${toLang}_${textFormat}_${enableStream ? "stream" : "batch"}_${promptSig}_${reqSig}_${effectiveBatchConcurrency}`;
     const queue = getBatchQueue(key, handleTranslate, {
       batchInterval,
       batchSize,
@@ -1006,6 +1017,7 @@ export const apiDict = async ({
     toLang,
     version: [v1, v2].join("."),
     promptSig: await getPromptCacheSig(apiSetting, PROMPT_CACHE_SCOPE_DICT),
+    reqSig: await getRequestConfigSig(apiSetting),
     contextSig: contextSig.slice(0, 16),
   };
   const cacheInput = `${URL_CACHE_DICT}?${queryString.stringify(cacheOpts)}`;
@@ -1105,6 +1117,7 @@ export const apiSubtitle = async ({
       0,
       16
     ),
+    reqSig: await getRequestConfigSig(apiSetting),
   };
   const cacheInput = `${URL_CACHE_SUBTITLE}?${queryString.stringify(cacheOpts)}`;
 
@@ -1143,7 +1156,11 @@ export const apiSummarizeContext = async ({
   transcript,
   apiSetting,
 }) => {
-  const cacheOpts = { apiSlug: apiSetting.apiSlug, videoId };
+  const cacheOpts = {
+    apiSlug: apiSetting.apiSlug,
+    videoId,
+    reqSig: await getRequestConfigSig(apiSetting),
+  };
   const cacheInput = `${URL_CACHE_CONTEXT}?${queryString.stringify(cacheOpts)}`;
 
   // 1. 读取总结摘要缓存，避免每次打开同一视频重复对长文本请求总结
