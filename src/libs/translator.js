@@ -1081,14 +1081,11 @@ export class Translator {
     const [startDelimiter, endDelimiter] =
       this.#apiSetting.placeholder.split(" ");
 
-    // 确保 placetag 始终是字符串（兼容旧配置可能是数组）
-    let tagName = this.#apiSetting.placetag;
-    if (Array.isArray(tagName)) {
-      tagName = tagName[0] || "i";
-    }
-    if (typeof tagName !== "string") {
-      tagName = "i"; // 默认值
-    }
+    const tagName =
+      typeof this.#apiSetting.placetag === "string" &&
+      this.#apiSetting.placetag
+        ? this.#apiSetting.placetag
+        : "i";
 
     const format = this.#apiSetting.placetagFormat || "compact"; // 占位符格式
     const safeTag = "span";

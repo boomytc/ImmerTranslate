@@ -562,6 +562,8 @@ describe("eventsToSubtitles", () => {
           end: events[events.length - 1].end,
           text: events.map((event) => event.text).join(" "),
           translation: "translated",
+          _si: 0,
+          _ei: events.length - 1,
         },
       ])
     );

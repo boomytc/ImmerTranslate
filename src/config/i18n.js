@@ -623,24 +623,6 @@ const SUBTITLE_PLAYGROUND_I18N = {
     "Protokol",
     "Giao thức"
   ),
-  subtitle_playground_legacy_compatible: subtitlePlaygroundText(
-    "兼容旧协议",
-    "Legacy protocol compatible",
-    "相容舊協定",
-    "旧プロトコル互換",
-    "이전 프로토콜 호환",
-    "Eski protokolle uyumlu",
-    "Tương thích giao thức cũ"
-  ),
-  subtitle_playground_protocol_value: subtitlePlaygroundText(
-    "{protocol}（{compatibility}）",
-    "{protocol} ({compatibility})",
-    "{protocol}（{compatibility}）",
-    "{protocol}（{compatibility}）",
-    "{protocol} ({compatibility})",
-    "{protocol} ({compatibility})",
-    "{protocol} ({compatibility})"
-  ),
   subtitle_playground_statistical_mode: subtitlePlaygroundText(
     "统计断句",
     "Statistical segmentation",
@@ -3538,15 +3520,6 @@ export const I18N = {
     ko: `자체 구축 번역 인터페이스 프록시 확인하기`,
     tr: `Kendi Oluşturduğunuz Çeviri Arayüzü Proxy'sine Göz Atın`,
     vi: "Check out the self-built translation interface proxy",
-  },
-  setting_helper: {
-    zh: `新旧配置并不兼容，导出的旧版配置，勿再次导入。`,
-    en: `The old and new configurations are not compatible. Do not import the exported old configuration again.`,
-    zh_TW: `新舊設定並不相容，匯出的舊版設定請勿再次匯入。`,
-    ja: `新旧の設定に互換性はありません。エクスポートした古い設定を再度インポートしないでください。`,
-    ko: `이전 구성과 새 구성은 호환되지 않습니다. 내보낸 이전 구성을 다시 가져오지 마십시오.`,
-    tr: `Eski ve yeni konfigürasyonlar uyumlu değildir. Dışa aktarılan eski konfigürasyonu tekrar içe aktarmayın.`,
-    vi: "The old and new configurations are not compatible. Do not import the exported old configuration again.",
   },
   style_none: {
     zh: `无`,
