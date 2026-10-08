@@ -9,30 +9,21 @@ import { splitEventsIntoChunks } from "./youtubeSubtitleProcessing.js";
  */
 
 /**
- * 只接受从事件 0 开始连续覆盖的字幕前缀，非法、跳号或重叠后的对象全部丢弃。
- * VTT 旧协议没有事件索引，无法进行游标校验，只保留原有兼容行为。
+ * 只接受从事件 0 开始连续覆盖的 boundary-v3 前缀。
+ * 没有索引的结果不是当前协议，不能当成整段成功。
  */
 function takeContinuousCuePrefix(cues, eventCount) {
   const safeCues = Array.isArray(cues) ? cues : [];
-  const hasIndexedCue = safeCues.some(
-    (cue) => Number.isInteger(cue?._ei) || Number.isInteger(cue?._alignedEi)
-  );
-  if (!hasIndexedCue) {
-    return {
-      cues: safeCues,
-      coveredEnd: safeCues.length ? eventCount - 1 : -1,
-      verifiable: false,
-    };
-  }
-
   const prefix = [];
   let nextIndex = 0;
+  let sawIndex = false;
+
   for (const cue of safeCues) {
-    const startIndex = cue._alignedSi ?? cue._si;
-    const endIndex = cue._alignedEi ?? cue._ei;
+    const startIndex = cue?._si;
+    const endIndex = cue?._ei;
+    if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex)) break;
+    sawIndex = true;
     if (
-      !Number.isInteger(startIndex) ||
-      !Number.isInteger(endIndex) ||
       startIndex !== nextIndex ||
       endIndex < startIndex ||
       endIndex >= eventCount
@@ -43,6 +34,9 @@ function takeContinuousCuePrefix(cues, eventCount) {
     nextIndex = endIndex + 1;
   }
 
+  if (!sawIndex) {
+    return { cues: [], coveredEnd: -1, verifiable: false };
+  }
   return { cues: prefix, coveredEnd: nextIndex - 1, verifiable: true };
 }
 
@@ -52,12 +46,6 @@ function offsetCueIndices(cues, offset) {
     ...cue,
     _si: Number.isInteger(cue._si) ? cue._si + offset : cue._si,
     _ei: Number.isInteger(cue._ei) ? cue._ei + offset : cue._ei,
-    _alignedSi: Number.isInteger(cue._alignedSi)
-      ? cue._alignedSi + offset
-      : cue._alignedSi,
-    _alignedEi: Number.isInteger(cue._alignedEi)
-      ? cue._alignedEi + offset
-      : cue._alignedEi,
   }));
 }
 
@@ -69,7 +57,7 @@ function markDraftTranslations(cues, clearSegmentTranslation) {
 }
 
 /**
- * 最终校验字幕时间轴和原文顺序；兼容 VTT 时也能发现漏词或重复词。
+ * 最终校验字幕时间轴和原文顺序。
  * 校验失败直接对当前 chunk 全量降级，避免把损坏结果交给播放器。
  */
 function finalizeAiCues(cues, segmentEvents, fromLang, formatSubtitles) {
@@ -86,7 +74,7 @@ function finalizeAiCues(cues, segmentEvents, fromLang, formatSubtitles) {
       (previous && start < Number(previous.end))
     );
   });
-  // 仅比较字母和数字序列，允许模型在 VTT 旧协议中修正空格或标点。
+  // 只比较字母和数字，允许模型调整空格或标点。
   const normalizeText = (items) =>
     (items || [])
       .map((item) => String(item?.text || ""))

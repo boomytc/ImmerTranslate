@@ -62,7 +62,9 @@ describe("fetchStreamNative", () => {
       })
     );
 
-    const iterator = fetchStreamNative("https://example.test", {}, 1000);
+    const iterator = fetchStreamNative("https://example.test", {}, {
+      httpTimeout: 1000,
+    });
     await expect(iterator.next()).resolves.toEqual({
       value: "one",
       done: false,

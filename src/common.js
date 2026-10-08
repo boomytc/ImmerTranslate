@@ -62,8 +62,8 @@ function isOptionsPageHref(href) {
 }
 
 /**
- * 建立旧式 GM_* API 到现代 GM 对象的兼容垫片。
- * 必须在任何 storage 访问前执行，避免旧油猴环境在数据迁移阶段缺少 GM。
+ * 建立 GM_* 到 GM 对象的垫片。
+ * 必须在任何 storage 访问前执行，避免油猴环境尚未挂上 GM 时读写存储。
  */
 function ensureUserscriptGM() {
   globalThis.GM = globalThis.GM || {};

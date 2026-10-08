@@ -134,20 +134,22 @@ const toPublicCues = (cues) =>
     translation,
   }));
 
-/** 判断带内部索引的 AI 结果是否从 0 连续覆盖到请求事件末尾。 */
+/** 判断 boundary-v3 结果是否从 0 连续覆盖到请求事件末尾。 */
 function hasCompleteIndexedCoverage(cues, eventCount) {
-  if (!Array.isArray(cues) || !cues.length) return false;
-  const hasIndices = cues.some(
-    (cue) => Number.isInteger(cue?._ei) || Number.isInteger(cue?._alignedEi)
-  );
-  // VTT 旧协议没有索引，仍交由时间轴结构指标检查。
-  if (!hasIndices) return true;
+  if (!Array.isArray(cues) || !cues.length || !eventCount) return false;
 
   let nextIndex = 0;
   for (const cue of cues) {
-    const startIndex = cue._alignedSi ?? cue._si;
-    const endIndex = cue._alignedEi ?? cue._ei;
-    if (startIndex !== nextIndex || endIndex < startIndex) return false;
+    const startIndex = cue?._si;
+    const endIndex = cue?._ei;
+    if (
+      !Number.isInteger(startIndex) ||
+      !Number.isInteger(endIndex) ||
+      startIndex !== nextIndex ||
+      endIndex < startIndex
+    ) {
+      return false;
+    }
     nextIndex = endIndex + 1;
   }
   return nextIndex === eventCount;
@@ -562,21 +564,7 @@ export default function SubtitleSegmentationPlayground({
             ? i18n("subtitle_playground_enabled", "启用")
             : i18n("subtitle_playground_disabled", "关闭"),
         ],
-        [
-          i18n("subtitle_playground_protocol", "协议"),
-          formatI18n(
-            i18n,
-            "subtitle_playground_protocol_value",
-            "{protocol}（{compatibility}）",
-            {
-              protocol: aiProtocol,
-              compatibility: i18n(
-                "subtitle_playground_legacy_compatible",
-                "兼容旧协议"
-              ),
-            }
-          ),
-        ],
+        [i18n("subtitle_playground_protocol", "协议"), aiProtocol],
       ]
     : mode === "statistical"
       ? [

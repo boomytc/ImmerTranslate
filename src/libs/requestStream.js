@@ -222,13 +222,13 @@ async function* fetchStreamGM(
  *
  * @param {string} input 请求 URL。
  * @param {Object} [init={}] Fetch 初始化参数。
- * @param {Object|number} [opts] 请求选项；兼容旧调用传入 timeout number。
+ * @param {Object} [opts] 请求选项。
  * @param {number} [opts.httpTimeout] 超时时间。
  * @param {AbortSignal} [opts.signal] 外部取消信号。
  * @returns {AsyncGenerator<string>} 逐条产出 SSE data 字段。
  */
 export async function* fetchStreamNative(input, init = {}, opts = {}) {
-  const options = typeof opts === "number" ? { httpTimeout: opts } : opts || {};
+  const options = opts || {};
   const timeout = normalizeHttpTimeout(options.httpTimeout);
   const signal = mergeAbortSignals([
     init.signal,
