@@ -70,11 +70,11 @@ git push origin v1.1.1
 2. 运行发布脚本测试、产品测试、完整构建，确认构建没有修改受控文件。
 3. 校验五端 ZIP、两种用户脚本和 Pages 版本，生成包含源 SHA、ZIP 大小及 SHA-256、Pages 文件摘要的 `release-manifest.json`，保存原构建 artifact 90 天。
 4. 用 GitHub CLI 创建 draft，先上传来源清单，再上传五个 ZIP。全部上传并校验后才正式发布。按 tag 的 REST 接口仅返回已发布 Release；草稿通过有 push 权限的 release-state job 分页查询，构建 job 保持只读权限。
-5. 发布成功后才部署 Pages；只部署当前 latest 稳定版，且不得低于 gh-pages 的现有 `version.txt`。同版本发布串行，Pages 部署单独串行。
+5. 发布成功后才部署 Pages；只部署当前 latest 稳定版，且不得低于 gh-pages 的现有 `version.txt`。同版本发布串行，Pages 部署单独串行。推送 gh-pages 后显式请求 Pages 构建，等待该分支提交构建成功并确认线上 `version.txt`；不能仅以分支推送成功判断站点已部署。同一提交已构建且线上版本正确时不会重复请求构建。
 
 下载包命名为 `immer-translate_v1.1.1_<client>.zip`，client 为 chrome、edge、firefox、userscript、thunderbird；另有 `immer-translate_v1.1.1_manifest.json` 用于检查来源和摘要。Safari 原生扩展构建不在本发布矩阵中。
 
-发布和 Pages job 显式使用 `contents: write`，构建仅使用读权限。认证错误、版本错误或产物摘要冲突都会停止，不能被解释为“版本不存在”。
+发布和 Pages job 显式使用 `contents: write`，Pages job 另用 `pages: write` 请求构建，构建 job 仅使用读权限。认证错误、版本错误或产物摘要冲突都会停止，不能被解释为“版本不存在”。
 
 ## 失败恢复与重复运行
 

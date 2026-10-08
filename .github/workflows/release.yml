@@ -161,6 +161,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      pages: write
     concurrency:
       group: immertranslate-pages
       cancel-in-progress: false
@@ -213,3 +214,9 @@ jobs:
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: build/web
+      - name: Build Pages and verify the live version
+        if: steps.guard.outputs.deploy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+        run: node .release-tools/src/scripts/verify-pages-deployment.mjs

@@ -31,6 +31,7 @@ import { publishRelease } from "./publish-release.mjs";
 import { shouldDeployPages } from "./pages-guard.mjs";
 import { selectOriginalArtifact } from "./find-release-artifact.mjs";
 import { getGithubRelease } from "./github-release.mjs";
+import { verifyPagesDeployment } from "./verify-pages-deployment.mjs";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 const tag = "v1.1.1";
@@ -511,6 +512,49 @@ test("Pages only deploys the current stable release and never downgrades", () =>
   assert.equal(shouldDeployPages(tag, tag, "1.1.2"), false);
   assert.equal(shouldDeployPages("v1.10.0", "v1.10.0", "1.9.0"), true);
   assert.throws(() => shouldDeployPages(tag, tag, "broken"));
+});
+
+test("Pages requires the deployed commit and live version, and skips redundant builds", async () => {
+  const requests = [];
+  const states = [
+    { commit: "old", status: "built" },
+    { commit: sha, status: "building" },
+    { commit: sha, status: "built" },
+    { commit: sha, status: "built" },
+  ];
+  const versions = ["1.1.0", "1.1.1"];
+  const client = {
+    latestBuild: async () => states.shift() || { commit: sha, status: "built" },
+    requestBuild: async () => requests.push("build"),
+    liveVersion: async () => versions.shift() || "1.1.1",
+    wait: async () => {},
+  };
+  await verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 3 });
+  assert.deepEqual(requests, ["build"]);
+  await verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 1 });
+  assert.deepEqual(requests, ["build"]);
+});
+
+test("Pages build errors and stale site versions fail deployment verification", async () => {
+  const client = {
+    latestBuild: async () => ({
+      commit: sha,
+      status: "errored",
+      error: { message: "Broken site" },
+    }),
+    requestBuild: async () => {},
+    liveVersion: async () => "1.1.0",
+    wait: async () => {},
+  };
+  await assert.rejects(
+    verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 1 }),
+    /Broken site/
+  );
+  client.latestBuild = async () => ({ commit: sha, status: "built" });
+  await assert.rejects(
+    verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 2 }),
+    /did not serve/
+  );
 });
 
 test("recovery accepts only the original unexpired release artifact", () => {
