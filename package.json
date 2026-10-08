@@ -1,7 +1,7 @@
 {
   "name": "immer-translate",
   "description": "A minimalist bilingual translation Extension & Greasemonkey Script",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "license": "GPL-3.0-only",
   "author": "Gabe<yugang2002@gmail.com>",
   "private": true,
@@ -29,7 +29,7 @@
   "scripts": {
     "start": "cross-env REACT_APP_CLIENT=web react-app-rewired start",
     "start:userscript": "cross-env REACT_APP_CLIENT=userscript react-app-rewired start",
-    "sync-version": "zx src/scripts/sync-version.mjs",
+    "sync-version": "node src/scripts/sync-version.mjs",
     "version:patch": "zx src/scripts/update-version.mjs patch",
     "version:minor": "zx src/scripts/update-version.mjs minor",
     "version:major": "zx src/scripts/update-version.mjs major",
@@ -44,13 +44,17 @@
     "build:userscript-ios": "zx src/scripts/build-ios.mjs",
     "build:rules": "babel-node src/rules.js",
     "format": "prettier --write \"**/*.{js,json,html}\"",
-    "build": "pnpm sync-version && pnpm format && pnpm build:chrome && pnpm build:edge && pnpm build:thunderbird && pnpm build:firefox && pnpm build:web && pnpm build:userscript-ios && pnpm build:rules",
+    "build": "pnpm sync-version && node src/scripts/clean-build.mjs && pnpm build:chrome && pnpm build:edge && pnpm build:thunderbird && pnpm build:firefox && pnpm build:web && pnpm build:userscript-ios && pnpm build:rules",
     "zip": "zx src/scripts/archive.mjs",
     "build+zip": "cross-env CI=true pnpm build && pnpm zip",
     "test": "react-app-rewired test",
     "test:subtitle-segmentation": "babel-node src/scripts/test-subtitle-segmentation.js",
     "test:terms": "babel-node src/scripts/test-term-replace.js",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "format:check": "node src/scripts/check-format.mjs",
+    "release:check": "node src/scripts/check-release.mjs",
+    "release:artifacts": "node src/scripts/prepare-release-artifacts.mjs",
+    "test:release": "node --test src/scripts/release.test.mjs"
   },
   "eslintConfig": {
     "extends": [
@@ -97,5 +101,6 @@
       "shell-quote": "1.8.4",
       "websocket-driver": "0.7.5"
     }
-  }
+  },
+  "packageManager": "pnpm@9.14.4"
 }

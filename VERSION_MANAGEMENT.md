@@ -1,120 +1,103 @@
 # 版本号管理与发布指南
 
-## 📌 背景
+## 版本与工具链
 
-项目的版本号分散在以下多个文件中：
-- `package.json`
-- `.env` (`REACT_APP_VERSION`)
-- `public/manifest.json`
-- `public/manifest.firefox.json`
-- `public/manifest.thunderbird.json`
+`package.json` 是唯一版本源。`.env` 的 `REACT_APP_VERSION` 和三个 `public/manifest*.json` 由 `pnpm sync-version` 同步，禁止手工分别改号。同步前会校验所有文件与版本字段；文件缺失、字段重复或版本无效都会返回非零，阻断后续构建。
 
-为了避免手动更新多个文件的繁琐与疏漏，项目已接入**自动化版本号管理及同步方案**。
-
-## ✨ 解决方案
-
-### 单一版本源
-**`package.json` 是项目中唯一的版本号来源**。其他所有文件的版本号均由此文件自动分发与同步。
-
-### 自动同步机制
-* **构建时自动同步：** 执行以下打包命令时，底层会自动先触发版本号同步，确保产物一致。
-  ```bash
-  pnpm build        # 构建前自动同步版本号
-  pnpm build+zip    # 打包前自动同步版本号
-  ```
-* **手动强制同步：** 如果不小心手动改动了 `package.json`，可运行此命令：
-  ```bash
-  pnpm sync-version  # 手动触发版本号同步
-  ```
-
-## 🚀 版本号更新方法
-
-更新版本号时，**强烈推荐**使用以下封装好的快捷命令。这些命令会自动完成 `package.json` 的修改并**同步到所有关联文件**。
+仓库通过 `packageManager` 和 `.pnpm-version` 固定 pnpm 9.14.4，CI 使用 Node.js 24。推荐使用 Corepack，安装依赖时保留锁文件：
 
 ```bash
-# 补丁版本更新 (Patch): 2.0.19 -> 2.0.20（Bug 修复）
-pnpm version:patch
-
-# 次版本更新 (Minor): 2.0.19 -> 2.1.0（新功能引入）
-pnpm version:minor
-
-# 主版本更新 (Major): 2.0.19 -> 3.0.0（重大断代更新）
-pnpm version:major
-
-# 手动指定精确版本号: 设置为 2.1.0
-pnpm version:set -- 2.1.0
+corepack pnpm@9.14.4 install --frozen-lockfile
 ```
 
-这些命令会自动完成：
-1. ✅ 更新 `package.json` 中的版本号
-2. ✅ 自动同步到其他所有文件
+更新版本使用现有命令，不会自动创建 Git 标签：
 
-## 📝 完整的版本发布流程（Git 规范）
-
-为了确保分支安全，项目采用了 `master` (生产/发版) 与 `dev` (开发/集成) 双分支管理。**禁止直接向 `master` 推送代码**，必须通过 GitHub PR 合并。
-
-以下是标准的合规发布流程：
-
-### 阶段一：在 `dev` 分支完成发版准备
 ```bash
-# 0. 确保当前在 dev 分支且代码最新
-git checkout dev
-git pull origin dev
+pnpm version:patch          # Bug / 安全修复，例如 1.1.0 -> 1.1.1
+pnpm version:minor          # 新功能
+pnpm version:major          # 不兼容的大版本
+pnpm version:set -- 1.1.1   # 明确指定稳定版本
+```
 
-# 1. 代码格式化检查
-pnpm format
+## 发布准备：最新 main → 发布分支 → PR
 
-# 2. 更新版本号（自动完成所有文件的同步）
+所有开发和发布通过 PR 合入 `main`，禁止直接向 `main` 推送发布提交。开始前要求工作区干净、`main` 与最新 `origin/main` 一致、GitHub 认证有效、目标标签不存在，且没有冲突的发布 PR。
+
+```bash
+git fetch origin --prune --tags
+git status --short --branch
+git rev-list --left-right --count main...origin/main
+gh auth status
+git switch main
+git pull --ff-only origin main
+git switch -c codex/release-v1.1.1
 pnpm version:patch
+```
 
-# 3. 更新 CHANGELOG.md（手动编辑）
-# 添加新版本的更新内容
+在 CHANGELOG 顶部添加唯一、非空的 `## v1.1.1` 节，使用中文说明用户可见变化；历史条目保持不变。安全补丁还应交代个人规则钩子的兼容性变化。版本号、标签和 CHANGELOG 首节必须一致。
 
-# 4. 构建和打包（构建前会再次确保版本号同步）
+格式化仅处理本次变更文件，然后检查完整差异。`pnpm format:check` 默认检查相对 HEAD 的变更及未跟踪文件；PR CI 使用 `pnpm format:check origin/main` 检查该 PR。不要把已有的全仓格式差异混入发布提交。
+
+```bash
+pnpm format:check
+pnpm release:check
+pnpm test:release
+CI=true pnpm test --watchAll=false --runInBand
 pnpm build+zip
-
-# 5. 提交变更代码
-git add .
-git commit -m "chore: bump version to 2.0.20"
-
-# 6. 推送到远端 dev 分支
-git push origin dev
+git diff --check
+git diff
 ```
 
-### 阶段二：通过 GitHub PR 发布到 `master`
-1. 打开 GitHub 仓库页面，发起一个 **`dev` -> `master`** 的 Pull Request。
-2. PR 标题命名为 `Release v2.0.20`。
-3. 确认自动化检查通过后，点击 **Merge pull request** 将代码正式合入 `master`。
+`pnpm build` 会同步版本、清理旧 build 并构建各客户端，不再自动格式化源码。压缩使用锁文件中已安装的 bestzip，不临时下载工具。检查 ZIP 内 manifest、两个用户脚本的 `@version` 及 `build/web/version.txt`，都应为目标版本。
 
-### 阶段三：本地同步并在 `master` 标记 Tag（触发自动发版）
+只暂存经过审查的发布文件，提交并推送发布分支，创建标题为 `Release v1.1.1`、目标为 main 的 PR。等待 `release checks / checks` 及其他要求的检查全部通过，再通过 PR 合并；失败时先修复，不绕过检查。仓库工作流提供检查，但分支保护中是否将其设为 required 由仓库设置控制。
+
+## 标签与自动发布
+
+合并后同步 main，核对实际落地提交、所有版本和 CHANGELOG，再检查目标标签仍不存在。创建新的注解标签，禁止覆盖已发布标签或用旧版本号上传新的补丁包。
+
 ```bash
-# 7. 切换到本地 master 并拉取 GitHub 确认合入的最新代码
-git checkout master
-git pull origin master
-
-# 8. 基于生产分支节点打上版本 Tag
-git tag -a v2.0.20 -m "Release version 2.0.20"
-
-# 9. 推送 Tag 到远端（关键：此操作将触发 GitHub Actions 的自动发版工作流）
-git push origin v2.0.20
-
-# 10. 切换回 dev 分支继续日常开发
-git checkout dev
-
-# 11. 把 master 上的这个合并记录也同步回 dev
-git pull --ff-only origin dev
-git merge --ff-only origin/master
-git push origin dev
+git switch main
+git pull --ff-only origin main
+pnpm release:check
+git tag -a v1.1.1 -m "Release version 1.1.1"
+git push origin v1.1.1
 ```
 
-## 🛠️ 相关脚本文件
+标签触发 `.github/workflows/release.yml`，流程为：
 
-- `src/scripts/sync-version.mjs` - 版本号同步脚本
-- `src/scripts/update-version.mjs` - 版本号更新脚本
+1. 校验稳定版本、CHANGELOG 和标签提交位于 main 历史中。
+2. 运行发布脚本测试、产品测试、完整构建，确认构建没有修改受控文件。
+3. 校验五端 ZIP、两种用户脚本和 Pages 版本，生成包含源 SHA、ZIP 大小及 SHA-256、Pages 文件摘要的 `release-manifest.json`，保存原构建 artifact 90 天。
+4. 用 GitHub CLI 创建 draft，先上传来源清单，再上传五个 ZIP。全部上传并校验后才正式发布。
+5. 发布成功后才部署 Pages；只部署当前 latest 稳定版，且不得低于 gh-pages 的现有 `version.txt`。同版本发布串行，Pages 部署单独串行。
 
-## ⚠️ 注意事项
+下载包命名为 `immer-translate_v1.1.1_<client>.zip`，client 为 chrome、edge、firefox、userscript、thunderbird；另有 `immer-translate_v1.1.1_manifest.json` 用于检查来源和摘要。Safari 原生扩展构建不在本发布矩阵中。
 
-1. **不要手动修改** `.env`、`manifest.json` 等文件中的版本号。
-2. **只需修改** `package.json` 中的版本号，或者使用 `pnpm version:*` 命令（如果手动修改了 `package.json`，记得运行 `pnpm sync-version`）。
-3. 每次构建前会自动同步版本号，确保所有文件版本一致。
-4. 更新版本后记得同步更新 `CHANGELOG.md`，确保内容与版本号完全对应。
+发布和 Pages job 显式使用 `contents: write`，构建仅使用读权限。认证错误、版本错误或产物摘要冲突都会停止，不能被解释为“版本不存在”。
+
+## 失败恢复与重复运行
+
+GitHub 的 Re-run 使用原事件 SHA 和 ref，不能通过重跑 v1.1.0 带入 main 的新安全修复；新修复应发布 v1.1.1。
+
+- 构建或测试失败、尚未创建 Release：修复原因后按发布门禁继续。
+- 上传失败：保留 draft、已上传资产及原构建 artifact。重跑同一运行时复用原 artifact，验证已上传文件后只补传缺失文件。
+- Release 已完整发布：重跑只校验资产，不删除、不覆盖、不重复发布；Pages 仍按 latest 和现有版本决定是否部署。
+- 已发布资产冲突、缺少来源清单、原 artifact 缺失或过期：停止自动恢复，保留已发布历史。不要使用 `--clobber`、删旧标签或重新构建不同字节的包替换历史资产。
+- Pages 单独失败：原 Release 保持有效，可从原 artifact 恢复部署。使用新版工作流恢复旧版时会跳过 Pages，保护当前站点。v1.1.0 等历史标签保存的旧工作流没有这些保护，不应重跑其 Pages job；main 中的新 YAML 不会替换历史运行所用的 YAML。
+
+也可从 main 的 Actions 页面手动运行发布工作流，指定已有稳定标签和原发布运行 ID：
+
+```bash
+gh workflow run release.yml --ref main \
+  -f tag=v1.1.1 \
+  -f artifact_run_id=<原发布运行ID>
+```
+
+手动恢复依然校验 tag/SHA/版本/原始摘要，不移动标签。没有原 artifact 时不自动重建部分发布。
+
+## 发布验收
+
+确认标签对应 main 中的发布提交、工作流三个 job 成功、五端 ZIP 与来源清单齐全、包内版本及两个脚本版本正确，并核对线上 `version.txt` 为目标版本。浏览器升级后验证订阅脚本不执行、个人规则仍可运行且看不到密钥、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
+
+报告发布 PR、main 提交 SHA、标签、Release URL、工作流结果和最终分支状态。静态测试及构建通过不能替代浏览器实际升级验证。
