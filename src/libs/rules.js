@@ -557,16 +557,6 @@ const applySavedRule = (rules, curRule) => {
 
   // Keep inherited values represented by their default placeholders.
   Object.keys(GLOBLA_RULE).forEach((key) => {
-    if (key === "isPlainText") {
-      const value =
-        mergedRule[key] === true || mergedRule[key] === "true"
-          ? "true"
-          : mergedRule[key] === false || mergedRule[key] === "false"
-            ? "false"
-            : DEFAULT_RULE[key];
-      newRule[key] = value === globalRule[key] ? DEFAULT_RULE[key] : value;
-      return;
-    }
     newRule[key] =
       !mergedRule[key] || mergedRule[key] === globalRule[key]
         ? DEFAULT_RULE[key]

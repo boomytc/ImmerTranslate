@@ -1,4 +1,5 @@
 import { builtinStylesMap } from "./style";
+import { APP_LCNAME } from "../config/app";
 import { OPT_STYLE_HIGHLIGHT, OPT_STYLE_NONE } from "../config/styles";
 import {
   applySourceTypography,
@@ -32,7 +33,7 @@ describe("bilingual source typography", () => {
 
   test("copies paragraph typography onto the translation and beats a font rule", () => {
     document.head.appendChild(document.createElement("style")).textContent = `
-      font.kiss-translator-inner {
+      font.${APP_LCNAME}-inner {
         font-size: 12px;
         font-weight: 400;
         line-height: 14px;
@@ -44,7 +45,7 @@ describe("bilingual source typography", () => {
       '<p id="source" style="font-size: 22px; font-weight: 700; line-height: 36px; color: rgb(10, 20, 30); letter-spacing: 0.2px;">Hello paragraph</p>';
     const source = document.getElementById("source");
     const inner = document.createElement("font");
-    inner.className = "kiss-translator-inner";
+    inner.className = `${APP_LCNAME}-inner`;
     source.appendChild(inner);
 
     applySourceTypography(inner, source, builtinStylesMap[OPT_STYLE_NONE]);
@@ -74,8 +75,8 @@ describe("bilingual source typography", () => {
   });
 
   test("strips frosted chrome from page translation nodes", () => {
-    const wrapper = document.createElement("kiss-translator");
-    wrapper.className = "kiss-translator-wrapper";
+    const wrapper = document.createElement(APP_LCNAME);
+    wrapper.className = `${APP_LCNAME}-wrapper`;
     wrapper.style.backdropFilter = "blur(22px)";
     wrapper.style.backgroundColor = "rgba(255, 255, 255, 0.7)";
     const inner = document.createElement("font");
@@ -107,7 +108,7 @@ describe("bilingual source typography", () => {
     );
     expect(styles).toHaveLength(1);
     expect(styles[0].textContent).toContain(
-      ".kiss-translator-wrapper > .kiss-translator-inner"
+      `.${APP_LCNAME}-wrapper > .${APP_LCNAME}-inner`
     );
   });
 });

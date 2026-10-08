@@ -436,6 +436,34 @@ describe("Batch Translation Protocols & Custom Batch User Prompt", () => {
       );
     });
 
+    test("renders inline {{glossary}} as source translates to target", async () => {
+      const [, reqInit] = await genTransReq({
+        apiType: OPT_TRANS_OPENAI,
+        url: "https://api.openai.com/v1/chat/completions",
+        key: "sk-test",
+        model: "gpt-model",
+        useBatchFetch: false,
+        nobatchUserPrompt:
+          "Use these terms: {{glossary}}\n\nTranslate into {{to}}: {{text}}",
+        systemPrompt: "",
+        from: "en",
+        to: "zh-CN",
+        fromLang: "en",
+        toLang: "zh-CN",
+        texts: ["Enter your token."],
+        glossary: { token: "令牌" },
+        tone: "",
+      });
+
+      const body = JSON.parse(reqInit.body);
+      const userMessage = body.messages.find((m) => m.role === "user");
+
+      expect(userMessage.content).toContain(
+        "Use these terms: token translates to 令牌"
+      );
+      expect(userMessage.content).not.toContain("- token:");
+    });
+
     test("formats empty glossary target as self-mapping to preserve source term unchanged", async () => {
       const texts = ["React is a library."];
       const [, reqInit] = await genTransReq({

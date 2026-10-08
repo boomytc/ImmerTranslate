@@ -87,17 +87,6 @@ import { visitTranslationTargets } from "./translationTargets";
 // Only wrappers created by this runtime are trusted across instance recreation.
 const touchTranslationOwners = new WeakMap();
 
-// Previous default. Stored settings that still match it pick up the light card.
-const LEGACY_MOUSE_HOVER_BUBBLE_STYLE = `max-width: min(420px, calc(100vw - 32px));
-padding: 10px 12px;
-border-radius: 8px;
-background: rgb(25, 118, 210);
-color: #fff;
-font-size: 14px;
-line-height: 1.5;
-box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-backdrop-filter: blur(8px);`;
-
 function normalizeBubbleStyle(style) {
   return String(style || "")
     .trim()
@@ -106,12 +95,10 @@ function normalizeBubbleStyle(style) {
 }
 
 function resolveHoverBubbleStyle(userStyle) {
-  const normalized = normalizeBubbleStyle(userStyle);
-  const legacy = normalizeBubbleStyle(LEGACY_MOUSE_HOVER_BUBBLE_STYLE);
-  if (!normalized || normalized === legacy) {
-    return normalizeBubbleStyle(DEFAULT_MOUSE_HOVER_BUBBLE_STYLE);
-  }
-  return normalized;
+  return (
+    normalizeBubbleStyle(userStyle) ||
+    normalizeBubbleStyle(DEFAULT_MOUSE_HOVER_BUBBLE_STYLE)
+  );
 }
 
 function createApisMap(apis = []) {
@@ -743,11 +730,7 @@ export class Translator {
   }
 
   #getIgnoreSelector(rule) {
-    if (
-      rule.scanAll === "true" ||
-      rule.isPlainText === true ||
-      rule.isPlainText === "true"
-    ) {
+    if (rule.scanAll === "true" || rule.isPlainText === "true") {
       return Translator.KISS_IGNORE_SELECTOR;
     }
 
@@ -944,7 +927,7 @@ export class Translator {
     if (
       state.runId !== this.#runId ||
       !pre.isConnected ||
-      !this.#rule.isPlainText
+      this.#rule.isPlainText !== "true"
     ) {
       this.#plainTextPreprocessingNodes.delete(pre);
       return;
@@ -1049,25 +1032,14 @@ export class Translator {
 
   get #transAllnow() {
     const apiValue = this.#apisMap.get(this.#rule.apiSlug)?.transAllnow;
-    if (apiValue !== undefined) {
-      return apiValue === true || apiValue === "true";
-    }
-
-    return (
-      this.#setting.transAllnow === true || this.#setting.transAllnow === "true"
-    );
+    return apiValue === true || apiValue === "true";
   }
 
   get #rootMargin() {
     const apiValue = this.#apisMap.get(this.#rule.apiSlug)?.rootMargin;
-    const legacyValue = this.#setting.rootMargin;
-    const value =
-      apiValue !== undefined && apiValue !== ""
-        ? apiValue
-        : legacyValue !== undefined && legacyValue !== ""
-          ? legacyValue
-          : 500;
-    const rootMargin = Number(value);
+    const rootMargin = Number(
+      apiValue !== undefined && apiValue !== "" ? apiValue : 500
+    );
 
     return Number.isFinite(rootMargin) ? rootMargin : 500;
   }
@@ -1124,11 +1096,7 @@ export class Translator {
 
   constructor({ rule = {}, setting = {}, favWords = [] }) {
     this.#setting = { ...Translator.DEFAULT_OPTIONS, ...setting };
-    this.#rule = {
-      ...Translator.DEFAULT_RULE,
-      ...rule,
-      isPlainText: rule.isPlainText === true || rule.isPlainText === "true",
-    };
+    this.#rule = { ...Translator.DEFAULT_RULE, ...rule };
     if (this.#rule.textStyle && this.#rule.textStyle !== OPT_STYLE_NONE) {
       this.#lastActiveTextStyle = this.#rule.textStyle;
     }
@@ -1207,7 +1175,7 @@ export class Translator {
     this.#initInjector();
 
     // 纯文本预处理
-    if (this.#rule.isPlainText) {
+    if (this.#rule.isPlainText === "true") {
       document.querySelectorAll("pre").forEach((pre) => {
         this.#initPlainTextPre(pre);
       });
@@ -5369,13 +5337,6 @@ overflow-wrap: anywhere !important;`;
     }
     if (newRule.textStyle && newRule.textStyle !== OPT_STYLE_NONE) {
       this.#lastActiveTextStyle = newRule.textStyle;
-    }
-    if (Object.prototype.hasOwnProperty.call(newRule, "isPlainText")) {
-      newRule = {
-        ...newRule,
-        isPlainText:
-          newRule.isPlainText === true || newRule.isPlainText === "true",
-      };
     }
     let hasChanged = false;
     let needsRescan = false;

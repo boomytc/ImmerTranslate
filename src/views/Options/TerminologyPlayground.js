@@ -303,8 +303,6 @@ function extractFinalUserPrompt(body) {
   return { recognized: false, text: null };
 }
 
-const HY_MT_GLOSSARY_HEADER = "Reference the following translations:";
-
 /** Read one glossary entry from the actual final user prompt. */
 function extractPromptGlossaryEntry(userText, key, value) {
   const parsed = parseBody(userText);
@@ -320,34 +318,18 @@ function extractPromptGlossaryEntry(userText, key, value) {
   }
 
   if (typeof parsed !== "string") return { found: false };
-  const lines = parsed.split(/\r?\n/);
-  const headerIndex = lines.findIndex(
-    (line) => line.trim() === HY_MT_GLOSSARY_HEADER
-  );
-  if (headerIndex !== -1) {
-    const prefix = `${key} translates to `;
-    for (let index = headerIndex + 1; index < lines.length; index++) {
-      const line = lines[index].trim();
-      if (!line) break;
-      if (line.startsWith(prefix)) {
-        return {
-          found: true,
-          actual: line.slice(prefix.length).trim(),
-          expected: value || key,
-        };
-      }
-    }
-  }
+  // 术语只有一种文本形状：source translates to target。独立成行的
+  // Reference 块和行内 {{glossary}} 注入都按这一形状读取。
+  const prefix = `${key} translates to `;
+  const line = parsed
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item.includes(prefix));
+  if (!line) return { found: false };
 
-  // Compatibility for custom/legacy templates that still render "- key: value".
-  const legacyPrefix = `- ${key}:`;
-  const legacyLine = lines
-    .map((line) => line.trim())
-    .find((line) => line.startsWith(legacyPrefix));
-  if (!legacyLine) return { found: false };
   return {
     found: true,
-    actual: legacyLine.slice(legacyPrefix.length).trim(),
+    actual: line.slice(line.indexOf(prefix) + prefix.length).trim(),
     expected: value || key,
   };
 }
@@ -2173,7 +2155,7 @@ export default function TerminologyPlayground({
             {renderRichI18n(
               i18n(
                 "terminology_playground_terms_help_detail_b",
-                "另外，接口的**「聚合发送翻译请求」开关会影响遵循率**：开启时术语作为结构化 `glossary` 字段发出，且系统提示词带「最高优先级、只输出术语值」的显式指令； 关闭时术语退化为提示词里的 `- 原词: 译文` 文本行，无结构、指令权重低， 小参数模型（8B 级）经常压不住。实测 Qwen3-8B 关闭聚合时替换不稳定、开启后显著改善； Qwen3.6-27B 与 Gemini 3.5 Flash Lite 两种模式都能稳定替换。**术语不生效时优先试着开启聚合。**"
+                "另外，接口的**「聚合发送翻译请求」开关会影响遵循率**：开启时术语作为结构化 `glossary` 字段发出，且系统提示词带「最高优先级、只输出术语值」的显式指令； 关闭时术语退化为提示词里的 `原词 translates to 译文` 文本行，无结构、指令权重低， 小参数模型（8B 级）经常压不住。实测 Qwen3-8B 关闭聚合时替换不稳定、开启后显著改善； Qwen3.6-27B 与 Gemini 3.5 Flash Lite 两种模式都能稳定替换。**术语不生效时优先试着开启聚合。**"
               )
             )}
           </Typography>

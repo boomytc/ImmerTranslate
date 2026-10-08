@@ -512,7 +512,7 @@ export function ContentFabContent({
       label: i18n("popup_translate_page"),
       icon: TranslateRoundedIcon,
       action: () => runAction(MSG_TRANS_TOGGLE),
-      pressed: pageRule?.transOpen === true || pageRule?.transOpen === "true",
+      pressed: pageRule?.transOpen === "true",
     },
     {
       label: i18n("text_style_alt"),

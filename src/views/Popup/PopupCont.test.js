@@ -163,7 +163,7 @@ function renderPopupCont(props = {}, { statefulRule = false } = {}) {
     transOnly: "false",
     hasRichText: "true",
     scanAll: "false",
-    isPlainText: false,
+    isPlainText: "false",
   };
 
   const popupProps = {
@@ -963,7 +963,7 @@ describe("PopupCont capability parity", () => {
               transOnly: "true",
               hasRichText: "true",
               scanAll: "false",
-              isPlainText: false,
+              isPlainText: "false",
             },
           },
         })
@@ -1015,7 +1015,7 @@ describe("PopupCont capability parity", () => {
               transOnly: "false",
               hasRichText: "true",
               scanAll: "false",
-              isPlainText: false,
+              isPlainText: "false",
             },
           },
         },

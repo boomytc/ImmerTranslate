@@ -1058,8 +1058,7 @@ export const apiSubtitle = async ({
           item.text,
           events[index]?.start,
           events[index]?.end,
-          // 新协议记录精确停顿；旧提示词仍使用 p 时继续纳入同一哈希槽位。
-          item.pauseMs || item.p || 0,
+          item.pauseMs || 0,
         ])
       ),
       "subtitle-chunk-v4"

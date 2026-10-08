@@ -424,8 +424,10 @@ describe("buildSubtitleSystemPrompt", () => {
           description: "Video description",
           summary: "Video summary",
         },
-        aiTerms: "Flow: 工作流",
+        aiTerms: "Flow,工作流",
       })
-    ).toContain("Video title|Video description|Video summary|formal|-");
+    ).toContain(
+      "Video title|Video description|Video summary|formal|Flow translates to 工作流"
+    );
   });
 });

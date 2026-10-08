@@ -472,7 +472,6 @@ export default function SubtitleSetting() {
     isBilingual,
     displayOrder = "original-first",
     blurTranslation = false,
-    enhanceMode,
     hoverLookupMode,
     autoFavWord = false,
     showList = OPT_ENHANCE_MOBILE_OFF,
@@ -488,15 +487,8 @@ export default function SubtitleSetting() {
     rememberPosition = false,
   } = subtitleSetting;
 
-  // 整理悬浮查词模式和字幕列表模式的回退逻辑
-  const hoverLookupModeValue = normalizeSubtitleMode(
-    hoverLookupMode,
-    enhanceMode || OPT_ENHANCE_MOBILE_OFF
-  );
-  const showListValue = normalizeSubtitleMode(
-    showList,
-    enhanceMode || OPT_ENHANCE_MOBILE_OFF
-  );
+  const hoverLookupModeValue = normalizeSubtitleMode(hoverLookupMode);
+  const showListValue = normalizeSubtitleMode(showList);
   const selectedSegPromptSlug = segPromptSlug || DEFAULT_SUBTITLE_PROMPT_SLUG;
   const hasSelectedSegPrompt = subtitlePromptOptions.some(
     (prompt) => prompt.slug === selectedSegPromptSlug
