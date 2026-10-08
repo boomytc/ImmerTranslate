@@ -2,6 +2,7 @@ import browser from "webextension-polyfill";
 import { writeSiteRule } from "./libs/ruleEditorStorage";
 import {
   MSG_FETCH,
+  PORT_REQUEST_FETCH,
   MSG_GET_HTTPCACHE,
   MSG_PUT_HTTPCACHE,
   MSG_TRANS_TOGGLE,
@@ -48,6 +49,7 @@ import {
 } from "./libs/storage";
 import { trySyncSettingAndRules } from "./libs/sync";
 import { fetchHandle, fetchStreamNative } from "./libs/fetch";
+import { handleRequestPort } from "./libs/requestPort";
 import { tryClearCaches, getHttpCache, putHttpCache } from "./libs/cache";
 import { sendTabMsg } from "./libs/msg";
 import { trySyncAllSubRules } from "./libs/subRules";
@@ -1033,9 +1035,13 @@ async function handleStreamFetch(port, args) {
 
 /**
  * 监听 runtime.onConnect 连接事件。
- * 筛选流式专属端口名 PORT_STREAM_FETCH，监听 start 开始指令并启动 handleStreamFetch 异步流处理程序。
+ * 普通请求使用独立可取消端口；流式端口继续逐帧传输响应。
  */
 browser.runtime.onConnect.addListener((port) => {
+  if (port.name === PORT_REQUEST_FETCH) {
+    handleRequestPort(port, fetchHandle);
+    return;
+  }
   if (port.name === PORT_STREAM_FETCH) {
     port.onMessage.addListener((message) => {
       if (message.action === "start") {

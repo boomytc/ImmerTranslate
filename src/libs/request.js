@@ -11,6 +11,7 @@ import { MSG_FETCH, DEFAULT_HTTP_TIMEOUT } from "../config";
 import { isBg } from "./browser";
 import { kissLog } from "./log";
 import { parseResponse } from "./response";
+import { requestThroughPort } from "./requestPort";
 
 /**
  * 将用户配置的请求超时时间统一归一化为毫秒。
@@ -303,7 +304,7 @@ export const fetchHandle = async ({ input, init, opts = {} }) => {
  */
 export const fnPolyfill = ({ fn, msg = MSG_FETCH, ...args }) => {
   if (isExt && !isBg()) {
-    const signal = args.opts?.signal;
+    const signal = mergeAbortSignals([args.opts?.signal, args.init?.signal]);
     if (signal?.aborted) {
       return Promise.reject(
         new DOMException("The operation was aborted.", "AbortError")
@@ -312,15 +313,19 @@ export const fnPolyfill = ({ fn, msg = MSG_FETCH, ...args }) => {
     const safeArgs = {
       ...args,
       opts: { ...args.opts, signal: undefined },
+      ...(args.init && { init: { ...args.init, signal: undefined } }),
     };
+    if (msg === MSG_FETCH && signal) {
+      return requestThroughPort(safeArgs, signal);
+    }
     const requestPromise = sendBgMsg(msg, safeArgs);
     if (signal) {
       let abortBySignal;
       const abortPromise = new Promise((_, reject) => {
         abortBySignal = () =>
           reject(new DOMException("The operation was aborted.", "AbortError"));
-        // One-shot messages cannot cancel an already dispatched background
-        // fetch, but callers can stop waiting without retaining the listener.
+        // Non-HTTP functions (such as built-in AI) retain one-shot messaging.
+        // Their callers can stop waiting without retaining the listener.
         signal.addEventListener("abort", abortBySignal, { once: true });
         if (signal.aborted) abortBySignal();
       });
