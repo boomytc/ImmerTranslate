@@ -2047,14 +2047,6 @@ describe("missing API key empty state", () => {
             sortOrder: 1,
           },
           {
-            apiSlug: "Google2",
-            apiType: "Google2",
-            apiName: "Google2",
-            key: "",
-            isDisabled: false,
-            sortOrder: 2,
-          },
-          {
             apiSlug: "Microsoft",
             apiType: "Microsoft",
             apiName: "Microsoft",

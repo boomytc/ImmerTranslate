@@ -6,7 +6,6 @@ jest.mock("../../config", () => ({
 }));
 jest.mock("../../libs/client", () => ({ isGm: true }));
 jest.mock("../../libs/gm", () => ({ adaptScript: jest.fn() }));
-jest.mock("../../libs/storage", () => ({ runDataMigration: jest.fn() }));
 jest.mock("../../libs/storageRefresh", () => ({
   refreshStorageKeys: jest.fn(),
 }));
@@ -21,7 +20,6 @@ jest.mock("../../libs/utils", () => ({
 }));
 
 const { createOptionsStartup } = require("./startup");
-const { runDataMigration } = require("../../libs/storage");
 const { adaptScript } = require("../../libs/gm");
 const { sleep } = require("../../libs/utils");
 
@@ -68,7 +66,6 @@ describe("userscript startup recovery messages", () => {
     expect(error.message).toContain("\u8bf7\u66f4\u65b0\u811a\u672c");
     expect(error.message).toContain("The version of the local script");
     expect(adaptScript).not.toHaveBeenCalled();
-    expect(runDataMigration).not.toHaveBeenCalled();
   });
 
   test("provides Chinese and English recovery instructions after the bounded bridge wait", async () => {
@@ -80,6 +77,5 @@ describe("userscript startup recovery messages", () => {
     expect(error.message).toContain("Time out. Please confirm");
     expect(sleep).toHaveBeenCalledTimes(8);
     expect(adaptScript).not.toHaveBeenCalled();
-    expect(runDataMigration).not.toHaveBeenCalled();
   });
 });

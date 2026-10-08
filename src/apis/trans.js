@@ -1,7 +1,6 @@
 import queryString from "query-string";
 import {
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_GOOGLE_CLOUD,
   GOOGLE_TRANSLATE_URL,
   GOOGLE_PA_TRANSLATE_URL,
@@ -66,9 +65,6 @@ import {
   normalizeGeminiModelName,
   normalizeThinkingSettings,
   BUILTIN_STONES,
-  PROMPT_PROTOCOL_LINE,
-  PROMPT_PROTOCOL_XML,
-  PROMPT_PROTOCOL_JSON,
 } from "../config";
 import { genDeeplFree } from "./deepl";
 import { genBaidu } from "./baidu";
@@ -93,17 +89,12 @@ import {
   detectStreamFormat,
   getStreamDelta,
 } from "../libs/stream";
-import { createSubtitleIndexAligner } from "../libs/subtitleIndexAlign";
 import { kissLog } from "../libs/log";
 import { fetchData, fetchStream } from "../libs/fetch";
 import { getMsgHistory } from "./history";
 import { getOpenCodeSessionId } from "./opencode";
-import { parseBilingualVtt } from "../subtitle/vtt";
 import { getDocInfo } from "../libs/docInfo";
-import {
-  isLegacyIndexSubtitleItem,
-  mapBoundaryItemToCue,
-} from "../subtitle/subtitleBoundaryProtocol";
+import { mapBoundaryItemToCue } from "../subtitle/subtitleBoundaryProtocol";
 
 const keyMap = new Map();
 const urlMap = new Map();
@@ -480,7 +471,7 @@ const buildSubtitleUserPrompt = ({ formattedEvents }) =>
  * @param {boolean} useBatchFetch 是否为批量翻译模式
  * @returns {Array<[string, string]>} 解析后的双元组列表 [译文, 源语言检测结果]
  */
-const parseAIRes = (raw, useBatchFetch = true, batchProtocol = "") => {
+const parseAIRes = (raw, useBatchFetch = true) => {
   if (!raw) {
     return [];
   }
@@ -503,21 +494,8 @@ const parseAIRes = (raw, useBatchFetch = true, batchProtocol = "") => {
     return structuredSegments;
   }
 
-  // 若明确启用了现代聚合翻译协议（LINE/XML/JSON），必须解析出对应合法结构；
-  // 面对模型拒答、解释或普通文本时严禁按行伪造 ID，直接返回空数组以触发回退
-  if (
-    batchProtocol === PROMPT_PROTOCOL_LINE ||
-    batchProtocol === PROMPT_PROTOCOL_XML ||
-    batchProtocol === PROMPT_PROTOCOL_JSON
-  ) {
-    return [];
-  }
-
-  // 兜底策略：仅对未声明协议的旧配置/自定义提示词，保留纯文本按行切割解析（按行号注入 id）
-  return content.split("\n").map((line, i) => {
-    const text = decodeHTMLEntities(line.replace(/<br\s*\/?>/gi, "\n").trim());
-    return { id: i, translation: [text, ""] };
-  });
+  // 没有合法的 JSON、XML 或 LINE 结构时不按行补 id。
+  return [];
 };
 
 /**
@@ -577,57 +555,19 @@ export const alignBatchTranslations = (items, totalCount) => {
   return results;
 };
 
-/** 依据时间差计算旧版字幕输入使用的停顿等级。 */
-const getPauseLevel = (gapMs) => {
-  if (!Number.isFinite(gapMs) || gapMs <= 300) return 0;
-  if (gapMs <= 600) return 1;
-  if (gapMs <= 1200) return 2;
-  return 3;
-};
-
-/**
- * 根据提示词识别字幕断句协议，供请求格式、缓存和 Playground 共用。
- */
-export const detectSubtitleProtocol = (prompt = "") => {
-  const normalizedPrompt = String(prompt);
-  if (/WEBVTT|MM:SS\.mmm|-->/i.test(normalizedPrompt)) return "vtt-legacy";
-  if (/\{\s*["']?s["']?\s*:/.test(normalizedPrompt)) return "index-v1";
-
-  // 自定义提示词明确描述旧 p 等级时继续发送原结构，避免静默破坏已有配置。
-  const mentionsQuotedP = /["'`]p["'`]/i.test(normalizedPrompt);
-  const mentionsPauseLevel = /pause\s+levels?|停顿等级|暫停等級/i.test(
-    normalizedPrompt
-  );
-  if (mentionsQuotedP && mentionsPauseLevel) return "boundary-v2";
-  return "boundary-v3";
-};
+export const detectSubtitleProtocol = () => "boundary-v3";
 
 /** 将播放器事件压缩成发送给 AI 的稳定索引 JSON 结构。 */
-export const formatIndexSubtitleEvents = (events, prompt = "") => {
-  const protocol = detectSubtitleProtocol(prompt);
-  const usesLegacyPauseLevel =
-    protocol === "boundary-v2" ||
-    protocol === "index-v1" ||
-    protocol === "vtt-legacy";
-
-  return events.map((e, i) => {
+export const formatIndexSubtitleEvents = (events) =>
+  events.map((e, i) => {
     const item = { id: i, text: e.text };
-    if (usesLegacyPauseLevel && i > 0) {
-      const p = getPauseLevel(e.start - events[i - 1].end);
-      if (p) item.p = p;
-    } else if (!usesLegacyPauseLevel && i < events.length - 1) {
+    if (i < events.length - 1) {
       // pauseMs 挂在停顿前的事件上，可直接作为该事件成为句末的边界提示。
       const pauseMs = Math.round(events[i + 1].start - e.end);
       if (pauseMs > 0) item.pauseMs = pauseMs;
     }
     return item;
   });
-};
-
-const usesIndexSubtitleInput = (prompt = "") => {
-  // 只有明确声明 VTT 的旧提示词继续接收旧结构；其余字幕请求统一使用纯索引 JSON。
-  return detectSubtitleProtocol(prompt) !== "vtt-legacy";
-};
 
 const geminiText = (parts) =>
   Array.isArray(parts)
@@ -653,50 +593,16 @@ const geminiResponseText = (res) =>
     : geminiText(res?.candidates?.[0]?.content?.parts);
 
 const parseIndexSubtitleRes = (raw, events, fromLang = "auto") => {
-  // 对齐器只建一次词表：buildResult 在截断修复兜底时可能执行两次。
-  const aligner = createSubtitleIndexAligner(events);
   const buildResult = (data) => {
     if (!Array.isArray(data) || !data.length) return null;
-    const legacyItems = data.map(isLegacyIndexSubtitleItem);
-    // 同一响应混用新旧协议会使游标语义不明确，直接交给尾部恢复逻辑处理。
-    if (legacyItems.some(Boolean) && !legacyItems.every(Boolean)) return null;
-
-    if (!legacyItems[0]) {
-      const result = [];
-      let nextIndex = 0;
-      for (const item of data) {
-        const cue = mapBoundaryItemToCue(item, events, nextIndex, fromLang);
-        // 新协议一旦出现非法边界，停止接收后续对象，保留已验证的连续前缀。
-        if (!cue) break;
-        result.push(cue);
-        nextIndex = cue._ei + 1;
-      }
-      return result.length ? result : null;
-    }
-
     const result = [];
-    for (const seg of data) {
-      const s = Number(seg.s ?? seg.start_id);
-      const e = Number(seg.e ?? seg.end_id);
-      if (!Number.isInteger(s) || !Number.isInteger(e)) continue;
-      const startIdx = Math.max(0, Math.min(s, events.length - 1));
-      const endIdx = Math.max(startIdx, Math.min(e, events.length - 1));
-      const text = String(seg.o ?? seg.original ?? "");
-      const fixed = aligner.realign(s, e, text);
-      result.push({
-        start: events[fixed?.startIdx ?? startIdx].start,
-        end: events[fixed?.endIdx ?? endIdx].end,
-        text,
-        translation: String(seg.t ?? seg.translation ?? ""),
-        // _si/_ei 保留模型原始索引：去重键与尾句重试语义依赖它们。
-        _si: s,
-        _ei: e,
-        // 仅在确实发生纠偏时记录覆盖索引，避免扩大普通结果的数据表面。
-        ...(fixed && {
-          _alignedSi: fixed.startIdx,
-          _alignedEi: fixed.endIdx,
-        }),
-      });
+    let nextIndex = 0;
+    for (const item of data) {
+      const cue = mapBoundaryItemToCue(item, events, nextIndex, fromLang);
+      // 非法边界停止接收后续对象，保留已验证的连续前缀。
+      if (!cue) break;
+      result.push(cue);
+      nextIndex = cue._ei + 1;
     }
     return result.length ? result : null;
   };
@@ -730,15 +636,6 @@ const parseSTRes = (raw, events = null, fromLang = "auto") => {
   if (events?.length) {
     const indexed = parseIndexSubtitleRes(raw, events, fromLang);
     if (indexed) return indexed;
-  }
-
-  try {
-    const data = parseBilingualVtt(raw);
-    if (Array.isArray(data)) {
-      return data;
-    }
-  } catch (err) {
-    kissLog("parse AI Res: subtitle", err);
   }
 
   return [];
@@ -1756,7 +1653,6 @@ const genCustom = ({ texts, fromLang, toLang, url, key, useBatchFetch }) => {
 
 const genReqFuncs = {
   [OPT_TRANS_GOOGLE]: genGoogleRouter,
-  [OPT_TRANS_GOOGLE_2]: genGoogle2,
   [OPT_TRANS_GOOGLE_CLOUD]: genGoogleCloud,
   [OPT_TRANS_YANDEX]: genYandex,
   [OPT_TRANS_YANDEXFREE]: genYandexFree,
@@ -1901,9 +1797,7 @@ export const genTransReq = async ({ reqHook, ...args }) => {
     args.systemPrompt = baseSystemPrompt;
     args.userPrompt = events
       ? buildSubtitleUserPrompt({
-          formattedEvents: usesIndexSubtitleInput(subtitlePrompt)
-            ? formatIndexSubtitleEvents(events, subtitlePrompt)
-            : events,
+          formattedEvents: formatIndexSubtitleEvents(events),
         })
       : genUserPrompt({
           nobatchUserPrompt,
@@ -2057,7 +1951,6 @@ export const parseTransRes = async (
   // todo: 根据结果抛出实际异常信息
   switch (apiType) {
     case OPT_TRANS_GOOGLE:
-    case OPT_TRANS_GOOGLE_2:
       if (Array.isArray(res) || Array.isArray(res?.[0])) {
         return res?.[0]?.map((_, i) => [
           textFormat === "text"
@@ -2141,7 +2034,7 @@ export const parseTransRes = async (
         // 成对写入与轮次截断守卫统一内聚在 addPair：空正文/非 assistant role 整对不写
         history.addPair(userMsg, modelMsg);
       }
-      return parseAIRes(modelMsg?.content, useBatchFetch, batchProtocol);
+      return parseAIRes(modelMsg?.content, useBatchFetch);
     case OPT_TRANS_GEMINI:
       // Gemini Interactions steps may include thought items.
       // Their context replay semantics are outside this history-correctness fix.
@@ -2155,7 +2048,7 @@ export const parseTransRes = async (
           history.add(userMsg, modelMsg);
         }
       }
-      return parseAIRes(geminiResponseText(res), useBatchFetch, batchProtocol);
+      return parseAIRes(geminiResponseText(res), useBatchFetch);
     case OPT_TRANS_CLAUDE: {
       // 历史上下文取值必须做形态归一化，原因有三：
       // 1. 形态防御：响应 content 存在多种形态 —— Anthropic 标准的块数组
@@ -2186,11 +2079,7 @@ export const parseTransRes = async (
       if (history && userMsg) {
         history.addPair(userMsg, modelMsg);
       }
-      return parseAIRes(
-        res?.content?.[0]?.text ?? "",
-        useBatchFetch,
-        batchProtocol
-      );
+      return parseAIRes(res?.content?.[0]?.text ?? "", useBatchFetch);
     }
     case OPT_TRANS_CLOUDFLAREAI:
       return [[res?.result?.translated_text]];
@@ -2207,7 +2096,7 @@ export const parseTransRes = async (
       if (history && userMsg) {
         history.addPair(userMsg, modelMsg);
       }
-      return parseAIRes(modelMsg?.content, useBatchFetch, batchProtocol);
+      return parseAIRes(modelMsg?.content, useBatchFetch);
     case OPT_TRANS_CUSTOMIZE:
       if (useBatchFetch) {
         return (res?.translations ?? res)?.map((item) => [item.text, item.src]);
@@ -2523,7 +2412,7 @@ export async function* handleTranslate(
       const isSinglePlainText =
         textFormat === "text" && Array.isArray(texts) && texts.length === 1;
       if (
-        (apiType === OPT_TRANS_GOOGLE || apiType === OPT_TRANS_GOOGLE_2) &&
+        apiType === OPT_TRANS_GOOGLE &&
         isSinglePlainText &&
         init?.method === "GET"
       ) {
@@ -2754,7 +2643,7 @@ async function* handleTranslateStreamInternal(
   const hasEmpty = results.some((r) => !r);
   const newlyYieldable = [];
   if (hasEmpty) {
-    const parsed = parseAIRes(fullContent, useBatchFetch, batchProtocol);
+    const parsed = parseAIRes(fullContent, useBatchFetch);
     for (let i = 0; i < parsed.length; i++) {
       const item = parsed[i];
       let id;

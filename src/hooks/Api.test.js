@@ -3,11 +3,9 @@ import { createRoot } from "react-dom/client";
 import {
   DEFAULT_API_LIST,
   DEFAULT_API_NAME_GOOGLE,
-  DEFAULT_API_NAME_GOOGLE_2,
   DEFAULT_API_NAME_GEMINI,
   DEFAULT_API_NAME_GEMINI_2,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_GEMINI,
   OPT_TRANS_GEMINI_2,
   OPT_TRANS_MICROSOFT,
@@ -220,23 +218,6 @@ describe("useApiList", () => {
     host.unmount();
   });
 
-  test("normalizes a missing model list URL without writing settings", () => {
-    const openAi = DEFAULT_API_LIST.find(
-      (api) => api.apiType === OPT_TRANS_OPENAI
-    );
-    const { modelListUrl, ...legacyOpenAi } = openAi;
-    mockSetting = { transApis: [legacyOpenAi] };
-
-    const host = renderApiList();
-
-    expect(host.hookResult.transApis[0]).toEqual({
-      ...legacyOpenAi,
-      modelListUrl,
-    });
-    expect(mockUpdateSetting).not.toHaveBeenCalled();
-    host.unmount();
-  });
-
   test("explicitly added APIs start enabled even when their preset is disabled", () => {
     globalThis.crypto.randomUUID
       .mockReturnValueOnce("12345678-1234-1234-1234-123456789abc")
@@ -383,7 +364,7 @@ describe("useApiItem reset", () => {
 });
 
 describe("getApiDisplayName", () => {
-  test("resolves unified Google display name for Google and Google2", () => {
+  test("resolves an empty or plain Google name to the current Google label", () => {
     expect(
       getApiDisplayName({
         apiSlug: OPT_TRANS_GOOGLE,
@@ -395,45 +376,11 @@ describe("getApiDisplayName", () => {
         apiSlug: OPT_TRANS_GOOGLE,
         apiType: OPT_TRANS_GOOGLE,
         apiName: "Google",
-      })
-    ).toBe(DEFAULT_API_NAME_GOOGLE);
-    expect(
-      getApiDisplayName({
-        apiSlug: OPT_TRANS_GOOGLE,
-        apiType: OPT_TRANS_GOOGLE,
-        apiName: "Google (常规/单句)",
-      })
-    ).toBe(DEFAULT_API_NAME_GOOGLE);
-    expect(
-      getApiDisplayName({
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-      })
-    ).toBe(DEFAULT_API_NAME_GOOGLE);
-    expect(
-      getApiDisplayName({
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google2",
-      })
-    ).toBe(DEFAULT_API_NAME_GOOGLE);
-    expect(
-      getApiDisplayName({
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google",
-      })
-    ).toBe(DEFAULT_API_NAME_GOOGLE);
-    expect(
-      getApiDisplayName({
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google (网页整页/PA)",
       })
     ).toBe(DEFAULT_API_NAME_GOOGLE);
   });
 
-  test("preserves custom user-defined names for Google APIs", () => {
+  test("preserves a custom Google name", () => {
     expect(
       getApiDisplayName({
         apiSlug: OPT_TRANS_GOOGLE,
@@ -441,13 +388,6 @@ describe("getApiDisplayName", () => {
         apiName: "My Google Custom",
       })
     ).toBe("My Google Custom");
-    expect(
-      getApiDisplayName({
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Page Translator Pro",
-      })
-    ).toBe("Page Translator Pro");
   });
 
   test("resolves unified Gemini and Gemini2 display names with disambiguation", () => {

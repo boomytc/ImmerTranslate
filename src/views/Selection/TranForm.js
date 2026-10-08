@@ -21,9 +21,6 @@ import {
   OPT_DICT_MAP,
   OPT_SUG_MAP,
   API_SPE_TYPES,
-  OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
-  normalizeTransApis,
   getApiDisplayName,
   PROMPT_CATEGORY_DICTIONARY,
   PROMPT_MODE_FOLLOW_API,
@@ -72,9 +69,7 @@ const resolveActiveApiSlugs = (apiSlugs, optApis) => {
   }
 
   const validSlugs = new Set(optApis.map((api) => api.key));
-  return apiSlugs
-    .map((slug) => (slug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : slug))
-    .filter((slug) => validSlugs.has(slug));
+  return apiSlugs.filter((slug) => validSlugs.has(slug));
 };
 
 /**
@@ -96,14 +91,8 @@ function readStoredApiChoice(storageKey) {
     if (parsed.some((slug) => typeof slug !== "string")) {
       return { status: "none" };
     }
-    // 去重：重复 slug 视为同一选择；Google2 映射为 Google。
-    const slugs = [
-      ...new Set(
-        parsed.map((slug) =>
-          slug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : slug
-        )
-      ),
-    ];
+    // 去重：重复 slug 视为同一选择。
+    const slugs = [...new Set(parsed)];
     return { status: "restored", slugs, isEmpty: slugs.length === 0 };
   } catch {
     return { status: "none" };
@@ -352,7 +341,7 @@ export default function TranForm({
   // Keep only enabled translation providers.
   const optApis = useMemo(() => {
     const seen = new Set();
-    return normalizeTransApis(transApis)
+    return transApis
       .filter((api) => !api.isDisabled)
       .map((api) => ({
         key: api.apiSlug,

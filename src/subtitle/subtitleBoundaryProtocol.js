@@ -9,7 +9,7 @@ export const isNoSpaceSubtitleLanguage = (lang = "") =>
 /** 判断一条字幕是否完全由 `[Music]` 等非语音标记组成。 */
 export const isOnlyNonSpeechSubtitle = (text = "") => isNonSpeechSegment(text);
 
-/** 按语言书写习惯合并 boundary-v2/v3 边界范围内的原始事件文本。 */
+/** 按语言书写习惯合并 boundary-v3 边界范围内的原始事件文本。 */
 export function mergeSubtitleEventText(
   events,
   startIndex,
@@ -24,7 +24,7 @@ export function mergeSubtitleEventText(
 }
 
 /**
- * 将 boundary-v2/v3 的单个对象映射为 cue。调用者持有 nextIndex 游标。
+ * 将 boundary-v3 的单个对象映射为 cue。调用者持有 nextIndex 游标。
  */
 export function mapBoundaryItemToCue(
   item,
@@ -58,11 +58,3 @@ export function mapBoundaryItemToCue(
     _ei: endIndex,
   };
 }
-
-/**
- * 只有显式开始索引才代表 index-v1；boundary-v3 的 `o` 只是模型自检锚点，不能触发旧模糊对齐器。
- */
-export const isLegacyIndexSubtitleItem = (item) =>
-  item &&
-  (Object.prototype.hasOwnProperty.call(item, "s") ||
-    Object.prototype.hasOwnProperty.call(item, "start_id"));

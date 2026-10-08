@@ -7,7 +7,7 @@ import {
 import { isGm } from "../../libs/client";
 import { adaptScript } from "../../libs/gm";
 import { kissLog } from "../../libs/log";
-import { runDataMigration } from "../../libs/storage";
+
 import { refreshStorageKeys } from "../../libs/storageRefresh";
 import { trySyncRules, trySyncSetting, trySyncWords } from "../../libs/sync";
 import { sleep } from "../../libs/utils";
@@ -65,12 +65,6 @@ async function prepareGmBridge() {
 
 async function prepareLocalStorage() {
   if (isGm) await prepareGmBridge();
-  // Finish legacy writes before mounting hooks or applying remote settings.
-  if ((await runDataMigration()) === false) {
-    throw new Error(
-      "Unable to migrate local settings. Please reload this page."
-    );
-  }
 }
 
 async function syncAndRefresh(key, sync) {

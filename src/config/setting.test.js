@@ -6,9 +6,6 @@ import {
   DEFAULT_SUBTITLE_SETTING,
   DEFAULT_TRANBOX_SETTING,
   OPT_INPUT_DOT_ALWAYS,
-  OPT_INPUT_DOT_DISABLE,
-  OPT_INPUT_DOT_MOBILE,
-  migrateInputRuleShowDot,
 } from "./setting";
 import { DEFAULT_API_LIST, OPT_TRANS_MICROSOFT } from "./api";
 import { BUILTIN_RULES, GLOBAL_KEY } from "./rules";
@@ -29,37 +26,6 @@ describe("translation box defaults", () => {
   test("shows the input translation dot on desktop by default", () => {
     expect(DEFAULT_INPUT_RULE.showDot).toBe(OPT_INPUT_DOT_ALWAYS);
     expect(DEFAULT_SETTING.inputRule.showDot).toBe(OPT_INPUT_DOT_ALWAYS);
-  });
-
-  test("upgrades an unmarked mobile input dot and keeps explicit choices", () => {
-    expect(migrateInputRuleShowDot({ showDot: OPT_INPUT_DOT_MOBILE })).toEqual({
-      showDot: OPT_INPUT_DOT_ALWAYS,
-    });
-    expect(
-      migrateInputRuleShowDot({
-        showDot: OPT_INPUT_DOT_MOBILE,
-        toLang: "zh-CN",
-      })
-    ).toEqual({ showDot: OPT_INPUT_DOT_ALWAYS, toLang: "zh-CN" });
-    expect(migrateInputRuleShowDot({ toLang: "ja" }).showDot).toBe(
-      OPT_INPUT_DOT_ALWAYS
-    );
-    expect(migrateInputRuleShowDot({ showDot: "" }).showDot).toBe(
-      OPT_INPUT_DOT_ALWAYS
-    );
-
-    const disabled = { showDot: OPT_INPUT_DOT_DISABLE, toLang: "zh-CN" };
-    expect(migrateInputRuleShowDot(disabled)).toBe(disabled);
-    const chosenMobile = {
-      showDot: OPT_INPUT_DOT_MOBILE,
-      showDotChosen: true,
-      toLang: "en",
-    };
-    expect(migrateInputRuleShowDot(chosenMobile)).toBe(chosenMobile);
-    const always = { showDot: OPT_INPUT_DOT_ALWAYS };
-    expect(migrateInputRuleShowDot(always)).toBe(always);
-    const unknown = { showDot: "custom" };
-    expect(migrateInputRuleShowDot(unknown)).toBe(unknown);
   });
 
   test("uses Microsoft for every default translation entry point", () => {

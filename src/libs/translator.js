@@ -29,8 +29,7 @@ import {
   EVENT_FAVORITE_WORD_CHANGE,
   OPT_DICT_BING,
   OPT_DICT_MAP,
-  OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
+
   newI18n,
 } from "../config";
 import { resolveApiPromptSettings } from "../config/prompt";
@@ -116,11 +115,7 @@ function resolveHoverBubbleStyle(userStyle) {
 }
 
 function createApisMap(apis = []) {
-  const map = new Map((apis || []).map((api) => [api.apiSlug, api]));
-  if (map.has(OPT_TRANS_GOOGLE) && !map.has(OPT_TRANS_GOOGLE_2)) {
-    map.set(OPT_TRANS_GOOGLE_2, map.get(OPT_TRANS_GOOGLE));
-  }
-  return map;
+  return new Map((apis || []).map((api) => [api.apiSlug, api]));
 }
 
 export class Translator {
@@ -1038,19 +1033,12 @@ export class Translator {
   // 接口参数
   // todo: 不用频繁查找计算
   get #apiSetting() {
-    const slug =
-      this.#rule.apiSlug === OPT_TRANS_GOOGLE_2
-        ? OPT_TRANS_GOOGLE
-        : this.#rule.apiSlug;
-    return this.#apisMap.get(slug) || DEFAULT_API_SETTING;
+    return this.#apisMap.get(this.#rule.apiSlug) || DEFAULT_API_SETTING;
   }
 
   // 气泡模式可使用独立接口；配置失效时继续跟随当前网页规则。
   get #hoverBubbleApiSetting() {
-    let apiSlug = this.#setting.mouseHoverSetting?.apiSlug;
-    if (apiSlug === OPT_TRANS_GOOGLE_2) {
-      apiSlug = OPT_TRANS_GOOGLE;
-    }
+    const apiSlug = this.#setting.mouseHoverSetting?.apiSlug;
     if (!apiSlug || apiSlug === GLOBAL_KEY) {
       return this.#apiSetting;
     }
@@ -1060,11 +1048,7 @@ export class Translator {
   }
 
   get #transAllnow() {
-    const slug =
-      this.#rule.apiSlug === OPT_TRANS_GOOGLE_2
-        ? OPT_TRANS_GOOGLE
-        : this.#rule.apiSlug;
-    const apiValue = this.#apisMap.get(slug)?.transAllnow;
+    const apiValue = this.#apisMap.get(this.#rule.apiSlug)?.transAllnow;
     if (apiValue !== undefined) {
       return apiValue === true || apiValue === "true";
     }
@@ -1075,11 +1059,7 @@ export class Translator {
   }
 
   get #rootMargin() {
-    const slug =
-      this.#rule.apiSlug === OPT_TRANS_GOOGLE_2
-        ? OPT_TRANS_GOOGLE
-        : this.#rule.apiSlug;
-    const apiValue = this.#apisMap.get(slug)?.rootMargin;
+    const apiValue = this.#apisMap.get(this.#rule.apiSlug)?.rootMargin;
     const legacyValue = this.#setting.rootMargin;
     const value =
       apiValue !== undefined && apiValue !== ""

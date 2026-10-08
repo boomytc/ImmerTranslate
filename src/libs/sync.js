@@ -223,22 +223,16 @@ const encryptSyncData = async (data, syncEncryptKey) => ({
 });
 
 /**
- * 解密同步包中的 value，并保留是否来自新版密文的标记。
+ * 解密同步包中的 value。
  * @param {Object} data 远端返回的同步包
  * @param {string} syncEncryptKey 同步加密口令
- * @returns {Promise<{data: Object, encrypted: boolean}>}
+ * @returns {Promise<Object>}
  */
 const decryptSyncData = async (data, syncEncryptKey) => {
-  const { value, encrypted } = await decryptSyncValue(
-    data.value,
-    syncEncryptKey
-  );
+  const { value } = await decryptSyncValue(data.value, syncEncryptKey);
   return {
-    data: {
-      ...data,
-      value,
-    },
-    encrypted,
+    ...data,
+    value,
   };
 };
 
@@ -253,14 +247,6 @@ const syncByType = async (syncType, data, args, options) =>
     : syncType === OPT_SYNCTYPE_GIST
       ? await syncByGist(data, args, options)
       : await syncByWorker(data, args);
-
-/**
- * 将已经读取成功的旧版明文远端数据，用当前同步加密口令回写成密文。
- */
-const migratePlainSyncData = async (syncType, data, args, syncEncryptKey) => {
-  const encryptedData = await encryptSyncData(data, syncEncryptKey);
-  await syncByType(syncType, encryptedData, args, { forceWrite: true });
-};
 
 /**
  * 修改同步加密口令时强制用指定口令回写某一类个人同步数据。
@@ -421,7 +407,7 @@ export const syncData = async (
     );
     if (!backup) throw new Error("Unable to verify the existing sync backup");
     const verified = await decryptSyncData(backup, syncEncryptKey);
-    JSON.parse(verified.data.value);
+    JSON.parse(verified.value);
 
     const currentConfig = await getSyncWithDefault();
     if (
@@ -436,16 +422,13 @@ export const syncData = async (
       args.syncUrl = currentConfig.syncUrl;
     }
   }
-  const encryptedOrLegacyRes = await syncByType(syncType, encryptedData, args);
+  const remoteRes = await syncByType(syncType, encryptedData, args);
 
-  if (!encryptedOrLegacyRes) {
+  if (!remoteRes) {
     throw new Error("sync data got err", key);
   }
 
-  const { data: res, encrypted } = await decryptSyncData(
-    encryptedOrLegacyRes,
-    syncEncryptKey
-  );
+  const res = await decryptSyncData(remoteRes, syncEncryptKey);
   const newVal = JSON.parse(res.value);
   // 首次同步时本地与远端时间戳可能同为 0；此时内容不同仍需应用远端数据。
   const isNew =
@@ -507,19 +490,9 @@ export const syncData = async (
     });
     return accepted;
   };
-  const migrateLegacy = async () => {
-    if (encrypted || forceRemoteRead) return;
-    try {
-      await migratePlainSyncData(syncType, res, args, syncEncryptKey);
-    } catch (error) {
-      // A failed follow-up cannot undo an already committed data adoption.
-      kissLog("Unable to encrypt legacy remote sync data", key, error);
-    }
-  };
   const result = { value: newVal, isNew };
-  if (deferCommit) return { ...result, commit, migrateLegacy };
+  if (deferCommit) return { ...result, commit };
   if (!(await commit())) return { value, isNew: false };
-  await migrateLegacy();
   return result;
 };
 
@@ -604,7 +577,6 @@ function syncStoredValue(key, storageKey, options = {}) {
       }
       return committed;
     });
-    if (accepted) await result.migrateLegacy();
     return accepted
       ? { value: result.value, isNew: result.isNew }
       : { value, isNew: false };

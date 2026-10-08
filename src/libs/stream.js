@@ -29,11 +29,7 @@ import {
   parseLineTranslationSegments,
   parseXmlTranslationSegments,
 } from "./aiResponseParser";
-import { createSubtitleIndexAligner } from "./subtitleIndexAlign";
-import {
-  isLegacyIndexSubtitleItem,
-  mapBoundaryItemToCue,
-} from "../subtitle/subtitleBoundaryProtocol";
+import { mapBoundaryItemToCue } from "../subtitle/subtitleBoundaryProtocol";
 
 /**
  * 创建 Server-Sent Events (SSE) 协议数据流解析器
@@ -292,41 +288,6 @@ export function createStreamingJsonParser() {
 }
 
 /**
- * 把字幕断句模型返回的索引结构映射成播放器可消费的字幕对象。
- *
- * @param {Object} item 模型已经输出完整的字幕句子对象。
- * @param {Array<Object>} events 当前请求中传给模型的原始字幕事件。
- * @param {Object} [aligner] 索引对齐器，用 o 原文纠正模型漂移的 s/e 索引。
- * @returns {Object|null} 可渲染字幕；字段不完整时返回 null。
- */
-const mapSubtitleItemToCue = (item, events = [], aligner) => {
-  const s = Number(item?.s ?? item?.start_id);
-  const e = Number(item?.e ?? item?.end_id);
-  if (!Number.isInteger(s) || !Number.isInteger(e) || events.length === 0) {
-    return null;
-  }
-
-  const startIdx = Math.max(0, Math.min(s, events.length - 1));
-  const endIdx = Math.max(startIdx, Math.min(e, events.length - 1));
-  const text = String(item.o ?? item.original ?? "");
-  const fixed = aligner?.realign(s, e, text);
-  return {
-    start: events[fixed?.startIdx ?? startIdx].start,
-    end: events[fixed?.endIdx ?? endIdx].end,
-    text,
-    translation: String(item.t ?? item.translation ?? ""),
-    // _si/_ei 必须保留模型原始索引：去重键与尾句重试语义都依赖它们。
-    _si: s,
-    _ei: e,
-    // 仅在发生纠偏时保留实际覆盖索引，普通旧协议结果维持原结构。
-    ...(fixed && {
-      _alignedSi: fixed.startIdx,
-      _alignedEi: fixed.endIdx,
-    }),
-  };
-};
-
-/**
  * 创建字幕断句专用的流式 JSON 解析器。
  *
  * 字幕断句必须等到一个完整 JSON 对象闭合后才能稳定映射时间轴，
@@ -334,7 +295,7 @@ const mapSubtitleItemToCue = (item, events = [], aligner) => {
  *
  * @param {Array<Object>} events 当前字幕请求对应的原始事件列表。
  * @param {Object} options 解析选项。
- * @param {string} options.fromLang 源语言，用于重建 boundary-v2/v3 原文。
+ * @param {string} options.fromLang 源语言，用于重建 boundary-v3 原文。
  * @returns {{write: Function, end: Function}} 流式写入器，每次写入返回新完成的字幕句子数组。
  */
 export function createStreamingSubtitleParser(
@@ -345,10 +306,8 @@ export function createStreamingSubtitleParser(
   let jsonStarted = false;
   let scanIndex = 0;
   const emittedKeys = new Set();
-  const aligner = createSubtitleIndexAligner(events);
-  let protocol = null;
   let nextBoundaryIndex = 0;
-  let protocolInvalid = false;
+  let boundaryStopped = false;
 
   /**
    * 从当前 buffer 中查找 JSON 正文的起点。
@@ -432,43 +391,30 @@ export function createStreamingSubtitleParser(
   };
 
   /**
-   * 将对象字符串解析成字幕句子，并按 `s/e` 去重。
+   * 将对象字符串解析成字幕句子，并按边界索引去重。
    *
    * @param {Array<string>} objectStrings 已闭合的 JSON 对象字符串列表。
    * @returns {Array<Object>} 新解析出的字幕句子数组。
    */
   const consumeObjects = (objectStrings) => {
+    if (boundaryStopped) return [];
     const subtitles = [];
 
     for (const objectString of objectStrings) {
       try {
-        if (protocolInvalid) break;
         const item = JSON.parse(objectString);
-        const itemProtocol = isLegacyIndexSubtitleItem(item)
-          ? "index-v1"
-          : "boundary";
-        if (!protocol) protocol = itemProtocol;
-        // 流中切换协议会使开始游标失去定义，停止接受剩余对象。
-        if (protocol !== itemProtocol) {
-          protocolInvalid = true;
+        const subtitle = mapBoundaryItemToCue(
+          item,
+          events,
+          nextBoundaryIndex,
+          fromLang
+        );
+        // 非法边界会使后续游标失去定义。跨 chunk 也必须停，否则下一次 write 会从旧游标继续发句。
+        if (!subtitle) {
+          boundaryStopped = true;
           break;
         }
-
-        const subtitle =
-          protocol === "boundary"
-            ? mapBoundaryItemToCue(item, events, nextBoundaryIndex, fromLang)
-            : mapSubtitleItemToCue(item, events, aligner);
-        if (!subtitle) {
-          if (protocol === "boundary") {
-            protocolInvalid = true;
-            break;
-          }
-          continue;
-        }
-
-        if (protocol === "boundary") {
-          nextBoundaryIndex = subtitle._ei + 1;
-        }
+        nextBoundaryIndex = subtitle._ei + 1;
 
         const key = `${subtitle._si}:${subtitle._ei}`;
         // 流式过程中模型可能重复输出同一对象，按时间轴索引去重避免重复插入字幕轨。
@@ -491,6 +437,7 @@ export function createStreamingSubtitleParser(
      * @returns {Array<Object>} 本次写入解析出的新增字幕。
      */
     write(delta = "") {
+      if (boundaryStopped) return [];
       buffer += delta;
       trimToJsonStart();
       if (!jsonStarted) return [];
@@ -503,6 +450,7 @@ export function createStreamingSubtitleParser(
      * @returns {Array<Object>} 最终补解析出的字幕。
      */
     end() {
+      if (boundaryStopped) return [];
       trimToJsonStart();
       if (!jsonStarted) return [];
 

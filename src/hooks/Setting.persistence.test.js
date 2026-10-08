@@ -4,7 +4,6 @@ import { createRoot } from "react-dom/client";
 import {
   CURRENT_SETTINGS_VERSION,
   DEFAULT_SETTING,
-  OPT_INPUT_DOT_ALWAYS,
   OPT_INPUT_DOT_MOBILE,
 } from "../config";
 import { SettingProvider, useSetting } from "./Setting";
@@ -88,16 +87,7 @@ describe("settings persistence results", () => {
     expect(previous.tranboxSetting).toEqual({ width: 600 });
   });
 
-  test("normalizes a legacy theme without issuing a persistent update", () => {
-    mockSetting = { ...mockSetting, darkMode: false };
-    mountProvider();
-
-    expect(settings.setting.darkMode).toBe("light");
-    expect(mockSetting.darkMode).toBe(false);
-    expect(mockUpdate).not.toHaveBeenCalled();
-  });
-
-  test("upgrades an unmarked mobile input dot without persisting", () => {
+  test("keeps a stored mobile input dot without persisting", () => {
     mockSetting = {
       ...mockSetting,
       inputRule: {
@@ -108,13 +98,13 @@ describe("settings persistence results", () => {
     };
     mountProvider();
 
-    expect(settings.setting.inputRule.showDot).toBe(OPT_INPUT_DOT_ALWAYS);
+    expect(settings.setting.inputRule.showDot).toBe(OPT_INPUT_DOT_MOBILE);
     expect(settings.setting.inputRule.toLang).toBe("zh-CN");
     expect(mockSetting.inputRule.showDot).toBe(OPT_INPUT_DOT_MOBILE);
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  test("persists an explicit mobile input dot instead of the upgraded default", () => {
+  test("persists a mobile input dot choice", () => {
     mockSetting = {
       ...DEFAULT_SETTING,
       inputRule: {
@@ -127,13 +117,11 @@ describe("settings persistence results", () => {
 
     settings.updateChild("inputRule")({
       showDot: OPT_INPUT_DOT_MOBILE,
-      showDotChosen: true,
     });
     const reduce = mockUpdate.mock.calls[0][0];
 
     expect(reduce(mockSetting).inputRule).toMatchObject({
       showDot: OPT_INPUT_DOT_MOBILE,
-      showDotChosen: true,
     });
   });
 });

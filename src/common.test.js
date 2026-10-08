@@ -9,7 +9,6 @@ jest.mock("./libs/storage", () => ({
   getSettingWithDefault: jest.fn(),
   getFabWithDefault: jest.fn(),
   getWordsWithDefault: jest.fn(),
-  runDataMigration: jest.fn(),
 }));
 
 jest.mock("./libs/iframe", () => ({
@@ -65,7 +64,6 @@ const {
   getSettingWithDefault,
   getFabWithDefault,
   getWordsWithDefault,
-  runDataMigration,
 } = require("./libs/storage");
 const { matchRule } = require("./libs/rules");
 const { readRedditEmbeddingHref } = require("./libs/redditFrame");
@@ -90,7 +88,6 @@ function setContentType(value) {
 }
 
 function expectNoNormalUserscriptStartup() {
-  expect(runDataMigration).not.toHaveBeenCalled();
   expect(getSettingWithDefault).not.toHaveBeenCalled();
   expect(matchRule).not.toHaveBeenCalled();
   expect(TranslatorManager).not.toHaveBeenCalled();
@@ -127,7 +124,6 @@ describe("common iframe startup", () => {
     });
     getFabWithDefault.mockResolvedValue({ isHide: false });
     getWordsWithDefault.mockResolvedValue({});
-    runDataMigration.mockResolvedValue();
     matchRule.mockResolvedValue({
       transOpen: "true",
       highlightWords: "-",
@@ -297,28 +293,35 @@ describe("common iframe startup", () => {
     expect(runSubtitle).not.toHaveBeenCalled();
   });
 
-  test("creates legacy userscript GM shim before data migration", async () => {
+  test("creates the userscript GM shim before settings are read", async () => {
     const originalGM = globalThis.GM;
     const originalGMGetValue = globalThis.GM_getValue;
     const originalGMXmlhttpRequest = globalThis.GM_xmlhttpRequest;
     const legacyGetValue = jest.fn();
     const legacyXmlhttpRequest = jest.fn();
-    let gmDuringMigration;
+    let gmDuringRead;
 
     delete globalThis.GM;
     globalThis.GM_getValue = legacyGetValue;
     globalThis.GM_xmlhttpRequest = legacyXmlhttpRequest;
-    runDataMigration.mockImplementation(async () => {
-      gmDuringMigration = globalThis.GM;
+    getSettingWithDefault.mockImplementation(async () => {
+      gmDuringRead = globalThis.GM;
+      return {
+      blacklist: "",
+      tranboxSetting: { blacklist: "", transOpen: true },
+      inputRule: { blacklist: "", transOpen: true },
+      mouseHoverSetting: { blacklist: "", useMouseHover: true },
+      logLevel: 1,
+    };
     });
 
     try {
       await run(true);
 
-      expect(runDataMigration).toHaveBeenCalledTimes(1);
-      expect(gmDuringMigration).toBeDefined();
-      expect(gmDuringMigration.getValue).toBe(legacyGetValue);
-      expect(gmDuringMigration.xmlHttpRequest).toBe(legacyXmlhttpRequest);
+      expect(getSettingWithDefault).toHaveBeenCalledTimes(1);
+      expect(gmDuringRead).toBeDefined();
+      expect(gmDuringRead.getValue).toBe(legacyGetValue);
+      expect(gmDuringRead.xmlHttpRequest).toBe(legacyXmlhttpRequest);
     } finally {
       if (originalGM === undefined) {
         delete globalThis.GM;
@@ -370,20 +373,27 @@ describe("common iframe startup", () => {
     const originalGMXmlhttpRequest = globalThis.GM_xmlhttpRequest;
     const existingSetValue = jest.fn();
     const legacyXmlhttpRequest = jest.fn();
-    let gmDuringMigration;
+    let gmDuringRead;
 
     globalThis.GM = { setValue: existingSetValue };
     globalThis.GM_xmlhttpRequest = legacyXmlhttpRequest;
-    runDataMigration.mockImplementation(async () => {
-      gmDuringMigration = globalThis.GM;
+    getSettingWithDefault.mockImplementation(async () => {
+      gmDuringRead = globalThis.GM;
+      return {
+      blacklist: "",
+      tranboxSetting: { blacklist: "", transOpen: true },
+      inputRule: { blacklist: "", transOpen: true },
+      mouseHoverSetting: { blacklist: "", useMouseHover: true },
+      logLevel: 1,
+    };
     });
 
     try {
       await run(true);
 
-      expect(runDataMigration).toHaveBeenCalledTimes(1);
-      expect(gmDuringMigration.setValue).toBe(existingSetValue);
-      expect(gmDuringMigration.xmlHttpRequest).toBe(legacyXmlhttpRequest);
+      expect(getSettingWithDefault).toHaveBeenCalledTimes(1);
+      expect(gmDuringRead.setValue).toBe(existingSetValue);
+      expect(gmDuringRead.xmlHttpRequest).toBe(legacyXmlhttpRequest);
     } finally {
       if (originalGM === undefined) {
         delete globalThis.GM;
@@ -403,19 +413,26 @@ describe("common iframe startup", () => {
     const originalGMXmlhttpRequest = globalThis.GM_xmlhttpRequest;
     const existingXmlhttpRequest = jest.fn();
     const legacyXmlhttpRequest = jest.fn();
-    let gmDuringMigration;
+    let gmDuringRead;
 
     globalThis.GM = { xmlHttpRequest: existingXmlhttpRequest };
     globalThis.GM_xmlhttpRequest = legacyXmlhttpRequest;
-    runDataMigration.mockImplementation(async () => {
-      gmDuringMigration = globalThis.GM;
+    getSettingWithDefault.mockImplementation(async () => {
+      gmDuringRead = globalThis.GM;
+      return {
+      blacklist: "",
+      tranboxSetting: { blacklist: "", transOpen: true },
+      inputRule: { blacklist: "", transOpen: true },
+      mouseHoverSetting: { blacklist: "", useMouseHover: true },
+      logLevel: 1,
+    };
     });
 
     try {
       await run(true);
 
-      expect(runDataMigration).toHaveBeenCalledTimes(1);
-      expect(gmDuringMigration.xmlHttpRequest).toBe(existingXmlhttpRequest);
+      expect(getSettingWithDefault).toHaveBeenCalledTimes(1);
+      expect(gmDuringRead.xmlHttpRequest).toBe(existingXmlhttpRequest);
     } finally {
       if (originalGM === undefined) {
         delete globalThis.GM;

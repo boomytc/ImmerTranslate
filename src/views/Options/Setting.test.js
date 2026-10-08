@@ -7,7 +7,7 @@ import Settings, {
   ExtCommands,
 } from "./Setting";
 import UploadButton from "./UploadButton";
-import { OPT_TRANS_GEMINI, SETTINGS_VERSION_V1 } from "../../config";
+import { CURRENT_SETTINGS_VERSION, OPT_TRANS_GEMINI } from "../../config";
 import { browser } from "../../libs/browser";
 import { useAlert } from "../../hooks/Alert";
 import { useSetting } from "../../hooks/Setting";
@@ -177,7 +177,7 @@ describe("Settings cache feedback", () => {
 });
 
 describe("Settings backup import", () => {
-  test("identifies a versionless JSON backup as V1 while preserving its fields", async () => {
+  test("stores an imported JSON backup as the current settings version", async () => {
     browser.commands.getAll.mockResolvedValue([]);
     useAlert.mockReturnValue(alert);
     const updateSetting = jest.fn();
@@ -210,7 +210,7 @@ describe("Settings backup import", () => {
       expect(updateSetting).toHaveBeenCalledTimes(1);
       expect(updateSetting).toHaveBeenCalledWith({
         ...imported,
-        version: SETTINGS_VERSION_V1,
+        version: CURRENT_SETTINGS_VERSION,
       });
     } finally {
       act(() => root.unmount());

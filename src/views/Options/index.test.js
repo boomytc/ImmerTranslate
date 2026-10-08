@@ -11,7 +11,6 @@ import { trySyncRules, trySyncSetting, trySyncWords } from "../../libs/sync";
 import { refreshStorageKeys } from "../../libs/storageRefresh";
 import { kissLog } from "../../libs/log";
 import { adaptScript } from "../../libs/gm";
-import { runDataMigration } from "../../libs/storage";
 import { sleep } from "../../libs/utils";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,7 +37,6 @@ jest.mock("../../libs/log", () => ({
   LogLevel: { INFO: { value: 1 } },
 }));
 jest.mock("../../libs/gm", () => ({ adaptScript: jest.fn() }));
-jest.mock("../../libs/storage", () => ({ runDataMigration: jest.fn() }));
 jest.mock("../../libs/utils", () => ({ sleep: jest.fn() }));
 jest.mock("../../hooks/Setting", () => ({
   SettingProvider: function SettingProvider(props) {
@@ -215,7 +213,6 @@ describe("Options startup sync", () => {
     trySyncSetting.mockResolvedValue(undefined);
     trySyncWords.mockResolvedValue(undefined);
     refreshStorageKeys.mockResolvedValue(undefined);
-    runDataMigration.mockResolvedValue(undefined);
     sleep.mockResolvedValue(undefined);
     process.env.REACT_APP_NAME = "ImmerTranslate";
     process.env.REACT_APP_VERSION = "2.0.25";
@@ -442,13 +439,11 @@ describe("Options startup sync", () => {
     expect(refreshStorageKeys).toHaveBeenCalledTimes(3);
   });
 
-  test("waits for an older compatible GM bridge and migration, then renders during network sync", async () => {
+  test("waits for an older compatible GM bridge before rendering and syncing", async () => {
     const bridgeWait = createDeferred();
-    const migration = createDeferred();
     const settingSync = createDeferred();
     mockIsGm = true;
     sleep.mockReturnValueOnce(bridgeWait.promise);
-    runDataMigration.mockReturnValueOnce(migration.promise);
     trySyncSetting.mockReturnValueOnce(settingSync.promise);
     const view = renderOptions("#/apis", { strict: true });
     await flushEffects();
@@ -464,52 +459,14 @@ describe("Options startup sync", () => {
     await resolveDeferred(bridgeWait);
     expect(adaptScript).toHaveBeenCalledTimes(1);
     expect(adaptScript).toHaveBeenCalledWith("kiss-ping");
-    expect(runDataMigration).toHaveBeenCalledTimes(1);
-    expect(mockSettingProvider).not.toHaveBeenCalled();
-    expect(trySyncSetting).not.toHaveBeenCalled();
-
-    await resolveDeferred(migration);
     expect(view.query("apis-page")).not.toBe(null);
     expectLocked(view);
     expect(trySyncSetting).toHaveBeenCalledTimes(1);
-    expect(runDataMigration.mock.invocationCallOrder[0]).toBeGreaterThan(
+    expect(mockSettingProvider.mock.invocationCallOrder[0]).toBeGreaterThan(
       adaptScript.mock.invocationCallOrder[0]
     );
-    expect(mockSettingProvider.mock.invocationCallOrder[0]).toBeGreaterThan(
-      runDataMigration.mock.invocationCallOrder[0]
-    );
     await resolveDeferred(settingSync);
     expectLocked(view, false);
-  });
-
-  test("finishes local migration before mounting extension settings or syncing", async () => {
-    const migration = createDeferred();
-    const settingSync = createDeferred();
-    runDataMigration.mockReturnValueOnce(migration.promise);
-    trySyncSetting.mockReturnValueOnce(settingSync.promise);
-    const view = renderOptions("#/apis", { strict: true });
-    await flushEffects();
-
-    expect(runDataMigration).toHaveBeenCalledTimes(1);
-    expect(mockSettingProvider).not.toHaveBeenCalled();
-    expect(trySyncSetting).not.toHaveBeenCalled();
-    await resolveDeferred(migration);
-    expect(view.query("apis-page")).not.toBe(null);
-    expectLocked(view);
-    await resolveDeferred(settingSync);
-    expectLocked(view, false);
-  });
-
-  test("does not expose editable settings after local migration fails", async () => {
-    runDataMigration.mockResolvedValueOnce(false);
-    const view = renderOptions("#/apis");
-    await flushEffects();
-
-    expect(view.container.textContent).toContain(
-      "Unable to migrate local settings"
-    );
-    expect(mockSettingProvider).not.toHaveBeenCalled();
-    expect(trySyncSetting).not.toHaveBeenCalled();
   });
 
   test("shows a version mismatch without reading storage", async () => {
@@ -524,7 +481,6 @@ describe("Options startup sync", () => {
 
     expect(view.container.textContent).toContain("not the latest version");
     expect(adaptScript).not.toHaveBeenCalled();
-    expect(runDataMigration).not.toHaveBeenCalled();
     expect(trySyncSetting).not.toHaveBeenCalled();
     expect(mockSettingProvider).not.toHaveBeenCalled();
   });
@@ -536,7 +492,6 @@ describe("Options startup sync", () => {
 
     expect(view.container.textContent).toContain("Time out. Please confirm");
     expect(sleep).toHaveBeenCalledTimes(8);
-    expect(runDataMigration).not.toHaveBeenCalled();
     expect(trySyncSetting).not.toHaveBeenCalled();
     expect(mockSettingProvider).not.toHaveBeenCalled();
   });

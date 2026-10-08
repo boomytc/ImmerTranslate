@@ -37,7 +37,7 @@ import {
   MSG_CONTEXT_MENUS,
   MSG_UPDATE_CSP,
   DEFAULT_HTTP_TIMEOUT,
-  getSettingVersion,
+  CURRENT_SETTINGS_VERSION,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
 } from "../../config";
 import { useShortcut } from "../../hooks/Shortcut";
@@ -258,11 +258,11 @@ export default function Settings() {
     }
   };
 
-  // Resolve the backup schema before merging with the current settings.
+  // Imported settings are stored as the current schema.
   const handleImport = async (data) => {
     try {
       const imported = JSON.parse(data);
-      updateSetting({ ...imported, version: getSettingVersion(imported) });
+      updateSetting({ ...imported, version: CURRENT_SETTINGS_VERSION });
     } catch (err) {
       kissLog("import setting", err);
     }
