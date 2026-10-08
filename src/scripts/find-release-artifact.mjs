@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -47,26 +46,10 @@ if (
       runId: process.env.ARTIFACT_RUN_ID,
       currentRunId: process.env.GITHUB_RUN_ID,
     });
-    if (!found) {
-      // A missing artifact may only be rebuilt before any Release exists.
-      let exists = true;
-      try {
-        execFileSync(
-          "gh",
-          [
-            "api",
-            `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${process.env.RELEASE_TAG}`,
-          ],
-          { stdio: ["ignore", "pipe", "pipe"] }
-        );
-      } catch (error) {
-        if (!error.stderr?.toString().includes("(HTTP 404)")) throw error;
-        exists = false;
-      }
-      if (exists)
-        throw new Error(
-          "Release already exists; recover using its original artifact_run_id"
-        );
+    if (!found && process.env.RELEASE_EXISTS !== "false") {
+      throw new Error(
+        "Release exists or its state is unknown; recover using its original artifact_run_id"
+      );
     }
     appendFileSync(
       process.env.GITHUB_OUTPUT,

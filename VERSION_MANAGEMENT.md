@@ -69,7 +69,7 @@ git push origin v1.1.1
 1. 校验稳定版本、CHANGELOG 和标签提交位于 main 历史中。
 2. 运行发布脚本测试、产品测试、完整构建，确认构建没有修改受控文件。
 3. 校验五端 ZIP、两种用户脚本和 Pages 版本，生成包含源 SHA、ZIP 大小及 SHA-256、Pages 文件摘要的 `release-manifest.json`，保存原构建 artifact 90 天。
-4. 用 GitHub CLI 创建 draft，先上传来源清单，再上传五个 ZIP。全部上传并校验后才正式发布。
+4. 用 GitHub CLI 创建 draft，先上传来源清单，再上传五个 ZIP。全部上传并校验后才正式发布。按 tag 的 REST 接口仅返回已发布 Release；草稿通过有 push 权限的 release-state job 分页查询，构建 job 保持只读权限。
 5. 发布成功后才部署 Pages；只部署当前 latest 稳定版，且不得低于 gh-pages 的现有 `version.txt`。同版本发布串行，Pages 部署单独串行。
 
 下载包命名为 `immer-translate_v1.1.1_<client>.zip`，client 为 chrome、edge、firefox、userscript、thunderbird；另有 `immer-translate_v1.1.1_manifest.json` 用于检查来源和摘要。Safari 原生扩展构建不在本发布矩阵中。
@@ -94,10 +94,12 @@ gh workflow run release.yml --ref main \
   -f artifact_run_id=<原发布运行ID>
 ```
 
-手动恢复依然校验 tag/SHA/版本/原始摘要，不移动标签。没有原 artifact 时不自动重建部分发布。
+手动恢复使用本次工作流提交中的发布工具，但源码检出到原 tag，校验和发布只读取原 tag 的版本、CHANGELOG 与原 artifact。发布工具通过 `RELEASE_ROOT` 指向该源码目录，核对 tag/SHA/版本/原始摘要，不移动标签。这样 main 上的发布工具修复可用于旧 tag，无需重打标签或重建产物。没有原 artifact 时不自动重建部分发布。
+
+仓库默认 `GITHUB_TOKEN` 权限设为 read；新版发布前状态查询、发布和部署 job 显式申请所需写权限。历史工作流未显式申请写权限时，无法再创建 Release 或覆盖 gh-pages。
 
 ## 发布验收
 
-确认标签对应 main 中的发布提交、工作流三个 job 成功、五端 ZIP 与来源清单齐全、包内版本及两个脚本版本正确，并核对线上 `version.txt` 为目标版本。浏览器升级后验证订阅脚本不执行、个人规则仍可运行且看不到密钥、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
+确认标签对应 main 中的发布提交、工作流状态查询、构建、发布、部署四个 job 成功、五端 ZIP 与来源清单齐全、包内版本及两个脚本版本正确，并核对线上 `version.txt` 为目标版本。浏览器升级后验证订阅脚本不执行、个人规则仍可运行且看不到密钥、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
 
 报告发布 PR、main 提交 SHA、标签、Release URL、工作流结果和最终分支状态。静态测试及构建通过不能替代浏览器实际升级验证。
