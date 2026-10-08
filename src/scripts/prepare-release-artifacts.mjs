@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { readVersionFiles } from "./version-files.mjs";
 import {
   writeArtifactManifest,
@@ -7,7 +8,10 @@ import {
 } from "./release-artifacts.mjs";
 
 try {
-  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const root = path.resolve(
+    process.env.RELEASE_ROOT ||
+      fileURLToPath(new URL("../../", import.meta.url))
+  );
   const [{ version }] = await readVersionFiles(root);
   const tag = process.env.RELEASE_TAG || `v${version}`;
   const sha = execFileSync("git", ["rev-parse", "HEAD"], {
