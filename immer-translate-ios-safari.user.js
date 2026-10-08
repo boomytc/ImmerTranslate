@@ -28,7 +28,7 @@
 // @grant         GM_removeValueChangeListener
 // @grant         GM.info
 // @grant         GM_info
-// @grant         unsafeWindow
+// @inject-into   content
 // @connect       translate.googleapis.com
 // @connect       translate-pa.googleapis.com
 // @connect       translation.googleapis.com
