@@ -79,7 +79,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm test:release
-          pnpm test --watchAll=false --runInBand
+          pnpm run test --watchAll=false --runInBand
           pnpm build+zip
           git diff --exit-code
           pnpm release:artifacts

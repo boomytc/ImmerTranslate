@@ -27,7 +27,7 @@ jobs:
       - run: pnpm format:check origin/main
       - run: pnpm release:check
       - run: pnpm test:release
-      - run: pnpm test --watchAll=false --runInBand
+      - run: pnpm run test --watchAll=false --runInBand
         env:
           CI: "true"
       - run: pnpm build+zip

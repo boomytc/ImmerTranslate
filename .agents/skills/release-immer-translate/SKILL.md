@@ -56,7 +56,7 @@ Follow the version-script sections of `VERSION_MANAGEMENT.md` and the repository
    - Summarize behavior rather than copying commit messages mechanically.
    - Exclude merges, formatting-only work, and internal implementation detail unless release-relevant.
    - Preserve UTF-8 and every existing historical entry unchanged.
-5. Format only reviewed changed files, then run `pnpm format:check origin/main`, `pnpm release:check`, `pnpm test:release` and `CI=true pnpm test --watchAll=false --runInBand`. Inspect the complete diff and stop on unrelated formatting. `pnpm build` must not format source files.
+5. Format only reviewed changed files, then run `pnpm format:check origin/main`, `pnpm release:check`, `pnpm test:release` and `CI=true pnpm run test --watchAll=false --runInBand`. Inspect the complete diff and stop on unrelated formatting. `pnpm build` must not format source files.
 6. Run `pnpm build+zip`, then recheck all version values, the top CHANGELOG heading, `git diff --check`, and the complete diff.
 7. Stage only the reviewed release files. Commit as `chore: bump version to <target>` and push the release branch with `git push -u origin codex/release-v<target>`. Do not use `git add .`. Do not push this commit to `main`.
 

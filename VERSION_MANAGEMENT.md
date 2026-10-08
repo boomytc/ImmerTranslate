@@ -42,7 +42,7 @@ pnpm version:patch
 pnpm format:check
 pnpm release:check
 pnpm test:release
-CI=true pnpm test --watchAll=false --runInBand
+CI=true pnpm run test --watchAll=false --runInBand
 pnpm build+zip
 git diff --check
 git diff
