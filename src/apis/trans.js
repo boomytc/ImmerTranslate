@@ -145,17 +145,20 @@ const genSystemPrompt = ({
     .replaceAll(INPUT_PLACE_TO_LANG, toLang)
     .replaceAll(INPUT_PLACE_TEXT, texts[0]);
 
-// 构建 Hy-MT 官方范式的术语与语气前置约束块
+// 构建 Hy-MT 官方范式的术语行：source translates to target。
+// 独立成行的块、行内替换和字幕提示词共用这一种文本形状。
+const formatHyMtGlossaryEntries = (glossary) =>
+  Object.entries(glossary || {}).map(([k, v]) => {
+    const source = String(k ?? "").trim();
+    const target = String(v ?? "").trim();
+    return `${source} translates to ${target || source}`;
+  });
+
+// 构建 Hy-MT 官方范式的术语前置约束块
 const buildHyMtGlossaryBlock = (glossary) => {
-  const entries = Object.entries(glossary || {});
+  const entries = formatHyMtGlossaryEntries(glossary);
   if (entries.length === 0) return "";
-  return `Reference the following translations:\n${entries
-    .map(([k, v]) => {
-      const source = String(k ?? "").trim();
-      const target = String(v ?? "").trim();
-      return `${source} translates to ${target || source}`;
-    })
-    .join("\n")}`;
+  return `Reference the following translations:\n${entries.join("\n")}`;
 };
 
 const buildHyMtToneBlock = (tone) => {
@@ -229,13 +232,7 @@ const genUserPrompt = ({
     glossary = { ...glossary, ...aiGlossary };
   }
 
-  const glossaryStr = Object.entries(glossary)
-    .map(([term, definition]) => {
-      const src = String(term ?? "").trim();
-      const target = String(definition ?? "").trim();
-      return `- ${src}: ${target || src}`;
-    })
-    .join("\n");
+  const glossaryStr = formatHyMtGlossaryEntries(glossary).join("\n");
 
   if (useBatchFetch) {
     if (batchUserPrompt && batchUserPrompt.trim()) {
@@ -445,9 +442,7 @@ export const buildSubtitleSystemPrompt = ({
   aiTerms = "",
 }) => {
   const aiGlossary = parseAITerms(aiTerms);
-  const glossaryStr = Object.entries(aiGlossary)
-    .map(([term, definition]) => `- ${term}: ${definition}`)
-    .join("\n");
+  const glossaryStr = formatHyMtGlossaryEntries(aiGlossary).join("\n");
   return String(subtitlePrompt || "")
     .replaceAll(INPUT_PLACE_TITLE, title)
     .replaceAll(INPUT_PLACE_DESCRIPTION, description)
@@ -784,8 +779,9 @@ const applyClaudeThinking = (body, { thinkingMode, thinkingEffort }) => {
 
 /**
  * 将 3.x 非 lite flash 模型不支持的 minimal 强度兜底降为 low。
- * 设置页按模型能力只提供支持的档位，但旧版本保存的配置或同步数据
- * 可能仍带着 minimal，直接发送会被整个请求以 400 拒绝 (#1048)。
+ * 切换模型时（悬浮球/弹窗只替换 model，不同步重算思考强度），或任何在请求前
+ * 才改变模型的路径，都可能带着上一个模型的 minimal 发出请求，直接发送会被
+ * 整个请求以 400 拒绝 (#1048)。
  * @param {string} model 当前模型名称。
  * @param {string|number} effort 待处理的思考强度。
  * @returns {string|number} 处理后的强度。

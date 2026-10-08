@@ -31,9 +31,6 @@ function renderSubtitle(overrides = {}) {
   useSubtitle.mockReturnValue({
     subtitleSetting: {
       ...DEFAULT_SUBTITLE_SETTING,
-      // showLoadNotification 不在 DEFAULT_SUBTITLE_SETTING 里，
-      // 它的默认值只存在于 Subtitle.js 的解构默认值中。
-      enhanceMode: "desktop",
       ...overrides,
     },
     updateSubtitle,

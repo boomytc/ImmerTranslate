@@ -989,17 +989,11 @@ export class YouTubeCaptionProvider {
       },
     });
 
-    const showList = isSubtitleModeEnabled(
-      this.#setting.showList,
-      this.#setting.enhanceMode
-    );
+    const showList = isSubtitleModeEnabled(this.#setting.showList);
 
     if (showList && !this.#subtitleListManager) {
       this.#subtitleListManager = new YouTubeSubtitleList(videoEl, this.#i18n, {
-        enableHoverLookup: isSubtitleModeEnabled(
-          this.#setting.hoverLookupMode,
-          this.#setting.enhanceMode
-        ),
+        enableHoverLookup: isSubtitleModeEnabled(this.#setting.hoverLookupMode),
         autoFavWord: this.#setting.autoFavWord === true,
       });
       this.#subtitleListManager.initialize(

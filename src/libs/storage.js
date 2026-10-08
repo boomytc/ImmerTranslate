@@ -652,8 +652,6 @@ export const putSyncMeta = (key) => {
     },
   }));
 };
-// Keep the legacy name without delaying or discarding another key's metadata.
-export const debounceSyncMeta = putSyncMeta;
 
 // --- 百度云服务授权 Token 存取 ---
 export const getBdauth = () => getObj(STOKEY_BDAUTH);

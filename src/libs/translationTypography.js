@@ -34,9 +34,7 @@ export const PAGE_TRANSLATION_CHROME_STYLE_ID = "kiss-translator-page-chrome";
 // Glass / frost stays on the extension shell. Page translations stay flat.
 export const PAGE_TRANSLATION_CHROME_CSS = `
 ${APP_LCNAME}.${APP_LCNAME}-wrapper,
-.${APP_LCNAME}-wrapper,
-kiss-translator.kiss-translator-wrapper,
-.kiss-translator-wrapper {
+.${APP_LCNAME}-wrapper {
   background-color: transparent !important;
   background-image: none !important;
   backdrop-filter: none !important;
@@ -44,9 +42,7 @@ kiss-translator.kiss-translator-wrapper,
   box-shadow: none !important;
 }
 ${APP_LCNAME}.${APP_LCNAME}-wrapper > .${APP_LCNAME}-inner,
-.${APP_LCNAME}-wrapper > .${APP_LCNAME}-inner,
-kiss-translator.kiss-translator-wrapper > .kiss-translator-inner,
-.kiss-translator-wrapper > .kiss-translator-inner {
+.${APP_LCNAME}-wrapper > .${APP_LCNAME}-inner {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   box-shadow: none !important;

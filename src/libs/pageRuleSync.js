@@ -32,8 +32,7 @@ export function pickSharedRulePatch(values) {
     if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
     const value = values[key];
     if (value == null || value === "") continue;
-    const nextValue = value === true ? "true" : value === false ? "false" : value;
-    patch[key] = nextValue;
+    patch[key] = value;
   }
   return patch;
 }
@@ -44,10 +43,12 @@ export function pickSharedRulePatch(values) {
  * matching GLOBLA_RULE.transOpen.
  */
 export function effectiveTransOpen(siteTransOpen, globalTransOpen) {
-  if (siteTransOpen === "true" || siteTransOpen === true) return "true";
-  if (siteTransOpen === "false" || siteTransOpen === false) return "false";
-  if (globalTransOpen === "true" || globalTransOpen === true) return "true";
-  if (globalTransOpen === "false" || globalTransOpen === false) return "false";
+  if (siteTransOpen === "true" || siteTransOpen === "false") {
+    return siteTransOpen;
+  }
+  if (globalTransOpen === "true" || globalTransOpen === "false") {
+    return globalTransOpen;
+  }
   return "false";
 }
 

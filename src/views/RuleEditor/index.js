@@ -539,9 +539,7 @@ export function Editor({ session }) {
                   sx={{ flexShrink: 0 }}
                 />
               </Stack>
-              {(rule.scanAll === "true" ||
-                rule.isPlainText === true ||
-                rule.isPlainText === "true") && (
+              {(rule.scanAll === "true" || rule.isPlainText === "true") && (
                 <Alert severity="warning">{t("scanAll")}</Alert>
               )}
               <Stack

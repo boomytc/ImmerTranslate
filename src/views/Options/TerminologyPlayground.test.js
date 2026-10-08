@@ -2847,7 +2847,7 @@ describe("TerminologyPlayground", () => {
     act(() => root.unmount());
   });
 
-  test("nobatch path: channel/label/已发出 when {{glossary}} line present, 未发出 after removal", async () => {
+  test("nobatch path: standalone {{glossary}} block reads as 已发出; 移除后 missing", async () => {
     mockResolvedTransApis.push(
       mockResolvedApi({
         apiSlug: "openai",
@@ -2859,7 +2859,7 @@ describe("TerminologyPlayground", () => {
       reqUserMsg: {
         role: "user",
         content:
-          "Translate the text.\n- zorp: 数据管道\n\nText: Please make sure the zorp is configured correctly before deploying.",
+          "Translate the text.\nReference the following translations:\nzorp translates to 数据管道\n\nText: Please make sure the zorp is configured correctly before deploying.",
       },
     });
     const { container, root, setAiTermsDraft } = renderPlayground({
@@ -2897,6 +2897,37 @@ describe("TerminologyPlayground", () => {
         .querySelector('[data-testid="terminology-ai-delivery-zorp"]')
         .getAttribute("data-state")
     ).toBe("missing");
+
+    act(() => root.unmount());
+  });
+
+  test("nobatch path: inline {{glossary}} rendered as source translates to target reads as 已发出", async () => {
+    mockResolvedTransApis.push(
+      mockResolvedApi({
+        apiSlug: "openai",
+        apiName: "OpenAI",
+        useBatchFetch: false,
+      })
+    );
+    mockApiTranslateWithCapture({
+      reqUserMsg: {
+        role: "user",
+        content:
+          "Use these terms: zorp translates to 数据管道\n\nText: Please make sure the zorp is configured correctly before deploying.",
+      },
+    });
+    const { container, root, setAiTermsDraft } = renderPlayground({
+      rule: null,
+    });
+    await flushEffects();
+    fillAiTerms(container, setAiTermsDraft, "zorp,数据管道");
+    await runAiTest(container);
+
+    expect(
+      container
+        .querySelector('[data-testid="terminology-ai-delivery-zorp"]')
+        .getAttribute("data-state")
+    ).toBe("delivered");
 
     act(() => root.unmount());
   });

@@ -60,6 +60,7 @@ import {
 } from "../Action/sitePolicy";
 import { browser } from "../../libs/browser";
 import { saveRule } from "../../libs/rules";
+import { effectiveTransOpen } from "../../libs/pageRuleSync";
 import { tryClearCaches } from "../../libs/cache";
 import { kissLog } from "../../libs/log";
 import { getDomainOptions, truncateMiddle } from "../../libs/url";
@@ -118,13 +119,6 @@ export function resolvePopupTextStyles(
     .slice(0, 5);
 }
 
-function effectiveTransOpen(siteTransOpen, globalTransOpen) {
-  if (siteTransOpen === "true" || siteTransOpen === true) return "true";
-  if (siteTransOpen === "false" || siteTransOpen === false) return "false";
-  if (globalTransOpen === "true" || globalTransOpen === true) return "true";
-  if (globalTransOpen === "false" || globalTransOpen === false) return "false";
-  return "false";
-}
 
 export default function PopupCont({
   rule,
@@ -482,17 +476,13 @@ export default function PopupCont({
 
         const responseTransOpen = response?.rule?.transOpen;
         const hasConfirmedState =
-          responseTransOpen === true ||
-          responseTransOpen === false ||
-          responseTransOpen === "true" ||
-          responseTransOpen === "false";
+          responseTransOpen === "true" || responseTransOpen === "false";
 
         if (!hasConfirmedState) {
           throw new Error("Page translation state was not confirmed");
         }
 
-        const resolvedEnabled =
-          responseTransOpen === true || responseTransOpen === "true";
+        const resolvedEnabled = responseTransOpen === "true";
         if (resolvedEnabled !== enabled) {
           throw new Error("Page translation state did not match the request");
         }
@@ -619,8 +609,8 @@ export default function PopupCont({
     isPlainText: plainTextValue = false,
   } = rule || {};
   const translationEnabled =
-    canTranslatePage && (transOpen === true || transOpen === "true");
-  const isPlainText = plainTextValue === true || plainTextValue === "true";
+    canTranslatePage && transOpen === "true";
+  const isPlainText = plainTextValue === "true";
   const targetName =
     OPT_LANGS_TO.find(([key]) => key === toLang)?.[1] || toLang;
   const activeService = services.find(({ key }) => key === apiSlug);
@@ -961,10 +951,7 @@ export default function PopupCont({
         (item) => item.pattern === GLOBAL_KEY
       )?.transOpen;
       const nextRuntime = effectiveTransOpen(next, globalTransOpen);
-      const currentRuntime =
-        rule?.transOpen === true || rule?.transOpen === "true"
-          ? "true"
-          : "false";
+      const currentRuntime = rule?.transOpen === "true" ? "true" : "false";
 
       if (canTranslatePage && nextRuntime !== currentRuntime) {
         void Promise.resolve(
@@ -1429,11 +1416,7 @@ export default function PopupCont({
                         onChange={(event) =>
                           putRuleValue(
                             name,
-                            name === "isPlainText"
-                              ? event.target.checked
-                              : event.target.checked
-                                ? "true"
-                                : "false"
+                            event.target.checked ? "true" : "false"
                           )
                         }
                         inputProps={{ "aria-label": label }}

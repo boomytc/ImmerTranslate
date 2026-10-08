@@ -3,7 +3,6 @@ import { STOKEY_SYNC, DEFAULT_SYNC } from "../config";
 import { useStorage } from "./Storage";
 import {
   getSyncWithDefault,
-  putSyncMeta,
   storage,
   updateSyncState,
 } from "../libs/storage";
@@ -13,12 +12,6 @@ import { kissLog } from "../libs/log";
 export function useSync() {
   const { data, update, reload } = useStorage(STOKEY_SYNC, DEFAULT_SYNC);
   return { sync: data, updateSync: update, reloadSync: reload };
-}
-
-/** Retain the legacy hook while updating metadata inside its transaction. */
-export function useSyncMeta() {
-  const updateSyncMeta = useCallback((key) => putSyncMeta(key), []);
-  return { updateSyncMeta };
 }
 
 // Keep cache mutations ordered even when the initiating Rules view unmounts.

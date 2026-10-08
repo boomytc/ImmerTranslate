@@ -193,8 +193,7 @@ export default function FabQuickOptions({
       (item) => item.pattern === GLOBAL_KEY
     )?.transOpen;
     const nextRuntime = effectiveTransOpen(next, globalTransOpen);
-    const currentRuntime =
-      rule?.transOpen === true || rule?.transOpen === "true" ? "true" : "false";
+    const currentRuntime = rule?.transOpen === "true" ? "true" : "false";
     // Pinning true/false also asks the page to translate now. Follow (`*`)
     // moves runtime to the global value without saving that boolean over `*`.
     if (!rule || nextRuntime !== currentRuntime) {
@@ -219,8 +218,7 @@ export default function FabQuickOptions({
   const showSite = Boolean(sitePattern) && !rulesLoading;
   if (!rule && !showSite) return null;
 
-  const translationOnly =
-    rule?.transOnly === true || rule?.transOnly === "true";
+  const translationOnly = rule?.transOnly === "true";
   const setTranslationOnly = (enabled) => {
     if (enabled === translationOnly) return;
     const transOnly = enabled ? "true" : "false";

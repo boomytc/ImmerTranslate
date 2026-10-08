@@ -95,7 +95,6 @@ const setting = {
   isBilingual: true,
   blurTranslation: false,
   hoverLookupMode: "off",
-  enhanceMode: "off",
 };
 
 function getCaptionLines() {

@@ -284,8 +284,8 @@ describe("rules enabled state", () => {
   });
 
   test.each([
-    ["enabled", "false", true, "true"],
-    ["disabled", "true", false, "false"],
+    ["enabled", "false", "true", "true"],
+    ["disabled", "true", "false", "false"],
   ])(
     "persists an explicit plain text setting from the popup when %s",
     async (_, globalValue, popupValue, expectedValue) => {

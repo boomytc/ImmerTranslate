@@ -113,7 +113,7 @@ function createPlainTextTranslator(rule = {}, setting = {}) {
     }
   );
 
-  translator.updateRule({ isPlainText: true });
+  translator.updateRule({ isPlainText: "true" });
   translator.enable();
 
   return translator;
@@ -2745,46 +2745,6 @@ describe("Translator rule styles", () => {
 
     expect(bubble.style.left).not.toBe(initialLeft);
     expect(bubble.style.top).not.toBe(initialTop);
-  });
-
-  test("upgrades a stored legacy blue hover bubble to the light card", async () => {
-    document.body.innerHTML =
-      '<main id="root"><p id="target">Hello hover</p></main>';
-
-    createTranslator(
-      { transOpen: "false" },
-      {
-        preInit: true,
-        mouseHoverSetting: {
-          useMouseHover: true,
-          mouseHoverKey: [],
-          mouseHoverKey2: [],
-          displayMode: "bubble",
-          bubbleStyle: `max-width: min(420px, calc(100vw - 32px));
-padding: 10px 12px;
-border-radius: 8px;
-background: rgb(25, 118, 210);
-color: #fff;
-font-size: 14px;
-line-height: 1.5;
-box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-backdrop-filter: blur(8px);`,
-        },
-      }
-    );
-    await hoverNode(document.getElementById("target"));
-    await flushAsync();
-
-    const bubble = document.querySelector(
-      `.${Translator.KISS_CLASS.hoverBubble}`
-    );
-    expect(bubble.getAttribute("style")).toContain(
-      "background: rgb(255, 255, 255)"
-    );
-    expect(bubble.getAttribute("style")).not.toContain(
-      "background: rgb(25, 118, 210)"
-    );
-    expect(bubble.style.pointerEvents).toBe("none");
   });
 
   test("uses the shared loading icon and a readable light card for the mouse hover bubble", async () => {

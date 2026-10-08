@@ -72,10 +72,7 @@ export class BilingualSubtitleManager {
 
   // 判定是否激活了悬浮查词翻译功能
   #isHoverLookupEnabled() {
-    return isSubtitleModeEnabled(
-      this.#setting.hoverLookupMode,
-      this.#setting.enhanceMode
-    );
+    return isSubtitleModeEnabled(this.#setting.hoverLookupMode);
   }
 
   /**

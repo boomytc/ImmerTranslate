@@ -33,7 +33,6 @@ jest.mock("../../libs/sync", () => ({
 }));
 jest.mock("../../libs/storage", () => ({
   ...jest.requireActual("../../libs/storage"),
-  debounceSyncMeta: jest.fn(),
 }));
 jest.mock("../../hooks/I18n", () => ({
   useI18n: () => (key) => key,

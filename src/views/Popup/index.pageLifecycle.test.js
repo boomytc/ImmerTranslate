@@ -21,7 +21,7 @@ const mockRule = {
   transOnly: "false",
   hasRichText: "true",
   scanAll: "false",
-  isPlainText: false,
+  isPlainText: "false",
 };
 const mockSetting = {
   uiLang: "en",

@@ -122,7 +122,7 @@ function renderPopup(props = {}) {
     transOnly: "false",
     hasRichText: "true",
     scanAll: "false",
-    isPlainText: false,
+    isPlainText: "false",
   };
 
   const defaultProps = {

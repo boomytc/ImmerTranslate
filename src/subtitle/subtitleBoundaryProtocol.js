@@ -32,7 +32,7 @@ export function mapBoundaryItemToCue(
   nextIndex,
   fromLang = "auto"
 ) {
-  const endIndex = Number(item?.e ?? item?.end_id);
+  const endIndex = Number(item?.e);
   if (
     !Number.isInteger(endIndex) ||
     !Number.isInteger(nextIndex) ||
@@ -47,7 +47,7 @@ export function mapBoundaryItemToCue(
   if (!text) return null;
   const translation = isOnlyNonSpeechSubtitle(text)
     ? text
-    : String(item?.t ?? item?.translation ?? "");
+    : String(item?.t ?? "");
 
   return {
     start: events[nextIndex].start,
