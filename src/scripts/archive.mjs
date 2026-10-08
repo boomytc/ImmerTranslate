@@ -6,7 +6,9 @@ console.log(chalk.cyan("\nStarting compression tasks...\n"));
 cd("build");
 
 // 2. 清理旧的 zip 文件
-await $`npx shx rm -f *.zip`;
+for (const file of await fs.readdir(".")) {
+  if (file.endsWith(".zip")) await fs.remove(file);
+}
 
 /**
  * 定义打包任务配置
@@ -41,14 +43,14 @@ try {
       console.log(`Zipping contents of ${task.cwd} (flat structure)...`);
 
       // 2. 执行打包: 将当前目录所有文件 (*) 打包到父级目录的 zip 中
-      await $`npx bestzip ${task.output} *`;
+      await $`bestzip ${task.output} *`;
 
       // 3. 回到原目录
       cd(originalCwd);
     } else {
       // === 普通打包：打包文件夹本身 (Chrome/Edge) ===
       console.log(`Zipping folder ${task.source}...`);
-      await $`npx bestzip ${task.output} ${task.source}`;
+      await $`bestzip ${task.output} ${task.source}`;
     }
   }
   console.log(chalk.green("\n✅ All zip files created successfully."));
