@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { validateReleaseSources } from "./version-files.mjs";
 import { verifyArtifactManifest } from "./release-artifacts.mjs";
 import { publishRelease } from "./publish-release.mjs";
+import { getGithubRelease } from "./github-release.mjs";
 
 const gh = (...args) =>
   execFileSync("gh", args, {
@@ -14,7 +15,10 @@ const gh = (...args) =>
   });
 let staging;
 try {
-  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const root = path.resolve(
+    process.env.RELEASE_ROOT ||
+      fileURLToPath(new URL("../../", import.meta.url))
+  );
   const tag = process.env.RELEASE_TAG;
   const repo = process.env.GITHUB_REPOSITORY;
   if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo))
@@ -38,12 +42,7 @@ try {
   await writeFile(notesFile, notes);
   const client = {
     async getRelease() {
-      try {
-        return api(`releases/tags/${tag}`);
-      } catch (error) {
-        if (error.stderr?.toString().includes("(HTTP 404)")) return null;
-        throw error;
-      }
+      return getGithubRelease(repo, tag, gh);
     },
     async createDraft() {
       gh(

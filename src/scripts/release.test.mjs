@@ -30,10 +30,70 @@ import {
 import { publishRelease } from "./publish-release.mjs";
 import { shouldDeployPages } from "./pages-guard.mjs";
 import { selectOriginalArtifact } from "./find-release-artifact.mjs";
+import { getGithubRelease } from "./github-release.mjs";
+import { verifyPagesDeployment } from "./verify-pages-deployment.mjs";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 const tag = "v1.1.1";
 const sha = "a".repeat(40);
+
+function httpError(status) {
+  return Object.assign(new Error(`HTTP ${status}`), {
+    stderr: Buffer.from(`gh: failure (HTTP ${status})`),
+  });
+}
+
+test("draft lookup falls back from tag 404 to all release pages", () => {
+  const calls = [];
+  const draft = { id: 12, tag_name: tag, draft: true, assets: [] };
+  const gh = (...args) => {
+    calls.push(args);
+    if (args[1].includes("/tags/")) throw httpError(404);
+    return JSON.stringify([[{ tag_name: "v1.1.0" }], [draft]]);
+  };
+  assert.deepEqual(getGithubRelease("owner/repo", tag, gh), draft);
+  assert.deepEqual(calls[1].slice(2), ["--paginate", "--slurp"]);
+});
+
+test("published lookup skips draft listing and missing releases return null", () => {
+  const release = { tag_name: tag, draft: false };
+  assert.deepEqual(
+    getGithubRelease("owner/repo", tag, () => JSON.stringify(release)),
+    release
+  );
+  assert.equal(
+    getGithubRelease("owner/repo", tag, (...args) => {
+      if (args[1].includes("/tags/")) throw httpError(404);
+      return "[[]]";
+    }),
+    null
+  );
+});
+
+test("release lookup propagates authentication, listing and ambiguous-tag errors", () => {
+  assert.throws(
+    () =>
+      getGithubRelease("owner/repo", tag, () => {
+        throw httpError(403);
+      }),
+    /403/
+  );
+  assert.throws(
+    () =>
+      getGithubRelease("owner/repo", tag, (...args) => {
+        throw httpError(args[1].includes("/tags/") ? 404 : 401);
+      }),
+    /401/
+  );
+  assert.throws(
+    () =>
+      getGithubRelease("owner/repo", tag, (...args) => {
+        if (args[1].includes("/tags/")) throw httpError(404);
+        return JSON.stringify([[{ tag_name: tag }, { tag_name: tag }]]);
+      }),
+    /Ambiguous/
+  );
+});
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "immer-release-test-"));
@@ -260,6 +320,45 @@ test("verifies all five ZIPs, both userscripts and Pages provenance", async (t) 
   );
 });
 
+test("recovery tooling verifies the tagged source root rather than its own checkout", async (t) => {
+  const { root } = await artifacts(t);
+  for (const args of [
+    ["init", "--quiet"],
+    ["add", "."],
+    [
+      "-c",
+      "user.name=Release test",
+      "-c",
+      "user.email=test@example.test",
+      "commit",
+      "--quiet",
+      "-m",
+      "Tagged source",
+    ],
+  ]) {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const sourceSha = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: root,
+    encoding: "utf8",
+  }).stdout.trim();
+  await writeArtifactManifest(root, tag, sourceSha);
+  const result = spawnSync(
+    process.execPath,
+    [
+      path.join(repository, "src/scripts/prepare-release-artifacts.mjs"),
+      "--check",
+    ],
+    {
+      env: { ...process.env, RELEASE_ROOT: root, RELEASE_TAG: tag },
+      encoding: "utf8",
+    }
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(sourceSha));
+});
+
 test("rejects changed ZIP bytes even if version metadata remains valid", async (t) => {
   const { root } = await artifacts(t);
   await appendFile(path.join(root, "build/chrome.zip"), "changed");
@@ -289,6 +388,26 @@ test("first publication uploads provenance first and publishes only after every 
   assert.equal(client.mutations[1], `upload:${manifestAssetName(tag)}`);
   assert.equal(client.mutations.at(-1), "publish");
   assert.equal(client.value.assets.length, 6);
+});
+
+test("draft API semantics work during creation, upload verification and repeat", async (t) => {
+  const data = await artifacts(t);
+  const client = releaseClient();
+  const gh = (...args) => {
+    const release = client.value && { ...client.value, tag_name: tag };
+    if (args[1].includes("/tags/")) {
+      if (!release || release.draft) throw httpError(404);
+      return JSON.stringify(release);
+    }
+    return JSON.stringify([release ? [release] : []]);
+  };
+  client.getRelease = async () => getGithubRelease("owner/repo", tag, gh);
+  await publishRelease({ ...data, client, notes: "Security fix" });
+  assert.equal(client.value.draft, false);
+  assert.equal(client.value.assets.length, 6);
+  client.mutations.length = 0;
+  await publishRelease({ ...data, client, notes: "Security fix" });
+  assert.deepEqual(client.mutations, []);
 });
 
 test("repeat publication verifies existing assets without any write", async (t) => {
@@ -395,6 +514,49 @@ test("Pages only deploys the current stable release and never downgrades", () =>
   assert.throws(() => shouldDeployPages(tag, tag, "broken"));
 });
 
+test("Pages requires the deployed commit and live version, and skips redundant builds", async () => {
+  const requests = [];
+  const states = [
+    { commit: "old", status: "built" },
+    { commit: sha, status: "building" },
+    { commit: sha, status: "built" },
+    { commit: sha, status: "built" },
+  ];
+  const versions = ["1.1.0", "1.1.1"];
+  const client = {
+    latestBuild: async () => states.shift() || { commit: sha, status: "built" },
+    requestBuild: async () => requests.push("build"),
+    liveVersion: async () => versions.shift() || "1.1.1",
+    wait: async () => {},
+  };
+  await verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 3 });
+  assert.deepEqual(requests, ["build"]);
+  await verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 1 });
+  assert.deepEqual(requests, ["build"]);
+});
+
+test("Pages build errors and stale site versions fail deployment verification", async () => {
+  const client = {
+    latestBuild: async () => ({
+      commit: sha,
+      status: "errored",
+      error: { message: "Broken site" },
+    }),
+    requestBuild: async () => {},
+    liveVersion: async () => "1.1.0",
+    wait: async () => {},
+  };
+  await assert.rejects(
+    verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 1 }),
+    /Broken site/
+  );
+  client.latestBuild = async () => ({ commit: sha, status: "built" });
+  await assert.rejects(
+    verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 2 }),
+    /did not serve/
+  );
+});
+
 test("recovery accepts only the original unexpired release artifact", () => {
   const args = {
     run: { path: ".github/workflows/release.yml", event: "push" },
@@ -438,6 +600,42 @@ test("recovery accepts only the original unexpired release artifact", () => {
     () => selectOriginalArtifact({ ...args, artifacts: [artifact, artifact] }),
     /Ambiguous/
   );
+});
+
+test("artifact finder refuses to rebuild when a draft exists or state is unknown", async (t) => {
+  const root = await fixture(t);
+  await writeFile(
+    path.join(root, "original-run.json"),
+    JSON.stringify({
+      path: ".github/workflows/release.yml",
+      event: "push",
+    })
+  );
+  await writeFile(
+    path.join(root, "original-artifacts.json"),
+    '{"artifacts":[]}'
+  );
+  const output = path.join(root, "output");
+  for (const exists of ["true", "", "false"]) {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(repository, "src/scripts/find-release-artifact.mjs")],
+      {
+        env: {
+          ...process.env,
+          RUNNER_TEMP: root,
+          RELEASE_EXISTS: exists,
+          ARTIFACT_NAME: "original",
+          ARTIFACT_RUN_ID: "10",
+          GITHUB_RUN_ID: "10",
+          GITHUB_OUTPUT: output,
+        },
+        encoding: "utf8",
+      }
+    );
+    assert.equal(result.status, exists === "false" ? 0 : 1, result.stderr);
+  }
+  assert.equal(await readFile(output, "utf8"), "found=false\nrun_id=10\n");
 });
 
 test("archive script creates all five packages without invoking npx", async (t) => {
