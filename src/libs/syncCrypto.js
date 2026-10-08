@@ -70,7 +70,7 @@ const deriveSyncKey = async (syncKey, salt) => {
 };
 
 /**
- * 尝试识别新版加密 envelope；无法识别时按旧版明文 value 处理。
+ * 识别同步加密 envelope。无法识别时返回 null。
  * @param {string} value 远端同步包中的 value 字符串
  * @returns {Object|null}
  */
@@ -87,7 +87,7 @@ const parseSyncValueEnvelope = (value) => {
       return parsed;
     }
   } catch {
-    // 旧版明文同步数据本身也是普通 JSON 字符串，不需要在这里处理。
+    return null;
   }
   return null;
 };
@@ -125,7 +125,7 @@ export const encryptSyncValue = async (value, syncKey) => {
 };
 
 /**
- * 解密新版同步 value；旧版明文 value 会原样返回并标记 encrypted=false。
+ * 解密同步 value。不是当前加密 envelope 时拒绝。
  * @param {string} value 远端同步包中的 value 字符串
  * @param {string} syncKey 用户设定的同步加密口令
  * @returns {Promise<{value: string, encrypted: boolean}>}
@@ -133,7 +133,7 @@ export const encryptSyncValue = async (value, syncKey) => {
 export const decryptSyncValue = async (value, syncKey) => {
   const envelope = parseSyncValueEnvelope(value);
   if (!envelope) {
-    return { value, encrypted: false };
+    throw new Error("Unsupported sync encryption format");
   }
 
   if (

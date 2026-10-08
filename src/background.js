@@ -42,11 +42,7 @@ import {
   MSG_VALIDATE_DOCUMENT,
   MSG_TRANS_CURRULE,
 } from "./config";
-import {
-  getSettingWithDefault,
-  tryInitDefaultData,
-  runDataMigration,
-} from "./libs/storage";
+import { getSettingWithDefault, tryInitDefaultData } from "./libs/storage";
 import { trySyncSettingAndRules } from "./libs/sync";
 import { fetchHandle, fetchStreamNative } from "./libs/fetch";
 import { handleRequestPort } from "./libs/requestPort";
@@ -817,9 +813,6 @@ async function getUiLanguage() {
 browser.runtime.onInstalled.addListener(async (details) => {
   const uiLang = await getUiLanguage();
   await tryInitDefaultData(uiLang);
-  if (details?.reason === "update") {
-    await runDataMigration();
-  }
 
   // 在 Thunderbird 场景下注册特定的邮件脚本
   if (process.env.REACT_APP_CLIENT === CLIENT_THUNDERBIRD) {

@@ -82,7 +82,6 @@ describe("InputSetting", () => {
 
     expect(mockUpdateInputRule).toHaveBeenCalledWith({
       showDot,
-      showDotChosen: true,
     });
 
     act(() => root.unmount());

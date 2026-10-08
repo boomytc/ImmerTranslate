@@ -18,7 +18,6 @@ import {
   OPT_TRANS_GEMINI,
   OPT_TRANS_GEMINI_2,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_GOOGLE_CLOUD,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_MODELSCOPE,
@@ -43,7 +42,6 @@ import { isGm } from "../libs/client";
 const API_ICON_FILES = {
   [OPT_TRANS_BUILTINAI]: "BuiltinAI.svg",
   [OPT_TRANS_GOOGLE]: "Google.svg",
-  [OPT_TRANS_GOOGLE_2]: "Google.svg",
   [OPT_TRANS_GOOGLE_CLOUD]: "GoogleCloud.svg",
   [OPT_TRANS_MICROSOFT]: "Microsoft.svg",
   [OPT_TRANS_AZUREAI]: "AzureAI.svg",

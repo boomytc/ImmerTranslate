@@ -823,7 +823,7 @@ describe("Batch Translation Protocols & Custom Batch User Prompt", () => {
       ]);
     });
 
-    test("legacy custom batch prompt without protocol or userPrompt parses plain text lines by positional index", async () => {
+    test("rejects a protocol-free batch response instead of assigning positional ids", async () => {
       fetchData.mockResolvedValueOnce({
         choices: [
           {
@@ -835,27 +835,26 @@ describe("Batch Translation Protocols & Custom Batch User Prompt", () => {
         ],
       });
 
-      // 模拟旧版自定义 batch prompt：无 protocol、无 batchUserPrompt
       const apiSetting = getTestApiSetting({
-        systemPrompt: "Legacy system prompt",
+        systemPrompt: "Custom batch prompt",
         batchUserPrompt: "",
         batchProtocol: undefined,
         useStream: false,
       });
 
       const results = [];
-      for await (const chunk of handleTranslate(["Line 1", "Line 2"], {
-        from: "en",
-        to: "zh-CN",
-        apiSetting,
-      })) {
-        results.push(chunk);
-      }
-
-      expect(results).toEqual([
-        { id: 0, result: ["第一行旧译文", ""] },
-        { id: 1, result: ["第二行旧译文", ""] },
-      ]);
+      await expect(
+        (async () => {
+          for await (const chunk of handleTranslate(["Line 1", "Line 2"], {
+            from: "en",
+            to: "zh-CN",
+            apiSetting,
+          })) {
+            results.push(chunk);
+          }
+        })()
+      ).rejects.toThrow("translate got an unexpected result");
+      expect(results).toEqual([]);
     });
   });
 });

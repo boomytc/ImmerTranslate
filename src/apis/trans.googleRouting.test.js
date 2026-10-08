@@ -25,7 +25,6 @@ import {
   GOOGLE_TRANSLATE_URL,
   GOOGLE_PA_TRANSLATE_URL,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
 } from "../config";
 import { fetchData } from "../libs/fetch";
 
@@ -195,36 +194,6 @@ describe("Google unified adaptive routing and fallback", () => {
     ).rejects.toThrow("The operation was aborted.");
 
     expect(fetchData).toHaveBeenCalledTimes(1);
-  });
-
-  test("supports legacy Google2 apiType configuration via routing", async () => {
-    fetchData.mockResolvedValueOnce([
-      ["旧版整页翻译"],
-      ["en"],
-    ]);
-
-    const result = await collectAsyncGenerator(
-      handleTranslate(["Legacy page translation"], {
-        from: "en",
-        to: "zh-CN",
-        fromLang: "en",
-        toLang: "zh-CN",
-        langMap: () => "",
-        glossary: "",
-        apiSetting: getGoogleSetting({
-          apiType: OPT_TRANS_GOOGLE_2,
-          apiSlug: OPT_TRANS_GOOGLE_2,
-        }),
-        textFormat: "html",
-        usePool: false,
-      })
-    );
-
-    expect(fetchData).toHaveBeenCalledTimes(1);
-    expect(fetchData.mock.calls[0][0]).toBe(GOOGLE_PA_TRANSLATE_URL);
-    expect(result).toEqual([
-      { id: 0, result: ["旧版整页翻译", "en"] },
-    ]);
   });
 
   describe("parseTransRes compatibility", () => {

@@ -50,8 +50,7 @@ export function syncStorageState(key, syncKey, state, revision, value) {
         }
         return committed;
       });
-      if (accepted) await result.migrateLegacy?.();
-      else if (state.dirty) state.scheduleSync();
+      if (!accepted && state.dirty) state.scheduleSync();
     } catch (error) {
       kissLog("Sync failed", syncKey, error);
       if (error.storageRecoveryFailed || error.storageOutcome === "unknown") {

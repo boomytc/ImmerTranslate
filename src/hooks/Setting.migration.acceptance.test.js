@@ -7,13 +7,9 @@ import { refreshStorageKeys } from "../libs/storageRefresh";
 import { syncData } from "../libs/sync";
 import {
   CURRENT_SETTINGS_VERSION,
-  GEMINI_GENERATE_CONTENT_URL,
-  getSettingVersion,
   KV_SETTING_KEY,
-  OPT_INPUT_DOT_ALWAYS,
   OPT_INPUT_DOT_DISABLE,
   OPT_INPUT_DOT_MOBILE,
-  OPT_TRANS_GEMINI,
   STOKEY_SETTING,
   STOKEY_SYNC,
 } from "../config";
@@ -39,21 +35,12 @@ const INITIAL_SYNC = {
   syncMeta: { [KV_SETTING_KEY]: INITIAL_META },
 };
 
-function legacySetting(version, darkMode, uiLang = "en") {
+function currentSetting(overrides = {}) {
   return {
-    version,
-    darkMode,
-    uiLang,
-    transApis: [
-      {
-        apiSlug: "legacy-gemini",
-        apiType: OPT_TRANS_GEMINI,
-        url: "https://generativelanguage.googleapis.com/v1beta2/interactions",
-        ...((version ?? 1) === 1
-          ? { systemPrompt: "Legacy batch prompt" }
-          : {}),
-      },
-    ],
+    version: CURRENT_SETTINGS_VERSION,
+    darkMode: "auto",
+    uiLang: "en",
+    ...overrides,
   };
 }
 
@@ -126,13 +113,12 @@ describe("settings normalization across the production persistence chain", () =>
     };
   }
 
-  function expectNormalized(darkMode, uiLang = "en") {
+  function expectLoaded(darkMode, uiLang = "en") {
     expect(settings.setting).toMatchObject({
       version: CURRENT_SETTINGS_VERSION,
       darkMode,
       uiLang,
     });
-    expect(settings.setting.transApis[0].url).toBe(GEMINI_GENERATE_CONTENT_URL);
   }
 
   function expectReadOnly(bytes) {
@@ -187,117 +173,89 @@ describe("settings normalization across the production persistence chain", () =>
     jest.useRealTimers();
   });
 
-  test.each([
-    [1, true, "dark"],
-    [2, false, "light"],
-    [1, "light", "light"],
-    [2, "dark", "dark"],
-    [2, "auto", "auto"],
-  ])(
-    "reads schema %s with theme %s as %s without persisting a migration",
-    async (version, theme, expectedTheme) => {
-      const bytes = await mount(legacySetting(version, theme));
+  test("reads current settings without persisting or syncing", async () => {
+    const bytes = await mount(currentSetting());
 
-      expectNormalized(expectedTheme);
-      expect(settings.setting.transApis[0]).not.toHaveProperty("systemPrompt");
-      const expectedPromptTexts = version === 1 ? ["Legacy batch prompt"] : [];
-      expect(
-        settings.setting.prompts.map((prompt) => prompt.systemPrompt)
-      ).toEqual(expect.arrayContaining(expectedPromptTexts));
-      expectReadOnly(bytes);
-      await advance();
-      expectReadOnly(bytes);
-    }
-  );
+    expectLoaded("auto");
+    expectReadOnly(bytes);
+    await advance();
+    expectReadOnly(bytes);
+  });
 
-  test.each([
-    [1, true, "dark"],
-    [2, false, "light"],
-  ])(
-    "normalizes a schema %s remote backfill with theme %s and explicit reload",
-    async (version, theme, expectedTheme) => {
-      await mount(legacySetting(2, "auto"));
-      const incoming = legacySetting(version, theme, "remote");
-      await act(async () => {
-        await storage.withTransaction(async (transaction) => {
-          await transaction.setObj(STOKEY_SETTING, incoming);
-          await transaction.setObj(STOKEY_SYNC, {
-            ...INITIAL_SYNC,
-            syncMeta: {
-              [KV_SETTING_KEY]: { updateAt: 95000, syncAt: 95001 },
-            },
-          });
+  test("reloads a remote settings backfill without a second write", async () => {
+    await mount(currentSetting());
+    const incoming = currentSetting({ darkMode: "dark", uiLang: "remote" });
+    await act(async () => {
+      await storage.withTransaction(async (transaction) => {
+        await transaction.setObj(STOKEY_SETTING, incoming);
+        await transaction.setObj(STOKEY_SYNC, {
+          ...INITIAL_SYNC,
+          syncMeta: {
+            [KV_SETTING_KEY]: { updateAt: 95000, syncAt: 95001 },
+          },
         });
       });
-      await flush();
-      expect(setItem).toHaveBeenCalledTimes(2);
-      const bytes = storedBytes();
-      setItem.mockClear();
+    });
+    await flush();
+    expect(setItem).toHaveBeenCalledTimes(2);
+    const bytes = storedBytes();
+    setItem.mockClear();
 
-      expectNormalized(expectedTheme, "remote");
-      expectReadOnly(bytes);
-      await act(async () => {
-        await settings.reloadSetting();
-        await refreshStorageKeys([STOKEY_SETTING]);
-      });
-      await advance();
-      expectNormalized(expectedTheme, "remote");
-      expectReadOnly(bytes);
-    }
-  );
+    expectLoaded("dark", "remote");
+    expectReadOnly(bytes);
+    await act(async () => {
+      await settings.reloadSetting();
+      await refreshStorageKeys([STOKEY_SETTING]);
+    });
+    await advance();
+    expectLoaded("dark", "remote");
+    expectReadOnly(bytes);
+  });
 
-  test.each([undefined, 1, 2])(
-    "persists an imported schema %s backup as one normalized user edit",
-    async (version) => {
-      await mount(legacySetting(2, "auto"));
-      const imported = legacySetting(version, true, "imported");
-      let receipt;
-      await act(async () => {
-        const parsed = JSON.parse(JSON.stringify(imported));
-        receipt = await settings.updateSetting({
-          ...parsed,
-          version: getSettingVersion(parsed),
-        });
+  test("persists an imported backup as one user edit", async () => {
+    await mount(currentSetting());
+    const imported = currentSetting({
+      version: undefined,
+      darkMode: "dark",
+      uiLang: "imported",
+    });
+    let receipt;
+    await act(async () => {
+      const parsed = JSON.parse(JSON.stringify(imported));
+      receipt = await settings.updateSetting({
+        ...parsed,
+        version: CURRENT_SETTINGS_VERSION,
       });
-      await flush();
+    });
+    await flush();
 
-      expectNormalized("dark", "imported");
-      const importedPrompt = settings.setting.prompts.find(
-        (prompt) =>
-          prompt.slug === settings.setting.transApis[0].batchPromptSlug
-      );
-      expect(importedPrompt?.systemPrompt).toBe(
-        (version ?? 1) === 1 ? "Legacy batch prompt" : undefined
-      );
-      expect(settings.setting.transApis[0]).not.toHaveProperty("systemPrompt");
-      expect(await storage.getObj(STOKEY_SETTING)).toEqual(settings.setting);
-      expect(receipt.changed).toBe(true);
-      expect(receipt.updateAt).toBe(EDIT_TIME);
-      expect(findStorageState(STOKEY_SETTING).committedEditVersion).toBe(1);
-      expect(
-        (await storage.getObj(STOKEY_SYNC)).syncMeta[KV_SETTING_KEY]
-      ).toEqual({
-        updateAt: EDIT_TIME,
-        syncAt: INITIAL_META.syncAt,
-      });
-      expect(imported.version).toBe(version);
-      expect(imported.darkMode).toBe(true);
-      await advance();
-      expect(syncData).toHaveBeenCalledTimes(1);
-      expect(syncData).toHaveBeenCalledWith(
-        KV_SETTING_KEY,
-        settings.setting,
-        expect.objectContaining({ deferCommit: true })
-      );
-      await advance();
-      expect(syncData).toHaveBeenCalledTimes(1);
-    }
-  );
+    expectLoaded("dark", "imported");
+    expect(await storage.getObj(STOKEY_SETTING)).toEqual(settings.setting);
+    expect(receipt.changed).toBe(true);
+    expect(receipt.updateAt).toBe(EDIT_TIME);
+    expect(findStorageState(STOKEY_SETTING).committedEditVersion).toBe(1);
+    expect(
+      (await storage.getObj(STOKEY_SYNC)).syncMeta[KV_SETTING_KEY]
+    ).toEqual({
+      updateAt: EDIT_TIME,
+      syncAt: INITIAL_META.syncAt,
+    });
+    expect(imported.darkMode).toBe("dark");
+    await advance();
+    expect(syncData).toHaveBeenCalledTimes(1);
+    expect(syncData).toHaveBeenCalledWith(
+      KV_SETTING_KEY,
+      settings.setting,
+      expect.objectContaining({ deferCommit: true })
+    );
+    await advance();
+    expect(syncData).toHaveBeenCalledTimes(1);
+  });
 
   test.each(["patch", "reducer"])(
-    "persists a real %s against the latest normalized settings inside the lock",
+    "persists a real %s against the latest stored settings inside the lock",
     async (kind) => {
-      await mount(legacySetting(1, true));
+      await mount(currentSetting({ darkMode: "dark" }));
       const entered = deferred();
       const release = deferred();
       const remoteWrite = storage.withTransaction(async (transaction) => {
@@ -305,7 +263,7 @@ describe("settings normalization across the production persistence chain", () =>
         await release.promise;
         await transaction.setObj(
           STOKEY_SETTING,
-          legacySetting(2, false, "remote")
+          currentSetting({ darkMode: "light", uiLang: "remote" })
         );
         await transaction.setObj(STOKEY_SYNC, {
           ...INITIAL_SYNC,
@@ -336,20 +294,20 @@ describe("settings normalization across the production persistence chain", () =>
       await flush();
 
       const expectedLanguage = kind === "patch" ? "user" : "remote-light";
-      expectNormalized("light", expectedLanguage);
+      expectLoaded("light", expectedLanguage);
       expect(await storage.getObj(STOKEY_SETTING)).toEqual(settings.setting);
       expect(receipt.changed).toBe(true);
       expect(receipt.updateAt).toBe(EDIT_TIME);
       expect(
         (await storage.getObj(STOKEY_SYNC)).syncMeta[KV_SETTING_KEY]
       ).toEqual({ updateAt: EDIT_TIME, syncAt: 95001 });
-      const receivedLatestNormalizedSetting = reducer.mock.calls.some(
+      const receivedLatestStoredSetting = reducer.mock.calls.some(
         ([current]) =>
           current.version === CURRENT_SETTINGS_VERSION &&
           current.darkMode === "light" &&
           current.uiLang === "remote"
       );
-      expect(receivedLatestNormalizedSetting).toBe(kind === "reducer");
+      expect(receivedLatestStoredSetting).toBe(kind === "reducer");
       expect(findStorageState(STOKEY_SETTING).dirty).toBe(true);
       expect(syncData).not.toHaveBeenCalled();
       await advance(2999);
@@ -365,23 +323,23 @@ describe("settings normalization across the production persistence chain", () =>
     }
   );
 
-  test.each(["patch", "legacy patch", "reducer"])(
-    "keeps a normalized %s no-op free of writes and uploads",
+  test.each(["patch", "reducer"])(
+    "keeps a same-value %s free of writes and uploads",
     async (kind) => {
-      const bytes = await mount(legacySetting(1, true));
+      const bytes = await mount(currentSetting({ darkMode: "dark" }));
       let receipt;
       await act(async () => {
         receipt = await settings.updateSetting(
           kind === "reducer"
             ? (current) => ({ darkMode: current.darkMode })
-            : { darkMode: kind === "legacy patch" ? true : "dark" }
+            : { darkMode: "dark" }
         );
       });
       await flush();
       await advance();
 
       expect(receipt.changed).toBe(false);
-      expectNormalized("dark");
+      expectLoaded("dark");
       expect(storedBytes()).toEqual(bytes);
       expect(setItem).not.toHaveBeenCalled();
       expect(findStorageState(STOKEY_SETTING).dirty).toBe(false);
@@ -390,16 +348,15 @@ describe("settings normalization across the production persistence chain", () =>
     }
   );
 
-  test("reads an unmarked mobile input dot as always without persisting", async () => {
-    const bytes = await mount({
-      version: CURRENT_SETTINGS_VERSION,
-      darkMode: "auto",
-      uiLang: "en",
-      inputRule: { showDot: OPT_INPUT_DOT_MOBILE, toLang: "zh-CN" },
-    });
+  test("keeps a stored mobile input dot without persisting", async () => {
+    const bytes = await mount(
+      currentSetting({
+        inputRule: { showDot: OPT_INPUT_DOT_MOBILE, toLang: "zh-CN" },
+      })
+    );
 
     expect(settings.setting.inputRule).toMatchObject({
-      showDot: OPT_INPUT_DOT_ALWAYS,
+      showDot: OPT_INPUT_DOT_MOBILE,
       toLang: "zh-CN",
     });
     expectReadOnly(bytes);
@@ -407,19 +364,15 @@ describe("settings normalization across the production persistence chain", () =>
 
   test.each([
     [{ showDot: OPT_INPUT_DOT_DISABLE }, OPT_INPUT_DOT_DISABLE],
-    [
-      { showDot: OPT_INPUT_DOT_MOBILE, showDotChosen: true },
-      OPT_INPUT_DOT_MOBILE,
-    ],
+    [{ showDot: OPT_INPUT_DOT_MOBILE }, OPT_INPUT_DOT_MOBILE],
   ])(
-    "reads an explicit input dot without persisting %#",
+    "reads a stored input dot without persisting %#",
     async (inputRule, showDot) => {
-      const bytes = await mount({
-        version: CURRENT_SETTINGS_VERSION,
-        darkMode: "auto",
-        uiLang: "en",
-        inputRule,
-      });
+      const bytes = await mount(
+        currentSetting({
+          inputRule,
+        })
+      );
 
       expect(settings.setting.inputRule.showDot).toBe(showDot);
       expectReadOnly(bytes);

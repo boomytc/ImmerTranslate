@@ -29,7 +29,7 @@ import {
   OPT_TRANS_DEEPSEEK,
   OPT_TRANS_GEMINI,
   OPT_TRANS_GEMINI_2,
-  OPT_TRANS_GOOGLE_2,
+  OPT_TRANS_GOOGLE,
   OPT_TRANS_GOOGLE_CLOUD,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_OLLAMA,
@@ -272,11 +272,14 @@ describe("handleTranslate", () => {
     expect(result).toEqual([{ id: 0, result: ["你好！", "en"] }]);
   });
 
-  test("keeps Google2 HTML encoding inside the request boundary", async () => {
-    fetchData.mockResolvedValueOnce([["First isn&#39;t<br>Second"], ["en"]]);
+  test("keeps Google PA HTML encoding inside the request boundary", async () => {
+    fetchData.mockResolvedValueOnce([
+      ["First isn&#39;t<br>Second", "尾"],
+      ["en", "en"],
+    ]);
 
     const result = await collectAsyncGenerator(
-      handleTranslate(["First isn't\nSecond"], {
+      handleTranslate(["First isn't\nSecond", "tail"], {
         from: "en",
         to: "zh-CN",
         fromLang: "en",
@@ -284,7 +287,7 @@ describe("handleTranslate", () => {
         langMap: () => "",
         glossary: "",
         apiSetting: {
-          ...getApiSetting(OPT_TRANS_GOOGLE_2),
+          ...getApiSetting(OPT_TRANS_GOOGLE),
           useStream: false,
         },
         textFormat: "text",
@@ -294,10 +297,13 @@ describe("handleTranslate", () => {
 
     const body = JSON.parse(fetchData.mock.calls[0][1].body);
     expect(body).toEqual([
-      [["First isn't<br>Second"], "en", "zh-CN"],
+      [["First isn't<br>Second", "tail"], "en", "zh-CN"],
       "wt_lib",
     ]);
-    expect(result).toEqual([{ id: 0, result: ["First isn't\nSecond", "en"] }]);
+    expect(result).toEqual([
+      { id: 0, result: ["First isn't\nSecond", "en"] },
+      { id: 1, result: ["尾", "en"] },
+    ]);
   });
 
   test("uses the stable Gemini Interactions request and parses model output steps", async () => {
@@ -452,7 +458,7 @@ describe("handleTranslate", () => {
       steps: [
         {
           type: "model_output",
-          content: [{ type: "text", text: "你好" }],
+          content: [{ type: "text", text: "[{\"id\":0,\"text\":\"你好\"}]" }],
         },
       ],
     });
@@ -498,7 +504,7 @@ describe("handleTranslate", () => {
 
   test("maps all OpenRouter thinking modes to the unified reasoning object", async () => {
     fetchData.mockResolvedValue({
-      choices: [{ message: { content: "你好" } }],
+      choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
     });
     const translate = (thinkingMode, thinkingEffort = "_default") =>
       collectAsyncGenerator(
@@ -574,7 +580,7 @@ describe("handleTranslate", () => {
 
   test("uses OpenRouter settings already normalized by the settings page", async () => {
     fetchData.mockResolvedValue({
-      choices: [{ message: { content: "你好" } }],
+      choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
     });
     const apiSetting = {
       ...getApiSetting(OPT_TRANS_OPENROUTER),
@@ -625,7 +631,7 @@ describe("handleTranslate", () => {
 
   test("does not inject thinking parameters for unknown models", async () => {
     fetchData.mockResolvedValue({
-      choices: [{ message: { content: "你好" } }],
+      choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
     });
     const translate = (thinkingMode) =>
       collectAsyncGenerator(
@@ -674,7 +680,7 @@ describe("handleTranslate", () => {
     "sends Astra %s/%s without temperature",
     async (thinkingMode, thinkingEffort, expected) => {
       fetchData.mockResolvedValue({
-        choices: [{ message: { content: "你好" } }],
+        choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
       });
       await collectAsyncGenerator(
         handleTranslate(["hello"], {
@@ -714,7 +720,7 @@ describe("handleTranslate", () => {
     "preserves temperature overrides and other models for %s/%s",
     async (model, customBody, expected) => {
       fetchData.mockResolvedValue({
-        choices: [{ message: { content: "你好" } }],
+        choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
       });
       await collectAsyncGenerator(
         handleTranslate(["hello"], {
@@ -747,7 +753,7 @@ describe("handleTranslate", () => {
       steps: [
         {
           type: "model_output",
-          content: [{ type: "text", text: "你好" }],
+          content: [{ type: "text", text: "[{\"id\":0,\"text\":\"你好\"}]" }],
         },
       ],
     });
@@ -778,7 +784,7 @@ describe("handleTranslate", () => {
 
   test("keeps DeepSeek enabled when a concrete effort is selected", async () => {
     fetchData.mockResolvedValue({
-      choices: [{ message: { content: "你好" } }],
+      choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
     });
 
     await collectAsyncGenerator(
@@ -807,7 +813,7 @@ describe("handleTranslate", () => {
 
   test("maps Gemini2 disabled thinking by model capability", async () => {
     fetchData.mockResolvedValue({
-      choices: [{ message: { content: "你好" } }],
+      choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
     });
 
     await collectAsyncGenerator(
@@ -858,7 +864,7 @@ describe("handleTranslate", () => {
 
   test("uses the final Gemini2 enabled effort without runtime capability parsing", async () => {
     fetchData.mockResolvedValue({
-      choices: [{ message: { content: "你好" } }],
+      choices: [{ message: { content: '[{"id":0,"text":"你好"}]' } }],
     });
 
     await collectAsyncGenerator(
@@ -887,7 +893,7 @@ describe("handleTranslate", () => {
 
   test("uses dynamic thinkingBudget by default for Gemini 2.5 generateContent", async () => {
     fetchData.mockResolvedValueOnce({
-      candidates: [{ content: { parts: [{ text: "你好" }] } }],
+      candidates: [{ content: { parts: [{ text: "[{\"id\":0,\"text\":\"你好\"}]" }] } }],
     });
 
     await collectAsyncGenerator(
@@ -2050,7 +2056,7 @@ describe("gemini thinking effort clamp (#1048)", () => {
       steps: [
         {
           type: "model_output",
-          content: [{ type: "text", text: "你好" }],
+          content: [{ type: "text", text: "[{\"id\":0,\"text\":\"你好\"}]" }],
         },
       ],
     });
@@ -2085,7 +2091,7 @@ describe("gemini thinking effort clamp (#1048)", () => {
       steps: [
         {
           type: "model_output",
-          content: [{ type: "text", text: "你好" }],
+          content: [{ type: "text", text: "[{\"id\":0,\"text\":\"你好\"}]" }],
         },
       ],
     });

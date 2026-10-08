@@ -96,34 +96,6 @@ export const DEFAULT_INPUT_RULE = {
   showDot: OPT_INPUT_DOT_ALWAYS, // 图标指示器：桌面和移动端都显示
 };
 
-/**
- * 读入设置时，把仍携带旧默认（仅移动端）的圆点策略升为始终显示。
- * 只改内存，不在读取时写回；下次用户保存才会落盘，与主题归一化相同。
- *
- * 能区分出来的显式选择保持原样：关闭（"-"），以及选项里重新选定的移动端
- * （showDotChosen）。未标记的 "mobile" 与旧默认是同一个值，按旧默认升级。
- *
- * @param {Object} inputRule 已存储或合并后的输入框规则
- * @returns {Object} 升级后的规则；无需改动时返回原对象
- */
-export function migrateInputRuleShowDot(inputRule) {
-  if (!inputRule || typeof inputRule !== "object" || Array.isArray(inputRule)) {
-    return inputRule;
-  }
-
-  const showDot = inputRule.showDot;
-  if (showDot === OPT_INPUT_DOT_DISABLE || showDot === OPT_INPUT_DOT_ALWAYS) {
-    return inputRule;
-  }
-  if (showDot === OPT_INPUT_DOT_MOBILE && inputRule.showDotChosen === true) {
-    return inputRule;
-  }
-  if (showDot === OPT_INPUT_DOT_MOBILE || showDot == null || showDot === "") {
-    return { ...inputRule, showDot: OPT_INPUT_DOT_ALWAYS };
-  }
-  return inputRule;
-}
-
 // --- 划词/选区翻译配置 ---
 export const PHONIC_MAP = {
   en_phonic: ["英", "uk"], // 英国英语发音
@@ -301,7 +273,6 @@ export const DEFAULT_SETTING = {
   httpTimeout: DEFAULT_HTTP_TIMEOUT, // 接口请求超时时间
   clearCache: false, // 每次浏览器重启时，是否自动清空翻译结果的本地网络缓存
   autoTranslateClipboard: false, // 打开文本翻译面板或重新聚焦独立窗口时，是否自动翻译剪贴板文本
-  checkUpdate: false, // 已移除更新检查，保留字段并默认关闭
   popupDefaultView: OPT_POPUP_DEFAULT_VIEW_PAGE, // 工具栏弹窗打开时默认显示的界面
   injectRules: true, // 页面加载时是否自动匹配并注入云端订阅的翻译规则
   fabClickAction: 0, // 工具栏悬浮球按钮双击或单击的默认响应行为 (如开启/关闭翻译)

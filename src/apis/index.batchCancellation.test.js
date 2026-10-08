@@ -34,7 +34,7 @@ import { getHttpCachePolyfill, putHttpCachePolyfill } from "../libs/cache";
 import { clearAllBatchQueue } from "../libs/batchQueue";
 import {
   DEFAULT_API_LIST,
-  OPT_TRANS_GOOGLE_2,
+  OPT_TRANS_GOOGLE,
   OPT_TRANS_MICROSOFT,
 } from "../config";
 
@@ -45,14 +45,14 @@ const flushMicrotasks = async () => {
   for (let index = 0; index < 20; index += 1) await Promise.resolve();
 };
 
-describe.each([OPT_TRANS_GOOGLE_2, OPT_TRANS_MICROSOFT])(
+describe.each([OPT_TRANS_GOOGLE, OPT_TRANS_MICROSOFT])(
   "%s batch cancellation integration",
   (apiType) => {
     let apiSetting;
     let cache;
 
     const makeResponse = (texts) =>
-      apiType === OPT_TRANS_GOOGLE_2
+      apiType === OPT_TRANS_GOOGLE
         ? [texts.map((text) => `Translated: ${text}`), texts.map(() => "en")]
         : texts.map((text) => ({
             translations: [{ text: `Translated: ${text}` }],
@@ -77,8 +77,15 @@ describe.each([OPT_TRANS_GOOGLE_2, OPT_TRANS_MICROSOFT])(
         useStream: false,
       };
       fetchData.mockImplementation(async (url, init) => {
+        if (apiType === OPT_TRANS_GOOGLE && init?.method === "GET") {
+          const text = new URL(url).searchParams.get("q");
+          return {
+            sentences: [{ trans: `Translated: ${text}`, orig: text }],
+            src: "en",
+          };
+        }
         const body = JSON.parse(init.body);
-        const texts = apiType === OPT_TRANS_GOOGLE_2 ? body[0][0] : body;
+        const texts = apiType === OPT_TRANS_GOOGLE ? body[0][0] : body;
         return makeResponse(texts);
       });
     });
@@ -102,7 +109,7 @@ describe.each([OPT_TRANS_GOOGLE_2, OPT_TRANS_MICROSOFT])(
     const expectRequestTexts = (texts) => {
       const body = JSON.parse(fetchData.mock.calls[0][1].body);
       expect(body).toEqual(
-        apiType === OPT_TRANS_GOOGLE_2 ? [[texts, "en", "fr"], "wt_lib"] : texts
+        apiType === OPT_TRANS_GOOGLE ? [[texts, "en", "fr"], "wt_lib"] : texts
       );
     };
 
@@ -146,7 +153,13 @@ describe.each([OPT_TRANS_GOOGLE_2, OPT_TRANS_MICROSOFT])(
       const latest = await latestRequest;
 
       expect(fetchData).toHaveBeenCalledTimes(1);
-      expectRequestTexts([latestText]);
+      if (apiType === OPT_TRANS_GOOGLE) {
+        const [url, init] = fetchData.mock.calls[0];
+        expect(init.method).toBe("GET");
+        expect(new URL(url).searchParams.get("q")).toBe(latestText);
+      } else {
+        expectRequestTexts([latestText]);
+      }
       expect(latest.trText).toBe(`Translated: ${latestText}`);
       expectOnlyLatestCached();
       await expect(submit(latestText)).resolves.toEqual(latest);

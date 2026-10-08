@@ -5,7 +5,6 @@ import {
   CURRENT_SETTINGS_VERSION,
   DEFAULT_SETTING,
   DEFAULT_SYNC,
-  SETTINGS_VERSION_V2,
   STOKEY_RULES,
   STOKEY_SETTING,
   STOKEY_SYNC,
@@ -13,7 +12,7 @@ import {
 } from "../../config";
 import { adaptScript } from "../../libs/gm";
 import { browser } from "../../libs/browser";
-import { runDataMigration, storage } from "../../libs/storage";
+import { storage } from "../../libs/storage";
 import {
   syncData,
   trySyncRules,
@@ -72,7 +71,6 @@ jest.mock("../../libs/storage", () => {
       setObj: jest.fn(actual.storage.setObj),
       del: jest.fn(actual.storage.del),
     },
-    runDataMigration: jest.fn(actual.runDataMigration),
   };
 });
 
@@ -303,7 +301,6 @@ describe("Options startup with real storage hooks", () => {
     storage.getObj.mockImplementation(actual.storage.getObj);
     storage.setObj.mockImplementation(actual.storage.setObj);
     storage.del.mockImplementation(actual.storage.del);
-    runDataMigration.mockImplementation(actual.runDataMigration);
     syncData.mockResolvedValue(undefined);
     trySyncSetting.mockResolvedValue(undefined);
     trySyncRules.mockResolvedValue(undefined);
@@ -461,21 +458,18 @@ describe("Options startup with real storage hooks", () => {
   });
 
   test.each([undefined, "test-gm-bridge"])(
-    "accepts an older compatible userscript bridge (%p) before migration and local storage access",
+    "accepts an older compatible userscript bridge (%p) before local storage access",
     async (eventName) => {
       mockIsGm = true;
       process.env.REACT_APP_NAME = "ImmerTranslate";
       process.env.REACT_APP_VERSION = "2.0.32";
-      const migration = deferred();
       const settingSync = deferred();
-      runDataMigration.mockReturnValue(migration.promise);
       trySyncSetting.mockReturnValue(settingSync.promise);
       const host = renderOptions("#/apis");
       await flushEffects();
 
       expect(storage.getObj).not.toHaveBeenCalled();
       expect(browser.storage.local.get).not.toHaveBeenCalled();
-      expect(runDataMigration).not.toHaveBeenCalled();
       expect(host.container.querySelector("[data-testid='apis-page']")).toBe(
         null
       );
@@ -488,13 +482,6 @@ describe("Options startup with real storage hooks", () => {
       await advanceTime(1000);
       if (eventName) expect(adaptScript).toHaveBeenCalledWith(eventName);
       else expect(adaptScript).not.toHaveBeenCalled();
-      expect(runDataMigration).toHaveBeenCalledTimes(1);
-      expect(storage.getObj).not.toHaveBeenCalled();
-      expect(browser.storage.local.get).not.toHaveBeenCalled();
-      expect(trySyncSetting).not.toHaveBeenCalled();
-
-      await act(async () => migration.resolve());
-      await flushEffects();
       expect(readSetting(host).marker).toBe("local-setting");
       expectInteractionBlocked(host, true);
       expect(trySyncSetting).toHaveBeenCalledTimes(1);
@@ -503,83 +490,6 @@ describe("Options startup with real storage hooks", () => {
       expect(syncData).not.toHaveBeenCalled();
     }
   );
-
-  test("does not let an unfinished legacy normalization overwrite newer remote settings", async () => {
-    const legacySetting = {
-      ...storedValues.get(STOKEY_SETTING),
-      marker: "legacy-setting",
-      version: SETTINGS_VERSION_V2,
-      darkMode: true,
-    };
-    const remoteSetting = {
-      ...storedValues.get(STOKEY_SETTING),
-      marker: "remote-setting",
-      version: CURRENT_SETTINGS_VERSION,
-      darkMode: "auto",
-    };
-    storedValues.set(STOKEY_SETTING, legacySetting);
-    const normalizationWrite = deferred();
-    const settingSync = deferred();
-    browser.storage.local.set.mockImplementation(async (values) => {
-      const setting = values[STOKEY_SETTING]
-        ? JSON.parse(values[STOKEY_SETTING])
-        : null;
-      if (setting?.marker === "legacy-setting") {
-        await normalizationWrite.promise;
-      }
-      commitStoredValues(values);
-    });
-    trySyncSetting.mockImplementation(async () => {
-      await settingSync.promise;
-      await storage.setObj(STOKEY_SETTING, remoteSetting);
-    });
-
-    const host = renderOptions("#/apis");
-    await flushEffects();
-    expect(runDataMigration).toHaveBeenCalledTimes(1);
-    expect(browser.storage.local.set).toHaveBeenCalledTimes(1);
-    const normalized = JSON.parse(
-      browser.storage.local.set.mock.calls[0][0][STOKEY_SETTING]
-    );
-    expect(normalized).toMatchObject({
-      marker: "legacy-setting",
-      version: CURRENT_SETTINGS_VERSION,
-      darkMode: "dark",
-    });
-    expect(host.container.querySelector("[data-testid='apis-page']")).toBe(
-      null
-    );
-    expect(
-      host.container.querySelector("[data-testid='options-sync-backdrop']")
-    ).not.toBe(null);
-    expect(storage.getObj).not.toHaveBeenCalled();
-    expect(trySyncSetting).not.toHaveBeenCalled();
-
-    // Even a ready network result must wait for the actual migration write.
-    await act(async () => settingSync.resolve());
-    await flushEffects();
-    await advanceTime(6000);
-    expect(trySyncSetting).not.toHaveBeenCalled();
-    expect(host.container.querySelector("[data-testid='apis-page']")).toBe(
-      null
-    );
-    expect(storedValues.get(STOKEY_SETTING)).toEqual(legacySetting);
-
-    await act(async () => normalizationWrite.resolve());
-    await flushEffects();
-    await advanceTime(6000);
-
-    expect(readSetting(host)).toMatchObject({
-      marker: "remote-setting",
-      darkMode: "auto",
-      version: CURRENT_SETTINGS_VERSION,
-    });
-    expect(storedValues.get(STOKEY_SETTING)).toEqual(remoteSetting);
-    expect(trySyncSetting).toHaveBeenCalledTimes(1);
-    expect(browser.storage.local.set).toHaveBeenCalledTimes(2);
-    expect(syncData).not.toHaveBeenCalled();
-    expectInteractionBlocked(host, false);
-  });
 
   test("ignores a failed refresh after browser back unmounts its route", async () => {
     const rulesSync = deferred();

@@ -1,15 +1,11 @@
 import {
   STOKEY_SETTING,
-  STOKEY_SETTING_BACKUP_V1_BEFORE_V2,
-  STOKEY_RULES,
-  SETTINGS_VERSION_V2,
   SETTINGS_VERSION_V3,
   DEFAULT_SUBTITLE_SETTING,
   DEFAULT_API_LIST,
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_DEEPSEEK,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_OPENAI,
   OPT_TRANS_TENCENT,
@@ -17,7 +13,7 @@ import {
   OPT_INPUT_DOT_DISABLE,
   OPT_INPUT_DOT_MOBILE,
 } from "../config";
-import { getRulesWithDefault, getSettingWithDefault, runDataMigration } from "./storage";
+import { getSettingWithDefault } from "./storage";
 
 // 存储测试不涉及流式解析，隔离 ESM-only 依赖以免 Jest 27 在加载阶段失败。
 jest.mock("@streamparser/json", () => ({ JSONParser: jest.fn() }));
@@ -56,127 +52,21 @@ describe("settings storage migration", () => {
     delete globalThis.GM_deleteValue;
   });
 
-  test("runDataMigration backs up raw v1 settings and stores current settings", async () => {
-    const oldSetting = {
-      uiLang: "zh-CN",
-      transApis: [
-        {
-          apiSlug: "openai",
-          apiName: "OpenAI",
-          systemPrompt: "custom batch prompt",
-        },
-      ],
-    };
-    window.localStorage.setItem(STOKEY_SETTING, JSON.stringify(oldSetting));
-
-    await runDataMigration();
-
-    const backup = readStoredJson(STOKEY_SETTING_BACKUP_V1_BEFORE_V2);
-    const stored = readStoredJson(STOKEY_SETTING);
-
-    expect(backup).toEqual(oldSetting);
-    expect(stored.version).toBe(SETTINGS_VERSION_V3);
-    expect(stored.transApis[0].batchPromptSlug).toMatch(
-      /^prompt_migrated_batch_/
-    );
-    expect(stored.transApis[0]).not.toHaveProperty("systemPrompt");
-  });
-
   test.each([
-    [true, "dark"],
-    [false, "light"],
+    [undefined, true, SETTINGS_VERSION_V3, true],
+    [2, false, 2, false],
+    [SETTINGS_VERSION_V3, "auto", SETTINGS_VERSION_V3, "auto"],
   ])(
-    "migrates boolean theme %p without changing current settings",
-    async (darkMode, expected) => {
-      const oldSetting = {
-        version: SETTINGS_VERSION_V3,
-        darkMode,
-        uiLang: "en",
-      };
-      window.localStorage.setItem(STOKEY_SETTING, JSON.stringify(oldSetting));
-
-      await runDataMigration();
-
-      expect(readStoredJson(STOKEY_SETTING)).toEqual({
-        ...oldSetting,
-        darkMode: expected,
-      });
-      expect(readStoredJson(STOKEY_SETTING_BACKUP_V1_BEFORE_V2)).toBe(null);
-    }
-  );
-
-  test("finishes schema and theme migration in one settings write", async () => {
-    const oldSetting = { version: SETTINGS_VERSION_V2, darkMode: true };
-    window.localStorage.setItem(STOKEY_SETTING, JSON.stringify(oldSetting));
-    const setItem = jest.spyOn(window.Storage.prototype, "setItem");
-    try {
-      await runDataMigration();
-
-      expect(readStoredJson(STOKEY_SETTING)).toMatchObject({
-        version: SETTINGS_VERSION_V3,
-        darkMode: "dark",
-      });
-      expect(setItem).toHaveBeenCalledTimes(1);
-      await runDataMigration();
-      expect(setItem).toHaveBeenCalledTimes(1);
-    } finally {
-      setItem.mockRestore();
-    }
-  });
-
-  test("reports a failed migration write to callers that require ready storage", async () => {
-    globalThis.GM = {
-      getValue: jest.fn(async () =>
-        JSON.stringify({ version: SETTINGS_VERSION_V3, darkMode: true })
-      ),
-      setValue: jest.fn(async () => {
-        throw new Error("migration write failed");
-      }),
-      deleteValue: jest.fn(),
-    };
-    const { runDataMigration: migrateGmData } = loadGmStorageModule();
-
-    await expect(migrateGmData()).resolves.toBe(false);
-  });
-
-  test("getSettingWithDefault returns current settings for stored v1 data", async () => {
-    const oldSetting = {
-      uiLang: "zh",
-      transApis: [
-        {
-          apiSlug: "openai",
-          apiName: "OpenAI",
-          systemPrompt: "custom batch prompt",
-        },
-      ],
-    };
-    window.localStorage.setItem(STOKEY_SETTING, JSON.stringify(oldSetting));
-
-    const setting = await getSettingWithDefault();
-
-    expect(setting.version).toBe(SETTINGS_VERSION_V3);
-    expect(setting.transApis[0].batchPromptSlug).toMatch(
-      /^prompt_migrated_batch_/
-    );
-    expect(setting.transApis[0]).not.toHaveProperty("systemPrompt");
-  });
-
-  test.each([
-    [undefined, true, "dark"],
-    [SETTINGS_VERSION_V2, false, "light"],
-    [SETTINGS_VERSION_V3, true, "dark"],
-    [SETTINGS_VERSION_V3, "auto", "auto"],
-  ])(
-    "normalizes version %p and theme %p without persisting a migration",
-    async (version, darkMode, expected) => {
+    "keeps stored version %p and theme %p without persisting",
+    async (version, darkMode, expectedVersion, expectedTheme) => {
       const oldSetting = { version, darkMode, uiLang: "en" };
       const serialized = JSON.stringify(oldSetting);
       window.localStorage.setItem(STOKEY_SETTING, serialized);
       const setItem = jest.spyOn(window.Storage.prototype, "setItem");
       try {
         await expect(getSettingWithDefault()).resolves.toMatchObject({
-          version: SETTINGS_VERSION_V3,
-          darkMode: expected,
+          version: expectedVersion,
+          darkMode: expectedTheme,
           uiLang: "en",
         });
         expect(setItem).not.toHaveBeenCalled();
@@ -230,7 +120,7 @@ describe("settings storage migration", () => {
     });
   });
 
-  test("upgrades a stored mobile input dot without persisting", async () => {
+  test("keeps a stored mobile input dot without persisting", async () => {
     const storedSetting = {
       version: SETTINGS_VERSION_V3,
       uiLang: "zh",
@@ -241,7 +131,7 @@ describe("settings storage migration", () => {
     const setItem = jest.spyOn(window.Storage.prototype, "setItem");
     try {
       await expect(getSettingWithDefault()).resolves.toMatchObject({
-        inputRule: { showDot: OPT_INPUT_DOT_ALWAYS, toLang: "zh-CN" },
+        inputRule: { showDot: OPT_INPUT_DOT_MOBILE, toLang: "zh-CN" },
       });
       expect(setItem).not.toHaveBeenCalled();
       expect(window.localStorage.getItem(STOKEY_SETTING)).toBe(serialized);
@@ -252,10 +142,7 @@ describe("settings storage migration", () => {
 
   test.each([
     [{ showDot: OPT_INPUT_DOT_DISABLE }, OPT_INPUT_DOT_DISABLE],
-    [
-      { showDot: OPT_INPUT_DOT_MOBILE, showDotChosen: true },
-      OPT_INPUT_DOT_MOBILE,
-    ],
+    [{ showDot: OPT_INPUT_DOT_MOBILE }, OPT_INPUT_DOT_MOBILE],
     [{ showDot: OPT_INPUT_DOT_ALWAYS }, OPT_INPUT_DOT_ALWAYS],
   ])("keeps an explicit input dot %#", async (inputRule, showDot) => {
     window.localStorage.setItem(
@@ -292,7 +179,7 @@ describe("settings storage migration", () => {
     window.localStorage.setItem(
       STOKEY_SETTING,
       JSON.stringify({
-        version: SETTINGS_VERSION_V2,
+        version: SETTINGS_VERSION_V3,
         subtitleSetting: { chunkLength: 2000 },
       })
     );
@@ -355,36 +242,7 @@ describe("settings storage migration", () => {
     });
   });
 
-  test("migrates legacy Google2 references to Google in stored settings and rules", async () => {
-    window.localStorage.setItem(
-      STOKEY_SETTING,
-      JSON.stringify({
-        tranboxSetting: { apiSlugs: [OPT_TRANS_GOOGLE_2, OPT_TRANS_GOOGLE] },
-        inputRule: { apiSlug: OPT_TRANS_GOOGLE_2 },
-        subtitleSetting: { apiSlug: OPT_TRANS_GOOGLE_2 },
-        mouseHoverSetting: { apiSlug: OPT_TRANS_GOOGLE_2 },
-        transApis: [
-          { apiSlug: OPT_TRANS_GOOGLE_2, apiType: OPT_TRANS_GOOGLE_2, isDisabled: false },
-        ],
-      })
-    );
-    window.localStorage.setItem(
-      STOKEY_RULES,
-      JSON.stringify([{ pattern: "example.com", apiSlug: OPT_TRANS_GOOGLE_2 }])
-    );
-
-    const setting = await getSettingWithDefault();
-    expect(setting.tranboxSetting.apiSlugs).toEqual([OPT_TRANS_GOOGLE]);
-    expect(setting.inputRule.apiSlug).toBe(OPT_TRANS_GOOGLE);
-    expect(setting.subtitleSetting.apiSlug).toBe(OPT_TRANS_GOOGLE);
-    expect(setting.mouseHoverSetting.apiSlug).toBe(OPT_TRANS_GOOGLE);
-    expect(setting.transApis[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
-
-    const rules = await getRulesWithDefault();
-    expect(rules[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
-  });
-
-  test.each([1, SETTINGS_VERSION_V2, SETTINGS_VERSION_V3])(
+  test.each([1, 2, SETTINGS_VERSION_V3])(
     "preserves saved service activation choices from settings version %p",
     async (version) => {
       const savedApis = [

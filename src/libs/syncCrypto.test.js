@@ -60,14 +60,11 @@ describe("sync crypto", () => {
     expect(first).not.toBe(second);
   });
 
-  test("keeps legacy plaintext JSON even when business data has encrypted flag", async () => {
+  test("rejects JSON that is not the current sync encryption envelope", async () => {
     const legacyValue = JSON.stringify({ encrypted: true, userValue: "plain" });
 
-    const result = await decryptSyncValue(legacyValue, "sync-key");
-
-    expect(result).toEqual({
-      value: legacyValue,
-      encrypted: false,
-    });
+    await expect(decryptSyncValue(legacyValue, "sync-key")).rejects.toThrow(
+      "Unsupported sync encryption format"
+    );
   });
 });

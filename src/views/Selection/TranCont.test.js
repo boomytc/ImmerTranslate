@@ -29,7 +29,6 @@ jest.mock("../../config", () => {
     },
     OPT_TRANS_BUILTINAI: "BuiltinAI",
     OPT_TRANS_GOOGLE: "Google",
-    OPT_TRANS_GOOGLE_2: "Google2",
   };
 });
 
@@ -95,14 +94,6 @@ const baseApiSetting = {
   useStream: true,
   useBatchFetch: true,
   streamRenderMode: "realtime",
-};
-
-const google2ApiSetting = {
-  ...baseApiSetting,
-  apiSlug: "google2",
-  apiName: "Google2",
-  apiType: "Google2",
-  useStream: false,
 };
 
 const googleApiSetting = {
@@ -440,8 +431,8 @@ describe("TranCont", () => {
 
     const { container, root } = renderTranCont({
       text: "First\n\nSecond\r\nThird\rFourth",
-      apiSlug: "google2",
-      transApis: [google2ApiSetting],
+      apiSlug: "microsoft",
+      transApis: [microsoftApiSetting],
     });
     await flushEffects();
 

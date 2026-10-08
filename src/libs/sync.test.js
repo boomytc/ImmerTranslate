@@ -124,13 +124,6 @@ beforeEach(() => {
   });
 });
 
-const gistFileContent = (value, updateAt) =>
-  JSON.stringify({
-    key: SETTING_KEY,
-    value: JSON.stringify(value),
-    updateAt,
-  });
-
 const encryptedGistFileContent = (value, updateAt) =>
   JSON.stringify({
     key: SETTING_KEY,
@@ -247,7 +240,7 @@ describe("GitHub Gist sync", () => {
           encrypted: true,
         });
       }
-      return Promise.resolve({ value, encrypted: false });
+      return Promise.reject(new Error("Unsupported sync encryption format"));
     });
     jest.spyOn(Date, "now").mockReturnValue(1000);
   });
@@ -305,7 +298,7 @@ describe("GitHub Gist sync", () => {
     apiGetGist.mockResolvedValue({
       files: {
         [SETTING_KEY]: {
-          content: gistFileContent({ remote: true }, 200),
+          content: encryptedGistFileContent({ remote: true }, 200),
         },
       },
     });
@@ -436,48 +429,6 @@ describe("GitHub Gist sync", () => {
     expect(result).toEqual({ value: { remote: true }, isNew: true });
   });
 
-  test("migrates newer legacy plaintext gist data to encrypted content", async () => {
-    getSyncWithDefault.mockResolvedValue({
-      syncType: "GitHub Gist",
-      syncUrl: "existing-gist",
-      syncKey: SYNC_KEY,
-      syncEncryptKey: SYNC_ENCRYPT_KEY,
-      syncMeta: {
-        [SETTING_KEY]: {
-          updateAt: 10,
-          syncAt: 1,
-        },
-      },
-    });
-    apiGetGist.mockResolvedValue({
-      files: {
-        [SETTING_KEY]: {
-          content: gistFileContent({ remote: true }, 50),
-        },
-      },
-    });
-
-    const result = await syncData(SETTING_KEY, { local: true });
-
-    expect(apiUpdateGistFile).toHaveBeenCalledWith(
-      "existing-gist",
-      SYNC_KEY,
-      SETTING_KEY,
-      JSON.stringify(
-        {
-          key: SETTING_KEY,
-          value: `cipher:${Buffer.from(
-            JSON.stringify({ remote: true })
-          ).toString("base64")}`,
-          updateAt: 50,
-        },
-        null,
-        2
-      )
-    );
-    expect(result).toEqual({ value: { remote: true }, isNew: true });
-  });
-
   test("patches the existing gist file when local data is newer", async () => {
     getSyncWithDefault.mockResolvedValue({
       syncType: "GitHub Gist",
@@ -494,7 +445,7 @@ describe("GitHub Gist sync", () => {
     apiGetGist.mockResolvedValue({
       files: {
         [SETTING_KEY]: {
-          content: gistFileContent({ remote: true }, 100),
+          content: encryptedGistFileContent({ remote: true }, 100),
         },
       },
     });
@@ -518,34 +469,6 @@ describe("GitHub Gist sync", () => {
       )
     );
     expect(result).toEqual({ value: { local: true }, isNew: false });
-  });
-
-  test("replaces older legacy plaintext gist data with encrypted local content", async () => {
-    getSyncWithDefault.mockResolvedValue({
-      syncType: "GitHub Gist",
-      syncUrl: "existing-gist",
-      syncKey: SYNC_KEY,
-      syncEncryptKey: SYNC_ENCRYPT_KEY,
-      syncMeta: {
-        [SETTING_KEY]: {
-          updateAt: 200,
-          syncAt: 1,
-        },
-      },
-    });
-    apiGetGist.mockResolvedValue({
-      files: {
-        [SETTING_KEY]: {
-          content: gistFileContent({ remote: true }, 100),
-        },
-      },
-    });
-
-    await syncData(SETTING_KEY, { local: true });
-
-    const uploadedContent = apiUpdateGistFile.mock.calls[0][3];
-    expect(uploadedContent).not.toContain('"local":true');
-    expect(JSON.parse(uploadedContent).value).toMatch(/^cipher:/);
   });
 
   test("stops setting sync when encrypted remote data cannot be decrypted", async () => {

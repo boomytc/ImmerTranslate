@@ -14,8 +14,6 @@ import {
   isThinkingMinimumFallback,
   normalizeThinkingSettings,
   normalizeApiThinkingSettings,
-  normalizeApiModelListUrls,
-  DASHSCOPE_COMPAT_MODELS_URL,
   DASHSCOPE_NATIVE_MODELS_URL,
   MODELSCOPE_CHAT_COMPLETIONS_URL,
   MODELSCOPE_MODELS_URL,
@@ -29,7 +27,6 @@ import {
   OPT_TRANS_GEMINI,
   OPT_TRANS_GEMINI_2,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_ALIYUNBAILIAN,
   OPT_TRANS_APIMART,
   OPT_TRANS_MICROSOFT,
@@ -48,10 +45,7 @@ import {
   OPT_TRANS_ORCAROUTER,
   OPT_TRANS_REQUESTY,
   GOOGLE_TRANSLATE_URL,
-  GOOGLE_PA_TRANSLATE_URL,
   DEFAULT_API_NAME_GOOGLE,
-  normalizeApiSlug,
-  normalizeTransApis,
   API_KEY_URLS,
   getApiKeyUrl,
 } from "./api";
@@ -588,81 +582,6 @@ test("filters native Gemini thinking efforts by model capability", () => {
   ).toEqual(["high", "medium", "low"]);
 });
 
-describe("normalizeApiModelListUrls", () => {
-  test("旧数据缺少 modelListUrl 时按接口类型补充默认模型列表 URL", () => {
-    const transApis = [
-      {
-        apiSlug: "DeepSeek",
-        apiType: OPT_TRANS_DEEPSEEK,
-      },
-    ];
-
-    const nextApis = normalizeApiModelListUrls(transApis);
-
-    expect(nextApis).not.toBe(transApis);
-    expect(nextApis[0]).toEqual({
-      apiSlug: "DeepSeek",
-      apiType: OPT_TRANS_DEEPSEEK,
-      modelListUrl: "https://api.deepseek.com/models",
-    });
-  });
-
-  test("用户已明确保存为空字符串时不覆盖 modelListUrl", () => {
-    const transApis = [
-      {
-        apiSlug: "OpenAI",
-        apiType: OPT_TRANS_OPENAI,
-        modelListUrl: "",
-      },
-    ];
-
-    const nextApis = normalizeApiModelListUrls(transApis);
-
-    expect(nextApis).toBe(transApis);
-    expect(nextApis[0].modelListUrl).toBe("");
-  });
-
-  test("没有官方默认模型列表接口的旧数据补为空字符串", () => {
-    const transApis = [
-      {
-        apiSlug: "CloudflareAI",
-        apiType: OPT_TRANS_CLOUDFLAREAI,
-      },
-    ];
-
-    const nextApis = normalizeApiModelListUrls(transApis);
-
-    expect(nextApis).not.toBe(transApis);
-    expect(nextApis[0].modelListUrl).toBe("");
-  });
-
-  test("没有需要补充的字段时保持原数组引用", () => {
-    const transApis = [
-      {
-        apiSlug: "DeepSeek",
-        apiType: OPT_TRANS_DEEPSEEK,
-        modelListUrl: "https://custom.example.com/models",
-      },
-    ];
-
-    expect(normalizeApiModelListUrls(transApis)).toBe(transApis);
-  });
-
-  test("把百炼旧的 compatible-mode 模型列表地址升到原生目录", () => {
-    const transApis = [
-      {
-        apiSlug: "AliyunBailian",
-        apiType: OPT_TRANS_ALIYUNBAILIAN,
-        modelListUrl: DASHSCOPE_COMPAT_MODELS_URL,
-      },
-    ];
-
-    const nextApis = normalizeApiModelListUrls(transApis);
-
-    expect(nextApis[0].modelListUrl).toBe(DASHSCOPE_NATIVE_MODELS_URL);
-  });
-});
-
 test("registers ModelScope and the six model-list presets", () => {
   const modelscope = DEFAULT_API_LIST.find(
     (api) => api.apiType === OPT_TRANS_MODELSCOPE
@@ -730,120 +649,6 @@ describe("unified Google configuration and normalization", () => {
       placetagFormat: "attribute",
       isDisabled: false,
     });
-  });
-
-  test("DEFAULT_API_LIST.find backward compatibility aliases Google2 to Google", () => {
-    const legacyItem = DEFAULT_API_LIST.find(
-      (api) => api.apiType === OPT_TRANS_GOOGLE_2
-    );
-    expect(legacyItem).toBeDefined();
-    expect(legacyItem.apiSlug).toBe(OPT_TRANS_GOOGLE_2);
-    expect(legacyItem.useBatchFetch).toBe(true);
-  });
-
-  test("normalizeApiSlug maps Google2 to Google and preserves other slugs", () => {
-    expect(normalizeApiSlug(OPT_TRANS_GOOGLE_2)).toBe(OPT_TRANS_GOOGLE);
-    expect(normalizeApiSlug(OPT_TRANS_GOOGLE)).toBe(OPT_TRANS_GOOGLE);
-    expect(normalizeApiSlug(OPT_TRANS_MICROSOFT)).toBe(OPT_TRANS_MICROSOFT);
-  });
-
-  test("normalizeTransApis merges Google2 into Google and updates options", () => {
-    const legacyApis = [
-      {
-        apiSlug: OPT_TRANS_MICROSOFT,
-        apiType: OPT_TRANS_MICROSOFT,
-        apiName: "Microsoft",
-        isDisabled: false,
-        sortOrder: 0,
-      },
-      {
-        apiSlug: OPT_TRANS_GOOGLE,
-        apiType: OPT_TRANS_GOOGLE,
-        apiName: "Google (常规/单句)",
-        isDisabled: true,
-        sortOrder: 1,
-        useBatchFetch: false,
-      },
-      {
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google (网页整页/PA)",
-        isDisabled: false,
-        sortOrder: 2,
-      },
-    ];
-
-    const normalized = normalizeTransApis(legacyApis);
-    expect(normalized).toHaveLength(2);
-    const google = normalized.find((api) => api.apiSlug === OPT_TRANS_GOOGLE);
-    expect(google).toBeDefined();
-    expect(google.apiName).toBe(DEFAULT_API_NAME_GOOGLE);
-    expect(google.isDisabled).toBe(false); // active because Google2 was enabled
-    expect(google.sortOrder).toBe(1);
-    expect(google.useBatchFetch).toBe(true);
-    expect(google.placetag).toBe("a");
-    expect(google.placetagFormat).toBe("attribute");
-  });
-
-  test("normalizeTransApis renames isolated Google2 to Google", () => {
-    const legacyApis = [
-      {
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google2",
-        isDisabled: false,
-      },
-    ];
-
-    const normalized = normalizeTransApis(legacyApis);
-    expect(normalized).toHaveLength(1);
-    expect(normalized[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
-    expect(normalized[0].apiType).toBe(OPT_TRANS_GOOGLE);
-    expect(normalized[0].apiName).toBe(DEFAULT_API_NAME_GOOGLE);
-    expect(normalized[0].useBatchFetch).toBe(true);
-  });
-
-  test("normalizeTransApis preserves custom user names on Google", () => {
-    const legacyApis = [
-      {
-        apiSlug: OPT_TRANS_GOOGLE,
-        apiType: OPT_TRANS_GOOGLE,
-        apiName: "My Custom Google",
-        isDisabled: false,
-      },
-      {
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google2",
-        isDisabled: true,
-      },
-    ];
-
-    const normalized = normalizeTransApis(legacyApis);
-    expect(normalized).toHaveLength(1);
-    expect(normalized[0].apiName).toBe("My Custom Google");
-  });
-
-  test("normalizeTransApis merges multiple duplicate Google2 entries into one Google", () => {
-    const legacyApis = [
-      {
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google2",
-        isDisabled: true,
-      },
-      {
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-        apiName: "Google2",
-        isDisabled: false,
-      },
-    ];
-
-    const normalized = normalizeTransApis(legacyApis);
-    expect(normalized).toHaveLength(1);
-    expect(normalized[0].apiSlug).toBe(OPT_TRANS_GOOGLE);
-    expect(normalized[0].isDisabled).toBe(false);
   });
 });
 

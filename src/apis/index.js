@@ -19,7 +19,6 @@ import {
   OPT_LANGS_TO_CODE,
   OPT_LANGDETECTOR_MAP,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_BAIDU,
   OPT_TRANS_TENCENT,
   defaultNobatchUserPrompt,
@@ -588,7 +587,6 @@ export const apiBuiltinAIDetect = async (text) => {
 // 供 BuiltinAI 的自动检测回退使用；此处单独维护以避免与 detect.js 循环依赖)
 const LANGDETECT_FNS = {
   [OPT_TRANS_GOOGLE]: apiGoogleLangdetect,
-  [OPT_TRANS_GOOGLE_2]: apiGoogleLangdetect,
   [OPT_TRANS_BAIDU]: apiBaiduLangdetect,
   [OPT_TRANS_TENCENT]: apiTencentLangdetect,
 };
@@ -734,22 +732,6 @@ export const apiTranslate = async ({
     throw new DOMException("The operation was aborted.", "AbortError");
   }
 
-  const rawApiType = apiSetting.apiType;
-  const rawApiSlug = apiSetting.apiSlug;
-  const isLegacyGoogle2 =
-    rawApiSlug === OPT_TRANS_GOOGLE_2 ||
-    (rawApiSlug === OPT_TRANS_GOOGLE && rawApiType === OPT_TRANS_GOOGLE_2);
-  const normalizedApiType = isLegacyGoogle2 ? OPT_TRANS_GOOGLE : rawApiType;
-  const normalizedApiSlug =
-    rawApiSlug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : rawApiSlug;
-  if (normalizedApiType !== rawApiType || normalizedApiSlug !== rawApiSlug) {
-    apiSetting = {
-      ...apiSetting,
-      apiType: normalizedApiType,
-      apiSlug: normalizedApiSlug,
-    };
-  }
-
   const { apiType, apiSlug, useBatchFetch } = apiSetting;
   const langMap = OPT_LANGS_TO_SPEC[apiType] || OPT_LANGS_SPEC_DEFAULT;
   const fromMap = OPT_LANGS_FROM_SPEC[apiType] || langMap;
@@ -786,22 +768,7 @@ export const apiTranslate = async ({
 
   // 1. 查询本地 HTTP/CacheStorage 缓存
   if (useCache) {
-    let cache = await getHttpCachePolyfill(cacheInput);
-    if (!cache?.trText && apiSlug === OPT_TRANS_GOOGLE) {
-      // 新格式回退键使用 Google2 的 slug/type 重新计算指纹，和当前规范化后的
-      // Google 键区分开。升级前没有 reqSig 的旧条目不会命中，这里不做迁移。
-      const legacyReqSig = await getRequestConfigSig({
-        ...apiSetting,
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        apiType: OPT_TRANS_GOOGLE_2,
-      });
-      const legacyCacheInput = `${URL_CACHE_TRAN}?${queryString.stringify({
-        ...cacheOpts,
-        apiSlug: OPT_TRANS_GOOGLE_2,
-        reqSig: legacyReqSig,
-      })}`;
-      cache = await getHttpCachePolyfill(legacyCacheInput);
-    }
+    const cache = await getHttpCachePolyfill(cacheInput);
     if (cache?.trText) {
       return {
         ...cache,

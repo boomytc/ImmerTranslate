@@ -3,7 +3,6 @@ import {
   defaultNobatchUserPrompt,
   defaultNobatchPromptConcise,
   defaultNobatchUserPromptConcise,
-  defaultSystemPrompt,
   defaultSystemPromptLines,
   defaultSystemPromptXml,
   defaultSystemPromptJson,
@@ -17,9 +16,6 @@ import {
   defaultDictPromptEnVi,
   defaultDictUserPrompt,
   defaultSubtitlePrompt,
-  API_SPE_TYPES,
-  GEMINI_GENERATE_CONTENT_URL,
-  OPT_TRANS_GEMINI,
 } from "./api";
 
 // 聚合翻译协议定义
@@ -70,9 +66,7 @@ export const DEFAULT_BATCH_PROMPT_SLUG = PROMPT_SLUG_BATCH_TRANSLATION_JSON;
 export const DEFAULT_SUBTITLE_PROMPT_SLUG = PROMPT_SLUG_SUBTITLE_SEGMENTATION;
 export const DEFAULT_DICTIONARY_PROMPT_SLUG = PROMPT_SLUG_DICTIONARY_EN_ZH;
 
-// 配置数据结构的版本号（用于检测并执行数据迁移升级逻辑）
-export const SETTINGS_VERSION_V1 = 1;
-export const SETTINGS_VERSION_V2 = 2;
+// 当前设置版本。导入时写入；读取时缺省版本回落到它。
 export const SETTINGS_VERSION_V3 = 3;
 export const CURRENT_SETTINGS_VERSION = SETTINGS_VERSION_V3;
 
@@ -177,14 +171,6 @@ export const PRESET_PROMPTS = [
 const PRESET_PROMPT_SLUGS = new Set(
   PRESET_PROMPTS.map((prompt) => prompt.slug)
 );
-const PROMPT_STORAGE_FIELDS = [
-  "slug",
-  "category",
-  "name",
-  "protocol",
-  "systemPrompt",
-  "userPrompt",
-];
 
 /**
  * 规范化提示词对象，确保所有必填字段为字符串格式。
@@ -301,97 +287,6 @@ function getPromptFieldValue(source = {}, fieldName, defaultValue = "") {
 
 function hasPromptReferenceField(source = {}, promptSlugFieldName) {
   return hasOwn(source, promptSlugFieldName);
-}
-
-function getPromptText(source = {}, fieldName) {
-  return String(source[fieldName] || "");
-}
-
-function isSamePromptContent(prompt, sourcePrompt) {
-  const normalizedPrompt = normalizePrompt(prompt);
-  const normalizedSourcePrompt = normalizePrompt(sourcePrompt);
-
-  if (normalizedPrompt.category !== normalizedSourcePrompt.category) {
-    return false;
-  }
-
-  // 聚合翻译在历史 V1 迁移场景下没有 userPrompt，仅凭 systemPrompt 匹配预设
-  if (
-    normalizedPrompt.category === PROMPT_CATEGORY_BATCH_SYSTEM &&
-    !normalizedSourcePrompt.userPrompt
-  ) {
-    if (
-      normalizedPrompt.slug === PROMPT_SLUG_BATCH_TRANSLATION_JSON &&
-      normalizedSourcePrompt.systemPrompt === defaultSystemPrompt
-    ) {
-      return true;
-    }
-    return (
-      normalizedPrompt.systemPrompt === normalizedSourcePrompt.systemPrompt
-    );
-  }
-
-  if (normalizedPrompt.systemPrompt !== normalizedSourcePrompt.systemPrompt) {
-    return false;
-  }
-
-  return normalizedPrompt.userPrompt === normalizedSourcePrompt.userPrompt;
-}
-
-function findPresetPromptByContent(sourcePrompt) {
-  return PRESET_PROMPTS.find((prompt) =>
-    isSamePromptContent(prompt, sourcePrompt)
-  );
-}
-
-function createStablePromptHash(sourceText) {
-  const text = String(sourceText);
-  let hashA = 0x811c9dc5;
-  let hashB = 0x01000193;
-
-  // 该 hash 只用于生成稳定 slug，不承担安全校验职责。
-  for (let index = 0; index < text.length; index += 1) {
-    const code = text.charCodeAt(index);
-    hashA = Math.imul(hashA ^ code, 0x01000193);
-    hashB = Math.imul(hashB ^ (code + index), 0x811c9dc5);
-  }
-
-  return `${(hashA >>> 0).toString(36)}${(hashB >>> 0).toString(36)}`;
-}
-
-function createMigratedPromptName(apiSetting = {}, promptLabel) {
-  const apiName = String(apiSetting.apiName || apiSetting.apiSlug || "API");
-  return `${apiName} ${promptLabel}`;
-}
-
-function createMigratedPromptSlug(apiSetting = {}, promptType, sourcePrompt) {
-  const hash = createStablePromptHash(
-    JSON.stringify({
-      apiSlug: String(apiSetting.apiSlug || ""),
-      promptType,
-      category: sourcePrompt.category,
-      systemPrompt: sourcePrompt.systemPrompt,
-      userPrompt: sourcePrompt.userPrompt,
-    })
-  );
-
-  return `prompt_migrated_${promptType}_${hash}`;
-}
-
-function getAvailableMigratedPromptSlug(promptBySlug, sourcePrompt, baseSlug) {
-  let index = 1;
-  let promptSlug = baseSlug;
-
-  while (promptBySlug.has(promptSlug)) {
-    if (isSamePromptContent(promptBySlug.get(promptSlug), sourcePrompt)) {
-      return promptSlug;
-    }
-
-    index += 1;
-    promptSlug = `${baseSlug}_${index}`;
-  }
-
-  return promptSlug;
 }
 
 /**
@@ -522,353 +417,6 @@ function hasPromptReference(source = {}, promptSlugFieldName, promptSlug) {
   );
 }
 
-export function removeLegacyApiPromptIds(apiSetting = {}) {
-  if (!apiSetting) {
-    return apiSetting;
-  }
-
-  if (
-    !hasOwn(apiSetting, "batchPromptId") &&
-    !hasOwn(apiSetting, "nobatchPromptId") &&
-    !hasOwn(apiSetting, "subtitlePromptId") &&
-    !hasOwn(apiSetting, "dictPromptId")
-  ) {
-    return apiSetting;
-  }
-
-  const nextApiSetting = { ...apiSetting };
-  delete nextApiSetting.batchPromptId;
-  delete nextApiSetting.nobatchPromptId;
-  delete nextApiSetting.subtitlePromptId;
-  delete nextApiSetting.dictPromptId;
-
-  return nextApiSetting;
-}
-
-const LEGACY_API_PROMPT_MIGRATIONS = [
-  {
-    promptType: "batch",
-    promptLabel: "Batch prompt",
-    category: PROMPT_CATEGORY_BATCH_SYSTEM,
-    systemPromptFieldName: "systemPrompt",
-    userPromptFieldName: "",
-    promptSlugFieldName: "batchPromptSlug",
-  },
-  {
-    promptType: "nobatch",
-    promptLabel: "Non-batch prompt",
-    category: PROMPT_CATEGORY_USER,
-    systemPromptFieldName: "nobatchPrompt",
-    userPromptFieldName: "nobatchUserPrompt",
-    promptSlugFieldName: "nobatchPromptSlug",
-  },
-  {
-    promptType: "subtitle",
-    promptLabel: "Subtitle prompt",
-    category: PROMPT_CATEGORY_SUBTITLE,
-    systemPromptFieldName: "subtitlePrompt",
-    userPromptFieldName: "",
-    promptSlugFieldName: "subtitlePromptSlug",
-  },
-  {
-    promptType: "dict",
-    promptLabel: "Dictionary prompt",
-    category: PROMPT_CATEGORY_DICTIONARY,
-    systemPromptFieldName: "dictPrompt",
-    userPromptFieldName: "dictUserPrompt",
-    promptSlugFieldName: "dictPromptSlug",
-  },
-];
-
-function createLegacyApiPromptSource(apiSetting, migration) {
-  if (!hasOwn(apiSetting, migration.systemPromptFieldName)) {
-    return null;
-  }
-
-  return {
-    slug: "",
-    category: migration.category,
-    nameKey: "",
-    name: createMigratedPromptName(apiSetting, migration.promptLabel),
-    systemPrompt: getPromptText(apiSetting, migration.systemPromptFieldName),
-    userPrompt: migration.userPromptFieldName
-      ? getPromptText(apiSetting, migration.userPromptFieldName)
-      : "",
-  };
-}
-
-function createPromptSlugIndex(prompts = []) {
-  const promptBySlug = new Map();
-
-  prompts.forEach((prompt) => {
-    const promptSlug = prompt?.slug;
-    if (promptSlug && !promptBySlug.has(promptSlug)) {
-      promptBySlug.set(promptSlug, prompt);
-    }
-  });
-
-  return promptBySlug;
-}
-
-function isStoredPromptListNormalized(sourcePrompts = [], normalizedPrompts) {
-  if (!Array.isArray(sourcePrompts)) {
-    return normalizedPrompts.length === 0;
-  }
-
-  if (sourcePrompts.length !== normalizedPrompts.length) {
-    return false;
-  }
-
-  return sourcePrompts.every((prompt, index) => {
-    if (!prompt || typeof prompt !== "object") {
-      return false;
-    }
-
-    const hasOnlyPromptStorageFields = Object.keys(prompt).every((fieldName) =>
-      PROMPT_STORAGE_FIELDS.includes(fieldName)
-    );
-
-    return (
-      hasOnlyPromptStorageFields &&
-      JSON.stringify(normalizePrompt(prompt)) ===
-        JSON.stringify(normalizedPrompts[index])
-    );
-  });
-}
-
-function removeLegacySubtitlePromptId(subtitleSetting) {
-  if (!subtitleSetting || !hasOwn(subtitleSetting, "segPromptId")) {
-    return subtitleSetting;
-  }
-
-  const nextSubtitleSetting = { ...subtitleSetting };
-  delete nextSubtitleSetting.segPromptId;
-  return nextSubtitleSetting;
-}
-
-function removeApiPromptTextFields(apiSetting, migration) {
-  const nextApiSetting = { ...apiSetting };
-  delete nextApiSetting[migration.systemPromptFieldName];
-  if (migration.userPromptFieldName) {
-    delete nextApiSetting[migration.userPromptFieldName];
-  }
-  return nextApiSetting;
-}
-
-function migrateLegacyApiPrompt(apiSetting, migration, customPromptState) {
-  if (hasPromptReferenceField(apiSetting, migration.promptSlugFieldName)) {
-    return "";
-  }
-
-  const sourcePrompt = createLegacyApiPromptSource(apiSetting, migration);
-  if (!sourcePrompt) {
-    return "";
-  }
-
-  const presetPrompt = findPresetPromptByContent(sourcePrompt);
-  if (presetPrompt) {
-    return presetPrompt.slug;
-  }
-
-  const baseSlug = createMigratedPromptSlug(
-    apiSetting,
-    migration.promptType,
-    sourcePrompt
-  );
-  const promptSlug = getAvailableMigratedPromptSlug(
-    customPromptState.promptBySlug,
-    sourcePrompt,
-    baseSlug
-  );
-
-  if (!customPromptState.promptBySlug.has(promptSlug)) {
-    const migratedPrompt = {
-      ...sourcePrompt,
-      slug: promptSlug,
-    };
-    customPromptState.prompts.push(migratedPrompt);
-    customPromptState.promptBySlug.set(promptSlug, migratedPrompt);
-    customPromptState.hasPromptChanges = true;
-  }
-
-  return promptSlug;
-}
-
-/**
- * 获取当前配置对象的数据版本号。
- * 如果未设置或遇到异常情况，则默认返回 V1 版本。
- *
- * @param {Object} setting 配置对象
- * @returns {number} 数据结构版本号
- */
-export function getSettingVersion(setting = {}) {
-  const version = Number(setting?.version || SETTINGS_VERSION_V1);
-  return Number.isFinite(version) && version >= SETTINGS_VERSION_V1
-    ? version
-    : SETTINGS_VERSION_V1;
-}
-
-/**
- * 核心迁移逻辑：将旧版本 (V1) 的 API 配置升级为 V2 格式。
- * 在 V1 中，提示词文本通常是硬编码在每个 API 配置中的（systemPrompt, userPrompt 等）。
- * 本函数会将这些内联的文本提取出来，生成全局复用的 custom prompt，并在 API 配置中改为通过 slug 引用该提示词。
- *
- * @param {Object} setting 旧版原始配置对象
- * @returns {Object} 升级迁移为 V2 格式的新配置对象
- */
-export function migrateSettingPromptsToV2(setting = {}) {
-  if (!setting || typeof setting !== "object") {
-    return setting;
-  }
-
-  if (!Array.isArray(setting.transApis)) {
-    return { ...setting, version: SETTINGS_VERSION_V2 };
-  }
-
-  const storedCustomPrompts = Array.isArray(setting.prompts)
-    ? setting.prompts
-    : [];
-  const customPrompts = normalizeCustomPrompts(storedCustomPrompts);
-  const hasCustomPromptChanges = !isStoredPromptListNormalized(
-    storedCustomPrompts,
-    customPrompts
-  );
-  const subtitleSetting = removeLegacySubtitlePromptId(setting.subtitleSetting);
-  const hasSubtitleSettingChanges = subtitleSetting !== setting.subtitleSetting;
-  const customPromptState = {
-    prompts: [...customPrompts],
-    promptBySlug: createPromptSlugIndex([...PRESET_PROMPTS, ...customPrompts]),
-    hasPromptChanges: hasCustomPromptChanges,
-  };
-  let hasApiChanges = false;
-
-  const transApis = setting.transApis.map((apiSetting) => {
-    if (!apiSetting || typeof apiSetting !== "object") {
-      return apiSetting;
-    }
-
-    let nextApiSetting = removeLegacyApiPromptIds(apiSetting);
-    if (nextApiSetting !== apiSetting) {
-      hasApiChanges = true;
-    }
-
-    LEGACY_API_PROMPT_MIGRATIONS.forEach((migration) => {
-      const hasApiType = Boolean(nextApiSetting.apiType);
-      const isNonAiApi =
-        hasApiType && !API_SPE_TYPES.ai.has(nextApiSetting.apiType);
-
-      const sysVal =
-        typeof nextApiSetting[migration.systemPromptFieldName] === "string"
-          ? nextApiSetting[migration.systemPromptFieldName].trim()
-          : "";
-      const userVal =
-        migration.userPromptFieldName &&
-        typeof nextApiSetting[migration.userPromptFieldName] === "string"
-          ? nextApiSetting[migration.userPromptFieldName].trim()
-          : "";
-      const isEmpty = !sysVal && !userVal;
-
-      if (isNonAiApi || isEmpty) {
-        if (
-          hasOwn(nextApiSetting, migration.systemPromptFieldName) ||
-          (migration.userPromptFieldName &&
-            hasOwn(nextApiSetting, migration.userPromptFieldName))
-        ) {
-          if (nextApiSetting === apiSetting) {
-            nextApiSetting = { ...apiSetting };
-          }
-          nextApiSetting = removeApiPromptTextFields(nextApiSetting, migration);
-          hasApiChanges = true;
-        }
-        return;
-      }
-
-      const promptSlug = migrateLegacyApiPrompt(
-        nextApiSetting,
-        migration,
-        customPromptState
-      );
-
-      if (
-        promptSlug &&
-        nextApiSetting[migration.promptSlugFieldName] !== promptSlug
-      ) {
-        if (nextApiSetting === apiSetting) {
-          nextApiSetting = { ...apiSetting };
-        }
-
-        // 旧版 API 内联 prompt 升级为新版 prompt 引用，并删除旧的内联字段。
-        nextApiSetting[migration.promptSlugFieldName] = promptSlug;
-        delete nextApiSetting[migration.systemPromptFieldName];
-        if (migration.userPromptFieldName) {
-          delete nextApiSetting[migration.userPromptFieldName];
-        }
-        hasApiChanges = true;
-      }
-    });
-
-    return nextApiSetting;
-  });
-
-  const nextSetting = { ...setting };
-
-  nextSetting.version = SETTINGS_VERSION_V2;
-  nextSetting.transApis = hasApiChanges ? transApis : setting.transApis;
-  nextSetting.prompts = customPromptState.hasPromptChanges
-    ? customPromptState.prompts
-    : customPrompts;
-
-  if (hasSubtitleSettingChanges) {
-    nextSetting.subtitleSetting = subtitleSetting;
-  }
-
-  return nextSetting;
-}
-
-/**
- * 从Interactions API改回generateContent API的补救
- */
-export function migrateSettingToV3(setting = {}) {
-  if (!setting || typeof setting !== "object") {
-    return setting;
-  }
-
-  const v2Setting =
-    getSettingVersion(setting) < SETTINGS_VERSION_V2
-      ? migrateSettingPromptsToV2(setting)
-      : setting;
-  if (getSettingVersion(v2Setting) >= SETTINGS_VERSION_V3) {
-    return v2Setting;
-  }
-
-  const transApis = Array.isArray(v2Setting.transApis)
-    ? v2Setting.transApis.map((apiSetting) => {
-        if (apiSetting?.apiType !== OPT_TRANS_GEMINI) {
-          return apiSetting;
-        }
-
-        const url = apiSetting.url || "";
-        if (
-          url.includes("generativelanguage.googleapis.com") &&
-          url.includes("interactions")
-        ) {
-          return {
-            ...apiSetting,
-            url: GEMINI_GENERATE_CONTENT_URL,
-          };
-        }
-
-        return apiSetting;
-      })
-    : v2Setting.transApis;
-
-  return {
-    ...v2Setting,
-    transApis,
-    version: SETTINGS_VERSION_V3,
-  };
-}
-
 /**
  * 删除某个自定义提示词后，级联更新所有引用了该提示词的接口配置。
  * 遍历各个 API 和字幕设置，如果它们正在使用被删除的提示词（根据 promptSlug 判断），
@@ -995,9 +543,7 @@ export function resolveApiPromptSettings(
     return apiSetting;
   }
 
-  const cleanedApiSetting = removeLegacyApiPromptIds(apiSetting);
-  const nextApiSetting =
-    cleanedApiSetting === apiSetting ? { ...apiSetting } : cleanedApiSetting;
+  const nextApiSetting = { ...apiSetting };
   const hasBatchPromptReference = hasPromptReferenceField(
     nextApiSetting,
     "batchPromptSlug"

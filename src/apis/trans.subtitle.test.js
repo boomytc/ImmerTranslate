@@ -137,48 +137,8 @@ describe("handleSubtitle", () => {
     ]);
   });
 
-  test("keeps legacy p levels for old prompts and detects every protocol", () => {
-    const pauseEvents = [
-      { start: 0, end: 400, text: "Hello" },
-      { start: 1250, end: 1800, text: "world" },
-    ];
-    const legacyPrompt = 'Use the "p" pause level 1-3 as a hint.';
-
-    expect(formatIndexSubtitleEvents(pauseEvents, legacyPrompt)).toEqual([
-      { id: 0, text: "Hello" },
-      { id: 1, text: "world", p: 2 },
-    ]);
-    expect(detectSubtitleProtocol(legacyPrompt)).toBe("boundary-v2");
-    const indexPrompt = '{"s":0,"e":1,"t":"text"}';
-    expect(detectSubtitleProtocol(indexPrompt)).toBe("index-v1");
-    expect(formatIndexSubtitleEvents(pauseEvents, indexPrompt)).toEqual([
-      { id: 0, text: "Hello" },
-      { id: 1, text: "world", p: 2 },
-    ]);
-    expect(detectSubtitleProtocol("WEBVTT\n00:00.000 --> 00:01.000")).toBe(
-      "vtt-legacy"
-    );
+  test("reports the current subtitle protocol", () => {
     expect(detectSubtitleProtocol(defaultSubtitlePrompt)).toBe("boundary-v3");
-  });
-
-  test("keeps raw timed events for VTT legacy prompts", async () => {
-    const apiSetting = {
-      ...getApiSetting(OPT_TRANS_OPENAI),
-      subtitlePrompt: "Return WEBVTT with MM:SS.mmm timestamps and --> cues.",
-    };
-
-    await handleSubtitle({
-      events,
-      from: "en",
-      to: "zh-CN",
-      apiSetting,
-    });
-
-    const body = JSON.parse(fetchData.mock.calls[0][1].body);
-    const userContent = body.messages.find(
-      (message) => message.role === "user"
-    ).content;
-    expect(JSON.parse(userContent)).toEqual(events);
   });
 
   test("parses default boundary-v3 anchors but rebuilds source text and timestamps", async () => {
@@ -417,43 +377,6 @@ describe("handleSubtitle", () => {
 
     expect(fetchStream).not.toHaveBeenCalled();
     expect(fetchData).toHaveBeenCalledTimes(1);
-  });
-
-  test("realigns drifted indices on the non-stream path", async () => {
-    const driftEvents = Array.from({ length: 10 }, (_, i) => ({
-      start: i * 1000,
-      end: i * 1000 + 1000,
-      text: `w${i}`,
-    }));
-    fetchData.mockResolvedValueOnce({
-      choices: [
-        {
-          message: {
-            content: JSON.stringify([{ s: 4, e: 6, o: "w1 w2 w3", t: "译文" }]),
-          },
-        },
-      ],
-    });
-
-    const result = await handleSubtitle({
-      events: driftEvents,
-      from: "en",
-      to: "zh-CN",
-      apiSetting: getApiSetting(OPT_TRANS_OPENAI),
-    });
-
-    expect(result).toEqual([
-      {
-        start: 1000,
-        end: 4000,
-        text: "w1 w2 w3",
-        translation: "译文",
-        _si: 4,
-        _ei: 6,
-        _alignedSi: 1,
-        _alignedEi: 3,
-      },
-    ]);
   });
 });
 

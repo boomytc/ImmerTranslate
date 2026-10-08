@@ -10,7 +10,6 @@ import {
   API_SPE_TYPES,
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   getApiDisplayName,
 } from "../../config";
 import { useI18n } from "../../hooks/I18n";
@@ -176,11 +175,7 @@ export default function TranCont({
   // Resolve the translation API settings for this instance's slug.
   const apiSetting = useMemo(
     () =>
-      transApis.find(
-        (api) =>
-          api.apiSlug === apiSlug ||
-          (apiSlug === OPT_TRANS_GOOGLE_2 && api.apiSlug === OPT_TRANS_GOOGLE)
-      ),
+      transApis.find((api) => api.apiSlug === apiSlug),
     [transApis, apiSlug]
   );
   const coordinatesBuiltinSource =
@@ -351,9 +346,7 @@ export default function TranCont({
 
   const displayName =
     apiSetting.apiType === OPT_TRANS_GOOGLE ||
-    apiSetting.apiSlug === OPT_TRANS_GOOGLE ||
-    apiSetting.apiType === OPT_TRANS_GOOGLE_2 ||
-    apiSetting.apiSlug === OPT_TRANS_GOOGLE_2
+    apiSetting.apiSlug === OPT_TRANS_GOOGLE
       ? getApiDisplayName(apiSetting)
       : apiSetting.apiName || apiSetting.apiSlug;
 

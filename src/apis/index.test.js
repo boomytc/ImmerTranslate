@@ -93,8 +93,6 @@ import {
   OPT_TRANS_DEEPLX,
   OPT_TRANS_OPENAI,
   OPT_TRANS_QWENMT,
-  OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
 } from "../config";
 
 const getOpenAiApiSetting = (systemPrompt) => ({
@@ -1022,95 +1020,5 @@ describe("apiTranslate capture 透传", () => {
     expect(capture.onRequest).toHaveBeenCalledTimes(1);
     expect(capture.onResponse).toHaveBeenCalledTimes(1);
     expect(capture.onResponse.mock.calls[0][0]).toBe(rawResponse);
-  });
-
-  describe("Google unified normalization and legacy cache", () => {
-    beforeEach(() => {
-      jest.clearAllMocks();
-    });
-
-    test("normalizes legacy Google2 apiType and apiSlug to Google in batch mode", async () => {
-      const addTask = jest.fn(async (text, options) => ["统一谷歌译文", "en"]);
-      getBatchQueue.mockReturnValue({ addTask });
-      getHttpCachePolyfill.mockResolvedValue(null);
-
-      const result = await apiTranslate({
-        text: "hello world",
-        fromLang: "auto",
-        toLang: "zh-CN",
-        apiSetting: {
-          ...DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_GOOGLE),
-          apiType: OPT_TRANS_GOOGLE_2,
-          apiSlug: OPT_TRANS_GOOGLE_2,
-        },
-        useCache: true,
-      });
-
-      expect(result.trText).toBe("统一谷歌译文");
-      expect(getBatchQueue).toHaveBeenCalledTimes(1);
-      const queueKey = getBatchQueue.mock.calls[0][0];
-      expect(queueKey.startsWith(`${OPT_TRANS_GOOGLE}_`)).toBe(true);
-      expect(addTask).toHaveBeenCalledTimes(1);
-      const passedApiSetting = addTask.mock.calls[0][1].apiSetting;
-      expect(passedApiSetting.apiType).toBe(OPT_TRANS_GOOGLE);
-      expect(passedApiSetting.apiSlug).toBe(OPT_TRANS_GOOGLE);
-    });
-
-    test("normalizes legacy Google2 in non-batch mode directly to handleTranslate", async () => {
-      async function* translate() {
-        yield { id: 0, result: ["统一谷歌非批量译文", "en"] };
-      }
-      handleTranslate.mockImplementationOnce(translate);
-      getHttpCachePolyfill.mockResolvedValue(null);
-
-      const result = await apiTranslate({
-        text: "hello non batch",
-        fromLang: "auto",
-        toLang: "zh-CN",
-        apiSetting: {
-          ...DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_GOOGLE),
-          apiType: OPT_TRANS_GOOGLE_2,
-          apiSlug: OPT_TRANS_GOOGLE_2,
-          useBatchFetch: false,
-        },
-        useCache: true,
-      });
-
-      expect(result.trText).toBe("统一谷歌非批量译文");
-      expect(handleTranslate).toHaveBeenCalledTimes(1);
-      const passedApiSetting = handleTranslate.mock.calls[0][1].apiSetting;
-      expect(passedApiSetting.apiType).toBe(OPT_TRANS_GOOGLE);
-      expect(passedApiSetting.apiSlug).toBe(OPT_TRANS_GOOGLE);
-    });
-
-    test("falls back to legacy Google2 cache when Google cache misses", async () => {
-      getHttpCachePolyfill.mockImplementation(async (cacheInput) => {
-        if (cacheInput.includes(`apiSlug=${OPT_TRANS_GOOGLE_2}`)) {
-          return {
-            trText: "历史谷歌2缓存译文",
-            srLang: "en",
-          };
-        }
-        return null;
-      });
-
-      const result = await apiTranslate({
-        text: "legacy cache test",
-        fromLang: "auto",
-        toLang: "zh-CN",
-        apiSetting: {
-          ...DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_GOOGLE),
-          apiType: OPT_TRANS_GOOGLE,
-          apiSlug: OPT_TRANS_GOOGLE,
-        },
-        useCache: true,
-      });
-
-      expect(result.trText).toBe("历史谷歌2缓存译文");
-      expect(handleTranslate).not.toHaveBeenCalled();
-      expect(getHttpCachePolyfill).toHaveBeenCalledTimes(2);
-      expect(getHttpCachePolyfill.mock.calls[0][0]).toContain(`apiSlug=${OPT_TRANS_GOOGLE}`);
-      expect(getHttpCachePolyfill.mock.calls[1][0]).toContain(`apiSlug=${OPT_TRANS_GOOGLE_2}`);
-    });
   });
 });

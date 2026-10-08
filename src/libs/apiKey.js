@@ -4,13 +4,11 @@ import {
   OPT_TRANS_DEEPLFREE,
   OPT_TRANS_DEEPLX,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_OLLAMA,
   OPT_TRANS_TENCENT,
   OPT_TRANS_VOLCENGINE,
   OPT_TRANS_YANDEXFREE,
-  normalizeTransApis,
 } from "../config";
 import { isBuiltinAIAvailable } from "./browser";
 
@@ -31,13 +29,12 @@ export const isBuiltinAiSupported = () => {
 
 /**
  * Engines that translate without a user-supplied API key.
- * Google covers Google and Google2. Paid Google Cloud is not in this set.
+ * Paid Google Cloud is not in this set.
  * Local engines (Ollama, DeepLX) keep working when the key field is blank.
  */
 export const KEYLESS_API_TYPES = new Set([
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_DEEPLFREE,
   OPT_TRANS_YANDEXFREE,
@@ -77,7 +74,7 @@ export function isMissingRequiredApiKey(api) {
  */
 export const configuredByokApis = (transApis = []) => {
   const builtinSupported = isBuiltinAiSupported();
-  return normalizeTransApis(transApis)
+  return transApis
     .filter((api) => {
       if (!api || api.isDisabled) return false;
       const apiType = apiTypeOf(api);

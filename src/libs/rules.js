@@ -14,8 +14,6 @@ import {
   STOKEY_RULES,
   OPT_SPLIT_PARAGRAPH_ALL,
   OPT_HIGHLIGHT_WORDS_ALL,
-  OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
 } from "../config";
 import { loadOrFetchSubRules } from "./subRules";
 import {
@@ -230,10 +228,6 @@ export const mergeRules = (baseRule, overrideRule) => {
     }
   });
 
-  if (merged.apiSlug === OPT_TRANS_GOOGLE_2) {
-    merged.apiSlug = OPT_TRANS_GOOGLE;
-  }
-
   // 4. 合并数字数值类型属性
   ["splitLength", "transOnlyRevertDelay"].forEach((key) => {
     if (overrideRule[key] && overrideRule[key] !== GLOBAL_KEY) {
@@ -260,9 +254,6 @@ export const deriveRuleContext = (
     ...GLOBLA_RULE,
     ...(personalRules.find((r) => r.pattern === GLOBAL_KEY) || {}),
   };
-  if (globalRule.apiSlug === OPT_TRANS_GOOGLE_2) {
-    globalRule.apiSlug = OPT_TRANS_GOOGLE;
-  }
 
   // Find the active personal rule, excluding the global rule.
   // The visual editor can keep editing a renamed rule even when its new
@@ -469,9 +460,7 @@ export const checkRules = (rules) => {
         injectCss: type(injectCss) === "string" ? injectCss : "",
         apiSlug:
           type(apiSlug) === "string" && apiSlug.trim() !== ""
-            ? apiSlug.trim() === OPT_TRANS_GOOGLE_2
-              ? OPT_TRANS_GOOGLE
-              : apiSlug.trim()
+            ? apiSlug.trim()
             : GLOBAL_KEY,
         fromLang: matchValue([GLOBAL_KEY, ...fromLangs], fromLang),
         toLang: matchValue([GLOBAL_KEY, ...toLangs], toLang),

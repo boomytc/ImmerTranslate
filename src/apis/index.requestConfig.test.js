@@ -48,7 +48,6 @@ import { getHttpCachePolyfill, putHttpCachePolyfill } from "../libs/cache";
 import { clearAllBatchQueue } from "../libs/batchQueue";
 import {
   DEFAULT_API_LIST,
-  OPT_TRANS_GOOGLE,
   OPT_TRANS_OPENAI,
 } from "../config";
 
@@ -321,40 +320,5 @@ describe("request config cache and batch isolation", () => {
     const keys = putHttpCachePolyfill.mock.calls.map(([key]) => key);
     expect(new Set(keys.map(reqSigOf)).size).toBe(3);
     keys.forEach((key) => expect(key).not.toContain(SECRET));
-  });
-
-  test("reads the legacy Google2 cache with a new-format fingerprint", async () => {
-    const reads = [];
-    getHttpCachePolyfill.mockImplementation(async (cacheInput) => {
-      reads.push(cacheInput);
-      if (cacheInput.includes("apiSlug=Google2")) {
-        return { trText: "历史谷歌2缓存译文", srLang: "en", srCode: "en" };
-      }
-      return null;
-    });
-
-    const result = await apiTranslate({
-      text: "legacy cache test",
-      fromLang: "auto",
-      toLang: "zh-CN",
-      apiSetting: {
-        ...DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_GOOGLE),
-        apiType: OPT_TRANS_GOOGLE,
-        apiSlug: OPT_TRANS_GOOGLE,
-        key: SECRET,
-        url: "https://translate.googleapis.com/translate_a/single",
-      },
-      useCache: true,
-    });
-
-    expect(result.trText).toBe("历史谷歌2缓存译文");
-    expect(handleTranslate).not.toHaveBeenCalled();
-    expect(reads).toHaveLength(2);
-    expect(cacheParams(reads[0]).get("apiSlug")).toBe("Google");
-    expect(cacheParams(reads[1]).get("apiSlug")).toBe("Google2");
-    expect(reqSigOf(reads[0])).toBeTruthy();
-    expect(reqSigOf(reads[1])).toBeTruthy();
-    expect(reqSigOf(reads[0])).not.toBe(reqSigOf(reads[1]));
-    reads.forEach((key) => expect(key).not.toContain(SECRET));
   });
 });

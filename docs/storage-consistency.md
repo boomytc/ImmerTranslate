@@ -4,20 +4,18 @@ User edits enter through `saveEdit`. The standalone function and
 `transaction.saveEdit` share one implementation. The transaction reads the latest
 stored value, applies a synchronous reducer, and stages the value and its sync
 metadata together. Lower-level transaction methods remain available for
-initialization, migrations, and accepted remote values; those methods do not
-automatically create user-edit metadata. The settings provider normalizes legacy
-schemas and boolean themes in memory on reads, including remote adoption and
-refresh. Reading settings does not persist compatibility transforms, mark the
-page dirty, advance edit timestamps, or schedule an upload. A real user edit
-rebases against the latest normalized settings inside the transaction and saves
-that format with its edit metadata. The merged edit is also normalized so an
-imported legacy backup cannot persist an old schema or boolean theme. An edit
+initialization and accepted remote values; those methods do not
+automatically create user-edit metadata. The settings provider merges stored settings with the current defaults in
+memory on reads, including remote adoption and refresh. Reading settings does
+not persist that merge, mark the page dirty, advance edit timestamps, or
+schedule an upload. A real user edit rebases against the latest merged settings
+inside the transaction and saves that format with its edit metadata. The merged
+edit is also normalized so thinking settings use the current shape. An edit
 that leaves the normalized value unchanged preserves the original stored
 representation and metadata.
 
-JSON imports resolve the backup's schema before merging with current settings.
-An absent version identifies V1 and must not inherit the current version,
-otherwise legacy custom prompts would bypass migration.
+JSON imports are stored as the current settings version. Sync values are
+encrypted envelopes; a value that is not the current envelope is rejected.
 
 ## Ownership
 

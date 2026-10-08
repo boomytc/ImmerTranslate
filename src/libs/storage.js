@@ -1,9 +1,6 @@
 import {
   STOKEY_SETTING,
-  STOKEY_SETTING_BACKUP_V1_BEFORE_V2,
-  STOKEY_SETTING_OLD,
   STOKEY_RULES,
-  STOKEY_RULES_OLD,
   STOKEY_WORDS,
   STOKEY_FAB,
   STOKEY_TRANBOX,
@@ -15,17 +12,8 @@ import {
   DEFAULT_RULES,
   DEFAULT_SYNC,
   BUILTIN_RULES,
-  getSettingVersion,
-  migrateSettingPromptsToV2,
-  migrateSettingToV3,
-  SETTINGS_VERSION_V2,
-  CURRENT_SETTINGS_VERSION,
   DEFAULT_TRANBOX_SETTING,
-  migrateInputRuleShowDot,
   normalizeApiThinkingSettings,
-  normalizeTransApis,
-  OPT_TRANS_GOOGLE,
-  OPT_TRANS_GOOGLE_2,
   KV_SETTING_KEY,
   KV_RULES_KEY,
   KV_WORDS_KEY,
@@ -516,9 +504,6 @@ export const storage = {
 
 // --- 应用设置 (Settings) 数据存取 ---
 export const getSetting = () => getObj(STOKEY_SETTING);
-export const getSettingOld = () => getObj(STOKEY_SETTING_OLD);
-const writeSettingBackupBeforeV2 = (setting) =>
-  setObj(STOKEY_SETTING_BACKUP_V1_BEFORE_V2, setting);
 const mergeSettingWithDefault = (setting) => {
   const mergedSetting = {
     ...DEFAULT_SETTING,
@@ -530,90 +515,11 @@ const mergeSettingWithDefault = (setting) => {
     version: setting?.version ?? DEFAULT_SETTING.version,
   };
 
-  if (Array.isArray(mergedSetting.tranboxSetting?.apiSlugs)) {
-    mergedSetting.tranboxSetting = {
-      ...mergedSetting.tranboxSetting,
-      apiSlugs: Array.from(
-        new Set(
-          mergedSetting.tranboxSetting.apiSlugs.map((slug) =>
-            slug === OPT_TRANS_GOOGLE_2 ? OPT_TRANS_GOOGLE : slug
-          )
-        )
-      ),
-    };
-  }
-
-  if (mergedSetting.inputRule?.apiSlug === OPT_TRANS_GOOGLE_2) {
-    mergedSetting.inputRule = {
-      ...mergedSetting.inputRule,
-      apiSlug: OPT_TRANS_GOOGLE,
-    };
-  }
-
-  if (mergedSetting.subtitleSetting?.apiSlug === OPT_TRANS_GOOGLE_2) {
-    mergedSetting.subtitleSetting = {
-      ...mergedSetting.subtitleSetting,
-      apiSlug: OPT_TRANS_GOOGLE,
-    };
-  }
-
-  if (mergedSetting.mouseHoverSetting?.apiSlug === OPT_TRANS_GOOGLE_2) {
-    mergedSetting.mouseHoverSetting = {
-      ...mergedSetting.mouseHoverSetting,
-      apiSlug: OPT_TRANS_GOOGLE,
-    };
-  }
-
   // 设置读取时只在内存中归一化一次，避免每次请求重复解析模型能力。
   return {
     ...mergedSetting,
-    inputRule: migrateInputRuleShowDot(mergedSetting.inputRule),
-    transApis: normalizeApiThinkingSettings(
-      normalizeTransApis(mergedSetting.transApis)
-    ),
+    transApis: normalizeApiThinkingSettings(mergedSetting.transApis),
   };
-};
-export const migrateStoredSettingToV2 = async (
-  setting,
-  backupSetting = setting
-) => {
-  if (getSettingVersion(setting) >= SETTINGS_VERSION_V2) {
-    return setting;
-  }
-
-  await writeSettingBackupBeforeV2(backupSetting);
-  return migrateSettingPromptsToV2(setting);
-};
-
-/** Return false if migration cannot persist settings; reads still reject. */
-export const runDataMigration = async () => {
-  const rawSetting = await getSetting();
-  if (!rawSetting) return true;
-
-  const needsSchemaMigration =
-    getSettingVersion(rawSetting) < CURRENT_SETTINGS_VERSION;
-  const needsThemeMigration = typeof rawSetting.darkMode === "boolean";
-  if (!needsSchemaMigration && !needsThemeMigration) return true;
-
-  try {
-    let nextSetting = rawSetting;
-    if (needsSchemaMigration) {
-      const v2Setting = await migrateStoredSettingToV2(rawSetting, rawSetting);
-      nextSetting = migrateSettingToV3(v2Setting);
-    }
-    if (needsThemeMigration) {
-      nextSetting = {
-        ...nextSetting,
-        darkMode: rawSetting.darkMode ? "dark" : "light",
-      };
-    }
-    await setObj(STOKEY_SETTING, nextSetting);
-    kissLog(`Migration to V${CURRENT_SETTINGS_VERSION} completed.`);
-    return true;
-  } catch (err) {
-    kissLog(`Data migration to V${CURRENT_SETTINGS_VERSION} failed:`, err);
-    return false;
-  }
 };
 
 export const normalizeStoredSetting = (rawSetting) => {
@@ -622,16 +528,7 @@ export const normalizeStoredSetting = (rawSetting) => {
     return mergeSettingWithDefault(DEFAULT_SETTING);
   }
 
-  let setting =
-    getSettingVersion(rawSetting) < CURRENT_SETTINGS_VERSION
-      ? migrateSettingToV3(rawSetting)
-      : rawSetting;
-
-  if (typeof setting.darkMode === "boolean") {
-    setting = { ...setting, darkMode: setting.darkMode ? "dark" : "light" };
-  }
-
-  return mergeSettingWithDefault(setting);
+  return mergeSettingWithDefault(rawSetting);
 };
 export const getSettingWithDefault = async () =>
   normalizeStoredSetting(await getSetting());
@@ -643,17 +540,8 @@ export const putSetting = async (obj) => {
 
 // --- 用户翻译规则 (Rules) 数据存取 ---
 export const getRules = () => getObj(STOKEY_RULES);
-export const getRulesOld = () => getObj(STOKEY_RULES_OLD);
-export const getRulesWithDefault = async () => {
-  const rules = (await getRules()) || DEFAULT_RULES;
-  if (!Array.isArray(rules)) return rules;
-  return rules.map((rule) => {
-    if (rule?.apiSlug === OPT_TRANS_GOOGLE_2) {
-      return { ...rule, apiSlug: OPT_TRANS_GOOGLE };
-    }
-    return rule;
-  });
-};
+export const getRulesWithDefault = async () =>
+  (await getRules()) || DEFAULT_RULES;
 export const setRules = (val) => setObj(STOKEY_RULES, val);
 
 // --- 个人生词本词汇 (Fav Words) 数据存取 ---

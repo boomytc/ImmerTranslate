@@ -3,9 +3,7 @@ import {
   DEFAULT_API_LIST,
   API_SPE_TYPES,
   getApiDisplayName,
-  normalizeApiModelListUrls,
   normalizeApiThinkingSettings,
-  normalizeTransApis,
 } from "../config";
 import { useSetting } from "./Setting";
 
@@ -16,11 +14,7 @@ function useApiState() {
   const transApis = useMemo(
     () =>
       [
-        ...normalizeApiThinkingSettings(
-          normalizeApiModelListUrls(
-            normalizeTransApis(setting?.transApis || [])
-          )
-        ),
+        ...normalizeApiThinkingSettings(setting?.transApis || []),
       ].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
     [setting?.transApis]
   );
