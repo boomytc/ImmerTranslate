@@ -13,7 +13,7 @@ import {
 
 // ─── 确定性字符串 hash（djb2）───────────────────────────────────────────────
 // 同一术语每次生成同一 hash，保证可复现为 fixture。
-export function hashKey(key) {
+function hashKey(key) {
   if (typeof key !== "string") return 0;
   let hash = 5381;
   for (let i = 0; i < key.length; i++) {

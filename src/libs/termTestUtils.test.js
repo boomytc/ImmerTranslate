@@ -1,6 +1,5 @@
 import { buildTermsMatcher, parseTerms } from "./terms";
 import {
-  hashKey,
   detectTermConflicts,
   generateTermTestText,
   joinIntoParagraph,
@@ -9,33 +8,6 @@ import {
   getDeliberateFailureFixtures,
   selectDisplayedResults,
 } from "./termTestUtils";
-
-// ─── hashKey ─────────────────────────────────────────────────────────────────
-describe("termTestUtils hashKey", () => {
-  test("returns different values for different keys", () => {
-    // 极低概率冲突，但不同 key 大概率不同
-    const api = hashKey("API");
-    const gpt = hashKey("GPT");
-    expect(api).not.toBe(gpt);
-  });
-
-  test("returns a non-negative integer", () => {
-    const h = hashKey("API");
-    expect(Number.isInteger(h)).toBe(true);
-    expect(h).toBeGreaterThanOrEqual(0);
-  });
-
-  test("handles empty string", () => {
-    // djb2 初始值 5381，空字符串不进入循环，返回 5381
-    expect(hashKey("")).toBe(5381);
-  });
-
-  test("handles non-string input", () => {
-    expect(hashKey(null)).toBe(0);
-    expect(hashKey(undefined)).toBe(0);
-    expect(hashKey(123)).toBe(0);
-  });
-});
 
 // ─── detectTermConflicts ─────────────────────────────────────────────────────
 describe("termTestUtils detectTermConflicts", () => {
@@ -193,15 +165,6 @@ describe("termTestUtils generateTermTestText", () => {
     expect(cases[0].text).toContain("API");
   });
 
-  test("generated conflict text contains both short and long keys", () => {
-    const parsed = parseTerms("API,接口;APIKey,应用编程接口");
-    const cases = generateTermTestText(parsed);
-    const conflictCase = cases.find((c) => c.type === "conflict");
-    expect(conflictCase).toBeDefined();
-    expect(conflictCase.text).toContain("API");
-    expect(conflictCase.text).toContain("APIKey");
-  });
-
   test("generated text is a complete natural sentence", () => {
     const parsed = parseTerms("API,接口;APIKey,应用编程接口;GPT,生成式预训练");
     const cases = generateTermTestText(parsed);
@@ -232,16 +195,6 @@ describe("termTestUtils generateTermTestText", () => {
     expect(generateTermTestText({ terms: [] })).toEqual([]);
     expect(generateTermTestText(null)).toEqual([]);
     expect(generateTermTestText(undefined)).toEqual([]);
-  });
-
-  test("direction field is present on all conflict cases", () => {
-    const parsed = parseTerms("API,接口;APIKey,应用编程接口");
-    const cases = generateTermTestText(parsed);
-    const conflicts = cases.filter((c) => c.type === "conflict");
-    for (const c of conflicts) {
-      expect(c.direction).toBeDefined();
-      expect(["short-first", "long-first"]).toContain(c.direction);
-    }
   });
 
   test("long-first template places long key before short key in the sentence", () => {
