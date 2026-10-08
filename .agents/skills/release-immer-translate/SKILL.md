@@ -38,7 +38,7 @@ Follow the version-script sections of `VERSION_MANAGEMENT.md` and the repository
 1. From the updated `main`, create a release branch. Do not commit the version bump on `main`:
 
    ```bash
-   git checkout -b release/v<target>
+   git checkout -b codex/release-v<target>
    ```
 
 2. Run exactly one matching command:
@@ -56,9 +56,9 @@ Follow the version-script sections of `VERSION_MANAGEMENT.md` and the repository
    - Summarize behavior rather than copying commit messages mechanically.
    - Exclude merges, formatting-only work, and internal implementation detail unless release-relevant.
    - Preserve UTF-8 and every existing historical entry unchanged.
-5. Run `pnpm format`, inspect `git diff --name-only` and `git diff`, and stop if formatting touched unrelated files. Do not silently include cleanup.
+5. Format only reviewed changed files, then run `pnpm format:check origin/main`, `pnpm release:check`, `pnpm test:release` and `CI=true pnpm run test --watchAll=false --runInBand`. Inspect the complete diff and stop on unrelated formatting. `pnpm build` must not format source files.
 6. Run `pnpm build+zip`, then recheck all version values, the top CHANGELOG heading, `git diff --check`, and the complete diff.
-7. Stage only the reviewed release files. Commit as `chore: bump version to <target>` and push the release branch with `git push -u origin release/v<target>`. Do not use `git add .`. Do not push this commit to `main`.
+7. Stage only the reviewed release files. Commit as `chore: bump version to <target>` and push the release branch with `git push -u origin codex/release-v<target>`. Do not use `git add .`. Do not push this commit to `main`.
 
 ## 3. Create and merge the release PR
 
@@ -85,7 +85,7 @@ Follow the version-script sections of `VERSION_MANAGEMENT.md` and the repository
    git push origin v<target>
    ```
 
-5. Find the tag-triggered `release.yml` run, watch it to completion, and verify `gh release view v<target>`. Confirm each uploaded asset is named `immer-translate_v<target>_<client>.zip` for that workflow's client matrix. Report failures without retrying destructive or publication steps automatically.
+5. Find the tag-triggered `release.yml` run, watch it to completion, and verify `gh release view v<target>`. Confirm all five `immer-translate_v<target>_<client>.zip` assets and `immer-translate_v<target>_manifest.json` are present, and Pages version agrees. For a failed upload or Pages deploy, use the original run artifact with the documented guarded recovery workflow; never clobber assets or rebuild replacements. Report failures without retrying destructive or publication steps automatically.
 
 ## 5. Report
 

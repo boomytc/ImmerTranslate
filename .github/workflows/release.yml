@@ -4,93 +4,173 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable version tag to publish or recover
+        required: true
+        type: string
+      artifact_run_id:
+        description: Original release run whose build artifact should be reused (optional)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.metadata.outputs.tag }}
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+      artifact_run_id: ${{ steps.original.outputs.run_id }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
         with:
-          version: 9.14.4
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: "pnpm"
-      - run: pnpm install
-      - run: pnpm build+zip
-      - uses: actions/upload-artifact@v4
+      - name: Validate release source and main ancestry
+        id: metadata
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node src/scripts/check-release.mjs
+          git merge-base --is-ancestor HEAD origin/main
+          source_sha=$(git rev-parse HEAD)
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=build-$RELEASE_TAG-$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Find the original artifact
+        id: original
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: ${{ steps.metadata.outputs.artifact_name }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id || github.run_id }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          [[ "$ARTIFACT_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARTIFACT_RUN_ID" > "$RUNNER_TEMP/original-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARTIFACT_RUN_ID/artifacts" > "$RUNNER_TEMP/original-artifacts.json"
+          node src/scripts/find-release-artifact.mjs
+      - uses: actions/download-artifact@v4
+        if: steps.original.outputs.found == 'true'
         with:
-          name: build-artifacts
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          run-id: ${{ steps.original.outputs.run_id }}
+          github-token: ${{ github.token }}
           path: build
-  deploy-web:
+      - uses: pnpm/action-setup@v4
+        if: steps.original.outputs.found != 'true'
+        with:
+          version: 9.14.4
+      - name: Test and build a new original artifact
+        if: steps.original.outputs.found != 'true'
+        env:
+          CI: "true"
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test:release
+          pnpm run test --watchAll=false --runInBand
+          pnpm build+zip
+          git diff --exit-code
+          pnpm release:artifacts
+      - uses: actions/upload-artifact@v4
+        if: steps.original.outputs.found != 'true'
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: build
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+      - name: Verify all artifact versions and checksums
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: node src/scripts/prepare-release-artifacts.mjs --check
+
+  publish:
     needs: build
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: actions/download-artifact@v4
         with:
-          name: build-artifacts
+          name: ${{ needs.build.outputs.artifact_name }}
+          run-id: ${{ needs.build.outputs.artifact_run_id }}
+          github-token: ${{ github.token }}
           path: build
+      - name: Create or resume draft, verify assets, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+        run: node src/scripts/publish-release-cli.mjs
+
+  deploy-web:
+    needs: [build, publish]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: immertranslate-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Prevent old releases from rolling Pages back
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          export LATEST_TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name')
+          export CURRENT_PAGES_VERSION=""
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            CURRENT_PAGES_VERSION=$(git show origin/gh-pages:version.txt)
+            export CURRENT_PAGES_VERSION
+          fi
+          node --input-type=module <<'JS'
+          import { appendFileSync } from "node:fs";
+          import { shouldDeployPages } from "./src/scripts/pages-guard.mjs";
+          const deploy = shouldDeployPages(process.env.RELEASE_TAG, process.env.LATEST_TAG, process.env.CURRENT_PAGES_VERSION);
+          appendFileSync(process.env.GITHUB_OUTPUT, `deploy=${deploy}\n`);
+          console.log(deploy ? "Deploy current stable release" : "Skip older release; preserve current Pages");
+          JS
+      - uses: actions/download-artifact@v4
+        if: steps.guard.outputs.deploy == 'true'
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          run-id: ${{ needs.build.outputs.artifact_run_id }}
+          github-token: ${{ github.token }}
+          path: build
+      - name: Verify original Pages artifact
+        if: steps.guard.outputs.deploy == 'true'
+        env:
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+        run: node src/scripts/prepare-release-artifacts.mjs --check
       - name: Deploy to GitHub Pages
+        if: steps.guard.outputs.deploy == 'true'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: build/web
-  create-release:
-    needs: build
-    runs-on: ubuntu-24.04
-    outputs:
-      upload_url: ${{ steps.create-release.outputs.upload_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Extract Release Notes
-        id: extract_notes
-        shell: bash
-        run: |
-          LOG_FILE="CHANGELOG.md"
-          
-          if [ -f "$LOG_FILE" ]; then
-            # 使用 awk 提取：从第一个 "## " 后面开始，直到遇到下一个 "## " 停止
-            # 这里的逻辑假设最新日志在文件最上方
-            NOTES=$(awk '/^## / {if (p) exit; p=1; next} p' "$LOG_FILE")
-          else
-            NOTES="Release ${{ github.ref }}"
-          fi
-          
-          # 处理多行文本并写入 GITHUB_OUTPUT
-          {
-            echo "body<<EOF"
-            echo "$NOTES"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - uses: actions/create-release@v1
-        id: create-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: ${{ steps.extract_notes.outputs.body }}
-          draft: false
-          prerelease: false
-  upload-release:
-    needs: [build, create-release]
-    strategy:
-      matrix:
-        client: ["chrome", "edge", "firefox", "userscript", "thunderbird"]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: build
-      - uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/${{ matrix.client }}.zip
-          asset_name: immer-translate_${{ github.ref_name }}_${{ matrix.client }}.zip
-          asset_content_type: application/zip

@@ -21,7 +21,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
-describe("extension request cancellation", () => {
+describe("one-shot extension function cancellation", () => {
   beforeEach(() => sendBgMsg.mockReset());
   afterEach(() => jest.restoreAllMocks());
 
@@ -47,6 +47,7 @@ describe("extension request cancellation", () => {
         "removeEventListener"
       );
       const request = fnPolyfill({
+        msg: "builtin_function",
         input: "https://example.test",
         opts: { signal: controller.signal, httpTimeout: 1000 },
       });
@@ -62,7 +63,7 @@ describe("extension request cancellation", () => {
         "abort",
         addListener.mock.calls[0][1]
       );
-      expect(sendBgMsg).toHaveBeenCalledWith("kiss_fetch", {
+      expect(sendBgMsg).toHaveBeenCalledWith("builtin_function", {
         input: "https://example.test",
         opts: { signal: undefined, httpTimeout: 1000 },
       });
@@ -80,7 +81,10 @@ describe("extension request cancellation", () => {
         controller.signal,
         "removeEventListener"
       );
-      const request = fnPolyfill({ opts: { signal: controller.signal } });
+      const request = fnPolyfill({
+        msg: "builtin_function",
+        opts: { signal: controller.signal },
+      });
       const expectation = expect(request).rejects.toMatchObject({
         name: "AbortError",
       });
