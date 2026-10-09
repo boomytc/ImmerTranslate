@@ -1,7 +1,7 @@
 {
   "name": "immer-translate",
   "description": "A minimalist bilingual translation Extension & Greasemonkey Script",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "license": "GPL-3.0-only",
   "author": "Gabe<yugang2002@gmail.com>",
   "private": true,
