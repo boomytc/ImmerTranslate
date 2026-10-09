@@ -446,7 +446,6 @@ export const RU_I18N = {
   ai_dict_prompt: `Промпт ИИ-словаря`,
   english_suggest: `Подсказки на английском`,
   api_name: `Название интерфейса`,
-  model_list_url: `Адрес списка моделей`,
   model_list_loading: `Загрузка списка моделей...`,
   model_list_fetch_failed: `Не удалось загрузить список моделей`,
   model_list_empty: `Модели не найдены. Введите название вручную.`,

@@ -471,7 +471,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     ).toEqual(expect.arrayContaining(["deepseek-v4-flash", "deepseek-chat"]));
     expect(fetchModelCatalog).toHaveBeenCalledWith({
       apiType: "DeepSeek",
-      modelListUrl: "https://api.deepseek.com/models",
+      modelListUrl: "https://api.deepseek.com/chat/completions",
       key: secret,
     });
     expect(container.textContent).not.toContain(secret);

@@ -6751,15 +6751,6 @@ export const I18N = {
     tr: `API Adı`,
     vi: "Tên API",
   },
-  model_list_url: {
-    zh: `模型列表URL`,
-    en: `Model List URL`,
-    zh_TW: `模型列表URL`,
-    ja: `モデル一覧URL`,
-    ko: `모델 목록 URL`,
-    tr: `Model Listesi URL'si`,
-    vi: "URL danh sách mô hình",
-  },
   model_list_loading: {
     zh: `正在加载模型列表...`,
     en: `Loading model list...`,

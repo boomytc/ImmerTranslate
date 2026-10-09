@@ -119,7 +119,6 @@ export function resolvePopupTextStyles(
     .slice(0, 5);
 }
 
-
 export default function PopupCont({
   rule,
   setting,
@@ -608,8 +607,7 @@ export default function PopupCont({
     scanAll,
     isPlainText: plainTextValue = false,
   } = rule || {};
-  const translationEnabled =
-    canTranslatePage && transOpen === "true";
+  const translationEnabled = canTranslatePage && transOpen === "true";
   const isPlainText = plainTextValue === "true";
   const targetName =
     OPT_LANGS_TO.find(([key]) => key === toLang)?.[1] || toLang;
@@ -628,9 +626,7 @@ export default function PopupCont({
       (API_SPE_TYPES.ai?.has(activeApiSetting.apiType) ||
         activeApiSetting.apiType === OPT_TRANS_QWENMT)
   );
-  const listUrl = String(
-    activeApiSetting?.modelListUrl || activeApiSetting?.url || ""
-  ).trim();
+  const listUrl = String(activeApiSetting?.url || "").trim();
   const selectedModel = modelOverride ?? activeApiSetting?.model ?? "";
   const modelOptions = useMemo(
     () =>

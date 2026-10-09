@@ -641,10 +641,13 @@ describe("Apis model list", () => {
     expect(fetchModelCatalog).toHaveBeenCalledTimes(1);
     expect(fetchModelCatalog).toHaveBeenCalledWith({
       apiType: OPT_TRANS_OPENAI,
-      modelListUrl: "https://api.openai.com/v1/models",
+      modelListUrl: "https://api.openai.com/v1/chat/completions",
       key: "sk-test",
       httpTimeout: 30,
     });
+    expect(
+      view.container.querySelector('input[name="modelListUrl"]')
+    ).toBeNull();
     expect(modelInput.getAttribute("data-options")).toContain("gpt-4o");
 
     view.unmount();
@@ -844,7 +847,7 @@ describe("Apis model list", () => {
 
     expect(fetchModelCatalog).toHaveBeenCalledWith({
       apiType: OPT_TRANS_OPENAI,
-      modelListUrl: "https://api.openai.com/v1/models",
+      modelListUrl: "https://api.openai.com/v1/chat/completions",
       key: "sk-test",
       httpTimeout: 30,
     });
@@ -1008,10 +1011,10 @@ describe("Apis model list", () => {
       await Promise.resolve();
     });
     await act(async () => {
-      Simulate.change(getInput(view.container, "modelListUrl"), {
+      Simulate.change(getInput(view.container, "url"), {
         target: {
-          name: "modelListUrl",
-          value: "https://api.openai.com/v1/models?fixed=1",
+          name: "url",
+          value: "https://api.openai.com/v1/chat/completions?fixed=1",
         },
       });
       await Promise.resolve();
@@ -1053,10 +1056,10 @@ describe("Apis model list", () => {
       await Promise.resolve();
     });
     await act(async () => {
-      Simulate.change(getInput(view.container, "modelListUrl"), {
+      Simulate.change(getInput(view.container, "url"), {
         target: {
-          name: "modelListUrl",
-          value: "https://api.openai.com/v1/models?current=1",
+          name: "url",
+          value: "https://api.openai.com/v1/chat/completions?current=1",
         },
       });
       await Promise.resolve();
@@ -1097,7 +1100,6 @@ describe("Apis model list", () => {
     fetchModelCatalog.mockRejectedValue(new Error("network failed"));
     const view = await renderApis();
     const modelInput = getInput(view.container, "model");
-    const modelListUrlInput = getInput(view.container, "modelListUrl");
 
     await act(async () => {
       Simulate.focus(modelInput);
@@ -1109,10 +1111,10 @@ describe("Apis model list", () => {
     expect(view.container.textContent).toContain("model_list_fetch_failed");
 
     await act(async () => {
-      Simulate.change(modelListUrlInput, {
+      Simulate.change(getInput(view.container, "url"), {
         target: {
-          name: "modelListUrl",
-          value: "https://api.openai.com/v1/models?fixed=1",
+          name: "url",
+          value: "https://api.openai.com/v1/chat/completions?fixed=1",
         },
       });
       await Promise.resolve();
@@ -2490,12 +2492,9 @@ describe("Apis connection test", () => {
     );
     expect(fetchModelCatalog).toHaveBeenCalledWith({
       apiType: OPT_TRANS_DEEPSEEK,
-      modelListUrl: "https://api.deepseek.com/models",
+      modelListUrl: "https://api.deepseek.com/chat/completions",
       key: "",
     });
-    expect(JSON.stringify(fetchModelCatalog.mock.calls)).not.toContain(
-      "chat/completions"
-    );
     view.unmount();
   });
 
@@ -2529,7 +2528,7 @@ describe("Apis connection test", () => {
     expect(view.container.textContent).not.toContain(secret);
     expect(fetchModelCatalog).toHaveBeenCalledWith({
       apiType: OPT_TRANS_DEEPSEEK,
-      modelListUrl: "https://api.deepseek.com/models",
+      modelListUrl: "https://api.deepseek.com/chat/completions",
       key: secret,
     });
     view.unmount();

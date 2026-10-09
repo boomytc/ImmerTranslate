@@ -586,7 +586,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     url = "",
     key = "",
     model = "",
-    modelListUrl = "",
     apiType,
     // userPrompt = "",
     customHeader = "",
@@ -638,7 +637,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     modelThinkingCapabilitiesRef.current = {};
     requestedModelListKeyRef.current = "";
     pendingOpenRouterResolutionRef.current = false;
-  }, [modelListUrl, key]);
+  }, [url, key]);
 
   const showKeyField =
     (!API_SPE_TYPES.machine.has(apiType) || apiType === OPT_TRANS_QWENMT) &&
@@ -655,18 +654,17 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     connectionRequestRef.current += 1;
     setConnectionResult(null);
     setConnectionLoading(false);
-  }, [apiSlug, apiType, key, modelListUrl, url]);
+  }, [apiSlug, apiType, key, url]);
 
   const handleTestConnection = async () => {
     const requestId = ++connectionRequestRef.current;
     setConnectionResult(null);
     setConnectionLoading(true);
     try {
-      const listUrl = (modelListUrl || "").trim() || (url || "").trim();
       const result = await testApiConnection({
         apiType,
         apiSlug,
-        modelListUrl: listUrl,
+        modelListUrl: (url || "").trim(),
         key,
       });
       if (connectionRequestRef.current === requestId) {
@@ -789,8 +787,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       }
       if (modelListStatus === "loading") return;
 
-      // 模型列表 URL 为空时，用对话/API 根地址推导（OpenAI 为 {base}/models）。
-      const listUrl = (modelListUrl || "").trim() || (url || "").trim();
+      const listUrl = (url || "").trim();
       const requestKey = `${apiSlug}|${listUrl}|${key}`;
       if (!force && requestedModelListKeyRef.current === requestKey) return;
 
@@ -835,7 +832,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       key,
       modelListStatus,
       i18n,
-      modelListUrl,
       thinkingMode,
       url,
     ]
@@ -1242,16 +1238,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
 
       {(API_SPE_TYPES.ai.has(apiType) || apiType === OPT_TRANS_QWENMT) && (
         <>
-          {apiType !== OPT_TRANS_QWENMT && (
-            <TextField
-              size="small"
-              fullWidth
-              label={i18n("model_list_url")}
-              name="modelListUrl"
-              value={modelListUrl}
-              onChange={handleChange}
-            />
-          )}
           <Box>
             <Box sx={apiFieldsGridSx}>
               <Box>

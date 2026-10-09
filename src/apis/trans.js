@@ -93,7 +93,10 @@ import {
 } from "../libs/stream";
 import { kissLog } from "../libs/log";
 import { fetchData, fetchStream } from "../libs/fetch";
-import { httpStatusFromError } from "../libs/modelList";
+import {
+  httpStatusFromError,
+  resolveOpenAIChatCompletionsUrl,
+} from "../libs/modelList";
 import { getMsgHistory } from "./history";
 import { getOpenCodeSessionId } from "./opencode";
 import { getDocInfo } from "../libs/docInfo";
@@ -1737,6 +1740,17 @@ const genCustom = ({ texts, fromLang, toLang, url, key, useBatchFetch }) => {
   return { url, body, headers };
 };
 
+// 这些生成器把 url 当作 OpenAI 兼容的对话地址。根地址和 /v1 在请求前补全。
+const OPENAI_CHAT_GENERATORS = new Set([
+  genOpenAI,
+  genModelBest,
+  genGemini2,
+  genOpenRouter,
+  genOrcaRouter,
+  genRequesty,
+  genOllama,
+]);
+
 const genReqFuncs = {
   [OPT_TRANS_GOOGLE]: genGoogleRouter,
   [OPT_TRANS_GOOGLE_CLOUD]: genGoogleCloud,
@@ -1901,6 +1915,10 @@ export const genTransReq = async ({ reqHook, ...args }) => {
           glossary,
           aiTerms,
         });
+  }
+
+  if (OPENAI_CHAT_GENERATORS.has(genReqFuncs[apiType])) {
+    args.url = resolveOpenAIChatCompletionsUrl(args.url);
   }
 
   const {

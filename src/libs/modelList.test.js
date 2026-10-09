@@ -11,6 +11,7 @@ import {
   parseDashscopeModelsPage,
   parseModelCatalogResponse,
   parseModelListResponse,
+  resolveOpenAIChatCompletionsUrl,
   resolveOpenAIModelListUrl,
 } from "./modelList";
 import { fetchHandle, fnPolyfill } from "./request";
@@ -124,6 +125,23 @@ describe("modelList", () => {
     });
   });
 
+  test("derives the official Gemini catalog from the interactions URL", () => {
+    expect(
+      createModelListRequest({
+        apiType: OPT_TRANS_GEMINI,
+        modelListUrl:
+          "https://generativelanguage.googleapis.com/v1/interactions",
+        key: "gemini-key",
+      })
+    ).toEqual({
+      input:
+        "https://generativelanguage.googleapis.com/v1beta/models?key=gemini-key",
+      init: {
+        method: "GET",
+      },
+    });
+  });
+
   test("builds Gemini key query requests", () => {
     expect(
       createModelListRequest({
@@ -214,6 +232,12 @@ describe("modelList", () => {
     expect(
       resolveOpenAIModelListUrl("https://api.openai.com/v1/chat/completions")
     ).toBe("https://api.openai.com/v1/models");
+    expect(resolveOpenAIModelListUrl("http://192.168.4.159:4000")).toBe(
+      "http://192.168.4.159:4000/v1/models"
+    );
+    expect(resolveOpenAIModelListUrl("http://192.168.4.159:4000/")).toBe(
+      "http://192.168.4.159:4000/v1/models"
+    );
     expect(resolveOpenAIModelListUrl("https://api.deepseek.com/models")).toBe(
       "https://api.deepseek.com/models"
     );
@@ -224,6 +248,42 @@ describe("modelList", () => {
         key: "sk-test",
       }).input
     ).toBe("https://api.deepseek.com/models");
+  });
+
+  test("completes an OpenAI service root or /v1 to chat completions", () => {
+    expect(resolveOpenAIChatCompletionsUrl("http://192.168.4.159:4000")).toBe(
+      "http://192.168.4.159:4000/v1/chat/completions"
+    );
+    expect(
+      resolveOpenAIChatCompletionsUrl("http://192.168.4.159:4000/v1")
+    ).toBe("http://192.168.4.159:4000/v1/chat/completions");
+    expect(
+      resolveOpenAIChatCompletionsUrl("http://192.168.4.159:4000/v1/")
+    ).toBe("http://192.168.4.159:4000/v1/chat/completions");
+    expect(
+      resolveOpenAIChatCompletionsUrl("http://192.168.4.159:4000/v1/models")
+    ).toBe("http://192.168.4.159:4000/v1/chat/completions");
+    expect(
+      resolveOpenAIChatCompletionsUrl(
+        "https://api.openai.com/v1/chat/completions"
+      )
+    ).toBe("https://api.openai.com/v1/chat/completions");
+    expect(
+      resolveOpenAIChatCompletionsUrl(
+        "https://api.deepseek.com/chat/completions"
+      )
+    ).toBe("https://api.deepseek.com/chat/completions");
+    expect(
+      resolveOpenAIChatCompletionsUrl(
+        "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      )
+    ).toBe(
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    );
+    expect(
+      resolveOpenAIChatCompletionsUrl("https://example.com/v1?api_key={{key}}")
+    ).toBe("https://example.com/v1?api_key={{key}}");
+    expect(resolveOpenAIChatCompletionsUrl("not a url")).toBe("not a url");
   });
 
   test("uses key placeholder without extra authorization", () => {

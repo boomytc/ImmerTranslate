@@ -119,9 +119,7 @@ export default function FabQuickOptions({
       (API_SPE_TYPES.ai.has(activeApi.apiType) ||
         activeApi.apiType === OPT_TRANS_QWENMT)
   );
-  const listUrl = String(
-    activeApi?.modelListUrl || activeApi?.url || ""
-  ).trim();
+  const listUrl = String(activeApi?.url || "").trim();
   const selectedModel = modelOverride ?? activeApi?.model ?? "";
   const modelOptions = useMemo(
     () =>

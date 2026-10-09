@@ -17,10 +17,56 @@ const MODEL_KEY_PLACEHOLDER = "{{key}}";
  * @param {string} url 待检验的 URL。
  * @returns {boolean} 是否为 Gemini 原生模型列表 URL。
  */
+const GEMINI_NATIVE_MODELS_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models";
+
 const isGeminiNativeModelListUrl = (url = "") =>
   /^https:\/\/generativelanguage\.googleapis\.com\/v1(?:beta\d*)?\/models(?:[/?]|$)/i.test(
     url
   ) && !/\/openai\//i.test(url);
+
+/**
+ * 原生 Gemini 的对话地址和模型目录不是同一条路径。
+ * 官方域名收成 v1beta/models；自定义代理去掉 generateContent 或 interactions 后缀。
+ *
+ * @param {string} url 用户填写的 Gemini 接口地址
+ * @returns {string} 模型目录地址
+ */
+const resolveGeminiCatalogUrl = (url = "") => {
+  const trimmed = String(url || "").trim();
+  if (!trimmed || isGeminiNativeModelListUrl(trimmed)) return trimmed;
+
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+
+  if (/(^|\.)generativelanguage\.googleapis\.com$/i.test(parsed.hostname)) {
+    return GEMINI_NATIVE_MODELS_URL;
+  }
+
+  const generateContent = parsed.pathname.match(
+    /^(.*)\/models\/[^/]+:generateContent$/i
+  );
+  if (generateContent) {
+    parsed.pathname = `${generateContent[1]}/models`;
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  }
+
+  const path = parsed.pathname.replace(/\/+$/, "");
+  if (/\/interactions$/i.test(path)) {
+    parsed.pathname = path.replace(/\/interactions$/i, "/models");
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  }
+
+  return trimmed;
+};
 
 /**
  * 去掉 Gemini 原生模型列表返回的资源名前缀。
@@ -174,8 +220,11 @@ const appendQueryParam = (url, name, value) => {
  * @returns {{input: string, init: Object}|null} 可传给请求层的参数；配置不足时返回 null。
  */
 export function createModelListRequest({ apiType, modelListUrl, key }) {
-  const trimmedUrl = (modelListUrl || "").trim();
+  let trimmedUrl = (modelListUrl || "").trim();
   const trimmedKey = (key || "").trim();
+  if (apiType === OPT_TRANS_GEMINI) {
+    trimmedUrl = resolveGeminiCatalogUrl(trimmedUrl);
+  }
 
   // 用户没有同时配置模型列表 URL 和 Key 时，不发起网络请求。
   if (!trimmedUrl || !trimmedKey) {
@@ -297,8 +346,58 @@ export function isDashscopeNativeModelListUrl(url = "") {
   );
 }
 
+const stripTrailingSlashes = (pathname = "") =>
+  String(pathname || "").replace(/\/+$/, "");
+
 /**
- * 把 OpenAI 兼容的对话地址或 API 根收成 `{base}/models`。
+ * 识别 OpenAI 兼容服务的路径形态。
+ * origin 和以 `/v1` 结尾的根地址需要补全；已经指向对话或模型列表的地址保持原样。
+ *
+ * @param {string} pathname URL pathname
+ * @returns {"origin"|"v1"|"chat"|"models"|"other"}
+ */
+const classifyOpenAIServicePath = (pathname = "") => {
+  const path = stripTrailingSlashes(pathname) || "/";
+  if (path === "/") return "origin";
+  if (/\/chat\/completions$/i.test(path)) return "chat";
+  if (/\/models$/i.test(path)) return "models";
+  if (/\/v1$/i.test(path)) return "v1";
+  return "other";
+};
+
+/**
+ * 把用户填写的服务根地址补成 OpenAI 兼容对话地址。
+ * `http://host:4000` 和 `http://host:4000/v1` 都会变成 `.../v1/chat/completions`。
+ * 已经是完整对话地址，或带有其它路径的地址，保持原样。
+ *
+ * @param {string} url 用户填写的接口地址
+ * @returns {string} 可用于 chat completions 的地址
+ */
+export function resolveOpenAIChatCompletionsUrl(url = "") {
+  const trimmed = String(url || "").trim();
+  if (!trimmed || trimmed.includes(MODEL_KEY_PLACEHOLDER)) return trimmed;
+
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+
+  const kind = classifyOpenAIServicePath(parsed.pathname);
+  if (kind === "chat" || kind === "other") return trimmed;
+
+  const path = stripTrailingSlashes(parsed.pathname).replace(/\/v1$/i, "/v1");
+  if (kind === "origin") parsed.pathname = "/v1/chat/completions";
+  else if (kind === "v1") parsed.pathname = `${path}/chat/completions`;
+  else parsed.pathname = `${path.replace(/\/models$/i, "")}/chat/completions`;
+  return parsed.toString();
+}
+
+/**
+ * 把 OpenAI 兼容的对话地址或 API 根收成模型列表地址。
+ * 裸主机补成 `/v1/models`，以 `/v1` 结尾的地址补成 `{path}/models`。
+ * 不含 `/v1` 的 `/chat/completions`（如 DeepSeek）仍收成 `/models`。
  * 已经以 `/models` 结尾的地址保持不变。
  *
  * @param {string} modelListUrl 模型列表地址、API 根或 chat completions 地址
@@ -308,11 +407,14 @@ export function resolveOpenAIModelListUrl(modelListUrl = "") {
   const trimmed = String(modelListUrl || "").trim();
   if (!trimmed || trimmed.includes(MODEL_KEY_PLACEHOLDER)) return trimmed;
 
-  const applyPath = (path) => {
-    let next = String(path || "").replace(/\/+$/, "");
-    next = next.replace(/\/chat\/completions$/i, "");
-    if (!/\/models$/i.test(next)) next = `${next}/models`;
-    return next || "/models";
+  const applyPath = (pathname) => {
+    let next = stripTrailingSlashes(pathname);
+    const wasChat = /\/chat\/completions$/i.test(next);
+    if (wasChat) next = next.replace(/\/chat\/completions$/i, "");
+    if (!next) return wasChat ? "/models" : "/v1/models";
+    next = next.replace(/\/v1$/i, "/v1");
+    if (/\/models$/i.test(next)) return next;
+    return `${next}/models`;
   };
 
   try {
