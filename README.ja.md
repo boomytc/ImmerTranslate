@@ -1,14 +1,68 @@
-# ImmerTranslate
+<p align="center">
+  <img src="public/images/logo128.png" alt="ImmerTranslate" width="96" height="96">
+</p>
 
-[中文](README.md) | [English](README.en.md) | [한국어](README.ko.md)
+<h1 align="center">ImmerTranslate</h1>
 
-ImmerTranslate はバイリンガルウェブ翻訳拡張機能です。リポジトリ：[boomytc/ImmerTranslate](https://github.com/boomytc/ImmerTranslate)。ライセンス：GPL-3.0。
+<p align="center">原文と訳文を並べて読めるバイリンガルのウェブ翻訳拡張機能。自分のサービスとキーを使え、データは手元に残ります。</p>
 
-[GPL-3.0 のオープンソースプロジェクトを基に二次開発](https://github.com/fishjar/kiss-translator)
+<p align="center">
+  <a href="https://github.com/boomytc/ImmerTranslate/releases/latest"><img alt="最新リリース" src="https://img.shields.io/github/v/release/boomytc/ImmerTranslate?label=release"></a>
+  <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
+  <img alt="Chrome, Edge, Firefox, Thunderbird, ユーザースクリプト" src="https://img.shields.io/badge/works%20on-Chrome%20%7C%20Edge%20%7C%20Firefox%20%7C%20Thunderbird%20%7C%20userscript-informational">
+</p>
 
-## 読み込み
+<p align="center">
+  <a href="README.md">中文</a> · <a href="README.en.md">English</a> · <a href="README.ko.md">한국어</a>
+</p>
 
-Node.js と pnpm が必要です。
+## 特長
+
+- **対訳表示。** ページを翻訳すると、各段落の原文の下に訳文が並びます。レイアウトやリンクはそのままで、訳文のみの表示にもできます。
+- **キーなしで使える。** Google や Microsoft などの無料サービスは、インストール後すぐ、アカウント不要で使えます。
+- **自分のキーを使える。** 大規模言語モデルを使うときは自分のキーを入力します。キーは拡張機能のローカルストレージにだけ保存され、第三者を経由しません。
+- **ページ全体だけではない。** 選択範囲、ホバー、入力欄、動画の字幕それぞれに入口があります。
+- **サイトごとに記憶。** サイトごとに自動翻訳・翻訳しないを設定でき、それ以外はグローバル設定に従います。
+
+## できること
+
+| 場面                 | 内容                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| ページ全体           | ワンクリックまたはショートカットで翻訳。長いページは分割して要求します。                   |
+| 選択翻訳             | 文字を選んでボタンを押すと、パネルで訳文の確認、コピー、読み上げができます。               |
+| ホバー翻訳           | 段落にポインターを置くと訳文の吹き出しが出ます。                                           |
+| 入力欄の翻訳         | 入力欄に書いた文章をその場で目的言語に翻訳します。                                         |
+| 動画字幕             | YouTube の字幕をバイリンガルで表示します。                                                 |
+| フローティングボール | 対訳と訳文のみの切り替え、サービスとモデルの変更、現在のサイトの翻訳方法の設定ができます。 |
+| ルールと用語集       | サイトごとの翻訳ルールを保存し、ルール一覧の購読や用語集も使えます。                       |
+| 同期                 | 暗号化した設定を WebDAV などで同期できます。                                               |
+
+表示言語：English、简体中文、繁體中文、日本語、한국어、Türkçe、Tiếng Việt、Русский。
+
+## 翻訳サービス
+
+- **キー不要：** Google、Microsoft、DeepL と Yandex の Web エンドポイント、ブラウザ内蔵 AI（対応ブラウザのみ）。
+- **自分のキーを使う：** OpenAI、Anthropic（Claude）、DeepSeek、MiMo、DashScope、ModelScope、ModelBest などの LLM サービス、DeepL、Google Cloud、Azure、百度、Tencent、Volcengine などの翻訳 API、OpenAI 互換のカスタムエンドポイント。
+
+プリセットの LLM サービスは初期状態で無効です。オプションで有効にし、ベース URL、キー、モデルを入力してください。翻訳リクエストでは思考モードを既定でオフにしています。詳しくは [docs/BYOK.md](docs/BYOK.md) を参照してください。
+
+## インストール
+
+ブラウザストアにはまだ公開していません。[GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest) からお使いのブラウザ用パッケージをダウンロードしてください。
+
+| ブラウザ           | ファイル                                    | インストール方法                                                                                                         |
+| ------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Chrome             | `immer-translate_<version>_chrome.zip`      | 展開し、`chrome://extensions` でデベロッパーモードをオンにして「パッケージ化されていない拡張機能を読み込む」を選びます。 |
+| Edge               | `immer-translate_<version>_edge.zip`        | 展開し、`edge://extensions` で開発者モードをオンにして「展開して読み込み」を選びます。                                   |
+| Firefox            | `immer-translate_<version>_firefox.zip`     | `about:debugging` を開き「一時的なアドオンを読み込む」を選びます。                                                       |
+| Thunderbird        | `immer-translate_<version>_thunderbird.zip` | アドオンマネージャーでファイルからインストールします。                                                                   |
+| ユーザースクリプト | `immer-translate_<version>_userscript.zip`  | 展開して `immer-translate.user.js` を Tampermonkey などに追加します。                                                    |
+
+ツールバーのアイコンをクリックすれば開始できます。最初は無料サービスをそのまま試せます。
+
+## ソースからビルド
+
+Node.js 24 と pnpm が必要です。
 
 ```sh
 git clone https://github.com/boomytc/ImmerTranslate.git
@@ -17,30 +71,8 @@ pnpm install
 pnpm build:chrome
 ```
 
-`pnpm build` も同じディレクトリを生成します。Chrome で `chrome://extensions` を開き、デベロッパーモードをオンにして「パッケージ化されていない拡張機能を読み込む」から `build/chrome` を選びます（中に `manifest.json` があること）。
+出力は `build/chrome` にあります。上の手順で読み込んでください。`pnpm build` はすべてのクライアントをまとめてビルドし、`pnpm test` は単体テストを実行します。リリース手順は [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)、各バージョンの変更点は [CHANGELOG.md](CHANGELOG.md) を参照してください。
 
-## BYOK
+## ライセンス
 
-プリセットのサービスにキーは含まれません。キーは拡張機能のローカルストレージにのみ置き、リポジトリへ書き込まないでください。次のプリセットは初期状態で無効です。オプションページで有効にしてから、アドレス、キー、モデルを入力します。
-
-- OpenAI
-- Anthropic（プリセット名 Claude）
-- DeepSeek
-- MiMo（プリセット名 XiaomiMimo）
-- DashScope（プリセット名 AliyunBailian）
-- ModelScope
-- ModelBest
-
-オプションページの接続テストは `fetchModelCatalog` でモデル一覧を取得するだけで、chat/completions は送りません。
-
-翻訳リクエストは既定で思考 / 推論をオフにします（`thinkingMode` は `disabled`。思考パラメータは注入しません）。
-
-## シェル上にある機能
-
-- ウェブページのバイリンガル対照翻訳。
-- フローティングボールのショートカットメニュー：
-  - 訳文の表示：バイリンガル対照、または訳文のみ。
-  - 現在のエンジンのモデル。モデル一覧は一つだけです。
-  - 現在のサイトの自動翻訳（三態）：グローバルに従う、自動翻訳、自動翻訳しない（個人ルールの `transOpen`）。
-  - 翻訳サービス：有効かつキーが空でないプロバイダだけを列挙します。一つもないときは、その位置に空状態を出し、オプションページ `#/apis` を開きます。現在のサービスがキーを必要とし、キーが空のとき、フローティングボールとポップアップは同じ空状態を表示し、翻訳が完了したようには見せません。選択すると `MSG_TRANS_PUTRULE` で、現在のサイトのページルールに `apiSlug` を書き込みます。オプションページのグローバル既定サービスは変えません。キー不要のエンジン（Microsoft、Google、内蔵翻訳など）はそのまま使えます。
-- 界面言語：簡体字中国語（`zh`）と English（`en`）。
+このプロジェクトは GPL-3.0 のオープンソースプロジェクトを基に二次開発したもので、同じく [GPL-3.0](LICENSE) で公開しています。改変版を配布する場合は、ライセンスを保持し、対応するソースコードを提供してください。
