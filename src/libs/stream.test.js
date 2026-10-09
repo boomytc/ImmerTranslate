@@ -23,6 +23,7 @@ import {
   OPT_TRANS_ORCAROUTER,
   OPT_TRANS_REQUESTY,
   OPT_TRANS_MODELSCOPE,
+  OPT_TRANS_MODELBEST,
 } from "../config";
 
 describe("createRealtimeStreamParser", () => {
@@ -133,6 +134,15 @@ describe("getStreamDelta", () => {
 
     expect(getStreamDelta(chunk, OPT_TRANS_ORCAROUTER)).toBe("敏");
     expect(getStreamDelta({ choices: [] }, OPT_TRANS_ORCAROUTER)).toBe("");
+  });
+
+  test("extracts ModelBest as an OpenAI-compatible stream", () => {
+    const chunk = {
+      choices: [{ delta: { content: "你好" }, finish_reason: null, index: 0 }],
+    };
+
+    expect(getStreamDelta(chunk, OPT_TRANS_MODELBEST)).toBe("你好");
+    expect(getStreamDelta({ choices: [] }, OPT_TRANS_MODELBEST)).toBe("");
   });
 
   test("extracts ModelScope as an OpenAI-compatible stream", () => {

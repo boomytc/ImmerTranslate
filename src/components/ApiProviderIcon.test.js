@@ -10,6 +10,7 @@ import {
   OPT_TRANS_ORCAROUTER,
   OPT_TRANS_REQUESTY,
   OPT_TRANS_MODELSCOPE,
+  OPT_TRANS_MODELBEST,
   OPT_TRANS_SILICONFLOW,
 } from "../config";
 import ApiProviderIcon, {
@@ -87,6 +88,16 @@ describe("getApiIconSrc", () => {
         publicUrl: "/kiss-translator",
       })
     ).toBe("/kiss-translator/api/OrcaRouter.svg");
+  });
+
+  test("resolves the ModelBest asset through the shared provider map", () => {
+    expect(
+      getApiIconSrc(OPT_TRANS_MODELBEST, {
+        runtime: undefined,
+        publicUrl: "/kiss-translator",
+        allowPublicUrl: true,
+      })
+    ).toBe("/kiss-translator/api/ModelBest.svg");
   });
 
   test("resolves the ModelScope asset through the shared provider map", () => {

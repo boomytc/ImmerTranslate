@@ -17,8 +17,11 @@ import {
   DASHSCOPE_NATIVE_MODELS_URL,
   MODELSCOPE_CHAT_COMPLETIONS_URL,
   MODELSCOPE_MODELS_URL,
+  MODELBEST_CHAT_COMPLETIONS_URL,
+  MODELBEST_MODELS_URL,
   OPT_TRANS_CLOUDFLAREAI,
   OPT_TRANS_MODELSCOPE,
+  OPT_TRANS_MODELBEST,
   OPT_TRANS_BUILTINAI,
   OPT_TRANS_DEEPSEEK,
   OPT_TRANS_EPHONEAI,
@@ -314,6 +317,7 @@ describe("unified thinking capabilities", () => {
     [OPT_TRANS_XIAOMIMIMO, "deepseek"],
     [OPT_TRANS_ZAI, "deepseek"],
     [OPT_TRANS_ALIYUNBAILIAN, "boolean"],
+    [OPT_TRANS_MODELBEST, "modelbest"],
     [OPT_TRANS_SILICONFLOW, "siliconflow"],
   ])("uses explicit thinking modes for %s", (apiType, adapter) => {
     const capability = getThinkingCapability({ apiType });
@@ -582,7 +586,7 @@ test("filters native Gemini thinking efforts by model capability", () => {
   ).toEqual(["high", "medium", "low"]);
 });
 
-test("registers ModelScope and the six model-list presets", () => {
+test("registers ModelScope, ModelBest, and the model-list presets", () => {
   const modelscope = DEFAULT_API_LIST.find(
     (api) => api.apiType === OPT_TRANS_MODELSCOPE
   );
@@ -600,6 +604,29 @@ test("registers ModelScope and the six model-list presets", () => {
   expect(API_SPE_TYPES.batch.has(OPT_TRANS_MODELSCOPE)).toBe(true);
   expect(API_SPE_TYPES.context.has(OPT_TRANS_MODELSCOPE)).toBe(true);
   expect(API_SPE_TYPES.stream.has(OPT_TRANS_MODELSCOPE)).toBe(true);
+
+  const modelbest = DEFAULT_API_LIST.find(
+    (api) => api.apiType === OPT_TRANS_MODELBEST
+  );
+  expect(modelbest).toMatchObject({
+    apiSlug: OPT_TRANS_MODELBEST,
+    url: MODELBEST_CHAT_COMPLETIONS_URL,
+    modelListUrl: MODELBEST_MODELS_URL,
+    model: "MiniCPM5-2B",
+    key: "",
+    isDisabled: true,
+    thinkingMode: "disabled",
+    thinkingEffort: null,
+  });
+  expect(API_SPE_TYPES.ai.has(OPT_TRANS_MODELBEST)).toBe(true);
+  expect(API_SPE_TYPES.mulkeys.has(OPT_TRANS_MODELBEST)).toBe(true);
+  expect(API_SPE_TYPES.batch.has(OPT_TRANS_MODELBEST)).toBe(true);
+  expect(API_SPE_TYPES.context.has(OPT_TRANS_MODELBEST)).toBe(true);
+  expect(API_SPE_TYPES.stream.has(OPT_TRANS_MODELBEST)).toBe(true);
+  expect(API_SPE_TYPES.machine.has(OPT_TRANS_MODELBEST)).toBe(false);
+  expect(OPT_LANGS_TO_SPEC[OPT_TRANS_MODELBEST].get("zh-CN")).toBe(
+    "Simplified Chinese"
+  );
 
   expect(
     DEFAULT_API_LIST.find((api) => api.apiType === OPT_TRANS_OPENAI)
@@ -664,6 +691,7 @@ describe("API Key official URLs and helpers", () => {
       OPT_TRANS_ALIYUNBAILIAN,
       OPT_TRANS_QWENMT,
       OPT_TRANS_MODELSCOPE,
+      OPT_TRANS_MODELBEST,
       OPT_TRANS_OPENROUTER,
       OPT_TRANS_DEEPL,
       OPT_TRANS_AZUREAI,
@@ -705,6 +733,9 @@ describe("API Key official URLs and helpers", () => {
     );
     expect(API_KEY_URLS[OPT_TRANS_OPENROUTER]).toBe(
       "https://openrouter.ai/keys"
+    );
+    expect(API_KEY_URLS[OPT_TRANS_MODELBEST]).toBe(
+      "https://platform.modelbest.cn/console/"
     );
     expect(API_KEY_URLS[OPT_TRANS_DEEPL]).toBe(
       "https://www.deepl.com/your-account/keys"

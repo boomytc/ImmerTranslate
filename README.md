@@ -29,6 +29,7 @@ pnpm build:chrome
 - MiMo（预置名 XiaomiMimo）
 - DashScope（预置名 AliyunBailian）
 - ModelScope
+- ModelBest
 
 选项页的测试连接只调用 `fetchModelCatalog` 拉模型列表，不发 chat/completions。
 

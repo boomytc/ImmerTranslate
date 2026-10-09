@@ -63,6 +63,7 @@ export const OPT_TRANS_SILICONFLOW = "SiliconFlow"; // 硅基流动 AI 翻译 (�
 export const OPT_TRANS_XIAOMIMIMO = "XiaomiMimo"; // 小米米莫 AI 翻译
 export const OPT_TRANS_ALIYUNBAILIAN = "AliyunBailian"; // 阿里云百炼大模型翻译
 export const OPT_TRANS_MODELSCOPE = "ModelScope"; // 魔搭 ModelScope API-Inference
+export const OPT_TRANS_MODELBEST = "ModelBest"; // 面壁智能 ModelBest OpenAI 兼容接口
 export const OPT_TRANS_QWENMT = "QwenMT"; // 阿里云百炼 Qwen-MT 专用翻译
 export const OPT_TRANS_CEREBRAS = "Cerebras"; // Cerebras AI 翻译极速推理服务
 export const OPT_TRANS_ZAI = "Zai"; // 智谱 AI 翻译服务
@@ -87,11 +88,14 @@ export const OPT_TRANS_ORCAROUTER = "OrcaRouter"; // OrcaRouter 多模型聚合 
 export const OPT_TRANS_REQUESTY = "Requesty"; // Requesty 多模型聚合 API 翻译
 export const OPT_TRANS_CUSTOMIZE = "Custom"; // 自定义翻译 API
 
-// ModelScope API-Inference 与 DashScope 原生模型目录。Key 由用户本机填写，不写入仓库。
+// ModelScope、ModelBest 与 DashScope 的模型目录。Key 由用户本机填写，不写入仓库。
 export const MODELSCOPE_CHAT_COMPLETIONS_URL =
   "https://api-inference.modelscope.cn/v1/chat/completions";
 export const MODELSCOPE_MODELS_URL =
   "https://api-inference.modelscope.cn/v1/models";
+export const MODELBEST_CHAT_COMPLETIONS_URL =
+  "https://api.modelbest.cn/v1/chat/completions";
+export const MODELBEST_MODELS_URL = "https://api.modelbest.cn/v1/models";
 export const DASHSCOPE_NATIVE_MODELS_URL =
   "https://dashscope.aliyuncs.com/api/v1/models";
 
@@ -109,6 +113,7 @@ export const OPT_ALL_TRANS_TYPES = [
   OPT_TRANS_XIAOMIMIMO,
   OPT_TRANS_ALIYUNBAILIAN,
   OPT_TRANS_MODELSCOPE,
+  OPT_TRANS_MODELBEST,
   OPT_TRANS_QWENMT,
   OPT_TRANS_CEREBRAS,
   OPT_TRANS_ZAI,
@@ -145,6 +150,7 @@ export const API_KEY_URLS = {
     "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
   [OPT_TRANS_QWENMT]: "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
   [OPT_TRANS_MODELSCOPE]: "https://modelscope.cn/my/myaccesstoken",
+  [OPT_TRANS_MODELBEST]: "https://platform.modelbest.cn/console/",
   [OPT_TRANS_OPENROUTER]: "https://openrouter.ai/keys",
   [OPT_TRANS_DEEPL]: "https://www.deepl.com/your-account/keys",
   [OPT_TRANS_AZUREAI]:
@@ -215,6 +221,7 @@ export const API_SPE_TYPES = {
     OPT_TRANS_XIAOMIMIMO,
     OPT_TRANS_ALIYUNBAILIAN,
     OPT_TRANS_MODELSCOPE,
+    OPT_TRANS_MODELBEST,
     OPT_TRANS_CEREBRAS,
     OPT_TRANS_ZAI,
     OPT_TRANS_GEMINI,
@@ -237,6 +244,7 @@ export const API_SPE_TYPES = {
     OPT_TRANS_XIAOMIMIMO,
     OPT_TRANS_ALIYUNBAILIAN,
     OPT_TRANS_MODELSCOPE,
+    OPT_TRANS_MODELBEST,
     OPT_TRANS_QWENMT,
     OPT_TRANS_CEREBRAS,
     OPT_TRANS_ZAI,
@@ -263,6 +271,7 @@ export const API_SPE_TYPES = {
     OPT_TRANS_XIAOMIMIMO,
     OPT_TRANS_ALIYUNBAILIAN,
     OPT_TRANS_MODELSCOPE,
+    OPT_TRANS_MODELBEST,
     OPT_TRANS_CEREBRAS,
     OPT_TRANS_ZAI,
     OPT_TRANS_GOOGLE,
@@ -291,6 +300,7 @@ export const API_SPE_TYPES = {
     OPT_TRANS_XIAOMIMIMO,
     OPT_TRANS_ALIYUNBAILIAN,
     OPT_TRANS_MODELSCOPE,
+    OPT_TRANS_MODELBEST,
     OPT_TRANS_CEREBRAS,
     OPT_TRANS_ZAI,
     OPT_TRANS_OPENAI,
@@ -313,6 +323,7 @@ export const API_SPE_TYPES = {
     OPT_TRANS_XIAOMIMIMO,
     OPT_TRANS_ALIYUNBAILIAN,
     OPT_TRANS_MODELSCOPE,
+    OPT_TRANS_MODELBEST,
     OPT_TRANS_CEREBRAS,
     OPT_TRANS_ZAI,
     OPT_TRANS_OPENAI,
@@ -668,6 +679,13 @@ export const THINKING_API_REGISTRY = {
   [OPT_TRANS_MODELSCOPE]: {
     adapter: "openai",
     resolveCapability: ({ model }) => getOpenAIThinkingCapability(model),
+  },
+  [OPT_TRANS_MODELBEST]: {
+    adapter: "modelbest",
+    resolveCapability: resolveFixedCapability(null, {
+      enable: "explicit",
+      disable: "explicit",
+    }),
   },
   [OPT_TRANS_OPENROUTER]: {
     adapter: "openrouter",
@@ -1132,6 +1150,7 @@ export const OPT_LANGS_TO_SPEC = {
   [OPT_TRANS_XIAOMIMIMO]: OPT_LANGS_SPEC_NAME,
   [OPT_TRANS_ALIYUNBAILIAN]: OPT_LANGS_SPEC_NAME,
   [OPT_TRANS_MODELSCOPE]: OPT_LANGS_SPEC_NAME,
+  [OPT_TRANS_MODELBEST]: OPT_LANGS_SPEC_NAME,
   [OPT_TRANS_QWENMT]: new Map([...OPT_LANGS_SPEC_NAME, ["auto", "auto"]]),
   [OPT_TRANS_CEREBRAS]: OPT_LANGS_SPEC_NAME,
   [OPT_TRANS_ZAI]: OPT_LANGS_SPEC_NAME,
@@ -1732,6 +1751,13 @@ const defaultApiOpts = {
     url: MODELSCOPE_CHAT_COMPLETIONS_URL,
     modelListUrl: MODELSCOPE_MODELS_URL,
     model: "Qwen/Qwen3-32B",
+    ...defaultAiApiOpts,
+  },
+  [OPT_TRANS_MODELBEST]: {
+    ...defaultApi,
+    url: MODELBEST_CHAT_COMPLETIONS_URL,
+    modelListUrl: MODELBEST_MODELS_URL,
+    model: "MiniCPM5-2B",
     ...defaultAiApiOpts,
   },
   [OPT_TRANS_QWENMT]: {
