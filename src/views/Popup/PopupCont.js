@@ -1291,20 +1291,8 @@ export default function PopupCont({
       )}
 
       <div className="kt-popup-fab-control">
-        <div className="kt-popup-section-label">{i18n("fab_control")}</div>
-        <div className="kt-popup-fab-control__body">
-          <div className="kt-popup-fab-control__global">
-            <span>{i18n("fab_global_switch")}</span>
-            <Switch
-              size="small"
-              checked={!fabLoading && !fabData?.isHide}
-              disabled={fabLoading}
-              onChange={(_event, checked) =>
-                void handleToggleGlobalFab(checked)
-              }
-              inputProps={{ "aria-label": i18n("fab_global_switch") }}
-            />
-          </div>
+        <div className="kt-popup-fab-control__head">
+          <div className="kt-popup-section-label">{i18n("fab_control")}</div>
           {canTranslatePage && domainOptions.length > 0 && (
             <Button
               variant="outlined"
@@ -1321,7 +1309,19 @@ export default function PopupCont({
             </Button>
           )}
         </div>
-        <div className="kt-popup-fab-control__row">
+        <div className="kt-popup-fab-control__switches">
+          <div className="kt-popup-fab-control__global">
+            <span>{i18n("fab_global_switch")}</span>
+            <Switch
+              size="small"
+              checked={!fabLoading && !fabData?.isHide}
+              disabled={fabLoading}
+              onChange={(_event, checked) =>
+                void handleToggleGlobalFab(checked)
+              }
+              inputProps={{ "aria-label": i18n("fab_global_switch") }}
+            />
+          </div>
           <div className="kt-popup-fab-control__global">
             <span>{i18n("selection_translate")}</span>
             <Switch
