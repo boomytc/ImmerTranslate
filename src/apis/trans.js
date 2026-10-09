@@ -2011,7 +2011,6 @@ export const parseTransRes = async (
     toLang,
     langMap,
     resHook,
-    // thinkIgnore,
     history,
     userMsg,
     apiType,
@@ -2202,13 +2201,6 @@ export const parseTransRes = async (
       return [[res?.result?.translated_text]];
     case OPT_TRANS_OLLAMA:
       modelMsg = res?.choices?.[0]?.message;
-
-      // const deepModels = thinkIgnore
-      //   .split(",")
-      //   .filter((model) => model?.trim());
-      // if (deepModels.some((model) => res?.model?.startsWith(model))) {
-      //   modelMsg?.content.replace(/<think>[\s\S]*<\/think>/i, "");
-      // }
 
       if (history && userMsg) {
         history.addPair(userMsg, modelMsg);

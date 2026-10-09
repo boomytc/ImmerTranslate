@@ -146,7 +146,7 @@ test("the documented hook overrides a session while preserving auth, prompts and
   const fs = require("fs");
   const path = require("path");
   const doc = fs.readFileSync(
-    path.join(__dirname, "../../custom-api_v2.md"),
+    path.join(__dirname, "../../custom-api.md"),
     "utf8"
   );
   const section = doc

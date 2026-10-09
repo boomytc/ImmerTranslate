@@ -1,348 +1,308 @@
-# 自定义接口示例（本文档已过期，新版不再适用）
+# 自定义接口说明及示例
 
-V2版的示例请查看这里：[custom-api_v2.md](https://github.com/boomytc/ImmerTranslate/blob/main/custom-api_v2.md)
+## 默认接口规范
 
-以下示例为网友提供，仅供学习参考。
+如果接口的请求数据和返回数据符合以下规范，
+则无需填写 `Request Hook` 或 `Response Hook`。
 
-## 本地运行 Seed-X-PPO-7B 量化模型
 
-> 由网友 emptyghost6 提供，来源：https://linux.do/t/topic/828257
+### 非聚合翻译
 
-URL
+Request body
 
-```sh
-http://localhost:8000/v1/completions
-```
-
-Request Hook
-
-```js
-(text, from, to, url, key) => {
-  // 模型支持的语言代码到完整名称的映射
-  const langFullNameMap = {
-    ar: 'Arabic', fr: 'French', ms: 'Malay', ru: 'Russian',
-    cs: 'Czech', hr: 'Croatian', nb: 'Norwegian Bokmal', sv: 'Swedish',
-    da: 'Danish', hu: 'Hungarian', nl: 'Dutch', th: 'Thai',
-    de: 'German', id: 'Indonesian', no: 'Norwegian', tr: 'Turkish',
-    en: 'English', it: 'Italian', pl: 'Polish', uk: 'Ukrainian',
-    es: 'Spanish', ja: 'Japanese', pt: 'Portuguese', vi: 'Vietnamese',
-    fi: 'Finnish', ko: 'Korean', ro: 'Romanian', zh: 'Chinese'
-  };
-
-  // 将 Hook 系统的语言代码转换为模型 API 支持的代码
-  const getModelLangCode = (lang) => {
-    if (lang === 'zh-CN' || lang === 'zh-TW') return 'zh';
-    return lang;
-  };
-
-  const sourceLangCode = getModelLangCode(from);
-  const targetLangCode = getModelLangCode(to);
-
-  const sourceLangName = langFullNameMap[sourceLangCode] || from;
-  const targetLangName = langFullNameMap[targetLangCode] || to;
-
-  const prompt = `Translate it to ${targetLangName}:\n${text} <${targetLangCode}>`;
-
-  // 构建请求体对象
-  const bodyObject = {
-    model: "./ByteDance-Seed/Seed-X-PPO-7B-AWQ-Int4",
-    prompt: prompt,
-    max_tokens: 2048,
-    temperature: 0.0,
-  };
-
-  // 返回最终的请求配置
-  return [url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    // 关键改动：将 JavaScript 对象转换为 JSON 字符串
-    body: JSON.stringify(bodyObject),
-  }];
+```json
+{
+  "text": "hello",    // 需要翻译的文本列表
+  "from":"auto",      // 原文语言
+  "to": "zh-CN"       // 目标语言
 }
 ```
 
-Response Hook
+Response
 
-```js
-(res, text, from, to) => {
-  // 检查返回是否有效
-  if (res && res.choices && res.choices.length > 0 && res.choices[0].text) {
+```json
+{
+  "text": "你好",    // 译文
+  "src": "en"       // 原文语言
+}
 
-    // 提取译文并去除可能存在的前后空格
-    const translatedText = res.choices[0].text.trim();
-
-    // 比较原文与译文，相同为 true，否则为 false。
-    const areTextsIdentical = text.trim() === translatedText;
-
-    // 返回数组：[翻译后的文本, 是否与原文相同]
-    return [translatedText, areTextsIdentical];
-  }
-  // 如果响应格式不正确或没有结果，则抛出错误
-  throw new Error("Invalid API response format or no translation found.");
+// 或者
+{
+  "text": "你好",    // 译文
+  "from": "en"       // 原文语言
 }
 ```
 
-## 接入 openrouter
 
-> 由网友 Rick Sanchez 提供
+### 聚合翻译
 
-URL
+Request body
 
-```sh
-https://openrouter.ai/api/v1/chat/completions
-```
-
-Request Hook
-
-```js
-(text, from, to, url, key) => [url, {
-  method: "POST",
-  headers: {
-      "Authorization": `Bearer ${key}`,
-      "Content-type": "application/json",
-  },
-  body: JSON.stringify({
-    "model": "deepseek/deepseek-chat-v3-0324:free", //可自定义你的模型
-    "messages": [
-      {
-        "role": "user",
-        "content":  //可自定义你的提示词
-`You are a professional ${to} native translator. Your task is to produce a fluent, natural, and culturally appropriate translation of the following text from ${from} to ${to}, fully conveying the meaning, tone, and nuance of the original.
-
-## Translation Rules
-1. Output only the final polished translation — no explanations, intermediate drafts, or notes.
-2. Translate in a way that reads naturally to a native ${to} audience, adapting idioms, cultural references, and tone when necessary.
-3. Preserve proper nouns, technical terms, brand names, and URLs exactly as in the original text unless a widely accepted ${to} equivalent exists.
-4. Keep any formatting (Markdown, HTML tags, bullet points, numbering) intact and positioned naturally within the translation.
-5. Adapt humor, metaphors, and figurative language to culturally relevant forms in ${to} while keeping the original intent.
-6. Maintain the same level of formality or informality as the original.
-
-Source Text: ${text}
-
-Translated Text:`
-      }
-    ]
-  })
-}]
-```
-
-Response Hook
-
-```js
-(res, text, from, to) => [
-  res.choices?.[0]?.message?.content ?? "", 
-  false
-]
-```
-
-## 接入 gemini-2.5-flash, 关闭思考模式, 去审查
-
-> 由网友 Rick Sanchez 提供
-
-URL
-
-```sh
-https://generativelanguage.googleapis.com/v1beta/models
-```
-
-Request Hook
-
-```js
-(text, from, to, url, key) => [`${url}/gemini-2.5-flash:generateContent?key=${key}`, {
-    headers: {
-        "Content-Type": "application/json",
-    },
-    method: "POST",
-    body: JSON.stringify({
-        "generationConfig": {
-            "temperature": 0.8,
-            "thinkingConfig": {
-                "thinkingBudget": 0, //gemini-2.5-flash设为0关闭思考模式
-            },
-        },
-        "safetySettings": [
-            {
-                "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_NONE",
-            },
-            {
-                "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_NONE",
-            },
-            {
-                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_NONE",
-            },
-            {
-                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_NONE",
-            }
-        ],
-        "contents": [{
-            "parts": [{
-                "text": `自定义提示词`
-            }]
-        }],
-    }),
-}]
-```
-
-Response Hook
-
-```js
-(res, text, from, to) => [
-  res.candidates?.[0]?.content?.parts?.[0]?.text ?? "",
-  false
-]
-```
-
-## 接入 Qwen-MT
-
-> 由网友 atom 提供
-
-URL
-
-```sh
-https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
-```
-
-Request Hook
-
-```js
-(text, from, to, url, key) => {
-  const mapLanguageCode = (lang) => ({
-    'zh-CN': 'zh',
-    'zh-TW': 'zh_tw',
-  })[lang] || lang;
-
-  const targetLang = mapLanguageCode(to);
-
-  return [
-    url,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${key}`
-      },
-      body: JSON.stringify({
-        "model": "qwen-mt-turbo",
-        "messages": [
-          {
-            "role": "user",
-            "content": text
-          }
-        ],
-        "translation_options": {
-          "source_lang": "auto",
-          "target_lang": targetLang
-        }
-      })
-    }
-  ];
+```json
+{
+  "texts": ["hello"], // 需要翻译的文本列表
+  "from":"auto",      // 原文语言
+  "to": "zh-CN"       // 目标语言
 }
 ```
 
-Response Hook
+Response
 
-```js
-(res, text, from, to) => [res.choices?.[0]?.message?.content ?? "", false]
-```
-
-
-## 接入 deepl 接口
-
-> 示例
-
-Request Hook
-
-```js
-(text, from, to, url, key) => [
-  url,
+```json
+[
   {
-    headers: {
-      "Content-type": "application/json",
-    },
-    method: "POST",
-    body: JSON.stringify({
-      text,
-      target_lang: "ZH",
-      source_lang: "auto",
-    }),
-  },
+    "text": "你好",    // 译文
+    "src": "en"       // 原文语言
+  }
 ]
 ```
 
-Response Hook
+v2.0.4版后亦支持以下 Response 格式
 
-```js
-(res, text, from, to) => [res.data, "ZH" === res.source_lang]
+```json
+{
+  "translations": [   // 译文列表
+    {
+      "text": "你好",  // 译文
+      "src": "en"     // 原文语言
+    }
+  ]
+}
 ```
 
-## 接入智谱AI大模型
+## Prompt 相关
 
-> 示例
-
-Request Hook
+`Prompt` 可替换占位符：
 
 ```js
-(text, from, to, url, key) => [url, {
-  "method": "POST",
-  "headers": {
-    "Content-type": "application/json",
-    "Authorization": key
-  },
-  "body": JSON.stringify({
-  	"model": "glm-4-flash",
-  	"messages": [
-  		{
-  			"role":"system",
-  			"content": "You are a professional, authentic machine translation engine. You only return the translated text, without any explanations."
-  		},
-  		{
-  			"role": "user",
-  			"content": `Translate the following text into ${to}. If translation is unnecessary (e.g. proper nouns, codes, etc.), return the original text. NO explanations. NO notes:\n\n ${text} `
-  		}
-  	]
-  })
-}]
+`{{from}}`        // 原文语言名称
+`{{to}}`          // 目标语言名称
+`{{fromLang}}`    // 原文语言代码
+`{{toLang}}`      // 目标语言代码
+`{{text}}`        // 原文
+`{{tone}}`        // 风格
+`{{title}}`       // 页面标题
+`{{description}}` // 页面描述
 ```
 
-## 接入谷歌新接口
+Hook 中 `Prompt` 类型说明：
 
-> 由网友 Bush2021 提供
+```js
+`systemPrompt`      // 聚合翻译 System Prompt
+`nobatchPrompt`     // 非聚合翻译 System Prompt
+`nobatchUserPrompt` // 非聚合翻译 User Prompt
+`subtitlePrompt`    // 字幕翻译 System Prompt
+```
+
+## OpenCode 会话请求头
+
+内置 `OpenCodeGo` 接口会自动添加 `x-opencode-session` 请求头。同一页面、同一接口配置与 URL 的请求复用一个随机 ID，包含聚合、非聚合、流式、字幕及摘要请求。刷新页面或 SPA 地址变化后开始新会话。ID 不包含页面地址、原文或 API Key。
+
+若使用 OpenAI 兼容接口接入 OpenCode，或需要手动指定会话 ID，可在该接口的 `Request Hook` 中填写：
+
+```js
+async (args, req = args.req) => {
+  // 为当前翻译会话指定一个 ID；同一会话内保持不变。
+  const sessionId = "8fd946a1-bb92-4aa6-9766-724c9e435832";
+  const headers = { ...req.headers };
+  // 清除已有的同名请求头，避免因大小写不同发送重复值。
+  for (const name of Object.keys(headers)) {
+    if (name.toLowerCase() === "x-opencode-session") delete headers[name];
+  }
+  headers["x-opencode-session"] = sessionId;
+  return { ...req, headers };
+};
+```
+
+第二个参数 `req`（亦可通过 `args.req` 获取）是已构造好的请求。保留它的 URL、body、method 和 userMsg，只补充请求头，翻译协议保持不变，`Response Hook` 无需更改。请勿在每次调用时重新生成随机 ID；开始新的翻译会话时再更换它。
+
+字幕请求不执行 `Request Hook`。需要为字幕手动指定 ID 时，请在“自定义请求头”中配置 JSON，例如 `{"x-opencode-session":"8fd946a1-bb92-4aa6-9766-724c9e435832"}`；内置接口会保留这个显式配置。
+
+参考：[OpenCode Go 对稳定 session ID 的要求](https://opencode.ai/docs/go/#where-can-i-use-it)。
+
+## 谷歌翻译接口
+
+> 此接口不支持聚合
 
 URL
 
-```sh
-https://translate-pa.googleapis.com/v1/translateHtml
 ```
-
-KEY
-
-```sh
-YOUR_API_KEY
+https://translate.googleapis.com/translate_a/single?client=gtx&dj=1&dt=t&ie=UTF-8&q={{text}}&sl=en&tl=zh-CN
 ```
 
 Request Hook
 
 ```js
-(text, from, to, url, key) => [url, {
-    method: "POST", 
-    headers: { 
-        "Content-Type": "application/json+protobuf", 
-        "X-Goog-API-Key": key
-    }, 
-    body: JSON.stringify([[[text], from || "auto", to], "wt_lib"])
-}]
+async (args) => {
+  const url = args.url.replace("{{text}}", args.texts[0]);
+  const method = "GET";
+  return { url, method };
+};
 ```
 
 Response Hook
 
 ```js
-(res, text, from, to) => [res?.[0]?.join(" ") || "Translation unavailable", to === res?.[1]?.[0]]
+async ({ res }) => {
+  return { translations: [[res?.sentences?.[0]?.trans || "", res?.src]] };
+};
 ```
 
 
+## Ollama
+
+> 此示例为开启聚合翻译的写法
+
+* 注意 ollama 启动参数需要添加环境变量 `OLLAMA_ORIGINS=*`
+* 检查环境变量生效命令：`systemctl show ollama | grep OLLAMA_ORIGINS`
+
+URL
+
+```
+http://localhost:11434/v1/chat/completions
+```
+
+Request Hook
+
+```js
+async (args) => {
+  const url = args.url;
+  const method = "POST";
+  const headers = { "Content-type": "application/json" };
+  const body = {
+    model: "gemma3", // 或 args.model
+    messages: [
+      {
+        role: "system",
+        content: args.systemPrompt,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          targetLanguage: args.toLang,
+          segments: args.texts.map((text, id) => ({ id, text })),
+          title: "", // 可省略
+          description: "", // 可省略
+          glossary: {}, // 可省略
+          tone: "", // 可省略
+        }),
+      },
+    ],
+    temperature: 0,
+    max_tokens: 20480,
+    think: false,
+    stream: false,
+  };
+
+  return { url, body, headers, method };
+};
+```
+
+Response Hook
+
+```js
+async ({ res, parseAIRes }) => {
+  const translations = parseAIRes(res?.choices?.[0]?.message?.content);
+  return { translations };
+};
+```
+
+
+## 硅基流动
+
+> 此示例为禁用聚合翻译的写法
+
+URL
+
+```
+https://api.siliconflow.cn/v1/chat/completions
+```
+
+Request Hook
+
+```js
+async (args) => {
+  const url = args.url;
+  const method = "POST";
+  const headers = {
+    "Content-type": "application/json",
+    Authorization: `Bearer ${args.key}`,
+  };
+  const body = {
+    model: "tencent/Hunyuan-MT-7B", // 或 args.model,
+    messages: [
+      {
+        role: "system",
+        content: args.systemPrompt,
+      },
+      {
+        role: "user",
+        content: args.userPrompt,
+      },
+    ],
+    temperature: 0,
+    max_tokens: 20480,
+  };
+
+  return { url, body, headers, method };
+};
+```
+
+Response Hook
+
+```js
+async ({ res }) => {
+  return { translations: [[res?.choices?.[0]?.message?.content || ""]] };
+};
+```
+
+
+## 语言代码表及说明
+
+Hook参数里面的语言含义说明：
+
+- `toLang`, `fromLang` 是本插件支持的标准语言代码
+- `to`, `from` 是转换后的适用于特定接口的语言代码
+
+如果你的自定义接口与下面的标准语言代码不匹配，需要自行映射转换。
+
+```
+["en", "English - English"],
+["zh-CN", "Simplified Chinese - 简体中文"],
+["zh-TW", "Traditional Chinese - 繁體中文"],
+["ar", "Arabic - العربية"],
+["bg", "Bulgarian - Български"],
+["ca", "Catalan - Català"],
+["hr", "Croatian - Hrvatski"],
+["cs", "Czech - Čeština"],
+["da", "Danish - Dansk"],
+["nl", "Dutch - Nederlands"],
+["fa", "Persian - فارسی"],
+["fi", "Finnish - Suomi"],
+["fr", "French - Français"],
+["de", "German - Deutsch"],
+["el", "Greek - Ελληνικά"],
+["hi", "Hindi - हिन्दी"],
+["hu", "Hungarian - Magyar"],
+["id", "Indonesian - Indonesia"],
+["it", "Italian - Italiano"],
+["ja", "Japanese - 日本語"],
+["ko", "Korean - 한국어"],
+["ms", "Malay - Melayu"],
+["mt", "Maltese - Malti"],
+["nb", "Norwegian - Norsk Bokmål"],
+["pl", "Polish - Polski"],
+["pt", "Portuguese - Português"],
+["ro", "Romanian - Română"],
+["ru", "Russian - Русский"],
+["sk", "Slovak - Slovenčina"],
+["sl", "Slovenian - Slovenščina"],
+["es", "Spanish - Español"],
+["sv", "Swedish - Svenska"],
+["ta", "Tamil - தமிழ்"],
+["te", "Telugu - తెలుగు"],
+["th", "Thai - ไทย"],
+["tr", "Turkish - Türkçe"],
+["uk", "Ukrainian - Українська"],
+["vi", "Vietnamese - Tiếng Việt"],
+```

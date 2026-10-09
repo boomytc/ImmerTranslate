@@ -587,11 +587,8 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     key = "",
     model = "",
     apiType,
-    // userPrompt = "",
     customHeader = "",
     customBody = "",
-    // think = false,
-    // thinkIgnore = "",
     fetchLimit = DEFAULT_FETCH_LIMIT,
     fetchInterval = DEFAULT_FETCH_INTERVAL,
     httpTimeout = DEFAULT_HTTP_TIMEOUT,
@@ -1329,29 +1326,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
         </>
       )}
 
-      {/* {apiType === OPT_TRANS_OLLAMA && (
-        <>
-          <TextField
-            select
-            size="small"
-            name="think"
-            value={think}
-            label={i18n("if_think")}
-            onChange={handleChange}
-          >
-            <MenuItem value={false}>{i18n("nothink")}</MenuItem>
-            <MenuItem value={true}>{i18n("think")}</MenuItem>
-          </TextField>
-          <TextField
-            size="small"
-            label={i18n("think_ignore")}
-            name="thinkIgnore"
-            value={thinkIgnore}
-            onChange={handleChange}
-          />
-        </>
-      )} */}
-
       {apiType === OPT_TRANS_CUSTOMIZE && (
         <>
           <CodeField
@@ -1972,8 +1946,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
           {connectionFeedback.text}
         </Box>
       )}
-
-      {/* {apiType === OPT_TRANS_CUSTOMIZE && <pre>{i18n("custom_api_help")}</pre>} */}
     </Stack>
   );
 }
@@ -2526,7 +2498,7 @@ export default function Apis() {
           <br />
           {i18n("about_api_4")}
           <Link
-            href="https://github.com/boomytc/ImmerTranslate/blob/main/custom-api_v2.md"
+            href="https://github.com/boomytc/ImmerTranslate/blob/main/custom-api.md"
             target="_blank"
           >
             {i18n("goto_custom_api_example")}
