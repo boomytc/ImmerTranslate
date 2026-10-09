@@ -29,6 +29,7 @@ Preset services ship without keys. Keys stay in the extension's local storage an
 - MiMo (preset name XiaomiMimo)
 - DashScope (preset name AliyunBailian)
 - ModelScope
+- ModelBest
 
 Test connection calls `fetchModelCatalog` only. It lists models and does not send a chat/completions request.
 

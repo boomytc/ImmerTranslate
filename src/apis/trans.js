@@ -16,6 +16,7 @@ import {
   OPT_TRANS_XIAOMIMIMO,
   OPT_TRANS_ALIYUNBAILIAN,
   OPT_TRANS_MODELSCOPE,
+  OPT_TRANS_MODELBEST,
   OPT_TRANS_QWENMT,
   OPT_TRANS_CEREBRAS,
   OPT_TRANS_ZAI,
@@ -682,6 +683,21 @@ const applyBooleanThinking = (body, { thinkingMode }) => {
 };
 
 /**
+ * 将统一思考开关写入 ModelBest 的 chat template 参数。
+ * 托管端默认开启思考；省略该字段时推理会进入译文。
+ * @param {Object} body 待修改的请求体。
+ * @param {Object} settings 已规范化的思考设置。
+ * @param {"enabled"|"disabled"} settings.thinkingMode 最终思考模式。
+ * @returns {void}
+ */
+const applyModelBestThinking = (body, { thinkingMode }) => {
+  body.chat_template_kwargs = {
+    ...body.chat_template_kwargs,
+    enable_thinking: thinkingMode === "enabled",
+  };
+};
+
+/**
  * 将统一思考设置写入硅基流动请求体。
  * @param {Object} body 待修改的请求体。
  * @param {Object} settings 已规范化的思考设置。
@@ -861,6 +877,7 @@ const applyGeminiThinking = (
 const THINKING_ADAPTERS = {
   deepseek: applyDeepSeekThinking,
   boolean: applyBooleanThinking,
+  modelbest: applyModelBestThinking,
   siliconflow: applySiliconFlowThinking,
   openai: applyOpenAIThinking,
   openrouter: applyOpenRouterThinking,
@@ -1186,6 +1203,15 @@ const genOpenAI = ({
   };
 
   return { url, body, headers, userMsg };
+};
+
+const genModelBest = (args) => {
+  const request = genOpenAI(args);
+  if (request.body && "max_completion_tokens" in request.body) {
+    request.body.max_tokens = request.body.max_completion_tokens;
+    delete request.body.max_completion_tokens;
+  }
+  return request;
 };
 
 const getQwenMtDomains = (tone = "") => {
@@ -1662,6 +1688,7 @@ const genReqFuncs = {
   [OPT_TRANS_XIAOMIMIMO]: genOpenAI,
   [OPT_TRANS_ALIYUNBAILIAN]: genOpenAI,
   [OPT_TRANS_MODELSCOPE]: genOpenAI,
+  [OPT_TRANS_MODELBEST]: genModelBest,
   [OPT_TRANS_QWENMT]: genQwenMt,
   [OPT_TRANS_CEREBRAS]: genOpenAI,
   [OPT_TRANS_ZAI]: genOpenAI,
@@ -2019,6 +2046,7 @@ export const parseTransRes = async (
     case OPT_TRANS_XIAOMIMIMO:
     case OPT_TRANS_ALIYUNBAILIAN:
     case OPT_TRANS_MODELSCOPE:
+    case OPT_TRANS_MODELBEST:
     case OPT_TRANS_CEREBRAS:
     case OPT_TRANS_ZAI:
     case OPT_TRANS_GEMINI_2:
@@ -2125,6 +2153,7 @@ function parseDictRes(res, apiType) {
     case OPT_TRANS_XIAOMIMIMO:
     case OPT_TRANS_ALIYUNBAILIAN:
     case OPT_TRANS_MODELSCOPE:
+    case OPT_TRANS_MODELBEST:
     case OPT_TRANS_CEREBRAS:
     case OPT_TRANS_ZAI:
     case OPT_TRANS_GEMINI_2:
@@ -2794,6 +2823,7 @@ export const handleSubtitle = async ({
     case OPT_TRANS_XIAOMIMIMO:
     case OPT_TRANS_ALIYUNBAILIAN:
     case OPT_TRANS_MODELSCOPE:
+    case OPT_TRANS_MODELBEST:
     case OPT_TRANS_CEREBRAS:
     case OPT_TRANS_ZAI:
     case OPT_TRANS_GEMINI_2:
@@ -3014,6 +3044,7 @@ export const handleSummarize = async ({
     case OPT_TRANS_XIAOMIMIMO:
     case OPT_TRANS_ALIYUNBAILIAN:
     case OPT_TRANS_MODELSCOPE:
+    case OPT_TRANS_MODELBEST:
     case OPT_TRANS_CEREBRAS:
     case OPT_TRANS_ZAI:
     case OPT_TRANS_GEMINI_2:

@@ -29,6 +29,7 @@ pnpm build:chrome
 - MiMo（プリセット名 XiaomiMimo）
 - DashScope（プリセット名 AliyunBailian）
 - ModelScope
+- ModelBest
 
 オプションページの接続テストは `fetchModelCatalog` でモデル一覧を取得するだけで、chat/completions は送りません。
 
