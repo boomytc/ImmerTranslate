@@ -612,9 +612,7 @@ describe("TerminologyPlayground", () => {
       '[data-testid="terminology-auto-sample-unsupported"]'
     );
     expect(alert).not.toBeNull();
-    expect(alert.textContent).toContain(
-      "部分正则术语无法可靠生成自动匹配样例"
-    );
+    expect(alert.textContent).toContain("部分正则术语无法可靠生成自动匹配样例");
     expect(alert.textContent).not.toContain("未生成可测试的例句");
 
     act(() => root.unmount());
@@ -3003,6 +3001,13 @@ describe("TerminologyPlayground", () => {
       rule: null,
     });
     await flushEffects();
+    expect(
+      container.querySelector('[data-testid="terminology-api-custom-note"]')
+        .textContent
+    ).toContain("自定义接口：不注入提示词与术语");
+    expect(
+      container.querySelector('[data-testid="terminology-api-ai-note"]')
+    ).toBeNull();
     fillAiTerms(container, setAiTermsDraft, "zorp,数据管道");
     await runAiTest(container);
 

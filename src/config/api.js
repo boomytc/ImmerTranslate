@@ -233,7 +233,6 @@ export const API_SPE_TYPES = {
     OPT_TRANS_OPENROUTER,
     OPT_TRANS_ORCAROUTER,
     OPT_TRANS_REQUESTY,
-    OPT_TRANS_CUSTOMIZE,
   ]),
   // 支持多 API Key 轮询/备用的引擎
   mulkeys: new Set([
@@ -315,7 +314,6 @@ export const API_SPE_TYPES = {
     OPT_TRANS_REQUESTY,
     OPT_TRANS_EPHONEAI,
     OPT_TRANS_APIMART,
-    OPT_TRANS_CUSTOMIZE,
   ]),
   // 支持流式文本返回（Server-Sent Events / Stream）的翻译引擎
   stream: new Set([

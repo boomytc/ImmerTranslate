@@ -672,6 +672,9 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       args: { apiSlug: "Custom_1" },
     });
     expect(serviceSelect.value).toBe("Custom_1");
+    expect(
+      container.querySelectorAll(".kt-content-fab-menu__model")
+    ).toHaveLength(0);
   });
 
   test("shows an empty service state when no enabled provider can be used", async () => {

@@ -1052,11 +1052,13 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
             helperText={
               apiType === OPT_TRANS_DEEPLX
                 ? i18n("mulkeys_help")
-                : apiType === OPT_TRANS_GEMINI
-                  ? i18n("gemini_url_help")
-                  : apiType === OPT_TRANS_GEMINI_2
-                    ? i18n("gemini_2_url_help")
-                    : ""
+                : apiType === OPT_TRANS_CUSTOMIZE
+                  ? i18n("custom_url_help")
+                  : apiType === OPT_TRANS_GEMINI
+                    ? i18n("gemini_url_help")
+                    : apiType === OPT_TRANS_GEMINI_2
+                      ? i18n("gemini_2_url_help")
+                      : ""
             }
           />
           <Box className="kt-api-key-field-wrap">
@@ -2177,7 +2179,9 @@ function ApiListItem({
               whiteSpace: "nowrap",
             })}
           >
-            {api.model || api.apiType}
+            {apiTypeOf(api) === OPT_TRANS_CUSTOMIZE
+              ? api.url || api.apiType
+              : api.model || api.apiType}
           </Typography>
         </Box>
       </ListItemButton>

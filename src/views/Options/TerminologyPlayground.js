@@ -872,7 +872,7 @@ function formatAssertionIssue(issue, i18n) {
       return formatI18n(
         i18n,
         "terminology_playground_issue_conflict_long_no_value_replaced",
-        "长词 {long} 无译文但被替换为 \"{replacement}\"。",
+        '长词 {long} 无译文但被替换为 "{replacement}"。',
         params
       );
     case "conflict-short-value-not-applied":
@@ -1266,7 +1266,11 @@ export default function TerminologyPlayground({
       );
       return;
     }
-    if (selectedApiCategory !== "ai" && selectedApiCategory !== "qwenmt") {
+    if (
+      selectedApiCategory !== "ai" &&
+      selectedApiCategory !== "qwenmt" &&
+      selectedApiCategory !== "custom"
+    ) {
       alert.warning(
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 700 }}>
@@ -1667,6 +1671,7 @@ export default function TerminologyPlayground({
   // 接口类型分类：QwenMT 特例优先（虽属 machine 集合，但原生支持术语）。
   const apiCategory = (apiType) => {
     if (apiType === OPT_TRANS_QWENMT) return "qwenmt";
+    if (apiType === OPT_TRANS_CUSTOMIZE) return "custom";
     if (API_SPE_TYPES.ai.has(apiType)) return "ai";
     if (API_SPE_TYPES.machine.has(apiType)) return "machine";
     return "other";
@@ -1853,6 +1858,17 @@ export default function TerminologyPlayground({
                             "传统翻译"
                           ),
                   }
+                )}
+              </Alert>
+            ) : selectedApiCategory === "custom" ? (
+              <Alert
+                severity="warning"
+                sx={NOTE_ALERT_SX}
+                data-testid="terminology-api-custom-note"
+              >
+                {i18n(
+                  "terminology_playground_channel_custom",
+                  "自定义接口：不注入提示词与术语（需自行实现 reqHook）"
                 )}
               </Alert>
             ) : selectedApiCategory === "qwenmt" ? (
@@ -2570,8 +2586,7 @@ export default function TerminologyPlayground({
                                 0,
                                 aiGlossaryExpanded ? undefined : DISPLAY_LIMIT
                               )
-                              .map(
-                              ({ source, key, value }) => {
+                              .map(({ source, key, value }) => {
                                 const delivery = deliveryMap?.get(key);
                                 return (
                                   <Typography
@@ -2610,8 +2625,7 @@ export default function TerminologyPlayground({
                                     )}
                                   </Typography>
                                 );
-                              }
-                            )}
+                              })}
                             {aiTestState.glossaryEntries.length >
                               DISPLAY_LIMIT && (
                               <Button
@@ -3041,8 +3055,7 @@ export default function TerminologyPlayground({
                             0,
                             aiGlossaryExpanded ? undefined : DISPLAY_LIMIT
                           )
-                          .map(
-                          ({ source, key, value }) => {
+                          .map(({ source, key, value }) => {
                             const sourceLabel =
                               source === "input"
                                 ? i18n(
@@ -3159,8 +3172,7 @@ export default function TerminologyPlayground({
                                 </td>
                               </tr>
                             );
-                          }
-                        )}
+                          })}
                       </tbody>
                     </table>
                     {aiTestState.glossaryEntries.length > DISPLAY_LIMIT && (

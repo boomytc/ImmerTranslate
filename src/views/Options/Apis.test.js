@@ -2836,6 +2836,27 @@ describe("Apis API Key official links and visual presentation", () => {
     );
     expect(customCategory).not.toBeNull();
     expect(customCategory.textContent).toBe("service_category_custom");
+    expect(customView.container.textContent).toContain("custom_url_help");
+    expect(customView.container.querySelector('[name="model"]')).toBeNull();
+    expect(
+      customView.container.querySelector('[name="temperature"]')
+    ).toBeNull();
+    expect(customView.container.querySelector('[name="maxTokens"]')).toBeNull();
+    expect(
+      customView.container.querySelector('[name="translationPromptSlug"]')
+    ).toBeNull();
+    expect(
+      customView.container.querySelector('[name="useContext"]')
+    ).toBeNull();
+    expect(
+      customView.container.querySelector('[name="useBatchFetch"]')
+    ).not.toBeNull();
+    expect(
+      customView.container.querySelector('[name="reqHook"]')
+    ).not.toBeNull();
+    expect(
+      customView.container.querySelector(".kt-api-list__secondary").textContent
+    ).toBe("https://api.openai.com/v1/chat/completions");
 
     // Header for Key exists
     const keyHeader = customView.container.querySelector(".kt-api-key-header");
