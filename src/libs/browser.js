@@ -22,18 +22,20 @@ function _browser() {
 // 统一的浏览器扩展 API 导出对象
 export const browser = _browser();
 
+export const APP_CONTEXT_KEY = "__IMMERTRANSLATE_CONTEXT__";
+
 /**
  * 获取当前脚本在浏览器扩展中的具体执行环境上下文
  * @returns {string} 返回 "background" | "content" | "options" | "popup" | "undefined"
  *
  * REVIEW:
- * 在此处的 `getContext` 中，目前完全依赖 `globalThis.__KISS_CONTEXT__` 全局变量来进行判断。
+ * 在此处的 `getContext` 中，目前完全依赖 `globalThis[APP_CONTEXT_KEY]` 来进行判断。
  * 如果该变量在某些入口点 (如 Options, Popup React 根节点) 忘记预先挂载，则默认会返回 "undefined"，
  * 导致 isOptions() 或 isBg() 的行为产生非预期判定。
  * 建议保留以前被注释掉的 fallback 判定逻辑（例如校验 window.location 协议及 path ），以提升容错率。
  */
 export const getContext = () => {
-  const context = globalThis.__KISS_CONTEXT__;
+  const context = globalThis[APP_CONTEXT_KEY];
   if (context) return context;
 
   // if (typeof window === "undefined" || typeof document === "undefined") {

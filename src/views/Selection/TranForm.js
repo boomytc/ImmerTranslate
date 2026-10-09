@@ -25,6 +25,7 @@ import {
   PROMPT_CATEGORY_DICTIONARY,
   PROMPT_MODE_FOLLOW_API,
   findPromptBySlug,
+  EVENT_ADD_WORD,
 } from "../../config";
 import {
   useId,
@@ -251,7 +252,7 @@ export default function TranForm({
   // Notify listeners, such as the vocabulary list, when selected or entered text is a valid English word.
   useEffect(() => {
     if (isValidWord(text)) {
-      const event = new CustomEvent("kiss-add-word", {
+      const event = new CustomEvent(EVENT_ADD_WORD, {
         detail: { word: text },
       });
       document.dispatchEvent(event);

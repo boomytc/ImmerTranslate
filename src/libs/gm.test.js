@@ -32,11 +32,11 @@ describe("gm userscript bridge", () => {
   test("adaptScript exposes xmlHttpRequest through CustomEvent bridge", () => {
     const bridgeEvents = [];
     const onload = jest.fn();
-    window.addEventListener("kiss-ping", (event) => {
+    window.addEventListener("bridge-ping", (event) => {
       bridgeEvents.push(event.detail);
     });
 
-    adaptScript("kiss-ping");
+    adaptScript("bridge-ping");
     const handle = window.KISS_GM.xmlHttpRequest({
       method: "GET",
       url: "https://example.test/stream",
@@ -111,7 +111,7 @@ describe("gm userscript bridge", () => {
     window.addEventListener("pong-fetch", pong);
 
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "xmlHttpRequest",
           args: {
@@ -141,7 +141,7 @@ describe("gm userscript bridge", () => {
   });
 
   test("handlePing ignores missing detail without throwing", async () => {
-    await expect(handlePing(new CustomEvent("kiss-ping"))).resolves.toBe(
+    await expect(handlePing(new CustomEvent("bridge-ping"))).resolves.toBe(
       undefined
     );
     await expect(handlePing({})).resolves.toBe(undefined);
@@ -160,7 +160,7 @@ describe("gm userscript bridge", () => {
     window.addEventListener("pong-xhr", pong);
 
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "xmlHttpRequest",
           args: {
@@ -204,7 +204,7 @@ describe("gm userscript bridge", () => {
     );
 
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "xmlHttpRequest",
           args: {
@@ -218,7 +218,7 @@ describe("gm userscript bridge", () => {
       })
     );
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "xmlHttpRequestAbort",
           args: { requestId: "pong-abort" },
@@ -247,7 +247,7 @@ describe("gm userscript bridge", () => {
     window.addEventListener("pong-native-delete", deletePong);
 
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "setValue",
           args: { key: "native-key", val: "native-value" },
@@ -256,7 +256,7 @@ describe("gm userscript bridge", () => {
       })
     );
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "getValue",
           args: { key: "native-key" },
@@ -265,7 +265,7 @@ describe("gm userscript bridge", () => {
       })
     );
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "deleteValue",
           args: { key: "native-key" },
@@ -308,7 +308,7 @@ describe("gm userscript bridge", () => {
     window.addEventListener("pong-delete", deletePong);
 
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "setValue",
           args: { key: "ios-key", val: "ios-value" },
@@ -317,7 +317,7 @@ describe("gm userscript bridge", () => {
       })
     );
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "getValue",
           args: { key: "ios-key" },
@@ -326,7 +326,7 @@ describe("gm userscript bridge", () => {
       })
     );
     await handlePing(
-      new CustomEvent("kiss-ping", {
+      new CustomEvent("bridge-ping", {
         detail: {
           action: "deleteValue",
           args: { key: "ios-key" },

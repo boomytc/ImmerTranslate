@@ -1,15 +1,18 @@
+import { APP_LCNAME } from "../config/app";
 import { trustedTypesHelper } from "./trustedTypes";
+
+export const INJECT_SOURCE_PREFIX = `${APP_LCNAME}-inject`;
 
 // 向宿主页面注入行内 JavaScript 脚本。
 // 结合 Trusted Types 机制处理代码，兼容高安全 CSP (Content Security Policy) 要求的网站。
-export const injectInlineJs = (code, id = "kiss-translator-inline-js") => {
+export const injectInlineJs = (code, id = `${APP_LCNAME}-inline-js`) => {
   // 避免重复注入相同 ID 的脚本
   if (document.getElementById(id)) {
     return;
   }
 
   const el = document.createElement("script");
-  el.setAttribute("data-source", "kiss-inject injectInlineJs");
+  el.setAttribute("data-source", `${INJECT_SOURCE_PREFIX} injectInlineJs`);
   el.type = "text/javascript";
   el.id = id;
   // 通过 Trusted Types 策略生成受信任的 Script
@@ -21,13 +24,13 @@ export const injectInlineJs = (code, id = "kiss-translator-inline-js") => {
 // REVIEW: 此函数直接对 textContent 赋值了未做 Trusted Types 包装的原始 code 字符串。
 // 在严格启用了 CSP (Trusted Types 限制) 的网站（例如 GitHub/Google）中，该方法会抛出安全异常并导致注入失败。
 // 建议非必要时统一使用 injectInlineJs。
-export const injectInlineJsBg = (code, id = "kiss-translator-inline-js") => {
+export const injectInlineJsBg = (code, id = `${APP_LCNAME}-inline-js`) => {
   if (document.getElementById(id)) {
     return;
   }
 
   const el = document.createElement("script");
-  el.setAttribute("data-source", "kiss-inject injectInlineJsBg");
+  el.setAttribute("data-source", `${INJECT_SOURCE_PREFIX} injectInlineJsBg`);
   el.type = "text/javascript";
   el.id = id;
   el.textContent = code;
@@ -36,13 +39,13 @@ export const injectInlineJsBg = (code, id = "kiss-translator-inline-js") => {
 };
 
 // 向页面注入外部引用的 JavaScript 脚本文件。
-export const injectExternalJs = (src, id = "kiss-translator-external-js") => {
+export const injectExternalJs = (src, id = `${APP_LCNAME}-external-js`) => {
   if (document.getElementById(id)) {
     return;
   }
 
   const el = document.createElement("script");
-  el.setAttribute("data-source", "kiss-inject injectExternalJs");
+  el.setAttribute("data-source", `${INJECT_SOURCE_PREFIX} injectExternalJs`);
   el.type = "text/javascript";
   el.id = id;
   // 通过 Trusted Types 转换外部 script 链接，防止被严格 CSP 拦截
@@ -53,7 +56,7 @@ export const injectExternalJs = (src, id = "kiss-translator-external-js") => {
 // 向页面注入行内 CSS 样式。
 export const injectInternalCss = (styles) => {
   const el = document.createElement("style");
-  el.setAttribute("data-source", "kiss-inject injectInternalCss");
+  el.setAttribute("data-source", `${INJECT_SOURCE_PREFIX} injectInternalCss`);
   el.textContent = styles;
   document.head?.appendChild(el);
 };
@@ -61,7 +64,7 @@ export const injectInternalCss = (styles) => {
 // 向页面注入外部 CSS 样式文件链接。
 export const injectExternalCss = (href) => {
   const el = document.createElement("link");
-  el.setAttribute("data-source", "kiss-inject injectExternalCss");
+  el.setAttribute("data-source", `${INJECT_SOURCE_PREFIX} injectExternalCss`);
   el.setAttribute("rel", "stylesheet");
   el.setAttribute("type", "text/css");
   el.setAttribute("href", href);

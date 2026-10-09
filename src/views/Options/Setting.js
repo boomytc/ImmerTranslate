@@ -39,6 +39,7 @@ import {
   DEFAULT_HTTP_TIMEOUT,
   CURRENT_SETTINGS_VERSION,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
+  APP_LCNAME,
 } from "../../config";
 import { useShortcut } from "../../hooks/Shortcut";
 import ShortcutInput from "./ShortcutInput";
@@ -320,7 +321,7 @@ export default function Settings() {
           <DownloadButton
             handleData={() => JSON.stringify(setting, null, 2)}
             text={i18n("export")}
-            fileName={`kiss-setting_v2_${Date.now()}.json`}
+            fileName={`${APP_LCNAME}-setting_${Date.now()}.json`}
           />
         </Stack>
 

@@ -17,11 +17,11 @@ jest.mock("../config/app", () => {
   return {
     ...actual,
     APP_NAME: "ImmerTranslate",
-    APP_LCNAME: "kiss-translator",
+    APP_LCNAME: "immertranslate",
     APP_CONSTS: {
-      fabID: "kiss-translator-fab",
-      boxID: "kiss-translator-box",
-      popupID: "kiss-translator-popup",
+      fabID: "immertranslate-fab",
+      boxID: "immertranslate-box",
+      popupID: "immertranslate-popup",
     },
   };
 });
@@ -167,7 +167,7 @@ describe("Translator rule styles", () => {
         apiSetting: expect.objectContaining({ model: "deepseek-chat" }),
       })
     );
-    expect(document.querySelector(".kiss-translator-wrapper")).not.toBeNull();
+    expect(document.querySelector(".immertranslate-wrapper")).not.toBeNull();
   });
 
   test("does not insert a translation when the active service has no key", async () => {
@@ -235,16 +235,12 @@ describe("Translator rule styles", () => {
     const translator = createTranslator({ autoScan: "false", selector: "#a" });
     await flushAsync();
     await flushAsync();
-    expect(
-      document.querySelector("#a .kiss-translator-wrapper")
-    ).not.toBeNull();
+    expect(document.querySelector("#a .immertranslate-wrapper")).not.toBeNull();
     translator.updateRule({ selector: "#b" });
     await flushAsync();
     await flushAsync();
-    expect(document.querySelector("#a .kiss-translator-wrapper")).toBeNull();
-    expect(
-      document.querySelector("#b .kiss-translator-wrapper")
-    ).not.toBeNull();
+    expect(document.querySelector("#a .immertranslate-wrapper")).toBeNull();
+    expect(document.querySelector("#b .immertranslate-wrapper")).not.toBeNull();
   });
 
   test("entering the editor invalidates pending language detection and restores the switch", async () => {
@@ -264,7 +260,7 @@ describe("Translator rule styles", () => {
     finishDetect("en");
     await flushAsync();
     expect(apiTranslate).not.toHaveBeenCalled();
-    expect(document.querySelector(".kiss-translator-wrapper")).toBeNull();
+    expect(document.querySelector(".immertranslate-wrapper")).toBeNull();
     translator.updateRule({ selector: ":not(*)", autoScan: "false" });
     translator.endRuleEditing(state);
     expect(translator.rule.transOpen).toBe("true");
@@ -296,7 +292,7 @@ describe("Translator rule styles", () => {
 
       expect(tryDetectLang).toHaveBeenCalledTimes(2);
       expect(apiTranslate).toHaveBeenCalledTimes(1);
-      expect(document.querySelector(".kiss-translator-wrapper")).not.toBeNull();
+      expect(document.querySelector(".immertranslate-wrapper")).not.toBeNull();
     }
   );
 
@@ -324,7 +320,7 @@ describe("Translator rule styles", () => {
     await flushAsync();
     await flushAsync();
     expect(apiTranslate).toHaveBeenCalledTimes(1);
-    expect(document.querySelectorAll(".kiss-translator-wrapper")).toHaveLength(
+    expect(document.querySelectorAll(".immertranslate-wrapper")).toHaveLength(
       1
     );
   });
@@ -343,7 +339,8 @@ describe("Translator rule styles", () => {
         { preInit: true }
       );
       await flushAsync();
-      const selector = 'style[data-source="kiss-inject injectInternalCss"]';
+      const selector =
+        'style[data-source="immertranslate-inject injectInternalCss"]';
       const style = document.querySelector(selector);
       expect(style).not.toBeNull();
       const state = translator.beginRuleEditing();
@@ -387,7 +384,7 @@ describe("Translator rule styles", () => {
       await flushAsync();
       await flushAsync();
       expect(
-        document.querySelector("#pending .kiss-translator-wrapper")
+        document.querySelector("#pending .immertranslate-wrapper")
       ).not.toBeNull();
 
       apiTranslate.mockClear();
@@ -401,7 +398,7 @@ describe("Translator rule styles", () => {
       await flushAsync();
       expect(apiTranslate).toHaveBeenCalled();
       expect(
-        document.querySelector("#later .kiss-translator-wrapper")
+        document.querySelector("#later .immertranslate-wrapper")
       ).not.toBeNull();
     }
   );
@@ -541,7 +538,7 @@ describe("Translator rule styles", () => {
         top:
           100 -
           scrollOffset +
-          document.querySelectorAll(".kiss-translator-wrapper").length * 10,
+          document.querySelectorAll(".immertranslate-wrapper").length * 10,
       }));
     });
 
@@ -560,23 +557,23 @@ describe("Translator rule styles", () => {
       });
       await flushAsync();
       expect(frames.size).toBe(1);
-      expect(
-        document.querySelectorAll(".kiss-translator-wrapper")
-      ).toHaveLength(0);
+      expect(document.querySelectorAll(".immertranslate-wrapper")).toHaveLength(
+        0
+      );
 
       for (let pass = 0; pass < 2; pass++) {
         document.elementFromPoint.mockClear();
         await runFrame();
         expect(apiTranslate).toHaveBeenCalledTimes(30 * (pass + 1));
         expect(
-          document.querySelectorAll(".kiss-translator-wrapper svg")
+          document.querySelectorAll(".immertranslate-wrapper svg")
         ).toHaveLength(30);
         expect(document.elementFromPoint).toHaveBeenCalledTimes(1);
         expect(window.scrollBy).toHaveBeenLastCalledWith(0, 300);
         await runFrame();
         expect(document.elementFromPoint).toHaveBeenCalledTimes(2);
         expect(
-          document.querySelectorAll(".kiss-translator-wrapper svg")
+          document.querySelectorAll(".immertranslate-wrapper svg")
         ).toHaveLength(0);
         expect(document.getElementById("root").textContent).not.toContain(
           "Original"
@@ -586,7 +583,7 @@ describe("Translator rule styles", () => {
         expect(window.scrollBy).toHaveBeenLastCalledWith(0, -300);
         expect(
           document.querySelectorAll(
-            ".kiss-translator-wrapper, .kiss-translator-original"
+            ".immertranslate-wrapper, .immertranslate-original"
           )
         ).toHaveLength(0);
         expect(document.querySelectorAll("#root p")).toHaveLength(30);
@@ -611,9 +608,9 @@ describe("Translator rule styles", () => {
       await runFrame();
       await runFrame();
       expect(apiTranslate).toHaveBeenCalledTimes(30);
-      expect(
-        document.querySelectorAll(".kiss-translator-wrapper")
-      ).toHaveLength(30);
+      expect(document.querySelectorAll(".immertranslate-wrapper")).toHaveLength(
+        30
+      );
       expect(document.getElementById("root").textContent).not.toContain(
         "Original"
       );
@@ -642,7 +639,7 @@ describe("Translator rule styles", () => {
         translator.toggleTransOnly();
         await runFrame();
         expect(
-          document.querySelectorAll("template.kiss-translator-backup")
+          document.querySelectorAll("template.immertranslate-backup")
         ).toHaveLength(transOnly === "true" ? 0 : 30);
         const originalVisible = document
           .getElementById("root")
@@ -665,7 +662,7 @@ describe("Translator rule styles", () => {
         expect(frames.size).toBe(1);
         translator[action]();
         expect(
-          document.querySelectorAll(".kiss-translator-wrapper")
+          document.querySelectorAll(".immertranslate-wrapper")
         ).toHaveLength(0);
         expect(document.getElementById("root").textContent).toContain(
           "Original paragraph 0"
@@ -676,7 +673,7 @@ describe("Translator rule styles", () => {
         await runFrame();
         expect(document.body.textContent).not.toContain("Old result");
         expect(
-          document.querySelectorAll(".kiss-translator-wrapper")
+          document.querySelectorAll(".immertranslate-wrapper")
         ).toHaveLength(action === "rescan" ? 30 : 0);
       }
     );
@@ -704,7 +701,7 @@ describe("Translator rule styles", () => {
         await runFrame();
         expect(document.body.textContent).not.toContain("Stale result");
         expect(
-          document.querySelectorAll(".kiss-translator-wrapper")
+          document.querySelectorAll(".immertranslate-wrapper")
         ).toHaveLength(reEnable ? 30 : 0);
         if (!reEnable)
           expect(document.body.textContent).toContain("Original paragraph 29");
@@ -765,7 +762,7 @@ describe("Translator rule styles", () => {
         await runFrame();
         await runFrame();
         expect(
-          document.querySelectorAll(".kiss-translator-wrapper")
+          document.querySelectorAll(".immertranslate-wrapper")
         ).toHaveLength(30);
         expect(window.scrollBy).not.toHaveBeenCalled();
         document.documentElement.style.overflowY = "";
@@ -1176,7 +1173,7 @@ describe("Translator rule styles", () => {
 
   test("matches source typography and keeps page translations free of glass", async () => {
     document.head.appendChild(document.createElement("style")).textContent = `
-      font.kiss-translator-inner, kiss-translator.kiss-translator-wrapper {
+      font.immertranslate-inner, immertranslate.immertranslate-wrapper {
         font-size: 12px !important;
         font-weight: 400;
         line-height: 14px;
@@ -1194,8 +1191,8 @@ describe("Translator rule styles", () => {
     createTranslator({ textExtStyle: "font-size: 30px;" });
     await flushAsync();
 
-    const wrapper = document.querySelector(".kiss-translator-wrapper");
-    const inner = document.querySelector(".kiss-translator-inner");
+    const wrapper = document.querySelector(".immertranslate-wrapper");
+    const inner = document.querySelector(".immertranslate-inner");
     expect(inner).not.toBeNull();
     expect(inner.style.fontSize).toBe("30px");
     expect(inner.style.fontWeight).toBe(target.style.fontWeight);
@@ -1212,7 +1209,7 @@ describe("Translator rule styles", () => {
     expect(window.getComputedStyle(inner).fontSize).toBe("30px");
     expect(window.getComputedStyle(inner).fontWeight).toBe("700");
     const chromeCss =
-      document.getElementById("kiss-translator-page-chrome")?.textContent || "";
+      document.getElementById("immertranslate-page-chrome")?.textContent || "";
     expect(chromeCss).toContain("backdrop-filter: none !important");
     expect(chromeCss).toContain("-webkit-backdrop-filter: none !important");
     expect(chromeCss).not.toContain("kt-glass");
@@ -1745,9 +1742,9 @@ describe("Translator rule styles", () => {
       <main id="root">
         <h3>
           <a href="/discussion/1">How to fix playback buttons?</a>
-          <kiss-translator class="kiss-translator-wrapper notranslate">
-            <font lang="zh-CN" class="kiss-translator-inner">Existing translation</font>
-          </kiss-translator>
+          <immertranslate class="immertranslate-wrapper notranslate">
+            <font lang="zh-CN" class="immertranslate-inner">Existing translation</font>
+          </immertranslate>
         </h3>
       </main>
     `;
@@ -1780,10 +1777,10 @@ describe("Translator rule styles", () => {
       <main id="root">
         <h3>
           <a href="/discussion/1">How to fix playback buttons?</a>
-          <kiss-translator class="kiss-translator-wrapper notranslate">
+          <immertranslate class="immertranslate-wrapper notranslate">
             <br>
-            <font lang="zh-CN" class="kiss-translator-inner">Existing translation</font>
-          </kiss-translator>
+            <font lang="zh-CN" class="immertranslate-inner">Existing translation</font>
+          </immertranslate>
         </h3>
       </main>
     `;
@@ -1818,13 +1815,13 @@ describe("Translator rule styles", () => {
     document.body.innerHTML = `
       <main id="root">
         <h3>
-          <kiss-translator class="kiss-translator-wrapper notranslate">
+          <immertranslate class="immertranslate-wrapper notranslate">
             <br hidden>
-            <font lang="zh-CN" class="kiss-translator-inner">Existing translation</font>
-            <template class="kiss-translator-backup">
+            <font lang="zh-CN" class="immertranslate-inner">Existing translation</font>
+            <template class="immertranslate-backup">
               <a href="/discussion/1">How to fix playback buttons?</a>
             </template>
-          </kiss-translator>
+          </immertranslate>
         </h3>
       </main>
     `;
@@ -1855,7 +1852,7 @@ describe("Translator rule styles", () => {
     document.body.innerHTML = `
       <main id="root">
         <div id="page-host">Page content</div>
-        <div id="kiss-translator-fab">
+        <div id="immertranslate-fab">
           <div id="plugin-child">Plugin content</div>
         </div>
       </main>
@@ -2850,7 +2847,7 @@ describe("Translator rule styles", () => {
 
     const style = shadowRoot.querySelector("style");
     expect(style).not.toBeNull();
-    expect(style.id).toBe("kiss-translator-fallback-style");
+    expect(style.id).toBe("immertranslate-fallback-style");
     expect(style.textContent.length).toBeGreaterThan(0);
     expect(shadowRoot.querySelectorAll("style")).toHaveLength(1);
   });
@@ -2874,7 +2871,7 @@ describe("Translator rule styles", () => {
 
     const style = shadowRoot.querySelector("style");
     expect(style).not.toBeNull();
-    expect(style.id).toBe("kiss-translator-fallback-style");
+    expect(style.id).toBe("immertranslate-fallback-style");
     expect(style.textContent.length).toBeGreaterThan(0);
     expect(shadowRoot.querySelectorAll("style")).toHaveLength(1);
   });

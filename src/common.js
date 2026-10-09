@@ -1,4 +1,5 @@
 import { OPT_HIGHLIGHT_WORDS_DISABLE } from "./config";
+import { APP_LCNAME, APP_NAME } from "./config/app";
 import {
   getFabWithDefault,
   getSettingWithDefault,
@@ -35,7 +36,7 @@ function runSettingPage() {
     window.addEventListener(ping, handlePing);
     injectInlineJs(
       `(${injectScript})("${ping}")`,
-      "kiss-translator-options-injector"
+      `${APP_LCNAME}-options-injector`
     );
   }
 }
@@ -92,7 +93,7 @@ function ensureUserscriptGM() {
  * @param {string} message 错误内容信息
  */
 function showErr(message) {
-  const bannerId = "KISS-Translator-Message";
+  const bannerId = `${APP_NAME}-message`;
   const existingBanner = document.getElementById(bannerId);
   if (existingBanner) {
     existingBanner.remove();
@@ -250,7 +251,6 @@ export async function run(isUserscript = false) {
         runSettingPage();
         return;
       }
-
     }
 
     // 1. 加载本地设置

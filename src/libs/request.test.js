@@ -8,7 +8,7 @@ jest.mock("../config", () => ({
   CLIENT_USERSCRIPT: "userscript",
   CLIENT_WEB: "web",
   DEFAULT_HTTP_TIMEOUT: 30,
-  MSG_FETCH: "kiss_fetch",
+  MSG_FETCH: "immertranslate_fetch",
 }));
 
 jest.mock("./log", () => ({
@@ -31,7 +31,7 @@ const loadRequestWithClient = (clientMock) => {
     CLIENT_USERSCRIPT: "userscript",
     CLIENT_WEB: "web",
     DEFAULT_HTTP_TIMEOUT: 30,
-    MSG_FETCH: "kiss_fetch",
+    MSG_FETCH: "immertranslate_fetch",
   }));
   jest.doMock("./log", () => ({
     kissLog: jest.fn(),

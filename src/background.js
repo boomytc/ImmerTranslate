@@ -58,8 +58,9 @@ import { sha256 } from "./libs/utils";
 import { installStorageCoordinator } from "./libs/storageCoordination";
 import { isCurrentPopupDocument } from "./libs/popupDocument";
 import { optionsApisHash } from "./libs/optionsEntry";
+import { APP_CONTEXT_KEY } from "./libs/browser";
 
-globalThis.__KISS_CONTEXT__ = "background";
+globalThis[APP_CONTEXT_KEY] = "background";
 installStorageCoordinator();
 
 let openingOptionsPage = false;

@@ -6,7 +6,7 @@ import { browser } from "./browser";
  * belongs to the document, including across runtime restarts and BFCache.
  */
 export function getPopupDocumentIdentity() {
-  const key = "__KISS_TRANSLATOR_DOCUMENT_TOKEN__";
+  const key = "__IMMERTRANSLATE_DOCUMENT_TOKEN__";
   if (!globalThis[key]) {
     const values = new Uint32Array(4);
     globalThis.crypto.getRandomValues(values);

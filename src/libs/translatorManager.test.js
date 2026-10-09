@@ -31,8 +31,8 @@ jest.mock("./ruleEditorManager", () => ({
 }));
 
 jest.mock("../config", () => ({
-  EVENT_KISS_INNER: "kiss-inner",
-  EVENT_KISS_TRANSLATOR: "kiss-translator",
+  EVENT_KISS_INNER: "immertranslate-inner",
+  EVENT_KISS_TRANSLATOR: "immertranslate",
   MSG_HOVERNODE_TOGGLE: "hovernode-toggle",
   MSG_INPUT_TRANSLATE: "input-translate",
   MSG_TRANS_TOGGLE: "trans-toggle",
@@ -644,7 +644,7 @@ describe("TranslatorManager SPA lifecycle", () => {
     const manager = createManager({ transboxOnly: true });
     const eventHandler = jest.fn();
     manager.start();
-    document.addEventListener("kiss-inner", eventHandler);
+    document.addEventListener("immertranslate-inner", eventHandler);
 
     const runtimeHandler =
       browser.runtime.onMessage.addListener.mock.calls[0][0];
@@ -661,7 +661,7 @@ describe("TranslatorManager SPA lifecycle", () => {
       args: { text: "hello" },
     });
 
-    document.removeEventListener("kiss-inner", eventHandler);
+    document.removeEventListener("immertranslate-inner", eventHandler);
   });
 
   test.each([true, false])(
@@ -871,7 +871,7 @@ describe("TranslatorManager SPA lifecycle", () => {
         snapshots.push(getSelectionEnabled());
       }
     };
-    document.addEventListener("kiss-inner", onSelectionChange);
+    document.addEventListener("immertranslate-inner", onSelectionChange);
 
     try {
       expect(getSelectionEnabled()).toBe(false);
@@ -888,7 +888,7 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(FabManager.mock.calls[1][0].getSelectionEnabled()).toBe(false);
       expect(mockTransboxArgs[1].tranboxSetting.transOpen).toBe(false);
     } finally {
-      document.removeEventListener("kiss-inner", onSelectionChange);
+      document.removeEventListener("immertranslate-inner", onSelectionChange);
     }
   });
 
@@ -1012,12 +1012,12 @@ describe("TranslatorManager SPA lifecycle", () => {
       mockTranslatorInstances[0].touchMode = "off";
     });
     const onTouchState = jest.fn();
-    document.addEventListener("kiss-inner", onTouchState);
+    document.addEventListener("immertranslate-inner", onTouchState);
     let response;
     try {
       response = sendRuntimeMessage({ action: "rule-editor" });
     } finally {
-      document.removeEventListener("kiss-inner", onTouchState);
+      document.removeEventListener("immertranslate-inner", onTouchState);
     }
 
     expect(response.ruleEditorOpened).toBe(true);

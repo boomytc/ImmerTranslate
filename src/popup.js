@@ -3,9 +3,10 @@ import ReactDOM from "react-dom/client";
 import { SettingProvider } from "./hooks/Setting";
 import ThemeProvider from "./views/Popup/PopupTheme";
 import Popup from "./views/Popup";
+import { APP_CONTEXT_KEY } from "./libs/browser";
 
 // Identify the popup context for shared libraries.
-globalThis.__KISS_CONTEXT__ = "popup";
+globalThis[APP_CONTEXT_KEY] = "popup";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

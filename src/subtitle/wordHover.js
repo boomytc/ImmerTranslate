@@ -1,3 +1,4 @@
+import { EVENT_ADD_WORD } from "../config/msg.js";
 import { apiMicrosoftDict } from "../apis/index.js";
 import { logger } from "../libs/log.js";
 import { trustedTypesHelper } from "../libs/trustedTypes.js";
@@ -330,7 +331,7 @@ export class WordTooltipController {
   }
 
   #dispatchAddWord(detail) {
-    document.dispatchEvent(new CustomEvent("kiss-add-word", { detail }));
+    document.dispatchEvent(new CustomEvent(EVENT_ADD_WORD, { detail }));
   }
 
   #addFavoriteButton(word, data) {

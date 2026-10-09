@@ -1,6 +1,6 @@
 import { YouTubeSubtitleList } from "./YouTubeSubtitleList";
 import { apiMicrosoftDict } from "../apis/index.js";
-import { EVENT_FAVORITE_WORD_CHANGE } from "../config";
+import { EVENT_ADD_WORD, EVENT_FAVORITE_WORD_CHANGE } from "../config";
 
 jest.mock("../libs/storage.js", () => ({
   getSettingWithDefault: jest.fn(() => Promise.resolve({ darkMode: "light" })),
@@ -175,7 +175,7 @@ describe("YouTubeSubtitleList", () => {
       enableHoverLookup: true,
     });
     const addWordHandler = jest.fn();
-    document.addEventListener("kiss-add-word", addWordHandler);
+    document.addEventListener(EVENT_ADD_WORD, addWordHandler);
 
     manager.initialize(
       [{ ...subtitle, start: 33000, text: "ready to go" }],
@@ -218,7 +218,7 @@ describe("YouTubeSubtitleList", () => {
     });
     expect(favoriteWords.ready.timestamp).toBeUndefined();
 
-    document.removeEventListener("kiss-add-word", addWordHandler);
+    document.removeEventListener(EVENT_ADD_WORD, addWordHandler);
     manager.destroy();
     jest.useRealTimers();
   });

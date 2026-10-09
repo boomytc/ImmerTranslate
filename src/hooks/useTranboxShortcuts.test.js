@@ -14,7 +14,7 @@ jest.mock("../libs/log", () => ({
 }));
 
 jest.mock("../config", () => ({
-  EVENT_KISS_INNER: "kiss-inner",
+  EVENT_KISS_INNER: "immertranslate-inner",
   MSG_OPEN_TRANBOX: "open-tranbox",
 }));
 

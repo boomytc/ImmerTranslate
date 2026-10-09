@@ -76,56 +76,56 @@ describe("getApiIconSrc", () => {
     expect(
       getApiIconSrc(OPT_TRANS_GOOGLE, {
         runtime: undefined,
-        publicUrl: "/kiss-translator",
+        publicUrl: "/immertranslate",
       })
-    ).toBe("/kiss-translator/api/Google.svg");
+    ).toBe("/immertranslate/api/Google.svg");
   });
 
   test("resolves the OrcaRouter asset through the shared provider map", () => {
     expect(
       getApiIconSrc(OPT_TRANS_ORCAROUTER, {
         runtime: undefined,
-        publicUrl: "/kiss-translator",
+        publicUrl: "/immertranslate",
       })
-    ).toBe("/kiss-translator/api/OrcaRouter.svg");
+    ).toBe("/immertranslate/api/OrcaRouter.svg");
   });
 
   test("resolves the ModelBest asset through the shared provider map", () => {
     expect(
       getApiIconSrc(OPT_TRANS_MODELBEST, {
         runtime: undefined,
-        publicUrl: "/kiss-translator",
+        publicUrl: "/immertranslate",
         allowPublicUrl: true,
       })
-    ).toBe("/kiss-translator/api/ModelBest.svg");
+    ).toBe("/immertranslate/api/ModelBest.svg");
   });
 
   test("resolves the ModelScope asset through the shared provider map", () => {
     expect(
       getApiIconSrc(OPT_TRANS_MODELSCOPE, {
         runtime: undefined,
-        publicUrl: "/kiss-translator",
+        publicUrl: "/immertranslate",
         allowPublicUrl: true,
       })
-    ).toBe("/kiss-translator/api/ModelScope.svg");
+    ).toBe("/immertranslate/api/ModelScope.svg");
   });
 
   test("resolves the Requesty asset through the shared provider map", () => {
     expect(
       getApiIconSrc(OPT_TRANS_REQUESTY, {
         runtime: undefined,
-        publicUrl: "/kiss-translator",
+        publicUrl: "/immertranslate",
       })
-    ).toBe("/kiss-translator/api/Requesty.svg");
+    ).toBe("/immertranslate/api/Requesty.svg");
   });
 
   test("resolves the APIMart asset through the shared provider map", () => {
     expect(
       getApiIconSrc(OPT_TRANS_APIMART, {
         runtime: undefined,
-        publicUrl: "/kiss-translator",
+        publicUrl: "/immertranslate",
       })
-    ).toBe("/kiss-translator/api/APIMart.svg");
+    ).toBe("/immertranslate/api/APIMart.svg");
   });
 
   test("uses the bundled generic icon by default in a userscript", () => {

@@ -25,11 +25,11 @@ import {
   OPT_SPLIT_PARAGRAPH_TEXTLENGTH,
   API_SPE_TYPES,
   MSG_INJECT_CSS,
+  MSG_SHADOW_ROOT_CREATED,
   MSG_UPDATE_ICON,
   EVENT_FAVORITE_WORD_CHANGE,
   OPT_DICT_BING,
   OPT_DICT_MAP,
-
   newI18n,
 } from "../config";
 import { resolveApiPromptSettings } from "../config/prompt";
@@ -68,7 +68,7 @@ import { tryDetectLang } from "./detect";
 import { isSameTranslationLanguage } from "./language";
 import { trustedTypesHelper } from "./trustedTypes";
 import { injectJs, INJECTOR } from "../injectors";
-import { injectInternalCss } from "./injector";
+import { injectInternalCss, INJECT_SOURCE_PREFIX } from "./injector";
 import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
 import { isMissingRequiredApiKey } from "./apiKey";
@@ -1054,8 +1054,7 @@ export class Translator {
       this.#apiSetting.placeholder.split(" ");
 
     const tagName =
-      typeof this.#apiSetting.placetag === "string" &&
-      this.#apiSetting.placetag
+      typeof this.#apiSetting.placetag === "string" && this.#apiSetting.placetag
         ? this.#apiSetting.placetag
         : "i";
 
@@ -1195,14 +1194,14 @@ export class Translator {
   }
 
   #handleWindowMessage(event) {
-    if (event.data?.type === "KISS_SHADOW_ROOT_CREATED") {
+    if (event.data?.type === MSG_SHADOW_ROOT_CREATED) {
       this.#debouncedFindShadowRoot();
     }
   }
 
   #attachShadowRootListener() {
     if (!this.#isShadowRootJsInjected) {
-      const id = "kiss-translator-inject-shadowroot-js";
+      const id = `${APP_LCNAME}-inject-shadowroot-js`;
       injectJs(INJECTOR.shadowroot, id);
 
       this.#isShadowRootJsInjected = true;
@@ -5107,16 +5106,6 @@ overflow-wrap: anywhere !important;`;
     this.#isJsInjected = true;
 
     try {
-      // const { injectJs, injectCss } = this.#rule;
-      // if (isExt) {
-      //   injectJs && sendBgMsg(MSG_INJECT_JS, injectJs);
-      //   injectCss && sendBgMsg(MSG_INJECT_CSS, injectCss);
-      // } else {
-      //   injectJs &&
-      //     injectInlineJs(injectJs, "kiss-translator-userinit-injector");
-      //   injectCss && injectInternalCss(injectCss);
-      // }
-
       const { injectCss, toLang } = this.#rule;
 
       if (isExt) {
@@ -5148,7 +5137,7 @@ overflow-wrap: anywhere !important;`;
   // 移除JS/CSS
   #removeInjector() {
     document
-      .querySelectorAll(`[data-source^="kiss-inject"]`)
+      .querySelectorAll(`[data-source^="${INJECT_SOURCE_PREFIX}"]`)
       ?.forEach((el) => el.remove());
   }
 

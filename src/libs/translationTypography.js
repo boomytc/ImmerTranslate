@@ -29,7 +29,7 @@ const FONT_SHORTHAND_PROPERTIES = new Set([
   "font-family",
 ]);
 
-export const PAGE_TRANSLATION_CHROME_STYLE_ID = "kiss-translator-page-chrome";
+export const PAGE_TRANSLATION_CHROME_STYLE_ID = `${APP_LCNAME}-page-chrome`;
 
 // Glass / frost stays on the extension shell. Page translations stay flat.
 export const PAGE_TRANSLATION_CHROME_CSS = `

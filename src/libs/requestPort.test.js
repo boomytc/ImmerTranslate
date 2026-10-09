@@ -8,8 +8,8 @@ jest.mock("./storage", () => ({ getSettingWithDefault: jest.fn() }));
 jest.mock("./log", () => ({ kissLog: jest.fn() }));
 jest.mock("../config", () => ({
   DEFAULT_HTTP_TIMEOUT: 30,
-  MSG_FETCH: "kiss_fetch",
-  PORT_REQUEST_FETCH: "kiss_request_fetch",
+  MSG_FETCH: "immertranslate_fetch",
+  PORT_REQUEST_FETCH: "immertranslate_request_fetch",
 }));
 
 import { browser } from "./browser";
@@ -84,7 +84,7 @@ describe("ordinary extension request port lifecycle", () => {
       translated: "OK",
     });
     expect(browser.runtime.connect).toHaveBeenCalledWith({
-      name: "kiss_request_fetch",
+      name: "immertranslate_request_fetch",
     });
     expect(sendBgMsg).not.toHaveBeenCalled();
     expect(execute.mock.calls[0][0].opts.signal).toBeInstanceOf(AbortSignal);

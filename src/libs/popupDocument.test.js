@@ -91,7 +91,7 @@ describe("popup document identity", () => {
         frameId: 7,
         matchAboutBlank: true,
         runAt: "document_start",
-        code: expect.stringContaining("__KISS_TRANSLATOR_DOCUMENT_TOKEN__"),
+        code: expect.stringContaining("__IMMERTRANSLATE_DOCUMENT_TOKEN__"),
       });
       browser.tabs.executeScript.mockResolvedValue([{ token: "replacement" }]);
       await expect(isCurrentPopupDocument(17, documentInfo)).resolves.toBe(

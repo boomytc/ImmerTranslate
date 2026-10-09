@@ -4,6 +4,7 @@ import { DEFAULT_API_SETTING } from "../config/api.js";
 import { DEFAULT_SUBTITLE_SETTING } from "../config/setting.js";
 import { STOKEY_SETTING } from "../config/storage.js";
 import { logger } from "../libs/log.js";
+import { APP_LCNAME } from "../config/app.js";
 import { injectJs, INJECTOR } from "../injectors/index.js";
 import { saveEdit } from "../libs/storage.js";
 
@@ -54,7 +55,7 @@ export function runSubtitle({ href, setting }) {
       // 1. 注入底层的劫持脚本 (INJECTOR.subtitle)
       // 该操作会在原生页面环境中动态注入一段 JS 脚本，用以劫持底层的 XHR (XMLHttpRequest) 请求。
       // 这对于拦截 YouTube 的 timedtext 异步字幕请求并将其回传给当前扩展至关重要。
-      const id = "kiss-translator-inject-subtitle-js";
+      const id = `${APP_LCNAME}-inject-subtitle-js`;
       injectJs(INJECTOR.subtitle, id);
 
       // 2. 获取当前字幕翻译所关联的翻译 API 配置 (apiSetting)

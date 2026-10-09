@@ -1,3 +1,4 @@
+import { EVENT_ADD_WORD } from "../config/msg.js";
 import { logger } from "../libs/log.js";
 import { downloadBlobFile } from "../libs/utils.js";
 import { buildBilingualVtt, buildTranslationOnlyVtt } from "./vtt.js";
@@ -83,8 +84,7 @@ export class YouTubeSubtitleList {
     this.handleVideoPause = this.handleVideoPause.bind(this);
     this.handleVideoPlay = this.handleVideoPlay.bind(this);
     this.handleWindowResize = this.handleWindowResize.bind(this);
-    // 监听在视频字幕上 hover 或划词翻译触发后，弹窗模块向外广播的自定义 "kiss-add-word" 事件
-    document.addEventListener("kiss-add-word", this.handleWordAdded);
+    document.addEventListener(EVENT_ADD_WORD, this.handleWordAdded);
 
     // 监听来自扩展配置选项页面等第三方发送的消息，用以点击生词时同步跳转视频进度
     window.addEventListener("message", this.handleJumpMessage);
@@ -239,7 +239,7 @@ export class YouTubeSubtitleList {
     this._playerSizeListenerAttached = false;
     this._wordTooltipController?.destroy();
     this._wordTooltipController = null;
-    document.removeEventListener("kiss-add-word", this.handleWordAdded);
+    document.removeEventListener(EVENT_ADD_WORD, this.handleWordAdded);
     window.removeEventListener("message", this.handleJumpMessage);
     if (this.container) {
       this.container.remove();

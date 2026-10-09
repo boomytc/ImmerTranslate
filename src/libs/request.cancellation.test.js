@@ -5,7 +5,7 @@ jest.mock("./storage", () => ({ getSettingWithDefault: jest.fn() }));
 jest.mock("./log", () => ({ kissLog: jest.fn() }));
 jest.mock("../config", () => ({
   DEFAULT_HTTP_TIMEOUT: 30,
-  MSG_FETCH: "kiss_fetch",
+  MSG_FETCH: "immertranslate_fetch",
 }));
 
 import { sendBgMsg } from "./msg";

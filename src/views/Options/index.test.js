@@ -454,11 +454,11 @@ describe("Options startup sync", () => {
     window.APP_INFO = {
       name: "ImmerTranslate",
       version: "2.0.24",
-      eventName: "kiss-ping",
+      eventName: "bridge-ping",
     };
     await resolveDeferred(bridgeWait);
     expect(adaptScript).toHaveBeenCalledTimes(1);
-    expect(adaptScript).toHaveBeenCalledWith("kiss-ping");
+    expect(adaptScript).toHaveBeenCalledWith("bridge-ping");
     expect(view.query("apis-page")).not.toBe(null);
     expectLocked(view);
     expect(trySyncSetting).toHaveBeenCalledTimes(1);
@@ -474,7 +474,7 @@ describe("Options startup sync", () => {
     window.APP_INFO = {
       name: "ImmerTranslate",
       version: "2.1.0",
-      eventName: "kiss-ping",
+      eventName: "bridge-ping",
     };
     const view = renderOptions("#/apis");
     await flushEffects();

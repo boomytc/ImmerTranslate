@@ -72,6 +72,7 @@ const { runSubtitle } = require("./subtitle/subtitle");
 const { injectInlineJs } = require("./libs/injector");
 const TranslatorManager = require("./libs/translatorManager").default;
 const { run } = require("./common");
+const { APP_LCNAME } = require("./config/app");
 
 function setReadyState(value) {
   Object.defineProperty(document, "readyState", {
@@ -307,12 +308,12 @@ describe("common iframe startup", () => {
     getSettingWithDefault.mockImplementation(async () => {
       gmDuringRead = globalThis.GM;
       return {
-      blacklist: "",
-      tranboxSetting: { blacklist: "", transOpen: true },
-      inputRule: { blacklist: "", transOpen: true },
-      mouseHoverSetting: { blacklist: "", useMouseHover: true },
-      logLevel: 1,
-    };
+        blacklist: "",
+        tranboxSetting: { blacklist: "", transOpen: true },
+        inputRule: { blacklist: "", transOpen: true },
+        mouseHoverSetting: { blacklist: "", useMouseHover: true },
+        logLevel: 1,
+      };
     });
 
     try {
@@ -380,12 +381,12 @@ describe("common iframe startup", () => {
     getSettingWithDefault.mockImplementation(async () => {
       gmDuringRead = globalThis.GM;
       return {
-      blacklist: "",
-      tranboxSetting: { blacklist: "", transOpen: true },
-      inputRule: { blacklist: "", transOpen: true },
-      mouseHoverSetting: { blacklist: "", useMouseHover: true },
-      logLevel: 1,
-    };
+        blacklist: "",
+        tranboxSetting: { blacklist: "", transOpen: true },
+        inputRule: { blacklist: "", transOpen: true },
+        mouseHoverSetting: { blacklist: "", useMouseHover: true },
+        logLevel: 1,
+      };
     });
 
     try {
@@ -420,12 +421,12 @@ describe("common iframe startup", () => {
     getSettingWithDefault.mockImplementation(async () => {
       gmDuringRead = globalThis.GM;
       return {
-      blacklist: "",
-      tranboxSetting: { blacklist: "", transOpen: true },
-      inputRule: { blacklist: "", transOpen: true },
-      mouseHoverSetting: { blacklist: "", useMouseHover: true },
-      logLevel: 1,
-    };
+        blacklist: "",
+        tranboxSetting: { blacklist: "", transOpen: true },
+        inputRule: { blacklist: "", transOpen: true },
+        mouseHoverSetting: { blacklist: "", useMouseHover: true },
+        logLevel: 1,
+      };
     });
 
     try {
@@ -464,7 +465,7 @@ describe("common iframe startup", () => {
 
       expect(injectInlineJs).toHaveBeenCalledTimes(1);
       expect(injectInlineJs.mock.calls[0][1]).toBe(
-        "kiss-translator-options-injector"
+        `${APP_LCNAME}-options-injector`
       );
       expectNoNormalUserscriptStartup();
     } finally {
@@ -514,7 +515,7 @@ describe("common iframe startup", () => {
 
       expect(injectInlineJs).toHaveBeenCalledTimes(1);
       expect(injectInlineJs.mock.calls[0][1]).toBe(
-        "kiss-translator-options-injector"
+        `${APP_LCNAME}-options-injector`
       );
       expectNoNormalUserscriptStartup();
     } finally {
@@ -534,7 +535,7 @@ describe("common iframe startup", () => {
 
       expect(injectInlineJs).toHaveBeenCalledTimes(1);
       expect(injectInlineJs.mock.calls[0][1]).toBe(
-        "kiss-translator-options-injector"
+        `${APP_LCNAME}-options-injector`
       );
       expectNoNormalUserscriptStartup();
     } finally {
@@ -554,7 +555,7 @@ describe("common iframe startup", () => {
 
       expect(injectInlineJs).toHaveBeenCalledTimes(1);
       expect(injectInlineJs.mock.calls[0][1]).toBe(
-        "kiss-translator-options-injector"
+        `${APP_LCNAME}-options-injector`
       );
       expectNoNormalUserscriptStartup();
     } finally {

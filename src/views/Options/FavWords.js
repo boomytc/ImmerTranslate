@@ -28,6 +28,7 @@ import { dictHandlers } from "../Selection/DictHandler";
 import {
   DEFAULT_SETTING,
   DEFAULT_TRANBOX_SETTING,
+  APP_LCNAME,
   OPT_DICT_MAP,
   PROMPT_MODE_FOLLOW_API,
   findPromptBySlug,
@@ -518,7 +519,7 @@ export default function FavWords() {
           <DownloadButton
             handleData={handleExportCsv}
             text={i18n("export") + " (CSV)"}
-            fileName={`kiss-words_${Date.now()}.csv`}
+            fileName={`${APP_LCNAME}-words_${Date.now()}.csv`}
           />
           <Button
             size="small"
@@ -546,22 +547,22 @@ export default function FavWords() {
             <DownloadButton
               handleData={() => wordList.join("\n")}
               text={i18n("export")}
-              fileName={`kiss-words_${Date.now()}.txt`}
+              fileName={`${APP_LCNAME}-words_${Date.now()}.txt`}
             />
             <DownloadButton
               handleData={handleExportTxt}
               text={i18n("export") + " (TXT)"}
-              fileName={`kiss-words_${Date.now()}.txt`}
+              fileName={`${APP_LCNAME}-words_${Date.now()}.txt`}
             />
             <DownloadButton
               handleData={handleExportMd}
               text={i18n("export") + " (MD)"}
-              fileName={`kiss-words_${Date.now()}.md`}
+              fileName={`${APP_LCNAME}-words_${Date.now()}.md`}
             />
             <DownloadButton
               handleData={handleTranslation}
               text={i18n("export_translation")}
-              fileName={`kiss-words_${Date.now()}.md`}
+              fileName={`${APP_LCNAME}-words_${Date.now()}.md`}
             />
           </Box>
         )}

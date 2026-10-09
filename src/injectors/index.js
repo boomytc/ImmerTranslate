@@ -1,3 +1,4 @@
+import { APP_LCNAME } from "../config/app";
 import { browser } from "../libs/browser";
 import { isExt } from "../libs/client";
 import { injectExternalJs, injectInlineJs } from "../libs/injector";
@@ -23,7 +24,7 @@ const injectorMap = {
  * @param {string} name - 脚本名称
  * @param {string} [id] - 插入标签的 DOM ID 标识
  */
-export function injectJs(name, id = "kiss-translator-inject-js") {
+export function injectJs(name, id = `${APP_LCNAME}-inject-js`) {
   const injector = injectorMap[name];
   if (!injector) return;
 

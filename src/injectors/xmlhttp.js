@@ -18,7 +18,8 @@ export const XMLHttpRequestInjector = () => {
           // 推荐同步劫持 `window.fetch` 方法，以实现对不同 HTTP 请求客户端的完整兼容拦截。
           window.postMessage(
             {
-              type: "KISS_XHR_DATA_YOUTUBE",
+              // 函数源码会进入页面，这个字符串必须与 MSG_XHR_DATA_YOUTUBE 一致。
+              type: "IMMERTRANSLATE_XHR_DATA_YOUTUBE",
               url: this.responseURL,
               response: this.responseText,
             },
