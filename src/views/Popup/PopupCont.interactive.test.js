@@ -256,6 +256,13 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       );
       expect(siteBtn).not.toBeNull();
       expect(siteBtn.textContent).toBe("hide_fab_on_site");
+      const fabText = fabControl.textContent;
+      const siteAt = fabText.indexOf("hide_fab_on_site");
+      const globalAt = fabText.indexOf("fab_global_switch");
+      const selectionAt = fabText.indexOf("selection_translate");
+      expect(siteAt).toBeGreaterThanOrEqual(0);
+      expect(globalAt).toBeGreaterThan(siteAt);
+      expect(selectionAt).toBeGreaterThan(globalAt);
 
       view.cleanup();
     });
