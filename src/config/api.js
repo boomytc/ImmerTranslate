@@ -53,6 +53,8 @@ export const OPT_TRANS_GOOGLE = "Google"; // 谷歌翻译服务
 export const OPT_TRANS_GOOGLE_CLOUD = "GoogleCloud"; // Google Cloud Translation Basic API
 export const GOOGLE_TRANSLATE_URL =
   "https://translate.googleapis.com/translate_a/single";
+export const GOOGLE_TRANSLATE_BATCH_URL =
+  "https://translate.googleapis.com/translate_a/t";
 export const GOOGLE_PA_TRANSLATE_URL =
   "https://translate-pa.googleapis.com/v1/translateHtml";
 export const OPT_TRANS_MICROSOFT = "Microsoft"; // 微软翻译服务

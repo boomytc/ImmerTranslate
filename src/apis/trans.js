@@ -3,6 +3,7 @@ import {
   OPT_TRANS_GOOGLE,
   OPT_TRANS_GOOGLE_CLOUD,
   GOOGLE_TRANSLATE_URL,
+  GOOGLE_TRANSLATE_BATCH_URL,
   GOOGLE_PA_TRANSLATE_URL,
   OPT_TRANS_MICROSOFT,
   OPT_TRANS_AZUREAI,
@@ -92,6 +93,7 @@ import {
 } from "../libs/stream";
 import { kissLog } from "../libs/log";
 import { fetchData, fetchStream } from "../libs/fetch";
+import { httpStatusFromError } from "../libs/modelList";
 import { getMsgHistory } from "./history";
 import { getOpenCodeSessionId } from "./opencode";
 import { getDocInfo } from "../libs/docInfo";
@@ -943,6 +945,44 @@ const applyThinkingParameters = (body, options) => {
   THINKING_ADAPTERS[registration.adapter]?.(body, disabled);
 };
 
+// translateHtml 拒绝没有身份的调用。免费 Google 不依赖密钥，批量改走 translate_a/t。
+const GOOGLE_GTX_QUERY_BUDGET = 6000;
+
+const hasGoogleTranslateKey = (key) => String(key || "").trim().length > 0;
+
+const isBuiltinGoogleTranslateUrl = (url) =>
+  !url || url === GOOGLE_TRANSLATE_URL || url === GOOGLE_PA_TRANSLATE_URL;
+
+const isGooglePaRequestUrl = (url) =>
+  String(url || "").includes("/translateHtml");
+
+const isGoogleKeyRejection = (error) => {
+  const status = httpStatusFromError(error);
+  if (status === 401 || status === 403) return true;
+  if (status !== 400) return false;
+  return /api[_\s-]*key|API_KEY_INVALID/i.test(
+    String(error?.message || error || "")
+  );
+};
+
+const chunkGoogleGtxTexts = (texts) => {
+  const chunks = [];
+  let chunk = [];
+  let used = 0;
+  texts.forEach((text) => {
+    const cost = encodeURIComponent(String(text ?? "")).length + 3;
+    if (chunk.length > 0 && used + cost > GOOGLE_GTX_QUERY_BUDGET) {
+      chunks.push(chunk);
+      chunk = [];
+      used = 0;
+    }
+    chunk.push(text);
+    used += cost;
+  });
+  if (chunk.length) chunks.push(chunk);
+  return chunks;
+};
+
 const genGoogle = ({ texts, from, to, url, key }) => {
   const gtxUrl =
     !url || url === GOOGLE_PA_TRANSLATE_URL ? GOOGLE_TRANSLATE_URL : url;
@@ -959,11 +999,25 @@ const genGoogle = ({ texts, from, to, url, key }) => {
   const headers = {
     "Content-type": "application/json",
   };
-  if (key) {
-    headers.Authorization = `Bearer ${key}`;
+  if (hasGoogleTranslateKey(key)) {
+    headers.Authorization = `Bearer ${key.trim()}`;
   }
 
   return { url: fullUrl, headers, method: "GET" };
+};
+
+const genGoogleT = ({ texts, from, to }) => {
+  const params = new URLSearchParams();
+  params.set("client", "gtx");
+  params.set("sl", from || "auto");
+  params.set("tl", to);
+  texts.forEach((text) => params.append("q", String(text ?? "")));
+
+  return {
+    url: `${GOOGLE_TRANSLATE_BATCH_URL}?${params.toString()}`,
+    headers: { "Content-type": "application/json" },
+    method: "GET",
+  };
 };
 
 const genGoogle2 = ({ texts, from, to, url, key, textFormat = "text" }) => {
@@ -984,11 +1038,21 @@ const isGoogleBatchOrHtml = (texts = [], textFormat = "text") =>
   textFormat === "html" || (Array.isArray(texts) && texts.length > 1);
 
 const genGoogleRouter = (args) => {
-  const { texts = [], textFormat = "text", url } = args;
-  if (isGoogleBatchOrHtml(texts, textFormat) || args._useGooglePa) {
+  const { texts = [], textFormat = "text", url, key } = args;
+  const keyed = hasGoogleTranslateKey(key);
+  const batchOrHtml =
+    isGoogleBatchOrHtml(texts, textFormat) || args._useGooglePa;
+  if (keyed && batchOrHtml) {
     const paUrl =
       !url || url === GOOGLE_TRANSLATE_URL ? GOOGLE_PA_TRANSLATE_URL : url;
-    return genGoogle2({ ...args, url: paUrl });
+    return genGoogle2({ ...args, url: paUrl, key: key.trim() });
+  }
+  if (
+    (args._useGoogleT || (!keyed && texts.length > 1)) &&
+    isBuiltinGoogleTranslateUrl(url) &&
+    !args._useGooglePa
+  ) {
+    return genGoogleT({ ...args, texts });
   }
   const gtxUrl =
     !url || url === GOOGLE_PA_TRANSLATE_URL ? GOOGLE_TRANSLATE_URL : url;
@@ -1936,6 +2000,7 @@ export const parseTransRes = async (
     useBatchFetch,
     batchProtocol,
     textFormat = "text",
+    googleUrl = "",
   }
 ) => {
   // 执行 response hook
@@ -1974,6 +2039,16 @@ export const parseTransRes = async (
   // todo: 根据结果抛出实际异常信息
   switch (apiType) {
     case OPT_TRANS_GOOGLE:
+      if (String(googleUrl).includes("/translate_a/t") && Array.isArray(res)) {
+        return res.map((item) => {
+          const text = Array.isArray(item) ? item[0] : item;
+          const lang = Array.isArray(item) ? item[1] || "" : "";
+          return [
+            textFormat === "text" ? decodeHTMLTranslationText(text) : text,
+            lang,
+          ];
+        });
+      }
       if (Array.isArray(res) || Array.isArray(res?.[0])) {
         return res?.[0]?.map((_, i) => [
           textFormat === "text"
@@ -2400,10 +2475,23 @@ export async function* handleTranslate(
       isGeminiInteractionsUrl(apiSetting.url)
     );
 
-  const getRequest = (requestUseStream) =>
+  const fetchOpts = {
+    useCache: false,
+    usePool,
+    fetchInterval,
+    fetchLimit,
+    httpTimeout,
+    signal,
+  };
+
+  const getRequest = (
+    requestUseStream,
+    requestTexts = texts,
+    requestSetting = apiSetting
+  ) =>
     genTransReq({
-      ...apiSetting,
-      texts,
+      ...requestSetting,
+      texts: requestTexts,
       from,
       to,
       fromLang,
@@ -2416,69 +2504,9 @@ export async function* handleTranslate(
       docInfo,
     });
 
-  const runNonStream = async function* (input, init, userMsg) {
-    let response;
-    try {
-      response = await fetchData(input, init, {
-        useCache: false,
-        usePool,
-        fetchInterval,
-        fetchLimit,
-        httpTimeout,
-        signal,
-      });
-      if (!response) {
-        throw new Error("translate got empty response");
-      }
-    } catch (err) {
-      if (signal?.aborted || err?.name === "AbortError") {
-        throw err;
-      }
-      const isSinglePlainText =
-        textFormat === "text" && Array.isArray(texts) && texts.length === 1;
-      if (
-        apiType === OPT_TRANS_GOOGLE &&
-        isSinglePlainText &&
-        init?.method === "GET"
-      ) {
-        kissLog("Google GET failed, retrying with Google PA API", err);
-        const [fallbackInput, fallbackInit, fallbackUserMsg] =
-          await genTransReq({
-            ...apiSetting,
-            apiType: OPT_TRANS_GOOGLE,
-            _useGooglePa: true,
-            texts,
-            from,
-            to,
-            fromLang,
-            toLang,
-            langMap,
-            glossary,
-            textFormat,
-            hisMsgs,
-            useStream: false,
-            docInfo,
-          });
-        capture?.onRequest?.(fallbackInput, fallbackInit, fallbackUserMsg);
-        response = await fetchData(fallbackInput, fallbackInit, {
-          useCache: false,
-          usePool,
-          fetchInterval,
-          fetchLimit,
-          httpTimeout,
-          signal,
-        });
-        if (!response) {
-          throw new Error("translate got empty response on fallback");
-        }
-      } else {
-        throw err;
-      }
-    }
-    capture?.onResponse?.(response);
-
-    const result = await parseTransRes(response, {
-      texts,
+  const parseGoogleResponse = (response, requestTexts, requestInput, userMsg) =>
+    parseTransRes(response, {
+      texts: requestTexts,
       from,
       to,
       fromLang,
@@ -2488,7 +2516,120 @@ export async function* handleTranslate(
       userMsg,
       ...apiSetting,
       textFormat,
+      googleUrl: requestInput,
     });
+
+  // 免费 Google 的多段请求走 translate_a/t，并按 URL 长度切开，避免 GET 超长。
+  const collectGoogleKeylessTranslations = async (requestTexts) => {
+    const parts = [];
+    for (const chunk of chunkGoogleGtxTexts(requestTexts)) {
+      if (signal?.aborted) {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+      const [chunkInput, chunkInit, chunkUserMsg] = await getRequest(
+        false,
+        chunk,
+        { ...apiSetting, key: "", _useGoogleT: true }
+      );
+      capture?.onRequest?.(chunkInput, chunkInit, chunkUserMsg);
+      const response = await fetchData(chunkInput, chunkInit, fetchOpts);
+      if (!response) {
+        throw new Error("translate got empty response");
+      }
+      capture?.onResponse?.(response);
+      const parsed = await parseGoogleResponse(
+        response,
+        chunk,
+        chunkInput,
+        chunkUserMsg
+      );
+      if (!parsed?.length) {
+        throw new Error("translate got an unexpected result");
+      }
+      parts.push(...parsed);
+    }
+    return parts;
+  };
+
+  const googleKeylessBatch =
+    apiType === OPT_TRANS_GOOGLE &&
+    !hasGoogleTranslateKey(apiSetting.key) &&
+    isBuiltinGoogleTranslateUrl(apiSetting.url) &&
+    Array.isArray(texts) &&
+    texts.length > 1;
+
+  if (!enableStream && googleKeylessBatch) {
+    const parts = await collectGoogleKeylessTranslations(texts);
+    const aligned = alignBatchTranslations(parts, texts.length);
+    for (const chunk of aligned) {
+      yield chunk;
+    }
+    return;
+  }
+
+  const runNonStream = async function* (input, init, requestUserMsg) {
+    let responseUrl = input;
+    let userMsg = requestUserMsg;
+    let response;
+    try {
+      response = await fetchData(input, init, fetchOpts);
+      if (!response) {
+        throw new Error("translate got empty response");
+      }
+    } catch (err) {
+      if (signal?.aborted || err?.name === "AbortError") {
+        throw err;
+      }
+      const isSinglePlainText =
+        textFormat === "text" && Array.isArray(texts) && texts.length === 1;
+      const canRetryPa =
+        apiType === OPT_TRANS_GOOGLE &&
+        hasGoogleTranslateKey(apiSetting.key) &&
+        isSinglePlainText &&
+        init?.method === "GET";
+      if (
+        apiType === OPT_TRANS_GOOGLE &&
+        isGooglePaRequestUrl(responseUrl) &&
+        isGoogleKeyRejection(err)
+      ) {
+        kissLog("Google PA rejected the key, retrying without a key", err);
+        const parts = await collectGoogleKeylessTranslations(texts);
+        const aligned = alignBatchTranslations(parts, texts.length);
+        for (const chunk of aligned) {
+          yield chunk;
+        }
+        return;
+      }
+      if (canRetryPa) {
+        kissLog("Google GET failed, retrying with Google PA API", err);
+        const [fallbackInput, fallbackInit, fallbackUserMsg] = await getRequest(
+          false,
+          texts,
+          {
+            ...apiSetting,
+            apiType: OPT_TRANS_GOOGLE,
+            _useGooglePa: true,
+          }
+        );
+        capture?.onRequest?.(fallbackInput, fallbackInit, fallbackUserMsg);
+        response = await fetchData(fallbackInput, fallbackInit, fetchOpts);
+        if (!response) {
+          throw new Error("translate got empty response on fallback");
+        }
+        userMsg = fallbackUserMsg;
+        responseUrl = fallbackInput;
+      } else {
+        throw err;
+      }
+    }
+    capture?.onResponse?.(response);
+
+    const result = await parseGoogleResponse(
+      response,
+      texts,
+      responseUrl,
+      userMsg
+    );
     if (!result?.length) {
       throw new Error("translate got an unexpected result");
     }
