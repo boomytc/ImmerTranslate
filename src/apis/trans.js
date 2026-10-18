@@ -556,8 +556,6 @@ export const alignBatchTranslations = (items, totalCount) => {
   return results;
 };
 
-export const detectSubtitleProtocol = () => "boundary-v3";
-
 /** 将播放器事件压缩成发送给 AI 的稳定索引 JSON 结构。 */
 export const formatIndexSubtitleEvents = (events) =>
   events.map((e, i) => {

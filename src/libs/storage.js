@@ -5,7 +5,6 @@ import {
   STOKEY_FAB,
   STOKEY_TRANBOX,
   STOKEY_SYNC,
-  STOKEY_BDAUTH,
   STOKEY_RULESCACHE_PREFIX,
   STOKEY_DISABLED_SUB_RULES,
   DEFAULT_SETTING,
@@ -533,10 +532,6 @@ export const normalizeStoredSetting = (rawSetting) => {
 export const getSettingWithDefault = async () =>
   normalizeStoredSetting(await getSetting());
 export const setSetting = async (val) => setObj(STOKEY_SETTING, val);
-export const putSetting = async (obj) => {
-  const cur = (await getSetting()) ?? {};
-  await setSetting({ ...cur, ...obj });
-};
 
 // --- 用户翻译规则 (Rules) 数据存取 ---
 export const getRules = () => getObj(STOKEY_RULES);
@@ -551,7 +546,6 @@ export const setWords = (val) => setObj(STOKEY_WORDS, val);
 
 // --- 订阅翻译规则 (Subscription Rules Cache) 数据存取 ---
 export const getSubRules = (url) => getObj(STOKEY_RULESCACHE_PREFIX + url);
-export const getSubRulesWithDefault = async () => (await getSubRules()) || [];
 export const delSubRules = (url) => del(STOKEY_RULESCACHE_PREFIX + url);
 export const setSubRules = (url, val) =>
   setObj(STOKEY_RULESCACHE_PREFIX + url, val);
@@ -606,7 +600,6 @@ export const removeDisabledSubRules = async (url) => {
 // --- 悬浮球 (Fab Button) 位置及偏好存取 ---
 export const getFab = () => getObj(STOKEY_FAB);
 export const getFabWithDefault = async () => (await getFab()) || {};
-export const setFab = (obj) => setObj(STOKEY_FAB, obj);
 export const putFab = (obj) => putObj(STOKEY_FAB, obj);
 
 // --- 交互翻译框 (TranBox UI) 位置与大小存取 ---
@@ -652,10 +645,6 @@ export const putSyncMeta = (key) => {
     },
   }));
 };
-
-// --- 百度云服务授权 Token 存取 ---
-export const getBdauth = () => getObj(STOKEY_BDAUTH);
-export const setBdauth = (val) => setObj(STOKEY_BDAUTH, val);
 
 /**
  * 首次加载或升级时，尝试向本地写入系统默认初始数据。

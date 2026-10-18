@@ -7,8 +7,6 @@ import {
 } from "./storageEvents";
 import { cloneStorageValue, isSameStorageValue } from "./storageEquality";
 
-export { isSameStorageValue } from "./storageEquality";
-
 const states = new Map();
 const writeQueues = new Map();
 const syncQueues = new Map();

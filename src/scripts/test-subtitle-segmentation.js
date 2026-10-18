@@ -99,6 +99,10 @@ async function run() {
     await writeJson(path.join(sampleDir, "flat-events.json"), flatEvents);
 
     const sampleMetrics = {};
+    const longSentenceThresholdArg = Number(args["long-sentence-threshold"]);
+    const longSentenceThreshold = Number.isFinite(longSentenceThresholdArg)
+      ? longSentenceThresholdArg
+      : 100;
     for (const mode of modes) {
       const startedAt = performance.now();
       const cues = runBuiltinSegmentation({
@@ -106,7 +110,7 @@ async function run() {
         flatEvents,
         fromLang,
         mode,
-        longSentenceThreshold: Number(args["long-sentence-threshold"]) || 100,
+        longSentenceThreshold,
       });
       const metrics = buildSegmentationMetrics({
         rawEvents,

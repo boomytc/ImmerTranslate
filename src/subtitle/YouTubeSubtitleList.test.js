@@ -70,6 +70,18 @@ async function flushPromises() {
 }
 
 describe("YouTubeSubtitleList", () => {
+  test("formats timestamps without producing invalid 60-second values", () => {
+    const videoEl = createVideoElement();
+    const manager = new YouTubeSubtitleList(videoEl);
+
+    expect(manager.millisToMinutesAndSeconds(59600)).toBe("0:59");
+    expect(manager.millisToMinutesAndSeconds(60000)).toBe("1:00");
+    expect(manager.millisToMinutesAndSeconds(3599999)).toBe("59:59");
+    expect(manager.millisToMinutesAndSeconds(Number.NaN)).toBe("0:00");
+
+    manager.destroy();
+  });
+
   beforeEach(() => {
     apiMicrosoftDict.mockReset();
     const storage = require("../libs/storage.js");

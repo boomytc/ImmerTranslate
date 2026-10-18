@@ -14,7 +14,6 @@ export const DEFAULT_BATCH_CONCURRENCY = 10; // 同时执行的聚合批次数�
 export const DEFAULT_CONTEXT_SIZE = 3; // AI 翻译时上下文历史条数上限，按完整 user/assistant 轮次向下取整保留
 
 // --- 翻译内容替换占位符 ---
-export const INPUT_PLACE_URL = "{{url}}"; // 当前网页 URL 占位符
 export const INPUT_PLACE_FROM = "{{from}}"; // 源语言占位符
 export const INPUT_PLACE_TO = "{{to}}"; // 目标语言占位符
 export const INPUT_PLACE_FROM_LANG = "{{fromLang}}"; // 源语言代码占位符
@@ -35,7 +34,6 @@ export const GEMINI_INTERACTIONS_URL =
   "https://generativelanguage.googleapis.com/v1/interactions";
 
 // --- 划词翻译词典服务商 ---
-// export const OPT_DICT_BAIDU = "Baidu";
 export const OPT_DICT_BING = "Bing"; // 必应词典
 export const OPT_DICT_YOUDAO = "Youdao"; // 有道词典
 export const OPT_DICT_ALL = [OPT_DICT_BING, OPT_DICT_YOUDAO];
@@ -1026,7 +1024,6 @@ export const BUILTIN_STONES = [
 ];
 export const BUILTIN_PLACEHOLDERS = ["{ }", "{{ }}", "[ ]", "[[ ]]"];
 export const BUILTIN_PLACETAGS = ["i", "a", "b", "x", "span"];
-export const PLACETAG_FORMATS = ["compact", "attribute"]; // 占位符格式：简洁格式、属性格式
 
 export const OPT_LANGS_TO = [
   ["en", "English - English"],

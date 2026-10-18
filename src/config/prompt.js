@@ -22,11 +22,6 @@ import {
 export const PROMPT_PROTOCOL_LINE = "line";
 export const PROMPT_PROTOCOL_XML = "xml";
 export const PROMPT_PROTOCOL_JSON = "json";
-export const PROMPT_PROTOCOLS = [
-  PROMPT_PROTOCOL_LINE,
-  PROMPT_PROTOCOL_XML,
-  PROMPT_PROTOCOL_JSON,
-];
 
 // 定义各类预设提示词的唯一标识符 (Slug)
 export const PROMPT_SLUG_NOBATCH_TRANSLATION = "nobatch-translation";
@@ -260,17 +255,6 @@ function findPromptBySlugOrDefault(userPrompts, promptSlug, defaultPromptSlug) {
     findPromptBySlug(userPrompts, promptSlug) ||
     findPromptBySlug(userPrompts, defaultPromptSlug)
   );
-}
-
-/**
- * 获取指定提示词的名称（未进行本地化翻译的原始名称）。
- *
- * @param {Array} userPrompts 用户自定义提示词列表
- * @param {string} promptSlug 提示词标识符
- * @returns {string} 提示词名称，未找到则返回空字符串
- */
-export function getPromptName(userPrompts = [], promptSlug) {
-  return findPromptBySlug(userPrompts, promptSlug)?.name || "";
 }
 
 function hasOwn(source = {}, fieldName) {

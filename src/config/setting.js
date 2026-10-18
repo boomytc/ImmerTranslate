@@ -96,11 +96,6 @@ export const DEFAULT_INPUT_RULE = {
   showDot: OPT_INPUT_DOT_ALWAYS, // 图标指示器：桌面和移动端都显示
 };
 
-// --- 划词/选区翻译配置 ---
-export const PHONIC_MAP = {
-  en_phonic: ["英", "uk"], // 英国英语发音
-  us_phonic: ["美", "en"], // 美国英语发音
-};
 // 划词翻译框的触发时机常量
 export const OPT_TRANBOX_TRIGGER_CLICK = "click"; // 划词后，点击出现的翻译悬浮球图标再触发翻译
 export const OPT_TRANBOX_TRIGGER_HOVER = "hover"; // 划词后，鼠标悬停在悬浮球上触发翻译
@@ -287,7 +282,6 @@ export const DEFAULT_SETTING = {
   // owSubrule: DEFAULT_OW_RULE, // 覆写订阅规则 (作废)
   transApis: DEFAULT_API_LIST, // 缓存的全部可用翻译 API 配置列表（数组格式）
   prompts: [], // 用户自定义提示词；预设提示词由 config/prompt.js 提供，不写入本地配置
-  // mouseKey: OPT_TIMING_PAGESCROLL, // 翻译时机/鼠标悬停翻译(移至rule，作废)
   shortcuts: DEFAULT_SHORTCUTS, // 键盘快捷键配置对象
   inputRule: DEFAULT_INPUT_RULE, // 输入框即时翻译相关配置
   tranboxSetting: DEFAULT_TRANBOX_SETTING, // 划词翻译及字典结果面板配置

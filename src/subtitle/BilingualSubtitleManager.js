@@ -445,6 +445,10 @@ export class BilingualSubtitleManager {
    */
   onSeeking() {
     this.#throttledTriggerTranslations.cancel(); // 暂停预翻译，防止产生大量断续的无效预翻译网络请求
+    // 拖动进度条后，旧播放位置的在途翻译已过期：递增会话并中止请求，避免过期回调覆盖新位置字幕。
+    this.#translationSessionId += 1;
+    this.#abortController?.abort();
+    this.#abortController = new AbortController();
     // 强制高亮展示对应处的字幕，且不在此触发翻译
     this.#syncToCurrentTime({ forceRender: true, triggerTranslations: false });
   }
@@ -454,6 +458,10 @@ export class BilingualSubtitleManager {
    */
   onSeek() {
     this.#throttledTriggerTranslations.cancel();
+    // 拖动期间被中止的字幕请求不会走到自身 finally，这里统一解除标记，允许新位置重新翻译。
+    for (const sub of this.#formattedSubtitles) {
+      if (sub.isTranslating) sub.isTranslating = false;
+    }
     this.#syncToCurrentTime({ forceRender: true });
     this.#scheduleSeekSettledSync(); // 调度下一帧做一次确认位置同步
   }
@@ -661,15 +669,6 @@ export class BilingualSubtitleManager {
 
   /**
    * 调用大模型或常规翻译 API 对单个字幕进行翻译，并将翻译成功的译文缓存到字幕对象上。
-   *
-   * // REVIEW: 视频进度 Seek 导致的在途预翻译请求资源浪费与字幕回刷隐患。
-   * //    当用户频繁拖拽视频进度条（Seeking / Seeked）时，代码仅仅取消了防抖触发定时器 `#throttledTriggerTranslations.cancel()`，
-   * //    但并没有更新 `#translationSessionId` 或中止（Abort）先前已发起的在途异步翻译网络请求。
-   * //    由于 `#translationSessionId` 只在实例销毁 `destroy()` 时递增，导致 seek 发生前已经在途的那些不再需要的预翻译请求在返回时，
-   * //    其 `sessionId !== this.#translationSessionId` 校验仍然会通过。
-   * //    这不仅会浪费 API 请求额度和网络带宽，还会在翻译完成后，如果用户已 seek 到其他地方，
-   * //    因为 subtitle 引用被错误改写而导致未来再次播放到该处时字幕显示不准，或是在 seek 到位后突然被过期请求回调触发重新渲染导致屏幕闪烁。
-   * //    推荐在 `onSeeking` 阶段也将 `this.#translationSessionId += 1` 并重置 `AbortController` 中止上一段进度的所有未决请求。
    *
    * @param {object} subtitle - 待翻译的目标字幕数据条目
    */

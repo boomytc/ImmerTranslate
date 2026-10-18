@@ -498,28 +498,40 @@ describe("TerminologyPlayground", () => {
   });
 
   test("debounces recompute while typing and updates the example after the delay", async () => {
-    const { container, root } = renderPlayground({
-      rule: { pattern: "*", terms: "SQL,结构化查询" },
+    jest.useFakeTimers({
+      doNotFake: ["requestAnimationFrame", "cancelAnimationFrame"],
     });
-    await flushEffects();
-    const exampleText = () =>
-      container.querySelector('[data-testid="terminology-example-text"]')
-        ?.textContent || "";
+    try {
+      const { container, root } = renderPlayground({
+        rule: { pattern: "*", terms: "SQL,结构化查询" },
+      });
+      await flushEffects();
+      const exampleText = () =>
+        container.querySelector('[data-testid="terminology-example-text"]')
+          ?.textContent || "";
 
-    // 输入变化后 300ms 内仍展示旧结果。
-    await enterTerms(container, "GPT;GPTs,智能体集合", { waitDebounce: false });
-    expect(exampleText()).toContain("SQL");
+      // 输入变化后 300ms 内仍展示旧结果，用假定时器避免全量测试并发时的真实时间抖动。
+      await enterTerms(container, "GPT;GPTs,智能体集合", {
+        waitDebounce: false,
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(299);
+      });
+      expect(exampleText()).toContain("SQL");
 
-    // 防抖到期后重算，例句更新为包含新术语（GPTs）的文本。
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 350));
-    });
-    expect(exampleText()).toContain("GPTs");
-    expect(
-      container.querySelector('[data-testid="terminology-example-status"]')
-    ).not.toBeNull();
+      // 防抖到期后重算，例句更新为包含新术语（GPTs）的文本。
+      await act(async () => {
+        jest.advanceTimersByTime(1);
+      });
+      expect(exampleText()).toContain("GPTs");
+      expect(
+        container.querySelector('[data-testid="terminology-example-status"]')
+      ).not.toBeNull();
 
-    act(() => root.unmount());
+      act(() => root.unmount());
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test("cancels pending debounce tasks when unmounting", async () => {

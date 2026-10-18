@@ -23,7 +23,7 @@ import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   PROMPT_MODE_GLOBAL,
 } from "../../config";
-import { detectSubtitleProtocol, handleSubtitle } from "../../apis/trans";
+import { handleSubtitle } from "../../apis/trans";
 import { useConfirm } from "../../hooks/Confirm";
 import { useI18n } from "../../hooks/I18n";
 import { downloadBlobFile } from "../../libs/utils";
@@ -206,7 +206,7 @@ export default function SubtitleSegmentationPlayground({
       : isPresetPromptSlug(effectivePromptSlug)
         ? i18n("subtitle_playground_prompt_preset", "接口预设")
         : i18n("subtitle_playground_prompt_custom", "接口自定义");
-  const aiProtocol = detectSubtitleProtocol(segApi?.subtitlePrompt || "");
+  const aiProtocol = "boundary-v3";
   const prepared = useMemo(() => {
     if (!sourceValue) return null;
     try {

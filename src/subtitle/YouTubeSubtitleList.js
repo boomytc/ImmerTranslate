@@ -69,7 +69,6 @@ export class YouTubeSubtitleList {
     this._pendingSubtitleTabScrollIndex = -1; // 字幕 Tab 隐藏期间收到跳转请求时，延后到 Tab 恢复可见后再滚动到目标行
     this._eventListenersAttached = false;
     this._vocabularyDirty = false; // 惰性重绘标志位：若在生词 Tab 隐藏时收录了生词，先置为 true。当用户切换到生词 Tab 时再按需重绘 DOM，避免隐藏 DOM 的无效绘制开销
-    this._chunkRenderCancel = null; // 记录当前分块渲染流程的取消回调函数，用于在重置或卸载时随时中断异步渲染流水线
     this._playerResizeObserver = null; // 监听播放器尺寸变化，使右侧字幕列表高度与播放器高度保持一致
     this._playerSizeListenerAttached = false;
     this._wordTooltipController = null; // 右侧列表英文单词 hover 查词控制器
@@ -226,11 +225,10 @@ export class YouTubeSubtitleList {
   }
 
   /**
-   * 销毁器 - 全面解绑事件监听、注销定时器、强行中断进行中的异步分块渲染并清理 DOM 节点引用以防止内存泄漏
+   * 销毁器 - 全面解绑事件监听、注销定时器、中断进行中的虚拟列表渲染并清理 DOM 节点引用以防止内存泄漏
    */
   destroy() {
     this.turnOffAutoSub();
-    this._cancelChunkRender();
     this._cancelVirtualRender();
     this._removeEventListeners();
     this._playerResizeObserver?.disconnect();
@@ -262,32 +260,8 @@ export class YouTubeSubtitleList {
   }
 
   // ==================================================================================
-  // Chunk / Virtual Rendering: 分块渲染兼容入口与虚拟列表工具方法
+  // 虚拟列表工具方法
   // ==================================================================================
-
-  /**
-   * 中断正在执行中的空闲分块渲染任务
-   */
-  _cancelChunkRender() {
-    if (this._chunkRenderCancel) {
-      this._chunkRenderCancel();
-      this._chunkRenderCancel = null;
-    }
-  }
-
-  /**
-   * 利用 requestIdleCallback API（在浏览器主线程空闲期间执行低优先级任务），
-   * 对于不支持该 API 的旧版浏览器降级为 setTimeout 零延迟执行。
-   */
-  _scheduleIdle(callback) {
-    if (typeof requestIdleCallback === "function") {
-      const id = requestIdleCallback(callback, { timeout: 100 });
-      this._chunkRenderCancel = () => cancelIdleCallback(id);
-    } else {
-      const id = setTimeout(callback, 0);
-      this._chunkRenderCancel = () => clearTimeout(id);
-    }
-  }
 
   /**
    * 核心渲染优化算法：虚拟化与分块渲染字幕列表。
@@ -707,15 +681,12 @@ export class YouTubeSubtitleList {
       this._renderTabsAndStructure();
     }
 
-    // 3. 强行终止前序分块渲染
-    this._cancelChunkRender();
-
-    // 4. 清理上一次的字幕行，从头开始分块异步挂载字幕行
+    // 3. 清理上一次的字幕行，从头开始按需挂载字幕行
     const ul = this.subtitleListEl.querySelector("ul");
     ul.replaceChildren();
     this._renderSubtitlesInChunks(ul);
 
-    // 5. 渲染生词本列表卡片
+    // 4. 渲染生词本列表卡片
     this._renderVocabulary();
   }
 
@@ -1722,15 +1693,12 @@ export class YouTubeSubtitleList {
 
   /**
    * 格式化时间戳（毫秒）转换为 MM:SS 的短格式字符串
-   * REVIEW: 这里的 seconds 计算公式中：`((millis % 60000) / 1000).toFixed(0)`
-   * 在毫秒数为例如 59600 毫秒（即 59.6 秒）时，toFixed(0) 会将其四舍五入为 60，
-   * 此时本函数的输出格式为类似于 `3:60` 这一错误时间格式，而非期待的 `4:00`。
-   * 推荐的改进方案是对秒数向下取整：`Math.floor((millis % 60000) / 1000)`，或者在四舍五入为 60 时将分钟数加 1。
    */
   millisToMinutesAndSeconds(millis) {
     if (!Number.isFinite(millis)) return "0:00";
-    const minutes = Math.floor(millis / 60000);
-    const seconds = ((millis % 60000) / 1000).toFixed(0);
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
     return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
   }
 

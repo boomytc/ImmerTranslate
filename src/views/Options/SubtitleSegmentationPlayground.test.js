@@ -11,7 +11,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mockConfirm = jest.fn(() => Promise.resolve(true));
 
 jest.mock("../../apis/trans", () => ({
-  detectSubtitleProtocol: () => "boundary-v3",
   handleSubtitle: jest.fn(),
 }));
 

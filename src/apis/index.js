@@ -513,18 +513,6 @@ export const apiYoudaoDict = async (text) => {
 };
 
 /**
- * 百度文本转语音 (TTS) API，可用于单词发音朗读。
- * @param {string} text 朗读文本
- * @param {string} lan 语言代号，默认 "uk" (英音)
- * @param {number} spd 语速 (1-9)，默认 3
- * @returns {Promise<ArrayBuffer>} TTS 音频字节流
- */
-export const apiBaiduTTS = (text, lan = "uk", spd = 3) => {
-  const input = `https://fanyi.baidu.com/gettts?${queryString.stringify({ lan, text, spd })}`;
-  return fetchData(input);
-};
-
-/**
  * 腾讯 Transmart 语言识别 API。
  * @param {string} text 原文文本
  * @returns {Promise<string>} 语言简写代号

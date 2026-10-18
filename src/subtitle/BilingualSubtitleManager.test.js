@@ -255,6 +255,52 @@ describe("BilingualSubtitleManager", () => {
     manager.destroy();
   });
 
+  test("invalidates in-flight translations when the user seeks", async () => {
+    const deferred = createDeferred();
+    let capturedSignal;
+    apiTranslate.mockImplementation(({ signal }) => {
+      capturedSignal = signal;
+      return deferred.promise;
+    });
+
+    const videoEl = createVideoElement();
+    const manager = new BilingualSubtitleManager({
+      videoEl,
+      formattedSubtitles: [{ ...subtitle }],
+      setting,
+    });
+    manager.onSubtitleUpdate = jest.fn();
+
+    manager.start();
+    await Promise.resolve();
+    expect(apiTranslate).toHaveBeenCalledTimes(1);
+
+    manager.onSeeking();
+    expect(capturedSignal.aborted).toBe(true);
+
+    // 旧位置的请求即使晚到，也不得写回字幕或触发渲染。
+    deferred.resolve({ trText: "过期译文" });
+    await deferred.promise;
+    await Promise.resolve();
+
+    expect(manager.onSubtitleUpdate).not.toHaveBeenCalled();
+    expect(apiTranslate).toHaveBeenCalledTimes(1);
+
+    // seek 落定后解除中止时的临时标记，允许新位置重新翻译。
+    apiTranslate.mockResolvedValueOnce({ trText: "新位置译文" });
+    manager.onSeek();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(apiTranslate).toHaveBeenCalledTimes(2);
+    expect(manager.onSubtitleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ translation: "新位置译文" })
+    );
+
+    manager.destroy();
+  });
+
   test("repairs failed chunk translations immediately", async () => {
     const deferred = createDeferred();
     apiTranslate.mockReturnValue(deferred.promise);

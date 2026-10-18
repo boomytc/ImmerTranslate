@@ -238,7 +238,7 @@ export function prepareTimedTextEvents(rawEvents = [], fromLang = "auto") {
  * @param {number} [percentageThreshold=0.1] 长行占比阈值。
  * @returns {boolean} 字幕质量较差时返回 true。
  */
-export function isQualityPoor(
+function isQualityPoor(
   lines,
   lengthThreshold = 200,
   percentageThreshold = 0.1
@@ -266,7 +266,7 @@ export function isQualityPoor(
  * @param {number} [param0.maxDurationMs=10000] 单行最大持续时间，单位毫秒。
  * @returns {Array<object>} 分行后的字幕条目。
  */
-export function processSubtitles({
+function processSubtitles({
   flatEvents,
   usePause = false,
   timeout = 1000,
@@ -494,7 +494,7 @@ export function formatSubtitles(
  * @param {Array<object>} events 清洗后的 YouTube json3 events。
  * @returns {Array<object>|null} 统计算法生成的字幕条目，异常时返回 null。
  */
-export function algorithmicSegment(events) {
+function algorithmicSegment(events) {
   try {
     const algorithmicSubtitles = intelligentSentenceBreak({ events });
     return algorithmicSubtitles.map((sub) => ({

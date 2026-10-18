@@ -70,6 +70,8 @@ export class YouTubeCaptionProvider {
   #aiChunkScheduler = null;
   // 当前字幕断句/分块处理的取消控制器，用于视频或字幕轨切换时中止旧流式请求
   #subtitleAbortController = null;
+  // 广告开始前用户设置的播放速度，广告结束后恢复，避免覆盖用户的倍速选择
+  #playbackRateBeforeAd = null;
 
   // 控制双语字幕渲染、显示和位置计算的管理器实例
   #managerInstance = null;
@@ -271,8 +273,9 @@ export class YouTubeCaptionProvider {
           if (node.matches(adLayoutSelector)) {
             logger.debug("Youtube Provider: AD start playing!", node);
             if (videoEl && skipAd) {
-              // REVIEW: 这里会直接设为 16 倍速并跳到广告末尾，可能触发 YouTube 风控。
-              // REVIEW: 广告结束时仍会重置到 1 倍速，可能覆盖用户自定义倍速；后续应单独修复。
+              if (this.#playbackRateBeforeAd === null) {
+                this.#playbackRateBeforeAd = videoEl.playbackRate;
+              }
               videoEl.playbackRate = 16;
               videoEl.currentTime = videoEl.duration;
             }
@@ -299,8 +302,11 @@ export class YouTubeCaptionProvider {
             if (this.#setting.autoTranslate) {
               this.#playerUi.hideYtCaption();
             }
-            if (videoEl && skipAd) {
-              videoEl.playbackRate = 1;
+            if (this.#playbackRateBeforeAd !== null) {
+              if (videoEl) {
+                videoEl.playbackRate = this.#playbackRateBeforeAd;
+              }
+              this.#playbackRateBeforeAd = null;
             }
             this.#managerInstance?.setIsAdPlaying(false);
           }

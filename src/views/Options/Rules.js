@@ -188,7 +188,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     hasShadowroot = "false", // 是否包含 Shadow Root
     scanAll = "false", // 是否扫描所有节点
     isPlainText = "false", // 是否启用 <pre> 纯文本翻译
-    // transTiming = OPT_TIMING_PAGESCROLL,
     transTag = DEFAULT_TRANS_TAG, // 翻译结果容器标签 (span / font)
     transTitle = "false", // 是否翻译网页标题
     // detectRemote = "true",

@@ -62,7 +62,7 @@ function truncate(text, maxLen = 80) {
 // ─── 主逻辑 ──────────────────────────────────────────────────────────────
 async function run() {
   const args = parseArguments(process.argv.slice(2));
-  const termsString = args.terms || BUILTIN_TERMS;
+  const termsString = args.terms ?? BUILTIN_TERMS;
   const verbose = args.verbose;
 
   // 1. 解析术语（显式完整诊断：CLI 需要 conflicting-pattern 的失败契约）

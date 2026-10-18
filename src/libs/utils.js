@@ -386,22 +386,6 @@ export const scheduleIdle = (cb, timeout = 200) => {
 };
 
 /**
- * 根据页面 URL，提取通用的主机名/域名 Pattern
- * @param {string} href
- * @returns {string}
- */
-export const parseUrlPattern = (href) => {
-  if (href.startsWith("file")) {
-    const filename = href.substring(href.lastIndexOf("/") + 1);
-    return filename; // 本地文件取文件名
-  } else if (href.startsWith("http")) {
-    const url = new URL(href);
-    return url.host; // HTTP/HTTPS 提取 host
-  }
-  return href;
-};
-
-/**
  * 为异步 Promise 任务或待执行的闭包设置超时边界
  * @param {Promise|Function} task 异步任务
  * @param {number} timeout 超时时间（毫秒）

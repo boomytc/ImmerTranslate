@@ -611,9 +611,3 @@ export async function fetchModelCatalog({
   const data = await fetchJson(request.input, request.init);
   return parseModelCatalogResponse(data);
 }
-
-// 兼容只消费字符串模型 ID 的现有调用方。
-export async function fetchModelList(params) {
-  const catalog = await fetchModelCatalog(params);
-  return catalog.models;
-}

@@ -59,6 +59,14 @@ describe("test-term-replace CLI", () => {
     expect(stdout).toContain("✅ 断言通过");
   }, 60000);
 
+  test("exits 1 instead of falling back to built-in terms for an empty --terms value", async () => {
+    const { code, stdout } = await runCli(["--terms", ""]);
+
+    expect(code).toBe(1);
+    expect(stdout).toContain("没有有效术语");
+    expect(stdout).not.toContain("全部通过");
+  }, 60000);
+
   test("exits 1 and reports an unsupported regex as skipped, not passed", async () => {
     const { code, stdout } = await runCli(["--terms", "API\\.\\d+,版本"]);
 

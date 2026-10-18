@@ -655,7 +655,7 @@ function detectGlossaryDelivery({
 // 术语页把聚焦边框压回 1px（局部 sx），notch 遮罩条取 3（遮盖 1px border + 各 1px anti-aliasing）。
 
 // 说明类 Alert 的统一「caption 族」排版：正文跟随主题 caption 字号（rem，随
-// Theme.js 注入的 htmlFontSize 缩放），图标同步缩到 16px 等效 rem
+// M3Theme.js 注入的 htmlFontSize 缩放），图标同步缩到 16px 等效 rem
 // —— MUI Alert 的 icon slot 硬编码 fontSize: 22（Alert.js:111），不缩会与 12px
 // 正文视觉失衡。三个接口 note 与结果区的启发式说明共用这一份口径。
 const NOTE_ALERT_SX = {

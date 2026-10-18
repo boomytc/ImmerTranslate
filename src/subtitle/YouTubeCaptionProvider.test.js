@@ -4,6 +4,7 @@ import { YouTubeCaptionProvider } from "./YouTubeCaptionProvider.js";
 import { getCaptionTracks, getSubtitleEvents } from "./youtubeCaptionTracks.js";
 import { eventsToSubtitles } from "./youtubeAiSegmentation.js";
 import { prepareTimedTextEvents } from "./youtubeSubtitleProcessing.js";
+import { waitForElement } from "./youtubePlayerUi.js";
 import { clearMsgHistory } from "../apis/history.js";
 
 const mockIsSameLang = jest.fn(() => false);
@@ -240,5 +241,44 @@ describe("YouTubeCaptionProvider manual translation", () => {
       apiSlug: apiA.apiSlug,
       forceSubtitleRetranslate: true,
     });
+  });
+
+  test("restores the user's playback rate after skipping an ad", async () => {
+    const provider = new YouTubeCaptionProvider({
+      autoTranslate: false,
+      skipAd: true,
+    });
+    provider.initialize();
+
+    const [, onAdContainer] = waitForElement.mock.calls.find(
+      ([selector]) => selector === ".ad"
+    );
+    const adContainer = document.createElement("div");
+    document.body.appendChild(adContainer);
+    onAdContainer(adContainer);
+
+    const video = document.querySelector("video");
+    Object.defineProperty(video, "duration", {
+      value: 100,
+      configurable: true,
+    });
+    Object.defineProperty(video, "currentTime", {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+    video.playbackRate = 1.5;
+
+    const adNode = document.createElement("div");
+    adNode.className = "ytp-ad-player-overlay-layout";
+    adContainer.appendChild(adNode);
+    await act(async () => flushPromises());
+
+    expect(video.playbackRate).toBe(16);
+
+    adNode.remove();
+    await act(async () => flushPromises());
+
+    expect(video.playbackRate).toBe(1.5);
   });
 });

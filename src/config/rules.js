@@ -8,30 +8,12 @@ import { OPT_STYLE_NONE } from "./styles";
 
 // --- 规则模式关键字 ---
 export const GLOBAL_KEY = "*"; // 全局匹配键名，表示继承全局设置
-export const REMAIN_KEY = "-"; // 保留/排除键名，表示不执行继承
-export const SHADOW_KEY = ">>>"; // 用于深度穿透 Shadow DOM 的 CSS 选择器分隔符
 
 export const DEFAULT_COLOR = "#209CEE"; // 默认的生词高亮背景色/波浪线颜色
 
 export const DEFAULT_TRANS_TAG = "font"; // 默认翻译译文所外包的 HTML 标签名
 export const DEFAULT_SELECT_STYLE =
   "-webkit-line-clamp: unset; max-height: none; height: auto;"; // 默认放开高度限制的 CSS，防止翻译后因译文变长导致文本截断或溢出
-
-// --- 网页翻译的触发时机常量 ---
-export const OPT_TIMING_PAGESCROLL = "mk_pagescroll"; // 智能滚动加载翻译：仅翻译当前视口内的可见段落
-export const OPT_TIMING_PAGEOPEN = "mk_pageopen"; // 页面打开时立即翻译：全网页从头到尾一次性自动翻译
-export const OPT_TIMING_MOUSEOVER = "mk_mouseover"; // 鼠标悬停翻译：鼠标滑过某个段落时，单独翻译当前段落
-export const OPT_TIMING_CONTROL = "mk_ctrlKey"; // Control 键 + 鼠标悬停触发翻译
-export const OPT_TIMING_SHIFT = "mk_shiftKey"; // Shift 键 + 鼠标悬停触发翻译
-export const OPT_TIMING_ALT = "mk_altKey"; // Alt 键 + 鼠标悬停触发翻译
-export const OPT_TIMING_ALL = [
-  OPT_TIMING_PAGESCROLL,
-  OPT_TIMING_PAGEOPEN,
-  OPT_TIMING_MOUSEOVER,
-  OPT_TIMING_CONTROL,
-  OPT_TIMING_SHIFT,
-  OPT_TIMING_ALT,
-];
 
 // --- 文本段落切分拆分策略 (避免单个段落过长导致大模型翻译效果差或报错) ---
 export const OPT_SPLIT_PARAGRAPH_DISABLE = "split_disable"; // 禁用段落切分
@@ -92,7 +74,6 @@ export const DEFAULT_RULE = {
   transOnlyRevert: GLOBAL_KEY, // 仅译文模式下，鼠标悬浮时是否临时恢复显示原文
   transOnlyRevertDelay: GLOBAL_KEY, // 悬浮恢复原文的延迟时间 (秒)
   transOrder: GLOBAL_KEY, // 文本顺序：原文在上 ("original-first") 或 译文在上 ("translation-first")
-  // transTiming: GLOBAL_KEY, // 翻译时机/鼠标悬停翻译 (暂时作废)
   transTag: GLOBAL_KEY, // 译文嵌套的 HTML 标签 (如 font, span 等)
   transTitle: GLOBAL_KEY, // 是否翻译网页的 document.title
   // transSelected: GLOBAL_KEY, // 是否启用划词翻译 (移回setting)
@@ -144,7 +125,6 @@ export const GLOBLA_RULE = {
   transOnly: "false", // 默认保留原文，呈现双语对比形式
   transOnlyRevert: "false",
   transOnlyRevertDelay: "0.5",
-  // transTiming: OPT_TIMING_PAGESCROLL, // 翻译时机/鼠标悬停翻译 (暂时作废)
   transTag: DEFAULT_TRANS_TAG,
   transTitle: "false", // 默认不自动翻译网页 Tab 标题
   // transSelected: "true", // 是否启用划词翻译 (移回setting)

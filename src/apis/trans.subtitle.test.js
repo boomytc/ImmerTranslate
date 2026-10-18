@@ -17,7 +17,6 @@ jest.mock("../libs/docInfo", () => ({
 
 import {
   buildSubtitleSystemPrompt,
-  detectSubtitleProtocol,
   formatIndexSubtitleEvents,
   handleSubtitle,
 } from "./trans";
@@ -135,10 +134,6 @@ describe("handleSubtitle", () => {
       { id: 1, text: "two" },
       { id: 2, text: "three" },
     ]);
-  });
-
-  test("reports the current subtitle protocol", () => {
-    expect(detectSubtitleProtocol(defaultSubtitlePrompt)).toBe("boundary-v3");
   });
 
   test("parses default boundary-v3 anchors but rebuilds source text and timestamps", async () => {
