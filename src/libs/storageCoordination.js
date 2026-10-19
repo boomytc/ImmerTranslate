@@ -8,6 +8,12 @@ let queue = Promise.resolve();
 let databasePromise;
 let installed = false;
 let backgroundHold = 0;
+// Each extension page loads this module in its own window, so pagehide only
+// drops ports in the document that is entering the back/forward cache. Tests
+// substitute one event target per isolate before the module is evaluated.
+const pageEvents =
+  globalThis.__IMMER_STORAGE_PAGE_EVENTS ||
+  (typeof window !== "undefined" ? window : undefined);
 
 function usesExtensionCoordinator() {
   return (
@@ -98,9 +104,7 @@ function withBackgroundLock(operation, markSettled) {
         commitSent ? "unknown" : "not-committed"
       );
     const stopPageHide = () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("pagehide", onPageHide);
-      }
+      pageEvents?.removeEventListener("pagehide", onPageHide);
     };
     const onDisconnect = () => {
       disconnected = true;
@@ -117,11 +121,14 @@ function withBackgroundLock(operation, markSettled) {
     };
     port.onDisconnect.addListener(onDisconnect);
     const onPageHide = (event) => {
-      // pagehide with persisted is the last turn of JS before Chrome freezes
-      // the document into the back/forward cache. Disconnect here so the
-      // service worker's onDisconnect releases the lock even when that event
-      // does not arrive for this port.
-      if (event.persisted !== true || finished) return;
+      // pagehide with persisted is the last JavaScript turn before Chrome
+      // freezes this document into the back/forward cache. A granted holder,
+      // a port still waiting in the background queue, and a commit waiting
+      // for "committed" all disconnect here: the service worker often never
+      // receives onDisconnect for that port. commitSent records "unknown";
+      // anything earlier is "not-committed". pageshow does not reconnect —
+      // the caller requests the lock again after the page is restored.
+      if (event?.persisted !== true || finished) return;
       stopPageHide();
       try {
         port.disconnect();
@@ -130,9 +137,7 @@ function withBackgroundLock(operation, markSettled) {
       }
       settle();
     };
-    if (typeof window !== "undefined") {
-      window.addEventListener("pagehide", onPageHide);
-    }
+    pageEvents?.addEventListener("pagehide", onPageHide);
     port.onMessage.addListener(async (message) => {
       if (message.type === "committed") {
         if (message.error) {
@@ -421,9 +426,10 @@ export function installStorageCoordinator() {
       });
       try {
         port.postMessage({ type: "granted" });
-        // A frozen frame keeps the port open and never runs release. Hitting
-        // the limit releases the lock and disconnects that client, so its
-        // write rejects instead of resolving as a success.
+        // pagehide disconnects a page that can still run. A frozen frame
+        // never reaches that listener and keeps the port open, so the limit
+        // is only the last fallback: release the lock and disconnect the
+        // client. Its write then rejects instead of resolving as a success.
         await Promise.race([released, holdLimit]);
         clearTimeout(holdTimer);
         if (holdExpired) {
