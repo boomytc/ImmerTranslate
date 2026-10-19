@@ -57,6 +57,7 @@ const createRuntime = () => {
     };
     const back = {
       name,
+      sender: { url: "https://frame.example/locked" },
       onMessage: createEvent(),
       onDisconnect: createEvent(),
     };
@@ -560,5 +561,152 @@ describe("storage transaction coordination", () => {
 
     await expect(first).rejects.toThrow("Read failed");
     await expect(next).resolves.toBe("retried");
+  });
+
+  test("releases a held or queued port when its page enters the back/forward cache", async () => {
+    const enterBackForwardCache = () =>
+      window.dispatchEvent(
+        new PageTransitionEvent("pagehide", { persisted: true })
+      );
+    const expectUnlocked = async (write) => {
+      let timer;
+      const hung = new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("bfcache page kept the storage lock")),
+          400
+        );
+      });
+      try {
+        await Promise.race([write, hung]);
+      } finally {
+        clearTimeout(timer);
+      }
+      await expect(write).resolves.toBe("popup");
+    };
+
+    const queuedRuntime = createRuntime();
+    const queuedBackground = loadCoordinator({
+      runtime: queuedRuntime,
+      background: true,
+    });
+    queuedBackground.installStorageCoordinator();
+    const releaseBackground = deferred();
+    const backgroundWrite = queuedBackground.withStorageLock(
+      () => releaseBackground.promise
+    );
+    const cachedPage = loadCoordinator({ runtime: queuedRuntime });
+    const queuedOperation = jest.fn(() => "queued");
+    const queuedWrite = cachedPage.withStorageLock(queuedOperation);
+    const queuedResult = queuedWrite.catch((error) => error);
+    await flushPromises();
+    // The queued port is not granted yet. pagehide is the last chance to run
+    // before Chrome freezes the page; this does not emit onDisconnect itself.
+    enterBackForwardCache();
+    releaseBackground.resolve();
+    await backgroundWrite;
+    await expectUnlocked(
+      loadCoordinator({ runtime: queuedRuntime }).withStorageLock(() => "popup")
+    );
+    expect(queuedOperation).not.toHaveBeenCalled();
+    expect(await queuedResult).toMatchObject({
+      message: expect.stringMatching(/disconnect/i),
+      storageOutcome: "not-committed",
+    });
+
+    const heldRuntime = createRuntime();
+    loadCoordinator({
+      runtime: heldRuntime,
+      background: true,
+    }).installStorageCoordinator();
+    const heldPage = loadCoordinator({ runtime: heldRuntime });
+    const heldWrite = heldPage.withStorageLock(() => new Promise(() => {}));
+    const heldResult = heldWrite.catch((error) => error);
+    await flushPromises();
+    enterBackForwardCache();
+    await expectUnlocked(
+      loadCoordinator({ runtime: heldRuntime }).withStorageLock(() => "popup")
+    );
+    expect(await heldResult).toMatchObject({
+      message: expect.stringMatching(/disconnect/i),
+      storageOutcome: "not-committed",
+    });
+    await expect(heldPage.withStorageLock(() => "restored")).resolves.toBe(
+      "restored"
+    );
+  });
+
+  test("disconnects a silent holder and rejects its late commit", async () => {
+    jest.useFakeTimers();
+    const info = jest.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const runtime = createRuntime();
+      loadCoordinator({
+        runtime,
+        background: true,
+      }).installStorageCoordinator();
+      const holderPage = loadCoordinator({ runtime });
+      const nextPage = loadCoordinator({ runtime });
+      const holder = holderPage.withStorageLock(() => new Promise(() => {}));
+      const holderFailed = expect(holder).rejects.toMatchObject({
+        message: expect.stringMatching(/disconnect/i),
+        storageOutcome: "not-committed",
+      });
+      await flushPromises();
+      const nextWrite = nextPage.withStorageLock(() => "next");
+      await flushPromises();
+      jest.advanceTimersByTime(10000);
+      await flushPromises();
+
+      await holderFailed;
+      await expect(nextWrite).resolves.toBe("next");
+      runtime.ports[0].back.onMessage.emit(
+        {
+          type: "commit",
+          entries: [{ key: "settings", value: "stale", previous: null }],
+        },
+        runtime.ports[0].back
+      );
+      await flushPromises();
+      expect(runtime.values.settings).toBeUndefined();
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining("%c"),
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        "Storage lock held past the 10000ms limit",
+        "https://frame.example/locked",
+        expect.any(Number)
+      );
+    } finally {
+      info.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  test("throws when the background requests the storage lock while already holding it", async () => {
+    const runtime = createRuntime();
+    const background = loadCoordinator({ runtime, background: true });
+    background.installStorageCoordinator();
+    const nested = background.withStorageLock(async () => {
+      await Promise.resolve();
+      return background.withStorageLock(() => "nested");
+    });
+    let timer;
+    const hung = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error("nested background lock waited on itself")),
+        400
+      );
+    });
+    try {
+      await expect(Promise.race([nested, hung])).rejects.toThrow(
+        /cannot be re-entered/
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+    await expect(background.withStorageLock(() => "next")).resolves.toBe(
+      "next"
+    );
   });
 });

@@ -188,6 +188,22 @@ async function getObj(key) {
   return parseStoredValue(await rawGet(key), key);
 }
 
+/** Read and parse keys without the write lock. Extension reads share one get. */
+async function readStoredObjects(keys) {
+  const unique = [...new Set(keys)];
+  if (isExt) {
+    const stored = await browser.storage.local.get(unique);
+    return Object.fromEntries(
+      unique.map((key) => [key, parseStoredValue(stored?.[key], key)])
+    );
+  }
+  const stored = {};
+  for (const key of unique) {
+    stored[key] = parseStoredValue(await rawGet(key), key);
+  }
+  return stored;
+}
+
 const get = rawGet;
 
 async function set(key, value) {
@@ -496,6 +512,7 @@ export const storage = {
   setObj,
   trySetObj,
   getObj,
+  readStoredObjects,
   putObj,
   withTransaction,
   saveEdit,
