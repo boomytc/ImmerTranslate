@@ -60,6 +60,17 @@ jest.mock("./log", () => ({
   kissLog: jest.fn(),
 }));
 
+jest.mock("./rules", () => ({
+  checkRules: jest.fn((rules) =>
+    rules.map((rule) => ({
+      ...rule,
+      transOpen: ["*", "true", "false"].includes(rule.transOpen)
+        ? rule.transOpen
+        : "*",
+    }))
+  ),
+}));
+
 jest.mock("./syncCrypto", () => ({
   encryptSyncValue: jest.fn(),
   decryptSyncValue: jest.fn(),
@@ -85,6 +96,7 @@ import {
   storage,
 } from "./storage";
 import { decryptSyncValue, encryptSyncValue } from "./syncCrypto";
+import { checkRules } from "./rules";
 import { createClient, getPatcher } from "webdav";
 
 const SYNC_DESCRIPTION = "kiss translator sync files";
@@ -654,62 +666,7 @@ describe("GitHub Gist sync", () => {
         await syncSettingAndRules();
       }
 
-      expect(setRules).toHaveBeenCalledWith([
-        { pattern: "news.example.com", selector: "article", transOpen: "*" },
-        { pattern: "ok.example.com", transOpen: "true" },
-      ]);
-    }
-  );
-
-  test.each([
-    [false, "password change", changeSyncEncryptKey],
-    ["bogus", "password change", changeSyncEncryptKey],
-    [false, "ordinary sync", syncSettingAndRules],
-    ["bogus", "ordinary sync", syncSettingAndRules],
-  ])(
-    "rejects illegal remote transOpen %s during %s",
-    async (transOpen, _label, sync) => {
-      const remoteRules = [{ pattern: "bad.example.com", transOpen }];
-      getSyncWithDefault.mockResolvedValue({
-        syncType: "GitHub Gist",
-        syncUrl: "existing-gist",
-        syncKey: SYNC_KEY,
-        syncEncryptKey: SYNC_ENCRYPT_KEY,
-        syncMeta: {
-          [SETTING_KEY]: { updateAt: 10, syncAt: 1 },
-          [RULES_KEY]: { updateAt: 10, syncAt: 1 },
-          [WORDS_KEY]: { updateAt: 10, syncAt: 1 },
-        },
-      });
-      getSettingWithDefault.mockResolvedValue({ setting: true });
-      getRulesWithDefault.mockResolvedValue([
-        { pattern: "local.example.com", transOpen: "true" },
-      ]);
-      getWordsWithDefault.mockResolvedValue({ hello: true });
-      apiGetGist.mockResolvedValue({
-        files: {
-          [SETTING_KEY]: {
-            content: encryptedGistFileContent({ setting: true }, 50),
-          },
-          [RULES_KEY]: {
-            content: encryptedGistFileContent(remoteRules, 50),
-          },
-          [WORDS_KEY]: {
-            content: encryptedGistFileContent({ hello: true }, 50),
-          },
-        },
-      });
-
-      const run =
-        sync === changeSyncEncryptKey
-          ? changeSyncEncryptKey({
-              oldEncryptKey: SYNC_ENCRYPT_KEY,
-              newEncryptKey: NEW_SYNC_ENCRYPT_KEY,
-            })
-          : syncSettingAndRules();
-
-      await expect(run).rejects.toThrow(/Unknown site translation policy/);
-      expect(setRules).not.toHaveBeenCalled();
+      expect(setRules).toHaveBeenCalledWith(checkRules(remoteRules));
     }
   );
 

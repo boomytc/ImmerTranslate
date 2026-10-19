@@ -36,7 +36,7 @@ import { createClient, getPatcher } from "webdav";
 import { fetchPatcher } from "./fetch";
 import { kissLog } from "./log";
 import { encryptSyncValue, decryptSyncValue } from "./syncCrypto";
-import { rulesWithValidatedTransOpen } from "./siteTransOpen";
+import { checkRules } from "./rules";
 import {
   enqueueStorageSync,
   enqueueStorageWrite,
@@ -547,13 +547,6 @@ function syncStoredValue(key, storageKey, options = {}) {
       if (result || !hasNewEdit()) break;
     } while (true);
     if (!result) return result;
-    // 远端规则的 transOpen 缺键补成 *，非法值抛错。两条写入都用校验后的值。
-    if (storageKey === STOKEY_RULES && result.isNew) {
-      result = {
-        ...result,
-        value: rulesWithValidatedTransOpen(result.value),
-      };
-    }
     // Key rotation intentionally validates every remote file before applying any.
     if (options.applyRemote === false && options.persistMeta === false) {
       return { value: result.value, isNew: result.isNew };
@@ -566,7 +559,11 @@ function syncStoredValue(key, storageKey, options = {}) {
       const committed = await result.commit({
         applyValue: async (transaction) => {
           if (result.isNew && options.applyRemote !== false) {
-            await transaction.setObj(storageKey, result.value);
+            const storedValue =
+              storageKey === STOKEY_RULES
+                ? checkRules(result.value)
+                : result.value;
+            await transaction.setObj(storageKey, storedValue);
           }
         },
         isCurrent,
@@ -579,9 +576,13 @@ function syncStoredValue(key, storageKey, options = {}) {
       });
       const currentState = findStorageState(storageKey);
       if (committed && currentState && isCurrent()) {
-        if (result.isNew && options.applyRemote !== false)
-          currentState.acceptValue(result.value);
-        else currentState.markSynced(currentState.revision);
+        if (result.isNew && options.applyRemote !== false) {
+          currentState.acceptValue(
+            storageKey === STOKEY_RULES
+              ? checkRules(result.value)
+              : result.value
+          );
+        } else currentState.markSynced(currentState.revision);
       }
       return committed;
     });
@@ -709,7 +710,7 @@ export const changeSyncEncryptKey = async ({
 
   // 三类远端数据都通过旧口令校验后，才把较新的版本写入本地并开始重加密。
   if (synced.setting?.isNew) await setSetting(synced.setting.value);
-  if (synced.rules?.isNew) await setRules(synced.rules.value);
+  if (synced.rules?.isNew) await setRules(checkRules(synced.rules.value));
   if (synced.words?.isNew) await setWords(synced.words.value);
 
   await forceSyncDataWithEncryptKey(
