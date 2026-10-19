@@ -146,11 +146,19 @@ export const decryptSyncValue = async (value, syncKey) => {
   }
 
   const key = await deriveSyncKey(syncKey, base64ToBytes(envelope.salt));
-  const decrypted = await getSubtleCrypto().decrypt(
-    { name: SYNC_CRYPTO_ALG, iv: base64ToBytes(envelope.iv) },
-    key,
-    base64ToBytes(envelope.data)
-  );
+  let decrypted;
+  try {
+    decrypted = await getSubtleCrypto().decrypt(
+      { name: SYNC_CRYPTO_ALG, iv: base64ToBytes(envelope.iv) },
+      key,
+      base64ToBytes(envelope.data)
+    );
+  } catch (err) {
+    const rejected = new Error("Sync passphrase rejected");
+    rejected.code = "SYNC_DECRYPT_FAILED";
+    rejected.cause = err;
+    throw rejected;
+  }
 
   return {
     value: textDecoder.decode(decrypted),

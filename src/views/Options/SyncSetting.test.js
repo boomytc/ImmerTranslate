@@ -6,11 +6,13 @@ import {
   OPT_SYNCTYPE_WEBDAV,
   OPT_SYNCTYPE_WORKER,
 } from "../../config";
+import { changeSyncEncryptKey } from "../../libs/sync";
 import SyncSetting from "./SyncSetting";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let mockInitialSyncType = OPT_SYNCTYPE_WORKER;
+let mockInitialEncryptKey = "";
 const mockUpdateSync = jest.fn();
 
 jest.mock("../../hooks/I18n", () => ({
@@ -27,7 +29,7 @@ jest.mock("../../hooks/Sync", () => {
         syncUrl: "",
         syncUser: "",
         syncKey: "",
-        syncEncryptKey: "",
+        syncEncryptKey: mockInitialEncryptKey,
       }));
       const updateSync = async (patch) => {
         mockUpdateSync(patch);
@@ -64,8 +66,9 @@ jest.mock("../../libs/log", () => ({
   LogLevel: { INFO: { value: 1 } },
 }));
 
-function renderSyncSetting(initialSyncType) {
+function renderSyncSetting(initialSyncType, initialEncryptKey = "") {
   mockInitialSyncType = initialSyncType;
+  mockInitialEncryptKey = initialEncryptKey;
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -86,6 +89,18 @@ function renderSyncSetting(initialSyncType) {
       container.remove();
     },
   };
+}
+
+function setInputValue(input, value) {
+  const setter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value"
+  ).set;
+  setter.call(input, value);
+  act(() => {
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
 }
 
 function pressKey(element, key) {
@@ -201,5 +216,41 @@ describe("SyncSetting method selection", () => {
     expect(gistWarningAlerts[0].textContent).toContain("sync_warn_2");
     expect(gistWarningAlerts[0].textContent).toContain("sync_warn_gist");
     gistView.unmount();
+  });
+
+  test("shows the old passphrase error when changing the key is rejected", async () => {
+    const rawCryptoMessage =
+      "The operation failed for an operation-specific reason";
+    const rejected = new Error(rawCryptoMessage);
+    rejected.code = "SYNC_DECRYPT_FAILED";
+    changeSyncEncryptKey.mockRejectedValueOnce(rejected);
+    const view = renderSyncSetting(OPT_SYNCTYPE_WORKER, "current-passphrase");
+    const openDialog = view.container.querySelector(
+      'button[aria-label="data_sync_encrypt_key"]'
+    );
+
+    await act(async () => openDialog.click());
+
+    const dialog = document.body.querySelector('[role="dialog"]');
+    expect(dialog.textContent).toContain("change_sync_encrypt_key");
+    const inputs = dialog.querySelectorAll("input");
+    expect(inputs).toHaveLength(3);
+    setInputValue(inputs[0], "wrong-old-passphrase");
+    setInputValue(inputs[1], "new-passphrase");
+    setInputValue(inputs[2], "new-passphrase");
+
+    const save = [...dialog.querySelectorAll("button")].find(
+      (button) => button.textContent === "save"
+    );
+    await act(async () => save.click());
+
+    expect(changeSyncEncryptKey).toHaveBeenCalledWith({
+      oldEncryptKey: "wrong-old-passphrase",
+      newEncryptKey: "new-passphrase",
+    });
+    expect(dialog.textContent).toContain("old_sync_encrypt_key_invalid");
+    expect(dialog.textContent).not.toContain(rawCryptoMessage);
+    expect(dialog.textContent).not.toContain("sync_encrypt_key_change_failed");
+    view.unmount();
   });
 });

@@ -85,7 +85,6 @@ const extWebpack = (config, env) => {
 // 方案 B：油猴脚本 (Userscript) 编译覆盖配置
 const userscriptWebpack = (config, env) => {
   // 定义油猴脚本特有的 Meta 元数据头部信息 banner
-  // REVIEW: @connect 声明中 generativelanguage.googleapis.com 出现了两次，建议删除一行冗余配置。
   const banner = `// ==UserScript==
 // @name          ${process.env.REACT_APP_NAME}
 // @namespace     ${process.env.REACT_APP_HOMEPAGE}
@@ -128,7 +127,6 @@ const userscriptWebpack = (config, env) => {
 // @connect       api.deepl.com
 // @connect       www2.deepl.com
 // @connect       api.openai.com
-// @connect       generativelanguage.googleapis.com
 // @connect       openai.azure.com
 // @connect       workers.dev
 // @connect       github.io
