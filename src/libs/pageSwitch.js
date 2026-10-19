@@ -1,4 +1,8 @@
-import { SITE_TRANS_OPEN, siteTransOpenValue } from "./siteTransOpen";
+import {
+  SITE_TRANS_OPEN,
+  sitePolicyValue,
+  siteTransOpenValue,
+} from "./siteTransOpen";
 
 /** 页面翻译的唯一有效状态。 */
 export const PAGE_SWITCH = Object.freeze({
@@ -64,6 +68,7 @@ function followedTransOpen(globalTransOpen) {
  */
 export function pageSwitchState({
   rule,
+  policy: sitePolicy,
   href,
   blacklistHit,
   override = null,
@@ -71,7 +76,7 @@ export function pageSwitchState({
 }) {
   if (blacklistHit) return PAGE_SWITCH.PAUSED;
   if (!rule) return PAGE_SWITCH.OFF;
-  const policy = siteTransOpenValue(rule.transOpen);
+  const policy = sitePolicyValue(sitePolicy);
   if (override instanceof ManualOverride && override.applies(href, policy)) {
     return override.value;
   }
@@ -87,6 +92,7 @@ export function pageSwitchState({
 /** 纯函数算出要写进管理器的目标。调用方只应用它，不再各自记一份开关。 */
 export function pageTarget({
   rule,
+  policy,
   href,
   blacklistHit,
   override = null,
@@ -95,6 +101,7 @@ export function pageTarget({
 }) {
   const state = pageSwitchState({
     rule,
+    policy,
     href,
     blacklistHit,
     override,

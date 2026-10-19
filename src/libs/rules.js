@@ -522,6 +522,20 @@ export const checkRules = (rules) => {
   return rules;
 };
 
+const RULE_SELECTOR_FIELDS = [
+  "selector",
+  "keepSelector",
+  "blockSelector",
+  "rootsSelector",
+  "ignoreSelector",
+];
+
+const ruleHasConcreteSetting = (rule) =>
+  Object.keys(rule).some(
+    (key) =>
+      key !== "pattern" && rule[key] !== GLOBAL_KEY && rule[key] !== undefined
+  );
+
 /** Apply a popup edit without mutating either the request or stored rules. */
 const applySavedRule = (rules, curRule) => {
   const index = rules.findIndex(
@@ -535,44 +549,31 @@ const applySavedRule = (rules, curRule) => {
 
   const remaining = rules.filter((_, ruleIndex) => ruleIndex !== index);
   const rule = rules[index];
-  const mergedRule = rule
-    ? {
-        ...rule,
-        ...curRule,
-        pattern: rule.pattern,
-        selector: rule.selector,
-        keepSelector: rule.keepSelector,
-        blockSelector: rule.blockSelector,
-        rootsSelector: rule.rootsSelector,
-        ignoreSelector: rule.ignoreSelector,
-      }
-    : curRule;
-
-  const newRule = {};
-  // Compress values against the current global rule.
   const globalRule = {
     ...GLOBLA_RULE,
-    ...(rules.find((r) => r.pattern === GLOBAL_KEY) || {}),
+    ...(rules.find((item) => item.pattern === GLOBAL_KEY) || {}),
   };
+  const next = { ...(rule || {}), pattern: rule?.pattern || curRule.pattern };
 
-  // Keep inherited values represented by their default placeholders.
-  // 本站策略是枚举。调用方显式写入的 true/false/* 必须原样保留，
-  // 不能因为和当前全局相同就收成 *。
-  const explicitTransOpen =
-    Object.prototype.hasOwnProperty.call(curRule, "transOpen") &&
-    isSiteTransOpen(curRule.transOpen);
-  Object.keys(GLOBLA_RULE).forEach((key) => {
-    if (key === "transOpen" && explicitTransOpen) {
-      newRule.transOpen = curRule.transOpen;
+  // 只写调用方带来的字段。没给的键保持原样，不再铺成整份 DEFAULT_RULE。
+  Object.keys(curRule || {}).forEach((key) => {
+    if (key === "pattern") return;
+    if (rule && RULE_SELECTOR_FIELDS.includes(key)) return;
+    if (
+      key === "transOpen" &&
+      Object.prototype.hasOwnProperty.call(curRule, "transOpen") &&
+      isSiteTransOpen(curRule.transOpen)
+    ) {
+      next.transOpen = curRule.transOpen;
       return;
     }
-    newRule[key] =
-      !mergedRule[key] || mergedRule[key] === globalRule[key]
-        ? DEFAULT_RULE[key]
-        : mergedRule[key];
+    const value = curRule[key];
+    next[key] = !value || value === globalRule[key] ? DEFAULT_RULE[key] : value;
   });
 
-  return [newRule, ...remaining];
+  // 跟随全局之后如果没有任何非 * 字段，删掉这条，不留全 * 的空壳。
+  if (!ruleHasConcreteSetting(next)) return remaining;
+  return [next, ...remaining];
 };
 
 /** Persist the edit and its metadata before starting synchronization. */

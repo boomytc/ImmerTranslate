@@ -845,6 +845,55 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
 
       view.cleanup();
     });
+
+    test("switching the domain dropdown highlights that domain and writes the click there", async () => {
+      const rulesState = getStorageState(STOKEY_RULES, DEFAULT_RULES);
+      await rulesState.save([
+        { pattern: "*", transOpen: "false" },
+        { pattern: "example.com", transOpen: "false" },
+        { pattern: "*.example.com", transOpen: "true" },
+      ]);
+      const view = renderPopup({
+        targetTab: { id: 1, url: "https://example.com/page" },
+      });
+      try {
+        await flushEffects();
+        const select = view.container.querySelector(".kt-popup-site__select");
+        const active = () =>
+          view.container.querySelector(".kt-popup-policy-mode--active")
+            ?.textContent;
+        expect(select.value).toBe("example.com");
+        expect(active()).toBe("site_trans_off");
+
+        await act(async () => {
+          select.value = "*.example.com";
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        await flushEffects();
+        expect(select.value).toBe("*.example.com");
+        expect(active()).toBe("site_trans_on");
+
+        const follow = Array.from(
+          view.container.querySelectorAll(".kt-popup-policy-mode")
+        ).find((button) => button.textContent === "site_trans_follow");
+        await act(async () => {
+          follow.click();
+        });
+        await flushEffects();
+
+        expect(saveRule).toHaveBeenCalledWith(
+          expect.objectContaining({
+            pattern: "*.example.com",
+            transOpen: GLOBAL_KEY,
+          })
+        );
+        expect(saveRule).not.toHaveBeenCalledWith(
+          expect.objectContaining({ pattern: "example.com" })
+        );
+      } finally {
+        view.cleanup();
+      }
+    });
   });
 
   test("rolls the FAB switch back when the page replies with an error", async () => {

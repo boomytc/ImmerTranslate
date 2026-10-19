@@ -963,11 +963,14 @@ export default function PopupCont({
   );
   const storedSitePolicy = useMemo(() => {
     try {
-      return { transOpen: readSiteTransOpen(currentHref, rules), error: "" };
+      return {
+        transOpen: readSiteTransOpen(currentHref, rules, sitePattern),
+        error: "",
+      };
     } catch (error) {
       return { transOpen: null, error: error?.message || String(error) };
     }
-  }, [currentHref, rules]);
+  }, [currentHref, rules, sitePattern]);
   const storedSiteTransOpen = storedSitePolicy.transOpen;
   const sitePolicyError = storedSitePolicy.error;
   const siteTransOpen = siteDraft ?? storedSiteTransOpen;
@@ -983,6 +986,7 @@ export default function PopupCont({
       try {
         const response = await writeSiteTransOpen(currentHref, next, rules, {
           throughBackground: isExt && isContent,
+          pattern: sitePattern,
         });
         if (response?.error) throw new Error(response.error);
         showMessage(i18n("save_success"));

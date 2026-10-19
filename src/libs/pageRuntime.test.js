@@ -202,8 +202,13 @@ describe("PageRuntime", () => {
 
   test("pushState applies the next URL's site rule", async () => {
     window.history.pushState({}, "", "/stay-clear");
-    const { runtime, managers } = boot();
+    const harness = boot();
+    const { runtime, managers } = harness;
     await runtime.start();
+    harness.onRules({
+      data: [{ pattern: "auto-translate", transOpen: "true" }],
+    });
+    await runtime.whenIdle();
     goViaPage("/auto-translate");
     await runtime.whenIdle();
     expect(managers[0].applyTarget).toHaveBeenCalledWith(
@@ -227,7 +232,7 @@ describe("PageRuntime", () => {
     window.history.pushState({}, "", "/page-blocked");
     window.history.back();
     await flushHistory();
-    const { runtime, created, managers, listeners } = boot({
+    const harness = boot({
       setting: {
         blacklist: "page-blocked",
         tranboxSetting: {},
@@ -235,9 +240,19 @@ describe("PageRuntime", () => {
         mouseHoverSetting: {},
       },
     });
+    const { runtime, managers, listeners } = harness;
     await runtime.start();
+    harness.onRules({
+      data: [{ pattern: "auto-translate", transOpen: "true" }],
+    });
+    await runtime.whenIdle();
     expect(window.location.href).toContain("/auto-translate");
-    expect(created[0].rule.transOpen).toBe("true");
+    expect(managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
     expect(listeners).toHaveLength(0);
     window.history.forward();
     await flushHistory();
@@ -296,7 +311,16 @@ describe("PageRuntime", () => {
     window.history.pushState({}, "", "/auto-translate");
     const harness = boot();
     await harness.runtime.start();
-    expect(harness.created[0].rule.transOpen).toBe("true");
+    harness.onRules({
+      data: [{ pattern: "auto-translate", transOpen: "true" }],
+    });
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
     harness.runtime.setManualSwitch(false);
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
@@ -313,15 +337,14 @@ describe("PageRuntime", () => {
 
   test("a never-translate policy chosen while parked turns the page off", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
-    let siteTransOpen = "*";
-    const harness = boot({
-      matchRule: async (href) => ({ transOpen: siteTransOpen, pattern: href }),
-    });
+    const harness = boot();
     await harness.runtime.start();
     harness.runtime.setManualSwitch(true);
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
-    siteTransOpen = "false";
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "false" }],
+    });
     harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
     await harness.runtime.whenIdle();
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
@@ -334,15 +357,14 @@ describe("PageRuntime", () => {
 
   test("an always-translate policy chosen while parked turns the page on", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
-    let siteTransOpen = "*";
-    const harness = boot({
-      matchRule: async (href) => ({ transOpen: siteTransOpen, pattern: href }),
-    });
+    const harness = boot();
     await harness.runtime.start();
     harness.runtime.setManualSwitch(false);
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
-    siteTransOpen = "true";
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "true" }],
+    });
     harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
     await harness.runtime.whenIdle();
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
@@ -464,6 +486,10 @@ describe("PageRuntime", () => {
       })
     );
 
+    harness.onRules({
+      data: [{ pattern: "auto-translate", transOpen: "true" }],
+    });
+    await harness.runtime.whenIdle();
     goViaPage("/auto-translate");
     await harness.runtime.whenIdle();
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
@@ -477,8 +503,14 @@ describe("PageRuntime", () => {
   test("a main-world location event recalculates, and the content script does not wrap history.pushState", async () => {
     const historyPush = window.history.pushState;
     window.history.pushState({}, "", "/stay-clear");
-    const { runtime, managers } = boot();
+    const harness = boot();
+    const { runtime, managers } = harness;
     await runtime.start();
+    harness.onRules({
+      data: [{ pattern: "auto-translate", transOpen: "true" }],
+    });
+    await runtime.whenIdle();
+    managers[0].applyTarget.mockClear();
     expect(History.prototype.pushState).toBe(nativePushState);
     expect(window.history.pushState).toBe(historyPush);
 
@@ -584,6 +616,10 @@ describe("PageRuntime", () => {
       matchRule: async () => matched,
     });
     await harness.runtime.start();
+    harness.onRules({
+      data: [{ pattern: "localhost", selector: "p", transOpen: "false" }],
+    });
+    await harness.runtime.whenIdle();
     harness.runtime.setManualSwitch(true);
     matched = { transOpen: "false", selector: "article", pattern: "stored" };
     harness.onRules({

@@ -1,11 +1,27 @@
-import { SITE_TRANS_OPEN, siteTransOpenValue } from "./siteTransOpen";
+import {
+  SITE_TRANS_OPEN,
+  sitePolicy,
+  siteTransOpenValue,
+} from "./siteTransOpen";
 import { ManualOverride, PAGE_SWITCH, pageSwitchState } from "./pageSwitch";
 
 const URL = "http://localhost/spa2.html/plain";
 const OTHER = "http://localhost/other-clear";
 
 function state(input) {
-  return pageSwitchState({ href: URL, globalTransOpen: "false", ...input });
+  const policy =
+    input.policy !== undefined
+      ? input.policy
+      : input.rule &&
+          Object.prototype.hasOwnProperty.call(input.rule, "transOpen")
+        ? sitePolicy(input.rule.transOpen)
+        : undefined;
+  return pageSwitchState({
+    href: URL,
+    globalTransOpen: "false",
+    ...input,
+    policy,
+  });
 }
 
 describe("page switch", () => {
@@ -103,6 +119,7 @@ describe("page switch", () => {
     expect(
       pageSwitchState({
         rule,
+        policy: policy === null ? undefined : sitePolicy(policy),
         href,
         blacklistHit: blocked,
         override,
@@ -126,9 +143,11 @@ describe("page switch", () => {
 
   test("S18 top frame and iframe judge the blacklist separately", () => {
     const rule = { transOpen: "true" };
+    const policy = sitePolicy("true");
     expect(
       pageSwitchState({
         rule,
+        policy,
         href: "http://localhost/top",
         blacklistHit: true,
         globalTransOpen: "false",
@@ -137,6 +156,7 @@ describe("page switch", () => {
     expect(
       pageSwitchState({
         rule,
+        policy,
         href: "http://localhost/child",
         blacklistHit: false,
         globalTransOpen: "false",
@@ -153,5 +173,16 @@ describe("page switch", () => {
     });
     expect(override.applies(URL, "false")).toBe(true);
     expect(override.value).toBe("on");
+  });
+
+  test("a folded transOpen string is not a site policy", () => {
+    expect(() =>
+      pageSwitchState({
+        rule: { transOpen: "false" },
+        policy: "false",
+        href: URL,
+        blacklistHit: false,
+      })
+    ).toThrow(/folded rule transOpen/);
   });
 });

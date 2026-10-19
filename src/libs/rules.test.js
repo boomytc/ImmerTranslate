@@ -301,22 +301,75 @@ describe("rules enabled state", () => {
     }
   );
 
-  test("stores follow when a saved rule has no transOpen key", async () => {
+  test("a sparse selector save writes only the given fields", async () => {
     getRulesWithDefault.mockResolvedValue([
       { ...GLOBLA_RULE, transOpen: "true" },
     ]);
 
     await saveRule({ pattern: "example.com", selector: "article" });
 
-    expect((await saveEdit.mock.results[0].value).value).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          pattern: "example.com",
-          selector: "article",
-          transOpen: "*",
-        }),
-      ])
+    const saved = (await saveEdit.mock.results[0].value).value.find(
+      (rule) => rule.pattern === "example.com"
     );
+    expect(saved).toEqual({
+      pattern: "example.com",
+      selector: "article",
+    });
+  });
+
+  test("auto then follow leaves no personal rule", async () => {
+    let stored = [{ ...GLOBLA_RULE }];
+    getRulesWithDefault.mockImplementation(async () =>
+      stored.map((rule) => ({ ...rule }))
+    );
+    saveEdit.mockImplementation(async (_key, update) => {
+      const value = update(await getRulesWithDefault());
+      stored = value;
+      return { value, changed: true };
+    });
+
+    await saveRule({ pattern: "localhost", transOpen: "true" });
+    await saveRule({ pattern: "localhost", transOpen: "*" });
+
+    expect(stored.filter((rule) => rule.pattern !== "*")).toEqual([]);
+  });
+
+  test("auto stores only pattern and transOpen", async () => {
+    getRulesWithDefault.mockResolvedValue([{ ...GLOBLA_RULE }]);
+
+    await saveRule({ pattern: "localhost", transOpen: "true" });
+
+    const saved = (await saveEdit.mock.results[0].value).value.find(
+      (rule) => rule.pattern === "localhost"
+    );
+    expect(saved).toEqual({
+      pattern: "localhost",
+      transOpen: "true",
+    });
+  });
+
+  test("a sparse policy save leaves an existing rule's other fields untouched", async () => {
+    getRulesWithDefault.mockResolvedValue([
+      {
+        pattern: "example.com",
+        selector: "article",
+        fromLang: "en",
+        transOpen: "false",
+      },
+      { ...GLOBLA_RULE },
+    ]);
+
+    await saveRule({ pattern: "example.com", transOpen: "true" });
+
+    const saved = (await saveEdit.mock.results[0].value).value.find(
+      (rule) => rule.pattern === "example.com"
+    );
+    expect(saved).toEqual({
+      pattern: "example.com",
+      selector: "article",
+      fromLang: "en",
+      transOpen: "true",
+    });
   });
 
   test.each([

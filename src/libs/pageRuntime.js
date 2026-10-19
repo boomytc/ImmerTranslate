@@ -13,7 +13,7 @@ import { sendBgMsg } from "./msg";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
 import { ManualOverride, pageTarget } from "./pageSwitch";
-import { SITE_TRANS_OPEN } from "./siteTransOpen";
+import { SITE_TRANS_OPEN, sitePolicy, sitePolicyValue } from "./siteTransOpen";
 import { getStorageState } from "./storageState";
 import { readSiteTransOpen } from "../views/Action/sitePolicy";
 import TranslatorManager from "./translatorManager";
@@ -100,13 +100,10 @@ export class PageRuntime {
     this.#href = options.getHref ? options.getHref() : window.location.href;
     this.#bindManualSwitch(this.#manager);
     if (this.#manager) {
-      const policy =
-        this.#rule?.transOpen || SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE;
+      // 个人规则还没到。先跟随全局，不用折叠后的 matchRule.transOpen。
+      const policy = sitePolicy(SITE_TRANS_OPEN.FOLLOW_GLOBAL);
       this.#context = {
-        rule: {
-          ...(this.#rule || {}),
-          transOpen: policy,
-        },
+        rule: { ...(this.#rule || {}) },
         policy,
         href: this.#href,
         blacklistHit: Boolean(
@@ -156,7 +153,7 @@ export class PageRuntime {
     if (!this.#context) return;
     this.#override = new ManualOverride(
       this.#context.href,
-      this.#context.policy,
+      sitePolicyValue(this.#context.policy),
       enabled ? "on" : "off"
     );
     this.#apply(this.#context);
@@ -200,15 +197,20 @@ export class PageRuntime {
     let rule = await match(ruleHref, setting);
     if (generation !== this.#generation) return;
     let policy = this.#rules
-      ? readSiteTransOpen(href, this.#rules)
-      : rule?.transOpen;
+      ? sitePolicy(readSiteTransOpen(href, this.#rules))
+      : sitePolicy(SITE_TRANS_OPEN.FOLLOW_GLOBAL);
     if (this.options.isIframe) {
       const query = this.options.queryParent || queryParentFrameRuntime;
       const parent = await query();
       if (generation !== this.#generation) return;
       if (parent) {
         rule = applyParentRuntime(rule, parent);
-        policy = rule?.transOpen;
+        // 子框架跟父页面当时的开关，不读折叠后的 matchRule.transOpen。
+        policy = sitePolicy(
+          parent.transOpen
+            ? SITE_TRANS_OPEN.AUTO_TRANSLATE
+            : SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE
+        );
       }
     }
     const favWords = this.options.getFavWords
@@ -216,7 +218,7 @@ export class PageRuntime {
       : this.options.favWords || [];
     if (generation !== this.#generation) return;
     const context = {
-      rule: { ...(rule || {}), transOpen: policy },
+      rule: { ...(rule || {}) },
       policy,
       href,
       blacklistHit,

@@ -24,3 +24,26 @@ export function siteTransOpenValue(policy) {
   }
   return policy;
 }
+
+const SITE_POLICY_BRAND = Symbol("SitePolicy");
+
+/**
+ * 站点策略。只有这里能把枚举包成页面开关认的值。
+ * 折叠后的 matchRule.transOpen 是生效开关，不能拿来当策略。
+ */
+export function sitePolicy(value) {
+  const policy = siteTransOpenValue(value);
+  return Object.freeze({
+    [SITE_POLICY_BRAND]: true,
+    value: policy,
+  });
+}
+
+export function sitePolicyValue(policy) {
+  if (!policy || policy[SITE_POLICY_BRAND] !== true) {
+    throw new TypeError(
+      "Site policy must be created with sitePolicy(), not a folded rule transOpen"
+    );
+  }
+  return policy.value;
+}

@@ -20,10 +20,17 @@ export const SITE_TRANS_OPEN_OPTIONS = [
  * （与规则合并里空值继续继承一致）。
  * 有 transOpen 键但值不是 `*` / `"true"` / `"false"` 时抛错，不能读成跟随。
  */
-export function readSiteTransOpen(href, rules) {
-  const matched =
-    typeof findMatchingRule === "function"
-      ? findMatchingRule(rules || [], href)
+export function readSiteTransOpen(href, rules, pattern) {
+  const list = Array.isArray(rules) ? rules : [];
+  const matched = pattern
+    ? list.find(
+        (rule) =>
+          rule?.pattern === pattern &&
+          rule.pattern !== GLOBAL_KEY &&
+          rule?.enabled !== false
+      )
+    : typeof findMatchingRule === "function"
+      ? findMatchingRule(list, href)
       : undefined;
   if (!matched) return SITE_TRANS_OPEN.FOLLOW_GLOBAL;
   if (!Object.prototype.hasOwnProperty.call(matched, "transOpen")) {
@@ -48,19 +55,19 @@ export function siteRulePattern(href, rules) {
  * 本站开关只写这一条记录：已有个人规则就改它，否则用当前主机名新建一条。
  * 不另选下拉框里的宽模式，避免同一次切换再落一条规则。
  */
-export function sitePolicyRecord(href, rules, transOpen) {
-  const pattern = siteRulePattern(href, rules);
-  if (!pattern || pattern === GLOBAL_KEY) return null;
-  return { pattern, transOpen: siteTransOpenValue(transOpen) };
+export function sitePolicyRecord(href, rules, transOpen, pattern) {
+  const resolved = pattern || siteRulePattern(href, rules);
+  if (!resolved || resolved === GLOBAL_KEY) return null;
+  return { pattern: resolved, transOpen: siteTransOpenValue(transOpen) };
 }
 
 export async function writeSiteTransOpen(
   href,
   transOpen,
   rules,
-  { throughBackground = isExt } = {}
+  { throughBackground = isExt, pattern } = {}
 ) {
-  const record = sitePolicyRecord(href, rules, transOpen);
+  const record = sitePolicyRecord(href, rules, transOpen, pattern);
   if (!record) return null;
   if (throughBackground) return sendBgMsg(MSG_SAVE_RULE, record);
   return saveRule(record);

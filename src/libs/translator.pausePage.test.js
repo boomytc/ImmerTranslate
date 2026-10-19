@@ -13,10 +13,11 @@ jest.mock("./msg", () => ({
 }));
 
 const { Translator } = require("./translator");
-const { getFetchPool, clearFetchPool } = require("./pool");
-const { getBatchQueue, clearAllBatchQueue } = require("./batchQueue");
+const { getFetchPool } = require("./pool");
+const { getBatchQueue } = require("./batchQueue");
 
 const translators = [];
+let inputQueue;
 
 beforeEach(() => {
   document.documentElement.innerHTML = "<head></head><body></body>";
@@ -63,8 +64,8 @@ function createTranslator() {
 describe("Translator.pausePage", () => {
   afterEach(() => {
     translators.splice(0).forEach((translator) => translator.stop());
-    clearFetchPool();
-    clearAllBatchQueue();
+    inputQueue?.destroy();
+    inputQueue = null;
     document.body.innerHTML = "";
   });
 
@@ -78,9 +79,10 @@ describe("Translator.pausePage", () => {
       return "selection";
     });
     let inputSettled = false;
-    const input = getBatchQueue("pause-page-input", async () => ["input"], {
+    inputQueue = getBatchQueue("pause-page-input", async () => ["input"], {
       batchInterval: 60000,
-    }).addTask({ text: "input box" });
+    });
+    const input = inputQueue.addTask({ text: "input box" });
     input.then(
       () => {
         inputSettled = true;
