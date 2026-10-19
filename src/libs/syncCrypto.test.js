@@ -50,7 +50,12 @@ describe("sync crypto", () => {
       "sync-key"
     );
 
-    await expect(decryptSyncValue(encrypted, "other-key")).rejects.toThrow();
+    await expect(
+      decryptSyncValue(encrypted, "other-key")
+    ).rejects.toMatchObject({
+      message: "Sync passphrase rejected",
+      code: "SYNC_DECRYPT_FAILED",
+    });
   });
 
   test("uses random encryption output for the same plaintext", async () => {
