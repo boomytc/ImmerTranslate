@@ -8,6 +8,13 @@ const abortError = () =>
   new DOMException("The operation was aborted.", "AbortError");
 const destroyedError = () => new Error("Queue instance was destroyed.");
 
+export const normalizeBatchConcurrency = (batchConcurrency) => {
+  const configuredConcurrency = Number(batchConcurrency);
+  return Number.isFinite(configuredConcurrency) && configuredConcurrency >= 1
+    ? Math.floor(configuredConcurrency)
+    : 1;
+};
+
 /** Batch requests while keeping each caller's cancellation independent. */
 const BatchQueue = (
   taskFn,
@@ -20,11 +27,7 @@ const BatchQueue = (
 ) => {
   const queue = [];
   const activeBatches = new Set();
-  const configuredConcurrency = Number(batchConcurrency);
-  const concurrency =
-    Number.isFinite(configuredConcurrency) && configuredConcurrency >= 1
-      ? Math.floor(configuredConcurrency)
-      : 1;
+  const concurrency = normalizeBatchConcurrency(batchConcurrency);
   let timer = null;
   let destroyed = false;
 
