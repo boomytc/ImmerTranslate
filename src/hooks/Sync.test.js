@@ -2,25 +2,16 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_SYNC, STOKEY_SYNC } from "../config";
-import {
-  getSync,
-  putSync,
-  putSyncMeta,
-  storage,
-  updateSyncState,
-} from "../libs/storage";
-import { trySyncAllSubRules } from "../libs/subRules";
-import { apiFetch } from "../apis";
+import { getSync, putSync, storage, updateSyncState } from "../libs/storage";
 import { useSyncCaches } from "./Sync";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-jest.mock("../apis", () => ({ apiFetch: jest.fn() }));
 jest.mock("../libs/client", () => ({ isExt: false, isGm: false }));
 jest.mock("../libs/browser", () => ({ isOptions: () => false }));
 jest.mock("../libs/gm", () => ({ getGmMethod: jest.fn() }));
 jest.mock("../libs/sync", () => ({ syncData: jest.fn() }));
 
-describe("subscription cache persistence", () => {
+describe("sync cache persistence", () => {
   let root;
   let container;
   let cache;
@@ -32,7 +23,6 @@ describe("subscription cache persistence", () => {
 
   beforeEach(async () => {
     localStorage.clear();
-    apiFetch.mockReset();
     await storage.setObj(STOKEY_SYNC, {
       ...DEFAULT_SYNC,
       syncUser: "initial-user",
@@ -52,7 +42,9 @@ describe("subscription cache persistence", () => {
   });
 
   test("preserves metadata and settings updated after the cache view mounts", async () => {
-    await putSyncMeta("rules");
+    await putSync({
+      syncMeta: { rules: { updateAt: Date.now() } },
+    });
     await putSync({ syncUser: "updated-user", customField: "keep" });
     const expected = await getSync();
 
@@ -75,18 +67,17 @@ describe("subscription cache persistence", () => {
     expect(saved.dataCaches["new-source"]).toEqual(expect.any(Number));
   });
 
-  test("initializes missing sync defaults before the first subscription update", async () => {
+  test("initializes missing sync defaults before the first cache update", async () => {
     act(() => root.render(null));
     await storage.del(STOKEY_SYNC);
     await act(async () => root.render(<Probe />));
-    expect((await getSync()).subRulesSyncAt).toBe(0);
+    expect((await getSync()).syncType).toBe(DEFAULT_SYNC.syncType);
 
     await act(async () => cache.updateDataCache("first-source"));
-    expect((await getSync()).subRulesSyncAt).toBe(0);
-    apiFetch.mockResolvedValueOnce([{ pattern: "fresh.example" }]);
-    await trySyncAllSubRules({ subrulesList: [{ url: "first-source" }] });
-    expect(apiFetch).toHaveBeenCalledWith("first-source");
-    expect((await getSync()).subRulesSyncAt).toBeGreaterThan(0);
+    expect((await getSync()).syncType).toBe(DEFAULT_SYNC.syncType);
+    expect((await getSync()).dataCaches["first-source"]).toEqual(
+      expect.any(Number)
+    );
   });
 
   test("keeps queued updates and deletion ordered across view remounts", async () => {

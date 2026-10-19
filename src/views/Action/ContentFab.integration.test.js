@@ -30,9 +30,6 @@ jest.mock("../../hooks/Rules", () => ({
   useRules: () => ({ list: [], isLoading: false }),
 }));
 // Saving a site rule imports the rules module, which pulls these in.
-jest.mock("../../libs/subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
-}));
 jest.mock("../../libs/sync", () => ({
   trySyncRules: jest.fn(),
 }));

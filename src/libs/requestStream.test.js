@@ -62,9 +62,13 @@ describe("fetchStreamNative", () => {
       })
     );
 
-    const iterator = fetchStreamNative("https://example.test", {}, {
-      httpTimeout: 1000,
-    });
+    const iterator = fetchStreamNative(
+      "https://example.test",
+      {},
+      {
+        httpTimeout: 1000,
+      }
+    );
     await expect(iterator.next()).resolves.toEqual({
       value: "one",
       done: false,
@@ -72,6 +76,29 @@ describe("fetchStreamNative", () => {
     await iterator.return();
 
     expect(cancel).toHaveBeenCalled();
+  });
+
+  test("includes the HTTP error body and status", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: "quota exceeded" }), {
+          status: 429,
+          statusText: "Too Many Requests",
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    const iterator = fetchStreamNative(
+      "https://example.test",
+      {},
+      { httpTimeout: 1000 }
+    );
+
+    await expect(iterator.next()).rejects.toMatchObject({
+      status: 429,
+      message: expect.stringContaining("quota exceeded"),
+    });
   });
 });
 

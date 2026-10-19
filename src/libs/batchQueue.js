@@ -220,10 +220,3 @@ export const getBatchQueue = (key, taskFn, options) => {
   queueMap.set(key, queue);
   return queue;
 };
-
-/** Cancel all outstanding work and allow subsequent calls to create new queues. */
-export const clearAllBatchQueue = () => {
-  const queues = [...queueMap.values()];
-  queueMap.clear();
-  queues.forEach((queue) => queue.destroy());
-};

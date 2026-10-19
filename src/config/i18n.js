@@ -433,8 +433,8 @@ export const I18N = {
     en: `3. Regarding filling in the rules: Leave the input box blank or select "*" in the drop-down box to use global rule. CSS selectors support prefixes: "+" means add to the global rules, "-" means exclude.`,
   },
   sync_warn: {
-    zh: `1、涉及隐私数据的同步请谨慎选择第三方同步服务，建议自行搭建 Cloudflare Worker 或 WebDAV 服务。`,
-    en: `1. When synchronizing data that involves privacy, please be cautious about choosing third-party sync services. It is recommended to set up your own Cloudflare Worker or WebDAV service.`,
+    zh: `1、涉及隐私数据的同步请谨慎选择第三方同步服务，建议自行搭建 WebDAV 服务。`,
+    en: `1. When synchronizing data that involves privacy, please be cautious about choosing third-party sync services. It is recommended to set up your own WebDAV service.`,
   },
   sync_warn_gist: {
     zh: `3、GitHub Gist 不会出现在公开搜索或发现页面中，但任何拥有该链接的人都可以查看内容。`,
@@ -447,10 +447,6 @@ export const I18N = {
   sync_warn_encryption: {
     zh: `同步加密口令独立用于数据解密，请妥善保存，遗失后无法读取已加密的云端数据。`,
     en: `The sync encryption passphrase is used independently for data decryption, so keep it safe; encrypted cloud data cannot be read if it is lost.`,
-  },
-  about_sync_api: {
-    zh: `自建数据同步服务`,
-    en: `Self-host a data sync service`,
   },
   about_api: {
     zh: `1、其中 BuiltinAI 为浏览器内置AI翻译，目前仅 Chrome 138 及以上版本得到支持。`,
@@ -820,10 +816,6 @@ export const I18N = {
     zh: `抱歉，出错了！`,
     en: `Sorry, something went wrong!`,
   },
-  error_sync_setting: {
-    zh: `同步类型必须为自建 Worker，且地址与密钥需填写完整`,
-    en: `The sync type must be the self-hosted Worker, and the address and key must be filled in`,
-  },
   click_test: {
     zh: `点击测试`,
     en: `Click Test`,
@@ -971,10 +963,6 @@ export const I18N = {
   clear_failed: {
     zh: `清除失败`,
     en: `Clear failed`,
-  },
-  share: {
-    zh: `分享`,
-    en: `Share`,
   },
   clear_all: {
     zh: `清空`,
