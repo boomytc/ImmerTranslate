@@ -16,14 +16,6 @@ import {
   OPT_HIGHLIGHT_WORDS_ALL,
 } from "../config";
 import { loadOrFetchSubRules } from "./subRules";
-import {
-  SCRIPT_SOURCE_BUILTIN,
-  SCRIPT_SOURCE_PERSONAL,
-  SCRIPT_SOURCE_SUBSCRIPTION,
-  assignScriptSources,
-  mergeRuleScriptFields,
-  withScriptSources,
-} from "./ruleScript";
 import { getRulesWithDefault, saveEdit, getDisabledSubRules } from "./storage";
 import { trySyncRules } from "./sync";
 import { kissLog } from "./log";
@@ -197,10 +189,6 @@ export const mergeRules = (baseRule, overrideRule) => {
     }
   });
 
-  // 脚本字段单独合并，并在返回前记下每个字段的来源。
-  // 订阅里的文本保留，执行点用 scriptFieldOrigins 决定是否运行。
-  mergeRuleScriptFields(merged, overrideRule);
-
   // 3. 合并枚举类型的属性，若高优先级属性为星号 '*' 则继续继承，否则直接覆盖
   [
     "apiSlug",
@@ -240,7 +228,7 @@ export const mergeRules = (baseRule, overrideRule) => {
     merged.pattern = overrideRule.pattern;
   }
 
-  return assignScriptSources(merged, baseRule, overrideRule);
+  return merged;
 };
 
 /** Resolve rule precedence without storage access or network requests. */
@@ -293,22 +281,11 @@ export const deriveRuleContext = (
       ? builtinCandidate
       : null;
 
-  // 来源只打在合并用的副本上。返回的 personal / global / subscription
-  // 仍是存储里的原对象，避免编辑器把来源标记当成规则冲突。
   const inherited = mergeRules(
-    withScriptSources(globalRule, SCRIPT_SOURCE_PERSONAL),
-    matchedSubRule
-      ? withScriptSources(matchedSubRule, SCRIPT_SOURCE_SUBSCRIPTION)
-      : matchedBuiltinRule
-        ? withScriptSources(matchedBuiltinRule, SCRIPT_SOURCE_BUILTIN)
-        : null
+    globalRule,
+    matchedSubRule || matchedBuiltinRule || null
   );
-  const finalRule = mergeRules(
-    inherited,
-    matchedPersonalRule
-      ? withScriptSources(matchedPersonalRule, SCRIPT_SOURCE_PERSONAL)
-      : null
-  );
+  const finalRule = mergeRules(inherited, matchedPersonalRule || null);
 
   return {
     effective: finalRule,
@@ -316,12 +293,7 @@ export const deriveRuleContext = (
     // Restore the page rule after previewing an off-page rule.
     pageEffective:
       matchedPersonalRule !== activePersonalRule
-        ? mergeRules(
-            inherited,
-            activePersonalRule
-              ? withScriptSources(activePersonalRule, SCRIPT_SOURCE_PERSONAL)
-              : null
-          )
+        ? mergeRules(inherited, activePersonalRule || null)
         : null,
     personal: matchedPersonalRule || null,
     subscription: matchedSubRule,

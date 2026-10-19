@@ -37,12 +37,6 @@ import {
   newI18n,
 } from "../config";
 import { resolveApiPromptSettings } from "../config/prompt";
-import { interpreter } from "./interpreter";
-import {
-  applyRuleStartHookResult,
-  narrowApiConfig,
-  shouldRunRuleScript,
-} from "./ruleScript";
 import { clearFetchPool } from "./pool";
 import { debounce, scheduleIdle, genEventName, parseAITerms } from "./utils";
 import {
@@ -3671,34 +3665,6 @@ export class Translator {
             this.#favoriteHighlightScopes.add(hostNode);
             nodes.forEach((node) => this.#highlightWordsDeeply(node));
           }
-
-          // 翻译完成钩子函数（在隔离沙盒内安全执行用户自定义的译后处理脚本）
-          // REVIEW: 共享 Sval 实例导致 Hook 竞态条件 (Race Condition) 隐患。
-          // 由于 interpreter 是全局单例，当页面中同时有多个并发的 translateNodeGroup 任务异步执行时，
-          // 同步运行的 `interpreter.run('exports.transEndHook = ...')` 会直接覆盖上一个任务尚未执行完毕的 exports.transEndHook 引用。
-          // 这可能导致后一个任务的 Hook 函数被错误地执行多次，或者前一个任务执行了不匹配的、新覆盖的 Hook 函数，出现非预期的运行时状态混乱。
-          if (shouldRunRuleScript(hookRule, "transEndHook")) {
-            try {
-              const transEndHook = hookRule.transEndHook;
-              interpreter.run(`exports.transEndHook = ${transEndHook}`);
-              interpreter.exports.transEndHook(
-                {
-                  hostNode,
-                  parentNode,
-                  nodes,
-                  wrapperNode: wrapper,
-                  innerNode: inner,
-                },
-                {
-                  text: processedString,
-                  fromLang: deLang || this.#rule.fromLang,
-                  toLang,
-                }
-              );
-            } catch (err) {
-              kissLog("transEndHook", err);
-            }
-          }
         },
         nodes
       );
@@ -4362,32 +4328,6 @@ overflow-wrap: anywhere !important;`;
       textFormat: "html",
       translateVariants: this.#setting.translateVariants,
     };
-
-    // 翻译开始钩子函数（允许用户在翻译请求发送前修改文本、语言或词典配置）
-    // REVIEW: 共享 Sval 实例导致 Hook 竞态条件 (Race Condition) 隐患。
-    // 由于 interpreter 是全局单例，当短时间内有多个并发的 translateFetch 触发时，
-    // 同步执行的 `interpreter.run('exports.transStartHook = ...')` 会直接覆盖上一个翻译请求的 exports.transStartHook。
-    // 这可能导致先前发起的、仍在执行准备阶段的请求，在调用 transStartHook 时执行成了后一个翻译源的钩子逻辑。
-    if (shouldRunRuleScript(this.#rule, "transStartHook")) {
-      try {
-        const transStartHook = this.#rule.transStartHook;
-        interpreter.run(`exports.transStartHook = ${transStartHook}`);
-        // 不把 apiSetting / apisMap 交给钩子。回传的接口对象也不写回请求。
-        const hookResult = interpreter.exports.transStartHook({
-          text: args.text,
-          fromLang: args.fromLang,
-          toLang: args.toLang,
-          glossary: args.glossary,
-          onStreamChunk: args.onStreamChunk,
-          textFormat: args.textFormat,
-          translateVariants: args.translateVariants,
-          api: narrowApiConfig(apiSetting),
-        });
-        applyRuleStartHookResult(args, hookResult);
-      } catch (err) {
-        kissLog("transStartHook", err);
-      }
-    }
 
     return apiTranslate(args);
   }
@@ -5105,28 +5045,12 @@ overflow-wrap: anywhere !important;`;
     this.#isJsInjected = true;
 
     try {
-      const { injectCss, toLang } = this.#rule;
+      const { injectCss } = this.#rule;
 
       if (isExt) {
         injectCss && sendBgMsg(MSG_INJECT_CSS, injectCss);
       } else {
         injectCss && injectInternalCss(injectCss);
-      }
-
-      if (shouldRunRuleScript(this.#rule, "injectJs")) {
-        const injectJs = this.#rule.injectJs;
-        const glossary = { ...this.#glossary };
-        const apiDectect = tryDetectLang;
-        interpreter.import({
-          KT: {
-            apiTranslate,
-            apiDectect,
-            toLang,
-            glossary,
-            api: narrowApiConfig(this.#apiSetting),
-          },
-        });
-        interpreter.run(injectJs);
       }
     } catch (err) {
       kissLog("inject js", err);
@@ -5320,9 +5244,6 @@ overflow-wrap: anywhere !important;`;
 
   // 更新规则
   updateRule(newRule) {
-    if (Object.prototype.hasOwnProperty.call(newRule, "scriptFieldOrigins")) {
-      this.#rule.scriptFieldOrigins = newRule.scriptFieldOrigins;
-    }
     if (newRule.textStyle && newRule.textStyle !== OPT_STYLE_NONE) {
       this.#lastActiveTextStyle = newRule.textStyle;
     }

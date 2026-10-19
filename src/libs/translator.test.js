@@ -322,7 +322,7 @@ describe("Translator rule styles", () => {
   });
 
   test.each(["false", "true"])(
-    "preserves injected CSS throughout editing without rerunning initialization JS (transOpen: %s)",
+    "preserves injected CSS throughout editing (transOpen: %s)",
     async (transOpen) => {
       document.body.innerHTML =
         '<main id="root"><p>Article with site-specific styling</p></main>';
@@ -349,8 +349,7 @@ describe("Translator rule styles", () => {
       await flushAsync();
       expect(document.querySelector(selector)).toBe(style);
       expect(document.querySelectorAll(selector)).toHaveLength(1);
-      expect(tryDetectLang).toHaveBeenCalledTimes(1);
-      expect(tryDetectLang).toHaveBeenCalledWith("rule initialization");
+      expect(tryDetectLang).not.toHaveBeenCalledWith("rule initialization");
 
       translator.stop();
       expect(document.querySelector(selector)).toBeNull();
