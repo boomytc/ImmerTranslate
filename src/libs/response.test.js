@@ -41,13 +41,32 @@ describe("parseResponse", () => {
     );
   });
 
-  test("extracts HTTP error body", async () => {
+  test("extracts HTTP error body and keeps the status on the error", async () => {
     const response = new Response(JSON.stringify({ error: "bad" }), {
       status: 400,
       statusText: "Bad Request",
       headers: { "Content-Type": "application/json" },
     });
 
-    await expect(parseResponse(response)).rejects.toThrow('"status":400');
+    await expect(parseResponse(response)).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining('"status":400'),
+    });
+    await expect(parseResponse(response.clone())).rejects.toThrow(
+      '"error":"bad"'
+    );
+  });
+
+  test("keeps a plain-text error body and its HTTP status", async () => {
+    const response = new Response("invalid api key", {
+      status: 401,
+      statusText: "Unauthorized",
+      headers: { "Content-Type": "text/plain" },
+    });
+
+    await expect(parseResponse(response)).rejects.toMatchObject({
+      status: 401,
+      message: expect.stringContaining("invalid api key"),
+    });
   });
 });

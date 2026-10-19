@@ -30,20 +30,25 @@ jest.mock("@streamparser/json", () =>
   jest.requireActual("../../node_modules/@streamparser/json/dist/cjs/index.js")
 );
 
-import { fetchData, fetchStream } from "./fetch";
-import { clearFetchPool } from "./pool";
-import { fnPolyfill } from "./request";
-import { requestStream } from "./requestStream";
-
 describe("pooled stream lifecycle", () => {
+  let fetchData;
+  let fetchStream;
+  let fnPolyfill;
+  let requestStream;
+  let getFetchPool;
+
   beforeEach(() => {
+    jest.resetModules();
+    ({ fetchData, fetchStream } = require("./fetch"));
+    ({ fnPolyfill } = require("./request"));
+    ({ requestStream } = require("./requestStream"));
+    ({ getFetchPool } = require("./pool"));
     jest.useFakeTimers();
     requestStream.mockReset();
     fnPolyfill.mockReset();
   });
 
   afterEach(() => {
-    clearFetchPool();
     jest.clearAllTimers();
     jest.useRealTimers();
   });
@@ -55,7 +60,7 @@ describe("pooled stream lifecycle", () => {
       name: "AbortError",
     });
 
-    clearFetchPool();
+    getFetchPool().clear();
     await expectation;
     expect(requestStream).not.toHaveBeenCalled();
     await expect(stream.next()).resolves.toEqual({ done: true });
@@ -88,7 +93,7 @@ describe("pooled stream lifecycle", () => {
     expect(fnPolyfill).toHaveBeenCalledTimes(1);
     expect(seenSignal.aborted).toBe(false);
 
-    clearFetchPool();
+    getFetchPool().clear();
     expect(seenSignal.aborted).toBe(true);
     await expectation;
   });
@@ -119,7 +124,7 @@ describe("pooled stream lifecycle", () => {
     expect(requestStream).toHaveBeenCalledTimes(1);
     expect(streamSignal.aborted).toBe(false);
 
-    clearFetchPool();
+    getFetchPool().clear();
     expect(streamSignal.aborted).toBe(true);
     release();
     await expectation;

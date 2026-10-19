@@ -175,16 +175,17 @@ const createTranslator = (rule) => {
 };
 
 describe("rule script sources", () => {
-  test("keeps subscription script text and marks those fields as subscription", () => {
-    const stored = [subscriptionRule()];
-    const { effective, subscription, personal } = pageContext(
-      [{ pattern: "*", selector: "p" }],
-      stored
+  test("marks personal rule scripts as personal and leaves them runnable", () => {
+    const stored = [subscriptionRule({ pattern: "example.com" })];
+    const { effective, personal } = deriveRuleContext(
+      "https://example.com/post",
+      {
+        personalRules: stored,
+      }
     );
 
     expect(stored[0].scriptFieldOrigins).toBeUndefined();
-    expect(subscription).toBe(stored[0]);
-    expect(personal).toBeNull();
+    expect(personal).toBe(stored[0]);
     expect(effective.injectJs).toBe(SUB_INJECT);
     expect(effective.transStartHook).toBe(SUB_START);
     expect(effective.transEndHook).toBe(SUB_END);
@@ -193,19 +194,16 @@ describe("rule script sources", () => {
     expect(effective.resHook).toBeUndefined();
     expect(effective.fixerFunc).toBeUndefined();
     expect(effective.scriptFieldOrigins).toEqual({
-      injectJs: "subscription",
-      transStartHook: "subscription",
-      transEndHook: "subscription",
+      injectJs: "personal",
+      transStartHook: "personal",
+      transEndHook: "personal",
     });
     ["injectJs", "transStartHook", "transEndHook"].forEach((field) => {
-      expect(shouldRunRuleScript(effective, field)).toBe(false);
-    });
-    ["transRemoveHook", "reqHook", "resHook", "fixerFunc"].forEach((field) => {
-      expect(shouldRunRuleScript(subscriptionRule(), field)).toBe(false);
+      expect(shouldRunRuleScript(effective, field)).toBe(true);
     });
   });
 
-  test("lets a personal script override one subscription field without clearing the others", () => {
+  test("lets a personal script override the global script without keeping another layer", () => {
     const { effective, personal, global } = pageContext([
       {
         pattern: "*",
@@ -222,16 +220,13 @@ describe("rule script sources", () => {
     expect(global.scriptFieldOrigins).toBeUndefined();
     expect(effective.injectJs).toBe(PERSONAL_INJECT);
     expect(effective.transStartHook).toBe(PERSONAL_START);
-    expect(effective.transEndHook).toBe(SUB_END);
+    expect(effective.transEndHook || "").not.toBe(SUB_END);
     expect(effective.reqHook).toBeUndefined();
     expect(effective.scriptFieldOrigins.injectJs).toBe("personal");
     expect(effective.scriptFieldOrigins.transStartHook).toBe("personal");
-    expect(effective.scriptFieldOrigins.transEndHook).toBe("subscription");
     expect(effective.scriptFieldOrigins.reqHook).toBeUndefined();
     expect(shouldRunRuleScript(effective, "injectJs")).toBe(true);
     expect(shouldRunRuleScript(effective, "transStartHook")).toBe(true);
-    expect(shouldRunRuleScript(effective, "transEndHook")).toBe(false);
-    expect(shouldRunRuleScript(effective, "reqHook")).toBe(false);
   });
 
   test("treats a global rule script as personal when the subscription does not replace it", () => {

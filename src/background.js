@@ -46,7 +46,6 @@ import { fetchHandle, fetchStreamNative } from "./libs/fetch";
 import { handleRequestPort } from "./libs/requestPort";
 import { tryClearCaches, getHttpCache, putHttpCache } from "./libs/cache";
 import { sendTabMsg, broadcastTranslateToggle } from "./libs/msg";
-import { trySyncAllSubRules } from "./libs/subRules";
 import { saveRule } from "./libs/rules";
 import { getCurTabId } from "./libs/msg";
 import { injectInlineJsBg, injectInternalCss } from "./libs/injector";
@@ -808,12 +807,10 @@ browser.runtime.onInstalled.addListener(async (details) => {
     registerMsgDisplayScript();
   }
 
-  const { contextMenuType, csplist, orilist, subrulesList } =
-    await getSettingWithDefault();
+  const { contextMenuType, csplist, orilist } = await getSettingWithDefault();
 
   addContextMenus(contextMenuType);
   updateCspRules({ csplist, orilist });
-  trySyncAllSubRules({ subrulesList });
 });
 
 /**
@@ -821,14 +818,8 @@ browser.runtime.onInstalled.addListener(async (details) => {
  * 此时从本地恢复日志级别、清空不需要的翻译长缓存、重建右键菜单，并与云端同步设置、本地规则与订阅规则。
  */
 browser.runtime.onStartup.addListener(async () => {
-  const {
-    clearCache,
-    contextMenuType,
-    subrulesList,
-    csplist,
-    orilist,
-    logLevel,
-  } = await getSettingWithDefault();
+  const { clearCache, contextMenuType, csplist, orilist, logLevel } =
+    await getSettingWithDefault();
 
   logger.setLevel(logLevel);
 
@@ -845,7 +836,6 @@ browser.runtime.onStartup.addListener(async () => {
 
   updateCspRules({ csplist, orilist });
   trySyncSettingAndRules();
-  trySyncAllSubRules({ subrulesList });
 });
 
 /**

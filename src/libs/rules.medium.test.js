@@ -5,11 +5,6 @@ import { visitTranslationTargets } from "./translationTargets";
 jest.mock("./storage", () => ({
   getRulesWithDefault: jest.fn(),
   saveEdit: jest.fn(),
-  getDisabledSubRules: jest.fn(),
-}));
-
-jest.mock("./subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
 }));
 
 jest.mock("./sync", () => ({
@@ -298,13 +293,12 @@ describe("medium.com after the v2 subscription sync", () => {
     );
   });
 
-  test("does not fall back when injection is off, and keeps a subscribed github rule", () => {
+  test("uses builtin site rules and ignores a subscription selector", () => {
     const off = deriveRuleContext("https://medium.com/", {
       personalRules: [],
-      subRules: [],
     });
-    expect(off.effective.pattern).toBe("*");
-    expect(off.effective.autoScan).toBe("true");
+    expect(off.effective.pattern).toBe("medium.com");
+    expect(off.effective.autoScan).toBe("false");
 
     const github = deriveRuleContext(
       "https://github.com/boomytc/ImmerTranslate",
@@ -313,8 +307,13 @@ describe("medium.com after the v2 subscription sync", () => {
         subRules: v2WithoutMedium,
       }
     );
+    const builtinGithub = BUILTIN_RULES.find(
+      (rule) => rule.pattern === "github.com"
+    );
     expect(github.effective.pattern).toBe("github.com");
-    expect(github.effective.selector).toBe(".from-subscription");
+    expect(github.effective.selector).toBe(
+      mergeRules(GLOBLA_RULE, builtinGithub).selector
+    );
 
     const covered = deriveRuleContext("https://medium.com/@user/story", {
       personalRules: [],
@@ -328,6 +327,6 @@ describe("medium.com after the v2 subscription sync", () => {
       ],
     });
     expect(covered.effective.pattern).toBe("medium.com");
-    expect(covered.effective.selector).toBe(".from-subscription");
+    expect(covered.effective.selector).not.toBe(".from-subscription");
   });
 });

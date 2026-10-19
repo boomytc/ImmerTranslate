@@ -66,7 +66,7 @@ describe("TaskPool cancellation", () => {
   test("does not start a retry that is waiting on a timer after clear", async () => {
     const task = jest
       .fn()
-      .mockRejectedValueOnce(new Error("Temporary failure"))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValue("should not run");
     const pending = pool.push(task);
     const outcome = pending.then(
@@ -134,10 +134,10 @@ describe("TaskPool cancellation", () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  test("continues retrying ordinary failures", async () => {
+  test("retries network errors", async () => {
     const task = jest
       .fn()
-      .mockRejectedValueOnce(new Error("Temporary failure"))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValue("recovered");
     const result = pool.push(task);
 
@@ -151,5 +151,54 @@ describe("TaskPool cancellation", () => {
 
     await expect(result).resolves.toBe("recovered");
     expect(task).toHaveBeenCalledTimes(2);
+  });
+
+  test.each([429, 500, 503])("retries HTTP %s", async (status) => {
+    const error = new Error(JSON.stringify({ status }));
+    error.status = status;
+    const task = jest
+      .fn()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValue("recovered");
+    const result = pool.push(task);
+
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+    expect(task).toHaveBeenCalledTimes(1);
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+
+    await expect(result).resolves.toBe("recovered");
+    expect(task).toHaveBeenCalledTimes(2);
+  });
+
+  test.each([400, 401, 403, 404])("does not retry HTTP %s", async (status) => {
+    const error = new Error(JSON.stringify({ status }));
+    error.status = status;
+    const task = jest.fn().mockRejectedValue(error);
+    const pending = pool.push(task);
+
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+    await expect(pending).rejects.toMatchObject({ status });
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+    expect(task).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not retry an application error", async () => {
+    const task = jest
+      .fn()
+      .mockRejectedValue(new Error("responses format error"));
+    const pending = pool.push(task);
+
+    jest.runOnlyPendingTimers();
+    await flushPromises();
+    await expect(pending).rejects.toThrow("responses format error");
+    jest.advanceTimersByTime(5000);
+    await flushPromises();
+    expect(task).toHaveBeenCalledTimes(1);
   });
 });
