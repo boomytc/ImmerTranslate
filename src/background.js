@@ -528,64 +528,133 @@ async function rebuildContextMenus(contextMenuType = 1) {
 }
 
 /**
+ * 右键菜单动作。contextMenuItems 只从这里取要创建的项，onClicked 也只查这张表。
+ * 因此不会出现“建了菜单却没有处理”或“有处理却没建菜单”。
+ * 显隐划词面板（CMD_TOGGLE_TRANBOX）只留给快捷键，不进这张表。
+ */
+const contextMenuActions = {
+  [CMD_TOGGLE_TRANSLATE]: {
+    handle: () => {
+      broadcastTranslateToggle();
+    },
+    modes: {
+      // 简易模式：页面上的“双语对照翻译”
+      1: { title: "toggle_translate", contexts: ["page"] },
+      // 完整模式：页面和选区都可以切换双语对照
+      2: { title: "toggle_translate", contexts: ["page", "selection"] },
+    },
+  },
+  [CMD_TOGGLE_TRANSLATE_ONLY]: {
+    handle: () => {
+      sendTabMsg(MSG_TRANS_TOGGLE_ONLY);
+    },
+    modes: {
+      2: { title: "toggle_translate_only", contexts: ["page", "selection"] },
+    },
+  },
+  [CMD_TOGGLE_STYLE]: {
+    handle: () => {
+      sendTabMsg(MSG_TRANS_TOGGLE_STYLE);
+    },
+    modes: {
+      2: { title: "toggle_style", contexts: ["page", "selection"] },
+    },
+  },
+  [CMD_OPEN_TRANBOX]: {
+    handle: ({ selectionText } = {}) => {
+      sendTabMsg(MSG_OPEN_TRANBOX, { text: selectionText });
+    },
+    modes: {
+      // 简易模式：只翻译所选文本
+      1: { title: "translate_selection", contexts: ["selection"] },
+      // 完整模式：打开划词翻译面板
+      2: { title: "open_tranbox", contexts: ["page", "selection"] },
+    },
+  },
+  [CMD_OPEN_OPTIONS]: {
+    handle: () => {
+      openOptionsPage();
+    },
+    modes: {
+      2: { title: "open_options", contexts: ["page", "selection"] },
+    },
+  },
+};
+
+// 分隔线不是动作，插在某个已有菜单项前面。
+const contextMenuSeparators = [
+  {
+    id: "options_separator",
+    type: "separator",
+    contexts: ["page", "selection"],
+    mode: 2,
+    before: CMD_OPEN_OPTIONS,
+  },
+];
+
+/**
+ * 启动时核对动作表：每项都有处理函数，且至少出现在一种菜单模式里。
+ */
+function assertContextMenuActions() {
+  for (const [id, action] of Object.entries(contextMenuActions)) {
+    if (typeof action.handle !== "function") {
+      throw new Error(`context menu ${id} has no handler`);
+    }
+    if (!action.modes?.[1] && !action.modes?.[2]) {
+      throw new Error(`context menu handler ${id} is never created`);
+    }
+  }
+  for (const separator of contextMenuSeparators) {
+    if (contextMenuActions[separator.id]) {
+      throw new Error(`context menu separator ${separator.id} has a handler`);
+    }
+    const anchor = contextMenuActions[separator.before];
+    if (!anchor?.modes?.[separator.mode]) {
+      throw new Error(
+        `context menu separator ${separator.id} is not attached to a menu`
+      );
+    }
+  }
+}
+
+assertContextMenuActions();
+
+/**
  * 按菜单模式返回要创建的项。文案与上下文和原先的 create 调用保持一致。
  * @param {number} contextMenuType 菜单类型标识 (0: 禁用, 1: 简易模式, 2: 完整模式)
  * @returns {Array<object>}
  */
 function contextMenuItems(contextMenuType) {
-  switch (contextMenuType) {
-    case 1:
-      // 简易模式：仅提供“双语对照翻译”与“翻译所选文本”
-      return [
-        {
-          id: CMD_TOGGLE_TRANSLATE,
-          title: browser.i18n.getMessage("toggle_translate"),
-          contexts: ["page"],
-        },
-        {
-          id: CMD_OPEN_TRANBOX,
-          title: browser.i18n.getMessage("translate_selection"),
-          contexts: ["selection"],
-        },
-      ];
-    case 2:
-      // 完整模式：额外提供“仅显示翻译”、样式切换、打开独立翻译面板以及进入选项设置页
-      return [
-        {
-          id: CMD_TOGGLE_TRANSLATE,
-          title: browser.i18n.getMessage("toggle_translate"),
-          contexts: ["page", "selection"],
-        },
-        {
-          id: CMD_TOGGLE_TRANSLATE_ONLY,
-          title: browser.i18n.getMessage("toggle_translate_only"),
-          contexts: ["page", "selection"],
-        },
-        {
-          id: CMD_TOGGLE_STYLE,
-          title: browser.i18n.getMessage("toggle_style"),
-          contexts: ["page", "selection"],
-        },
-        {
-          id: CMD_OPEN_TRANBOX,
-          title: browser.i18n.getMessage("open_tranbox"),
-          contexts: ["page", "selection"],
-        },
-        {
-          id: "options_separator",
-          type: "separator",
-          contexts: ["page", "selection"],
-        },
-        {
-          id: CMD_OPEN_OPTIONS,
-          title: browser.i18n.getMessage("open_options"),
-          contexts: ["page", "selection"],
-        },
-      ];
-    default:
-      return [];
+  if (contextMenuType !== 1 && contextMenuType !== 2) return [];
+  const items = [];
+  for (const [id, action] of Object.entries(contextMenuActions)) {
+    for (const separator of contextMenuSeparators) {
+      if (separator.mode === contextMenuType && separator.before === id) {
+        items.push({
+          id: separator.id,
+          type: separator.type,
+          contexts: [...separator.contexts],
+        });
+      }
+    }
+    const presentation = action.modes[contextMenuType];
+    if (!presentation) continue;
+    items.push({
+      id,
+      title: browser.i18n.getMessage(presentation.title),
+      contexts: [...presentation.contexts],
+    });
   }
+  return items;
 }
+
+/**
+ * 监听全局右键菜单的点击项。
+ * 处理函数与 contextMenuItems 共用 contextMenuActions，只转发给当前页面。
+ */
+browser?.contextMenus?.onClicked?.addListener?.((info) => {
+  contextMenuActions[info?.menuItemId]?.handle?.(info);
+});
 
 /**
  * 等右键项真正注册完成。
@@ -886,36 +955,6 @@ browser.commands?.onCommand?.addListener?.((command) => {
     default:
   }
 });
-
-/**
- * 监听全局右键菜单的点击项。
- * 触发时，通过 Chrome 消息管道将对应指令转发给用户所点击页面的前台 Content Script。
- */
-browser?.contextMenus?.onClicked?.addListener?.(
-  ({ menuItemId, selectionText }) => {
-    switch (menuItemId) {
-      case CMD_TOGGLE_TRANSLATE:
-        broadcastTranslateToggle();
-        break;
-      case CMD_TOGGLE_TRANSLATE_ONLY:
-        sendTabMsg(MSG_TRANS_TOGGLE_ONLY);
-        break;
-      case CMD_TOGGLE_STYLE:
-        sendTabMsg(MSG_TRANS_TOGGLE_STYLE);
-        break;
-      case CMD_OPEN_TRANBOX:
-        sendTabMsg(MSG_OPEN_TRANBOX, { text: selectionText });
-        break;
-      case CMD_TOGGLE_TRANBOX:
-        sendTabMsg(MSG_TRANSBOX_TOGGLE);
-        break;
-      case CMD_OPEN_OPTIONS:
-        openOptionsPage();
-        break;
-      default:
-    }
-  }
-);
 
 /**
  * 专门处理 SSE/翻译大模型的流式数据请求通道。
