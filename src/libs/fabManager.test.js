@@ -5,7 +5,9 @@ describe("FabManager", () => {
   let showSpy;
 
   beforeEach(() => {
-    showSpy = jest.spyOn(FabManager.prototype, "show").mockImplementation(() => {});
+    showSpy = jest
+      .spyOn(FabManager.prototype, "show")
+      .mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -42,10 +44,10 @@ describe("FabManager", () => {
     expect(showSpy).not.toHaveBeenCalled();
   });
 
-  test("shows when global is hidden but current site is in hideExceptionList", () => {
+  test("shows when global is hidden but current site is in shownSites", () => {
     new FabManager({
       processActions: jest.fn(),
-      fabConfig: { isHide: true, hideExceptionList: "example.com" },
+      fabConfig: { isHide: true, shownSites: "example.com" },
       autoShow: true,
       href: "https://example.com/page",
     });
@@ -53,10 +55,10 @@ describe("FabManager", () => {
     expect(showSpy).toHaveBeenCalledTimes(1);
   });
 
-  test("does not show when global is shown but current site is in hideExceptionList", () => {
+  test("does not show when global is shown but current site is in hiddenSites", () => {
     new FabManager({
       processActions: jest.fn(),
-      fabConfig: { isHide: false, hideExceptionList: "example.com" },
+      fabConfig: { isHide: false, hiddenSites: "example.com" },
       autoShow: true,
       href: "https://example.com/page",
     });

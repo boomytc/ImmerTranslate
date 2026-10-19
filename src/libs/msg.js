@@ -1,15 +1,23 @@
 import { browser } from "./browser";
+import { MSG_TRANS_TOGGLE } from "../config/msg";
+
+export const MSG_NO_RECEIVER = "NO_RECEIVER";
+
+function missingPageReceiver(err) {
+  const message = err?.message || "";
+  return (
+    message.includes("Could not establish connection") ||
+    message.includes("Receiving end does not exist")
+  );
+}
 
 const sendMessage = (tabId, message, options) => {
   const sendPromise = options
     ? browser.tabs.sendMessage(tabId, message, options)
     : browser.tabs.sendMessage(tabId, message);
   return sendPromise.catch((err) => {
-    if (
-      err?.message?.includes("Could not establish connection") ||
-      err?.message?.includes("Receiving end does not exist")
-    ) {
-      return;
+    if (missingPageReceiver(err)) {
+      return { error: err.message, code: MSG_NO_RECEIVER };
     }
     throw err;
   });
@@ -113,3 +121,20 @@ export const sendTopFrameMsg = (
   expectedDocumentToken
 ) =>
   sendTabMsg(action, args, { frameId: 0 }, targetTabId, expectedDocumentToken);
+
+/**
+ * 快捷键和右键菜单不知道各 frame 当前是否已开启翻译。
+ * 先问顶层拿到目标值，再把同一个 enabled 发给其余 frame。
+ */
+export async function broadcastTranslateToggle(targetTabId) {
+  const top = await sendTopFrameMsg(MSG_TRANS_TOGGLE, undefined, targetTabId);
+  const transOpen = top?.rule?.transOpen;
+  if (transOpen !== "true" && transOpen !== "false") return top;
+  await sendTabMsg(
+    MSG_TRANS_TOGGLE,
+    { enabled: transOpen === "true" },
+    undefined,
+    targetTabId
+  );
+  return top;
+}

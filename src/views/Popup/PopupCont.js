@@ -51,7 +51,13 @@ import {
 } from "../../config";
 import { getPresetModels } from "../../config/presetModels";
 import { fetchModelCatalog } from "../../libs/modelList";
-import { DEFAULT_FAB, isFabVisible, FAB_SIZE_PRESETS } from "../../config/fab";
+import {
+  DEFAULT_FAB,
+  isFabVisible,
+  FAB_SIZE_PRESETS,
+  applyFabSitePolicy,
+  normalizeFabConfig,
+} from "../../config/fab";
 import { useStorage } from "../../hooks/Storage";
 import {
   readSiteTransOpen,
@@ -64,7 +70,7 @@ import { effectiveTransOpen } from "../../libs/pageRuleSync";
 import { tryClearCaches } from "../../libs/cache";
 import { kissLog } from "../../libs/log";
 import { getDomainOptions, truncateMiddle } from "../../libs/url";
-import { isMatch } from "../../libs/utils";
+import { confirmPageAction } from "./confirmPageAction";
 import {
   getCompactStylePreviewCode,
   useAllTextStyles,
@@ -234,7 +240,7 @@ export default function PopupCont({
         blacklist: (previous?.blacklist || "")
           .split(/\n|,/)
           .map((entry) => entry.trim())
-          .filter((entry) => entry && entry !== selectedDomain)
+          .filter((entry) => entry && !isInBlacklist(currentHref, entry))
           .join("\n"),
       }));
       showMessage(`${i18n("remove_from_blacklist")}: ${selectedDomain}`);
@@ -242,7 +248,7 @@ export default function PopupCont({
       kissLog("remove from blacklist", error);
       showMessage(i18n("error_got_some_wrong"), "error");
     }
-  }, [i18n, selectedDomain, showMessage, updateSetting]);
+  }, [currentHref, i18n, selectedDomain, showMessage, updateSetting]);
 
   const sendPageMessage = useCallback(
     (action, args, topFrame = false) => {
@@ -716,151 +722,149 @@ export default function PopupCont({
   );
 
   const {
-    data: fabData,
+    data: rawFabData,
     save: updateFab,
     isLoading: fabLoading,
   } = useStorage(STOKEY_FAB, DEFAULT_FAB);
-  const isCurrentSiteFabVisible = isFabVisible(currentHref, fabData);
+  const fabData = normalizeFabConfig(rawFabData);
+  const fabPageReady = Boolean(currentHref);
+  const [echoFabVisible, setEchoFabVisible] = useState(null);
+  const confirmedFabKeyRef = useRef("");
+  const fabVisibilityKey = `${fabData.isHide}\n${fabData.hiddenSites}\n${fabData.shownSites}`;
+  const storedFabVisible = isFabVisible(currentHref, fabData);
+  const isCurrentSiteFabVisible = echoFabVisible ?? storedFabVisible;
+
+  useEffect(() => {
+    if (confirmedFabKeyRef.current === fabVisibilityKey) return;
+    confirmedFabKeyRef.current = "";
+    setEchoFabVisible(null);
+  }, [fabVisibilityKey]);
+
+  const reportFabFailure = useCallback(
+    (error) => {
+      kissLog("fab page control", error);
+      showMessage(i18n("popup_action_failed"), "error");
+    },
+    [i18n, showMessage]
+  );
+
+  const publishFab = useCallback(
+    (nextFab) => {
+      const shouldShow = isFabVisible(currentHref, nextFab);
+      const args = { fabConfig: nextFab, enabled: shouldShow };
+      return processActions
+        ? processActions({ action: MSG_FAB_TOGGLE, args })
+        : sendPageMessage(MSG_FAB_TOGGLE, args, true);
+    },
+    [currentHref, processActions, sendPageMessage]
+  );
+
+  const confirmFabChange = useCallback(
+    async ({ previous, next }) => {
+      const result = await confirmPageAction({
+        send: () => publishFab(next),
+        confirm: (response) => {
+          if (typeof response?.fabVisible !== "boolean") {
+            throw new Error("FAB visibility was not confirmed");
+          }
+          confirmedFabKeyRef.current = `${next.isHide}\n${next.hiddenSites}\n${next.shownSites}`;
+          setEchoFabVisible(response.fabVisible);
+        },
+        rollback: () => updateFab(previous ?? DEFAULT_FAB),
+      });
+      if (!result.ok) reportFabFailure(result.error);
+      return result;
+    },
+    [publishFab, reportFabFailure, updateFab]
+  );
 
   const handleToggleGlobalFab = useCallback(
     async (enabled) => {
-      if (fabLoading) return;
-      let resolvedNextFab;
+      if (fabLoading || !fabPageReady) return;
+      let previous = fabData;
+      let next = fabData;
       try {
         await updateFab((prev) => {
-          resolvedNextFab = {
-            ...(typeof prev === "object" && prev !== null ? prev : {}),
-            isHide: !enabled,
-          };
-          return resolvedNextFab;
+          previous = normalizeFabConfig(prev);
+          next = normalizeFabConfig({ ...previous, isHide: !enabled });
+          return next;
         });
-        if (canTranslatePage && resolvedNextFab) {
-          const shouldShow = isFabVisible(currentHref, resolvedNextFab);
-          const args = { enabled: shouldShow, fabConfig: resolvedNextFab };
-          if (processActions) {
-            await processActions({ action: MSG_FAB_TOGGLE, args });
-          } else {
-            await sendPageMessage(MSG_FAB_TOGGLE, args, true);
-          }
-        }
+        if (canTranslatePage) await confirmFabChange({ previous, next });
       } catch (error) {
-        kissLog("toggle global fab error", error);
+        reportFabFailure(error);
       }
     },
     [
       canTranslatePage,
-      currentHref,
+      confirmFabChange,
+      fabData,
       fabLoading,
-      processActions,
-      sendPageMessage,
+      fabPageReady,
+      reportFabFailure,
       updateFab,
     ]
   );
 
   const handleToggleSiteFab = useCallback(async () => {
-    if (fabLoading) return;
-    const domain =
-      selectedDomain || (currentHref ? getDomainOptions(currentHref)[0] : "");
-    if (!domain) return;
-    let resolvedNextFab;
-    let resolvedTargetVisible;
+    if (fabLoading || !fabPageReady) return;
+    let previous = fabData;
+    let next = fabData;
+    let targetVisible = false;
     try {
       await updateFab((prev) => {
-        const current =
-          typeof prev === "object" && prev !== null ? prev : DEFAULT_FAB;
-        const currentIsHide = Boolean(current?.isHide);
-        const targetVisible = !isFabVisible(currentHref, current);
-        resolvedTargetVisible = targetVisible;
-        const entries = (current?.hideExceptionList || "")
-          .split(/\n|,/)
-          .map((entry) => entry.trim())
-          .filter(Boolean);
-
-        let nextEntries;
-        if (targetVisible) {
-          if (currentIsHide) {
-            nextEntries = entries.includes(domain)
-              ? entries
-              : [...entries, domain];
-          } else {
-            nextEntries = entries.filter(
-              (entry) => entry !== domain && !isMatch(currentHref, entry)
-            );
-          }
-        } else {
-          if (currentIsHide) {
-            nextEntries = entries.filter(
-              (entry) => entry !== domain && !isMatch(currentHref, entry)
-            );
-          } else {
-            nextEntries = entries.includes(domain)
-              ? entries
-              : [...entries, domain];
-          }
-        }
-
-        resolvedNextFab = {
-          ...current,
-          hideExceptionList: nextEntries.join("\n"),
-        };
-        return resolvedNextFab;
+        previous = normalizeFabConfig(prev);
+        targetVisible = !isFabVisible(currentHref, previous);
+        next = applyFabSitePolicy(previous, currentHref, targetVisible);
+        return next;
       });
-
-      if (canTranslatePage && resolvedNextFab) {
-        const shouldShow = isFabVisible(currentHref, resolvedNextFab);
-        const args = { enabled: shouldShow, fabConfig: resolvedNextFab };
-        if (processActions) {
-          await processActions({ action: MSG_FAB_TOGGLE, args });
-        } else {
-          await sendPageMessage(MSG_FAB_TOGGLE, args, true);
-        }
+      if (canTranslatePage) {
+        const result = await confirmFabChange({ previous, next });
+        if (!result.ok) return;
       }
       showMessage(
         i18n(
-          resolvedTargetVisible
-            ? "fab_shown_on_site_toast"
-            : "fab_hidden_on_site_toast"
+          targetVisible ? "fab_shown_on_site_toast" : "fab_hidden_on_site_toast"
         )
       );
     } catch (error) {
-      kissLog("toggle site fab error", error);
-      showMessage(i18n("error_got_some_wrong"), "error");
+      reportFabFailure(error);
     }
   }, [
     canTranslatePage,
+    confirmFabChange,
     currentHref,
+    fabData,
     fabLoading,
+    fabPageReady,
     i18n,
-    processActions,
-    selectedDomain,
-    sendPageMessage,
+    reportFabFailure,
     showMessage,
     updateFab,
   ]);
 
   const handleUpdateFabSize = useCallback(
     async (size) => {
-      if (fabLoading) return;
+      if (fabLoading || !fabPageReady) return;
+      let previous = fabData;
+      let next = fabData;
       try {
-        const nextFab = { ...(fabData || DEFAULT_FAB), size };
-        await updateFab(nextFab);
-        const shouldShow = isFabVisible(currentHref, nextFab);
-        const args = { enabled: shouldShow, fabConfig: nextFab };
-        if (processActions) {
-          await processActions({ action: MSG_FAB_TOGGLE, args });
-        } else {
-          await sendPageMessage(MSG_FAB_TOGGLE, args);
-        }
+        await updateFab((prev) => {
+          previous = normalizeFabConfig(prev);
+          next = normalizeFabConfig({ ...previous, size });
+          return next;
+        });
+        if (canTranslatePage) await confirmFabChange({ previous, next });
       } catch (error) {
-        kissLog("update fab size error", error);
+        reportFabFailure(error);
       }
     },
     [
-      currentHref,
+      canTranslatePage,
+      confirmFabChange,
       fabData,
       fabLoading,
-      processActions,
-      sendPageMessage,
+      fabPageReady,
+      reportFabFailure,
       updateFab,
     ]
   );
@@ -871,37 +875,60 @@ export default function PopupCont({
     contextSetting?.tranboxSetting ||
     setting?.tranboxSetting ||
     DEFAULT_TRANBOX_SETTING;
+  const selectionBlockedOnSite = Boolean(
+    currentHref &&
+      isInBlacklist(currentHref, activeTranboxSetting?.blacklist || "")
+  );
   const selectionTranslateOpen =
     localSelectionTranslateOpen ?? activeTranboxSetting?.transOpen !== false;
 
   const handleToggleSelectionTranslate = useCallback(
     async (enabled) => {
+      const previous = selectionTranslateOpen;
       setLocalSelectionTranslateOpen(enabled);
-      try {
-        if (canTranslatePage) {
-          const args = { enabled };
-          if (processActions) {
-            await processActions({ action: MSG_TRANSBOX_TOGGLE, args });
-          } else {
-            await sendPageMessage(MSG_TRANSBOX_TOGGLE, args);
-          }
-        }
-        await updateSetting((previous) => ({
-          ...previous,
+      const persist = (transOpen) =>
+        updateSetting((prev) => ({
+          ...prev,
           tranboxSetting: {
-            ...(previous?.tranboxSetting ||
+            ...(prev?.tranboxSetting ||
               setting?.tranboxSetting ||
               DEFAULT_TRANBOX_SETTING),
-            transOpen: enabled,
+            transOpen,
           },
         }));
+      try {
+        if (!canTranslatePage) {
+          await persist(enabled);
+          return;
+        }
+        const result = await confirmPageAction({
+          send: () => {
+            const args = { enabled };
+            return processActions
+              ? processActions({ action: MSG_TRANSBOX_TOGGLE, args })
+              : sendPageMessage(MSG_TRANSBOX_TOGGLE, args);
+          },
+          confirm: async (response) => {
+            const transOpen = response?.setting?.tranboxSetting?.transOpen;
+            if (typeof transOpen !== "boolean") {
+              throw new Error("Selection translation state was not confirmed");
+            }
+            setLocalSelectionTranslateOpen(transOpen);
+            await persist(transOpen);
+          },
+          rollback: () => setLocalSelectionTranslateOpen(previous),
+        });
+        if (!result.ok) reportFabFailure(result.error);
       } catch (error) {
-        kissLog("toggle selection translate error", error);
+        setLocalSelectionTranslateOpen(previous);
+        reportFabFailure(error);
       }
     },
     [
       canTranslatePage,
       processActions,
+      reportFabFailure,
+      selectionTranslateOpen,
       sendPageMessage,
       setting?.tranboxSetting,
       updateSetting,
@@ -1294,7 +1321,7 @@ export default function PopupCont({
               variant="outlined"
               size="small"
               className="kt-popup-fab-control__site-btn"
-              disabled={fabLoading}
+              disabled={fabLoading || !fabPageReady}
               onClick={() => void handleToggleSiteFab()}
             >
               {i18n(
@@ -1311,7 +1338,7 @@ export default function PopupCont({
             <Switch
               size="small"
               checked={!fabLoading && !fabData?.isHide}
-              disabled={fabLoading}
+              disabled={fabLoading || !fabPageReady}
               onChange={(_event, checked) =>
                 void handleToggleGlobalFab(checked)
               }
@@ -1319,7 +1346,12 @@ export default function PopupCont({
             />
           </div>
           <div className="kt-popup-fab-control__global">
-            <span>{i18n("selection_translate")}</span>
+            <span>
+              {i18n("selection_translate")}
+              {selectionBlockedOnSite
+                ? ` · ${i18n("selection_translate_site_blocked")}`
+                : ""}
+            </span>
             <Switch
               size="small"
               checked={selectionTranslateOpen}
@@ -1347,7 +1379,7 @@ export default function PopupCont({
                 aria-pressed={
                   Math.abs((fabData?.size || DEFAULT_FAB.size) - size) <= 4
                 }
-                disabled={fabLoading}
+                disabled={fabLoading || !fabPageReady}
                 onClick={() => void handleUpdateFabSize(size)}
               >
                 {i18n(labelKey)}

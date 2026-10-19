@@ -25,6 +25,7 @@ import { getGmMethod } from "./gmMethods";
 import { publishStorageWrite } from "./storageEvents";
 import { withStorageLock } from "./storageCoordination";
 import { cloneStorageValue, isSameStorageValue } from "./storageEquality";
+import { normalizeFabConfig } from "../config/fab";
 
 const SYNC_KEYS = {
   [STOKEY_SETTING]: KV_SETTING_KEY,
@@ -599,7 +600,8 @@ export const removeDisabledSubRules = async (url) => {
 
 // --- 悬浮球 (Fab Button) 位置及偏好存取 ---
 export const getFab = () => getObj(STOKEY_FAB);
-export const getFabWithDefault = async () => (await getFab()) || {};
+export const getFabWithDefault = async () =>
+  normalizeFabConfig((await getFab()) || {});
 export const putFab = (obj) => putObj(STOKEY_FAB, obj);
 
 // --- 交互翻译框 (TranBox UI) 位置与大小存取 ---

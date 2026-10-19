@@ -1,4 +1,4 @@
-import { isInBlacklist } from "../libs/blacklist";
+import { matchesSiteEntry } from "../libs/siteMatch";
 
 export const FAB_MIN_OPACITY = 0.1;
 export const FAB_MIN_SIZE = 24;
@@ -11,11 +11,34 @@ export const FAB_SIZE_PRESETS = [
 ];
 
 export const DEFAULT_FAB = {
-  hideExceptionList: "",
+  isHide: false,
+  hiddenSites: "",
+  shownSites: "",
   halfHide: true,
   opacity: 1,
   size: 56,
 };
+
+let fabVisibilityHolds = 0;
+
+/**
+ * 撤销提示还挂在悬浮球组件上时，先挡住按配置销毁。
+ * 调用方必须释放，否则其它标签页的显隐也不会落地。
+ */
+export function holdFabVisibility() {
+  fabVisibilityHolds += 1;
+  return function releaseFabVisibilityHold() {
+    fabVisibilityHolds = Math.max(0, fabVisibilityHolds - 1);
+  };
+}
+
+export function isFabVisibilityHeld() {
+  return fabVisibilityHolds > 0;
+}
+
+export function resetFabVisibilityHold() {
+  fabVisibilityHolds = 0;
+}
 
 // Older stored configurations do not contain appearance preferences.
 export function normalizeFabAppearance(config) {
@@ -37,17 +60,110 @@ export function normalizeFabAppearance(config) {
   };
 }
 
+function normalizeIsHide(value) {
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
+  return DEFAULT_FAB.isHide;
+}
+
+function asSiteList(value) {
+  return typeof value === "string" ? value : "";
+}
+
 /**
- * 判断指定页面当前是否应当显示悬浮球。
- * 全局显示时：未在特例名单中则显示，在名单中则隐藏；
- * 全局隐藏时：在特例名单中则显示，未在名单中则隐藏。
+ * 悬浮球配置的唯一形状。全局显示看 hiddenSites，全局隐藏看 shownSites。
+ */
+export function normalizeFabConfig(config) {
+  const source = config && typeof config === "object" ? { ...config } : {};
+  delete source.hideExceptionList;
+  return {
+    ...source,
+    ...normalizeFabAppearance(source),
+    isHide: normalizeIsHide(source.isHide),
+    hiddenSites: asSiteList(source.hiddenSites),
+    shownSites: asSiteList(source.shownSites),
+  };
+}
+
+export function splitFabSites(value) {
+  return String(value || "")
+    .split(/\n|,/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+export function canonicalSiteEntry(href) {
+  try {
+    const url = new URL(href);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    const hostname = url.hostname.toLowerCase();
+    if (!hostname) return "";
+    return url.port ? `${hostname}:${url.port}` : hostname;
+  } catch {
+    return "";
+  }
+}
+
+export function activeFabSiteList(config) {
+  return normalizeFabConfig(config).isHide ? "shownSites" : "hiddenSites";
+}
+
+function withSiteList(config, key, entries) {
+  return { ...config, [key]: entries.join("\n") };
+}
+
+function addSiteEntry(entries, entry) {
+  if (!entry || entries.includes(entry)) return entries;
+  return [...entries, entry];
+}
+
+/**
+ * 把某个网址调成可见或不可见。只改当前全局状态下生效的那一份名单，
+ * 因此再切全局开关时，两份名单的含义不会对调。
+ */
+export function applyFabSitePolicy(prev, href, visible) {
+  const config = normalizeFabConfig(prev);
+  const entry = canonicalSiteEntry(href);
+  const key = activeFabSiteList(config);
+  const entries = splitFabSites(config[key]);
+  if (!entry) return config;
+
+  const showByRemoving = !config.isHide && visible;
+  const hideByRemoving = config.isHide && !visible;
+  const next =
+    showByRemoving || hideByRemoving
+      ? entries.filter((item) => !matchesSiteEntry(href, item))
+      : addSiteEntry(entries, entry);
+  return withSiteList(config, key, next);
+}
+
+/**
+ * 撤销「此站隐藏」时把当时删掉的条目放回去。没有删过条目时，
+ * 退回 applyFabSitePolicy(..., true)，只去掉这次加进去的主机名。
+ */
+export function restoreRemovedFabSites(prev, href, removedEntries = []) {
+  const config = normalizeFabConfig(prev);
+  const removed = (removedEntries || []).filter(Boolean);
+  if (!removed.length) return applyFabSitePolicy(config, href, true);
+  const key = activeFabSiteList(config);
+  const next = [...splitFabSites(config[key])];
+  removed.forEach((entry) => {
+    if (!next.includes(entry)) next.push(entry);
+  });
+  return withSiteList(config, key, next);
+}
+
+function siteListMatches(href, list) {
+  return splitFabSites(list).some((entry) => matchesSiteEntry(href, entry));
+}
+
+/**
+ * 全局显示时：命中 hiddenSites 则隐藏。
+ * 全局隐藏时：命中 shownSites 才显示。
  */
 export function isFabVisible(href, fabConfig = {}) {
   const safeHref = typeof href === "string" ? href : "";
-  const isGlobalHide = Boolean(fabConfig?.isHide);
-  const isException = isInBlacklist(
-    safeHref,
-    fabConfig?.hideExceptionList || ""
-  );
-  return isGlobalHide ? isException : !isException;
+  const config = normalizeFabConfig(fabConfig);
+  if (config.isHide) return siteListMatches(safeHref, config.shownSites);
+  return !siteListMatches(safeHref, config.hiddenSites);
 }

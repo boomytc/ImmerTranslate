@@ -44,7 +44,7 @@ import {
 import { useShortcut } from "../../hooks/Shortcut";
 import ShortcutInput from "./ShortcutInput";
 import { useFab } from "../../hooks/Fab";
-import { normalizeFabAppearance } from "../../config/fab";
+import { normalizeFabConfig } from "../../config/fab";
 import { sendBgMsg } from "../../libs/msg";
 import { tryClearCaches } from "../../libs/cache";
 import { kissLog, LogLevel } from "../../libs/log";
@@ -297,13 +297,14 @@ export default function Settings() {
   )
     ? popupDefaultView
     : OPT_POPUP_DEFAULT_VIEW_PAGE;
-  // 解构 FAB 悬浮球的显隐状态及点击后的默认交互行为
+  // 悬浮球显隐：全局开关只改 isHide，两个名单各自保持含义。
   const {
-    isHide = false,
+    isHide,
+    hiddenSites,
+    shownSites,
+    halfHide,
     fabClickAction = 0,
-    hideExceptionList = "",
-  } = fab || {};
-  const { halfHide } = normalizeFabAppearance(fab);
+  } = normalizeFabConfig(fab);
 
   return (
     <Box>
@@ -644,11 +645,22 @@ export default function Settings() {
           size="small"
           multiline
           maxRows={10}
-          name="hideExceptionList"
-          value={hideExceptionList}
-          label={i18n("fab_exception_list")}
+          name="hiddenSites"
+          value={hiddenSites}
+          label={i18n("fab_hidden_sites")}
           helperText={i18n("fab_exception_list_helper")}
-          onChange={(e) => updateFab({ hideExceptionList: e.target.value })}
+          onChange={(e) => updateFab({ hiddenSites: e.target.value })}
+        />
+        <TextField
+          fullWidth
+          size="small"
+          multiline
+          maxRows={10}
+          name="shownSites"
+          value={shownSites}
+          label={i18n("fab_shown_sites")}
+          helperText={i18n("fab_exception_list_helper")}
+          onChange={(e) => updateFab({ shownSites: e.target.value })}
         />
 
         {/* 网页翻译的黑名单域名正则排除列表 (一行一条) */}

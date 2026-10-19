@@ -9,13 +9,7 @@ import MenuItem from "@mui/material/MenuItem";
 import MenuList from "@mui/material/MenuList";
 import Paper from "@mui/material/Paper";
 import Popper from "@mui/material/Popper";
-import {
-  useState,
-  useMemo,
-  useCallback,
-  useEffect,
-  useRef,
-} from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import ThemeProvider from "../../hooks/M3Theme";
 import Draggable from "./Draggable";
 import { SettingProvider } from "../../hooks/Setting";
@@ -47,12 +41,16 @@ import {
   isFabVisible,
   FAB_MAX_SIZE,
   FAB_MIN_SIZE,
+  applyFabSitePolicy,
+  activeFabSiteList,
+  splitFabSites,
+  restoreRemovedFabSites,
+  holdFabVisibility,
+  normalizeFabConfig,
 } from "../../config/fab";
-import { isMatch } from "../../libs/utils";
+import { matchesSiteEntry } from "../../libs/siteMatch";
 import FloatingButton from "../../components/FloatingButton";
 import FabQuickOptions from "./FabQuickOptions";
-
-
 
 // Flip and shift the menu near viewport edges. The FAB can reach any corner,
 // so fallback placements cover all sides to prevent clipping.
@@ -150,17 +148,24 @@ export function ContentFabContent({
   const pendingDomainRef = useRef("");
   const savedConfirmedRef = useRef(false);
   const removedExceptionsRef = useRef([]);
+  const holdReleaseRef = useRef(null);
   const handleMenuNavigation = useMemo(
     () => createMenuKeyDownHandler({ shadowOnly: true }),
     []
   );
   const { isVideoFullscreen } = useFullscreenDetect();
 
+  const releaseVisibilityHold = useCallback(() => {
+    holdReleaseRef.current?.();
+    holdReleaseRef.current = null;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (undoTimerRef.current) window.clearTimeout(undoTimerRef.current);
+      releaseVisibilityHold();
     };
-  }, []);
+  }, [releaseVisibilityHold]);
 
   useEffect(() => {
     if (!getFabPageState) return undefined;
@@ -214,6 +219,8 @@ export function ContentFabContent({
     let savedConfig;
     let removedEntries = [];
     if (domain) {
+      releaseVisibilityHold();
+      holdReleaseRef.current = holdFabVisibility();
       try {
         const fabState = getStorageState(STOKEY_FAB, DEFAULT_FAB);
         const receipt = await fabState.save((previous) => {
@@ -221,30 +228,12 @@ export function ContentFabContent({
             typeof previous === "object" && previous !== null
               ? previous
               : DEFAULT_FAB;
-          const currentIsHide = Boolean(current?.isHide);
-          const entries = (current.hideExceptionList || "")
-            .split(/\n|,/)
-            .map((entry) => entry.trim())
-            .filter(Boolean);
-
-          let nextEntries;
-          if (currentIsHide) {
-            removedEntries = entries.filter(
-              (entry) => entry === domain || isMatch(href, entry)
-            );
-            nextEntries = entries.filter(
-              (entry) => entry !== domain && !isMatch(href, entry)
-            );
-          } else {
-            removedEntries = [];
-            nextEntries = entries.includes(domain)
-              ? entries
-              : [...entries, domain];
-          }
-          return {
-            ...current,
-            hideExceptionList: nextEntries.join("\n"),
-          };
+          const listKey = activeFabSiteList(current);
+          const entries = splitFabSites(current?.[listKey]);
+          removedEntries = normalizeFabConfig(current).isHide
+            ? entries.filter((entry) => matchesSiteEntry(href, entry))
+            : [];
+          return applyFabSitePolicy(current, href, false);
         });
         if (receipt?.value && typeof receipt.value === "object") {
           savedConfig = receipt.value;
@@ -253,6 +242,7 @@ export function ContentFabContent({
       } catch (e) {
         kissLog("hide fab on site error", e);
         pendingDomainRef.current = "";
+        releaseVisibilityHold();
         setShowFab(true);
         setUndoToast({ open: true, domain: "", error: true });
         return;
@@ -264,22 +254,21 @@ export function ContentFabContent({
       pendingDomainRef.current = "";
       savedConfirmedRef.current = false;
       setUndoToast({ open: false, domain: "" });
-      // 撤销条卸载时会清掉这个计时器。配置必须提前进入管理器，
-      // 否则 SPA 重建仍用旧名单把悬浮球挂回来。
+      // 撤销条还在时不能按新配置销毁悬浮球，否则提示会把计时器一起卸掉。
+      // 配置先进入管理器，到点后再按本页网址计算显隐。
+      releaseVisibilityHold();
       void processActions?.({
         action: MSG_FAB_TOGGLE,
-        args: savedConfig
-          ? { enabled: false, fabConfig: savedConfig }
-          : { enabled: false },
+        args: savedConfig ? { fabConfig: savedConfig } : {},
       });
     }, 4500);
     if (savedConfig) {
       void processActions?.({
         action: MSG_FAB_TOGGLE,
-        args: { enabled: true, fabConfig: savedConfig },
+        args: { fabConfig: savedConfig },
       });
     }
-  }, [closeMenu, processActions]);
+  }, [closeMenu, processActions, releaseVisibilityHold]);
 
   const handleUndoHide = useCallback(async () => {
     if (undoTimerRef.current) {
@@ -302,27 +291,7 @@ export function ContentFabContent({
             typeof previous === "object" && previous !== null
               ? previous
               : DEFAULT_FAB;
-          const currentIsHide = Boolean(current?.isHide);
-          const entries = (current.hideExceptionList || "")
-            .split(/\n|,/)
-            .map((entry) => entry.trim())
-            .filter(Boolean);
-
-          let nextEntries;
-          if (currentIsHide) {
-            // Restore every exception removed by this hide, while retaining
-            // entries added elsewhere during the undo window.
-            const restore = removedEntries.length ? removedEntries : [domain];
-            nextEntries = [...new Set([...entries, ...restore])];
-          } else {
-            nextEntries = entries.filter(
-              (entry) => entry !== domain && !isMatch(href, entry)
-            );
-          }
-          return {
-            ...current,
-            hideExceptionList: nextEntries.join("\n"),
-          };
+          return restoreRemovedFabSites(current, href, removedEntries);
         });
         if (receipt?.value && typeof receipt.value === "object") {
           restoredConfig = receipt.value;
@@ -336,15 +305,16 @@ export function ContentFabContent({
     pendingDomainRef.current = "";
     savedConfirmedRef.current = false;
     removedExceptionsRef.current = [];
+    releaseVisibilityHold();
     setUndoToast({ open: false, domain: "" });
     setShowFab(true);
     if (restoredConfig) {
       void processActions?.({
         action: MSG_FAB_TOGGLE,
-        args: { enabled: true, fabConfig: restoredConfig },
+        args: { fabConfig: restoredConfig },
       });
     }
-  }, [processActions, undoToast.domain]);
+  }, [processActions, releaseVisibilityHold, undoToast.domain]);
 
   useEffect(() => {
     if (!undoToast.open) {
@@ -376,11 +346,12 @@ export function ContentFabContent({
           undoTimerRef.current = null;
         }
         pendingDomainRef.current = "";
+        releaseVisibilityHold();
         setUndoToast({ open: false, domain: "" });
         setShowFab(true);
       }
     });
-  }, [undoToast.domain, undoToast.open]);
+  }, [releaseVisibilityHold, undoToast.domain, undoToast.open]);
 
   useEffect(() => {
     if (!opensMenu || !open) return;
