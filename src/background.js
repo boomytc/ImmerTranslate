@@ -172,12 +172,7 @@ async function updateIcon(isActive, tabId) {
     192: `images/logo192${suffix}.png`,
   };
   try {
-    // 兼容 MV3 (browser.action) 和 MV2 (browser.browserAction) 规范下的 Firefox 和 Chrome
-    if (browser.action) {
-      await browser.action.setIcon({ path, tabId });
-    } else {
-      await browser.browserAction.setIcon({ path, tabId });
-    }
+    await browser.action.setIcon({ path, tabId });
   } catch (err) {
     kissLog("updateIcon error", err);
   }
@@ -472,15 +467,6 @@ async function updateCacheFromActual(windowId) {
 }
 
 /**
- * 监听窗口焦点切换事件 (用于兼容不支持 boundsChanged 的 Firefox)
- */
-browser.windows?.onFocusChanged?.addListener?.(async (windowId) => {
-  if (separateWindowId !== null) {
-    await updateCacheFromActual(separateWindowId);
-  }
-});
-
-/**
  * 监听窗口大小及位置移动变化。
  * 此时只实时更新内存中的 lastKnownBounds 缓存，不频繁写入 Storage，防止 Storage API 限频报错。
  */
@@ -603,15 +589,13 @@ function contextMenuItems(contextMenuType) {
 
 /**
  * 等右键项真正注册完成。
- * Chrome 的 contextMenus.create 会立刻返回 id，polyfill 也没有把它包成 Promise；
- * 菜单要等回调才落定。Firefox 则返回 Promise。两边都要等到完成信号。
+ * contextMenus.create 会立刻返回 id，菜单要等回调才落定。
  * @param {object} item contextMenus.create 的参数
  * @returns {Promise<void>}
  */
 function createContextMenuItem(item) {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const completion = { preferPromise: false };
     const finish = (error) => {
       if (settled) return;
       settled = true;
@@ -619,11 +603,8 @@ function createContextMenuItem(item) {
       else resolve();
     };
 
-    let created;
     try {
-      created = browser.contextMenus.create(item, () => {
-        // Firefox 的 Promise 会带上失败原因；这时不要让先到的空回调把失败吞掉。
-        if (completion.preferPromise) return;
+      browser.contextMenus.create(item, () => {
         const lastError = contextMenuLastError();
         finish(
           lastError ? new Error(lastError.message || String(lastError)) : null
@@ -631,24 +612,12 @@ function createContextMenuItem(item) {
       });
     } catch (callbackError) {
       try {
-        created = browser.contextMenus.create(item);
+        browser.contextMenus.create(item);
       } catch (error) {
         finish(error || callbackError);
         return;
       }
-      // 不接受回调、也不返回 Promise 时，create 在返回前已经完成。
-      if (!created || typeof created.then !== "function") {
-        finish(null);
-        return;
-      }
-    }
-
-    if (created && typeof created.then === "function") {
-      completion.preferPromise = true;
-      created.then(
-        () => finish(null),
-        (error) => finish(error)
-      );
+      finish(null);
     }
   });
 }
@@ -759,8 +728,7 @@ async function updateCspRules({ csplist, orilist }) {
       rulesToAdd.push(...newOriRules);
     }
 
-    // REVIEW: 批量更新 DNR 规则。在部分不支持 MV3 动态规则的旧浏览器（如旧版 Firefox）中可能会抛错，
-    // 在 catch 中已做了捕获处理，能够保障基础功能的正常工作，但无法去除 CSP 限制。
+    // 批量更新 DNR 规则。更新失败时由 catch 捕获，基础功能仍可继续。
     if (idsToRemove.length > 0 || rulesToAdd.length > 0) {
       await browser.declarativeNetRequest.updateDynamicRules({
         removeRuleIds: idsToRemove,
@@ -814,7 +782,6 @@ browser.runtime.onStartup.addListener(async () => {
     tryClearCaches();
   }
 
-  // Firefox 重启后菜单会消失，启动时重新添加一次。
   addContextMenus(contextMenuType);
 
   updateCspRules({ csplist, orilist });

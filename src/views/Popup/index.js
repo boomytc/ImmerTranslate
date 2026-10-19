@@ -32,10 +32,7 @@ import TranslationPanelContent from "../../components/TranslationPanel/Content";
 import { useSetting } from "../../hooks/Setting";
 import { useSeparateWindowBounds } from "../../hooks/SeparateWindowBounds";
 import { browser } from "../../libs/browser";
-import {
-  isFirefox,
-  isAutoTranslateClipboardSupported,
-} from "../../libs/client";
+import { isAutoTranslateClipboardSupported } from "../../libs/client";
 import { readClipboardTextIfAllowed } from "../../libs/clipboard";
 import { POPUP_STYLES } from "./styles";
 import { usePopupPage } from "./usePopupPage";
@@ -78,23 +75,15 @@ function useFitSeparateWindow(enabled, panelRef) {
           const panel = panelRef.current;
           if (!panel) return;
 
-          // Gecko scales DOM outer/screen values with layout zoom. Its tab zoom
-          // may instead be text-only, which is already reflected in scrollHeight.
-          const isGecko = isFirefox;
-          const screenScale =
-            isGecko && window.outerWidth > 0
-              ? currentWindow.width / window.outerWidth
-              : 1;
-          const layoutZoom = isGecko ? screenScale : zoom;
           const chromeHeight = Math.max(
             0,
-            currentWindow.height - window.innerHeight * layoutZoom
+            currentWindow.height - window.innerHeight * zoom
           );
           const chromeWidth = Math.max(
             0,
-            currentWindow.width - window.innerWidth * layoutZoom
+            currentWindow.width - window.innerWidth * zoom
           );
-          const availWidth = window.screen?.availWidth * screenScale;
+          const availWidth = window.screen?.availWidth;
           const maxWidth = Number.isFinite(availWidth)
             ? availWidth - 40
             : Infinity;
@@ -103,14 +92,14 @@ function useFitSeparateWindow(enabled, panelRef) {
             Math.max(
               360,
               Math.min(
-                SEPARATE_WINDOW_CONTENT_WIDTH * layoutZoom + chromeWidth,
+                SEPARATE_WINDOW_CONTENT_WIDTH * zoom + chromeWidth,
                 maxWidth
               )
             )
           );
           const contentWidth = Math.min(
             SEPARATE_WINDOW_CONTENT_WIDTH,
-            Math.max(1, (width - chromeWidth) / layoutZoom)
+            Math.max(1, (width - chromeWidth) / zoom)
           );
           const measurementStyles = ["width", "min-height"].map((property) => ({
             property,
@@ -137,11 +126,11 @@ function useFitSeparateWindow(enabled, panelRef) {
           Promise.resolve(
             sendBgMsg(MSG_FIT_SEPARATE_WINDOW, {
               width,
-              height: Math.ceil(contentHeight * layoutZoom + chromeHeight),
+              height: Math.ceil(contentHeight * zoom + chromeHeight),
               availWidth,
-              availHeight: window.screen?.availHeight * screenScale,
-              availLeft: window.screen?.availLeft * screenScale,
-              availTop: window.screen?.availTop * screenScale,
+              availHeight: window.screen?.availHeight,
+              availLeft: window.screen?.availLeft,
+              availTop: window.screen?.availTop,
             })
           ).catch((error) => kissLog("fit separate window", error));
         });

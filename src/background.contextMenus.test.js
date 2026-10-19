@@ -63,9 +63,8 @@ const FULL_MENUS = [
 ];
 
 /**
- * Chrome commits contextMenus.create on a later turn and returns the id
- * immediately. removeAll does not cancel a create that has not committed.
- * Firefox returns a Promise that settles when the item is committed.
+ * contextMenus.create commits on a later turn and returns the id immediately.
+ * removeAll does not cancel a create that has not committed.
  */
 function createHarness({ mode = "chrome", failIds = [] } = {}) {
   const items = [];
@@ -96,9 +95,7 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
           return props.id;
         }
 
-        let rejectCreate;
-        const created = new Promise((resolve, reject) => {
-          rejectCreate = reject;
+        new Promise((resolve) => {
           jobs.push(() => {
             const fail = failedIds.delete(props.id);
             if (fail) {
@@ -106,8 +103,7 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
               runtime.lastError = { message };
               if (typeof callback === "function") callback();
               runtime.lastError = undefined;
-              if (mode === "firefox") rejectCreate(new Error(message));
-              else resolve();
+              resolve();
               return;
             }
 
@@ -116,7 +112,7 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
             resolve();
           });
         });
-        return mode === "firefox" ? created : props.id;
+        return props.id;
       },
     },
   };
@@ -262,14 +258,6 @@ describe("context menu rebuild", () => {
 
   test("a sync create that rejects callbacks still rebuilds once", async () => {
     const harness = createHarness({ mode: "sync" });
-    await drain(harness, Promise.all([harness.add(1), harness.add(1)]));
-
-    expect(harness.items).toEqual(SIMPLE_MENUS);
-    expect(harness.itemsAtSecondRemove).toBe(SIMPLE_MENUS.length);
-  });
-
-  test("Firefox promise creates stay serialized across overlapping rebuilds", async () => {
-    const harness = createHarness({ mode: "firefox" });
     await drain(harness, Promise.all([harness.add(1), harness.add(1)]));
 
     expect(harness.items).toEqual(SIMPLE_MENUS);

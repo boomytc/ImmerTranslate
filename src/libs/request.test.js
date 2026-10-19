@@ -1,6 +1,5 @@
 jest.mock("../config", () => ({
   CLIENT_EXTS: [],
-  CLIENT_FIREFOX: "firefox",
   DEFAULT_HTTP_TIMEOUT: 30,
   MSG_FETCH: "immertranslate_fetch",
 }));

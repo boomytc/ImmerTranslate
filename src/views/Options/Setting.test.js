@@ -230,19 +230,6 @@ describe("ExtCommands", () => {
     setUserAgent(originalUserAgent);
   });
 
-  test("shows Firefox shortcut-management instructions without opening a tab", async () => {
-    setUserAgent("Mozilla/5.0 Firefox/141.0");
-    const { container, root } = await renderCommands();
-
-    await act(async () => {
-      container.querySelector("button").click();
-    });
-
-    expect(alert.info).toHaveBeenCalledWith("firefox_shortcut_edit_hint");
-    expect(browser.tabs.create).not.toHaveBeenCalled();
-    act(() => root.unmount());
-  });
-
   test("opens Chromium's extension shortcut page", async () => {
     setUserAgent("Mozilla/5.0 Chrome/139.0.0.0 Safari/537.36");
     const { container, root } = await renderCommands();

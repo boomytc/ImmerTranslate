@@ -49,7 +49,6 @@ import FabAppearanceSetting from "./FabAppearanceSetting";
 export function ExtCommands() {
   const [commands, setCommands] = useState([]);
   const i18n = useI18n();
-  const alert = useAlert();
 
   useEffect(() => {
     if (browser?.commands?.getAll) {
@@ -71,10 +70,6 @@ export function ExtCommands() {
   const handleEdit = () => {
     let url = "chrome://extensions/shortcuts";
     const ua = navigator.userAgent;
-    if (ua.includes("Firefox/")) {
-      alert.info(i18n("firefox_shortcut_edit_hint"));
-      return;
-    }
     if (ua.includes("Edg/")) {
       url = "edge://extensions/shortcuts";
     } else if (ua.includes("OPR/")) {
@@ -556,51 +551,48 @@ export default function Settings() {
           multiline
         />
 
-        {/* 扩展专属的高级网络设置 (只在 Extension 模式下展示) */}
-        <>
-          {/* 是否在浏览器关闭/重启时自动清空网页翻译的已缓存译文 */}
-          <TextField
-            select
-            fullWidth
-            size="small"
-            name="clearCache"
-            value={clearCache}
-            label={i18n("if_clear_cache")}
-            onChange={handleChange}
-            helperText={
-              <Link component="button" onClick={handleClearCache}>
-                {i18n("clear_all_cache_now")}
-              </Link>
-            }
-          >
-            <MenuItem value={false}>{i18n("clear_cache_never")}</MenuItem>
-            <MenuItem value={true}>{i18n("clear_cache_restart")}</MenuItem>
-          </TextField>
+        {/* 是否在浏览器关闭/重启时自动清空网页翻译的已缓存译文 */}
+        <TextField
+          select
+          fullWidth
+          size="small"
+          name="clearCache"
+          value={clearCache}
+          label={i18n("if_clear_cache")}
+          onChange={handleChange}
+          helperText={
+            <Link component="button" onClick={handleClearCache}>
+              {i18n("clear_all_cache_now")}
+            </Link>
+          }
+        >
+          <MenuItem value={false}>{i18n("clear_cache_never")}</MenuItem>
+          <MenuItem value={true}>{i18n("clear_cache_restart")}</MenuItem>
+        </TextField>
 
-          {/* 跨域安全 CSP 旁路加载白名单与 Ori 白名单 */}
-          <TextField
-            size="small"
-            label={i18n("disabled_orilist")}
-            helperText={i18n("pattern_helper")}
-            name="orilist"
-            value={orilist}
-            onChange={handleChange}
-            multiline
-          />
-          <TextField
-            size="small"
-            label={i18n("disabled_csplist")}
-            helperText={
-              i18n("pattern_helper") + " " + i18n("disabled_csplist_helper")
-            }
-            name="csplist"
-            value={csplist}
-            onChange={handleChange}
-            multiline
-          />
+        {/* 跨域安全 CSP 旁路加载白名单与 Ori 白名单 */}
+        <TextField
+          size="small"
+          label={i18n("disabled_orilist")}
+          helperText={i18n("pattern_helper")}
+          name="orilist"
+          value={orilist}
+          onChange={handleChange}
+          multiline
+        />
+        <TextField
+          size="small"
+          label={i18n("disabled_csplist")}
+          helperText={
+            i18n("pattern_helper") + " " + i18n("disabled_csplist_helper")
+          }
+          name="csplist"
+          value={csplist}
+          onChange={handleChange}
+          multiline
+        />
 
-          <ExtCommands />
-        </>
+        <ExtCommands />
       </Stack>
     </Box>
   );
