@@ -722,7 +722,19 @@ export const apiTranslate = async ({
         useContext && API_SPE_TYPES.context.has(apiType)
           ? 1
           : normalizeBatchConcurrency(batchConcurrency);
-      const key = `${apiSlug}_${fromLang}_${toLang}_${textFormat}_${enableStream ? "stream" : "batch"}_${promptSig}_${reqSig}_${effectiveBatchConcurrency}`;
+      const key = [
+        apiSlug,
+        fromLang,
+        toLang,
+        textFormat,
+        enableStream ? "stream" : "batch",
+        promptSig,
+        reqSig,
+        batchInterval,
+        batchSize,
+        batchLength,
+        effectiveBatchConcurrency,
+      ].join("_");
       const queue = getBatchQueue(key, handleTranslate, {
         batchInterval,
         batchSize,

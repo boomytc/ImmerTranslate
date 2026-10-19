@@ -7,6 +7,36 @@
 import { blobToBase64 } from "./utils";
 
 /**
+ * 把非 2xx 响应变成带 HTTP status 的 Error。
+ * 消息仍是 JSON，方便现有日志和文案从 message 里取状态与错误体。
+ *
+ * @param {Response} res 失败的响应。
+ * @returns {Promise<Error & {status: number}>}
+ */
+export const createHttpError = async (res) => {
+  const msg = {
+    url: res.url,
+    status: res.status,
+    statusText: res.statusText,
+  };
+
+  try {
+    const errorText = await res.clone().text();
+    try {
+      msg.response = JSON.parse(errorText);
+    } catch {
+      msg.response = errorText;
+    }
+  } catch {
+    msg.response = "Unable to read error body";
+  }
+
+  const error = new Error(JSON.stringify(msg));
+  error.status = res.status;
+  return error;
+};
+
+/**
  * 将 Response 解析为调用方期望的数据结构。
  *
  * @param {Response} res 原生 Fetch Response 实例。
@@ -20,24 +50,7 @@ export const parseResponse = async (res, expect = null) => {
   }
 
   if (!res.ok) {
-    const msg = {
-      url: res.url,
-      status: res.status,
-      statusText: res.statusText,
-    };
-
-    try {
-      const errorText = await res.clone().text();
-      try {
-        msg.response = JSON.parse(errorText);
-      } catch {
-        msg.response = errorText;
-      }
-    } catch (e) {
-      msg.response = "Unable to read error body";
-    }
-
-    throw new Error(JSON.stringify(msg));
+    throw await createHttpError(res);
   }
 
   const contentType = res.headers.get("Content-Type") || "";

@@ -28,10 +28,6 @@ jest.mock("../libs/stream", () => ({
   getStreamDelta: jest.fn(),
 }));
 
-import { apiTranslate } from "./index";
-import { fetchData } from "../libs/fetch";
-import { getHttpCachePolyfill, putHttpCachePolyfill } from "../libs/cache";
-import { clearAllBatchQueue } from "../libs/batchQueue";
 import {
   DEFAULT_API_LIST,
   OPT_TRANS_GOOGLE,
@@ -50,6 +46,10 @@ describe.each([OPT_TRANS_GOOGLE, OPT_TRANS_MICROSOFT])(
   (apiType) => {
     let apiSetting;
     let cache;
+    let apiTranslate;
+    let fetchData;
+    let getHttpCachePolyfill;
+    let putHttpCachePolyfill;
 
     const makeResponse = (texts) =>
       apiType === OPT_TRANS_GOOGLE
@@ -60,6 +60,13 @@ describe.each([OPT_TRANS_GOOGLE, OPT_TRANS_MICROSOFT])(
           }));
 
     beforeEach(() => {
+      jest.resetModules();
+      ({ apiTranslate } = require("./index"));
+      ({ fetchData } = require("../libs/fetch"));
+      ({
+        getHttpCachePolyfill,
+        putHttpCachePolyfill,
+      } = require("../libs/cache"));
       jest.useFakeTimers();
       cache = new Map();
       getHttpCachePolyfill.mockImplementation(async (key) => cache.get(key));
@@ -91,7 +98,7 @@ describe.each([OPT_TRANS_GOOGLE, OPT_TRANS_MICROSOFT])(
     });
 
     afterEach(() => {
-      clearAllBatchQueue();
+      jest.clearAllTimers();
       jest.useRealTimers();
     });
 
