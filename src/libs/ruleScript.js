@@ -8,15 +8,11 @@ export const SCRIPT_SOURCE_PERSONAL = "personal";
 export const SCRIPT_SOURCE_SUBSCRIPTION = "subscription";
 export const SCRIPT_SOURCE_BUILTIN = "builtin";
 
-/** 会在规则层被当成脚本执行，或与 hook 同类的字段。 */
+/** 规则层会执行的脚本字段。接口请求钩子在接口配置上，不在这里。 */
 export const RULE_SCRIPT_FIELDS = [
   "injectJs",
   "transStartHook",
   "transEndHook",
-  "transRemoveHook",
-  "reqHook",
-  "resHook",
-  "fixerFunc",
 ];
 
 const NARROW_API_FIELDS = ["apiSlug", "apiName", "apiType", "model", "url"];
