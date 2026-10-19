@@ -9,7 +9,6 @@ jest.mock("./storage", () => ({
   saveEdit: jest.fn(),
 }));
 
-
 jest.mock("./sync", () => ({
   trySyncRules: jest.fn(),
 }));
