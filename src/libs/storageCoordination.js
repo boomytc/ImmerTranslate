@@ -70,21 +70,9 @@ async function commitExtensionWrites(entries) {
   }
 }
 
-function withBackgroundLock(operation, markSettled) {
-  let settled = false;
-  const settle = () => {
-    if (settled) return;
-    settled = true;
-    markSettled?.();
-  };
-  let port;
-  try {
-    port = browser.runtime.connect({ name: LOCK_NAME });
-  } catch (error) {
-    settle();
-    return Promise.reject(storageFailure(error));
-  }
+function withBackgroundLock(operation) {
   return new Promise((resolve, reject) => {
+    const port = browser.runtime.connect({ name: LOCK_NAME });
     let granted = false;
     let finished = false;
     let disconnected = false;
@@ -101,13 +89,7 @@ function withBackgroundLock(operation, markSettled) {
       disconnected = true;
       const error = disconnectedError();
       commitReply?.reject(error);
-      // The caller must observe the disconnect even while its operation is
-      // still awaiting a frozen frame. An acknowledged commit still resolves.
-      if (!finished && !commitAcknowledged) {
-        finished = true;
-        reject(error);
-      }
-      if (!granted) settle();
+      if (!finished && !granted) reject(error);
     };
     port.onDisconnect.addListener(onDisconnect);
     port.onMessage.addListener(async (message) => {
@@ -151,16 +133,13 @@ function withBackgroundLock(operation, markSettled) {
               }
             }),
         });
-        if (finished) return;
         if (disconnected && !commitAcknowledged) throw disconnectedError();
         finished = true;
         resolve(value);
       } catch (error) {
-        if (finished) return;
         finished = true;
         reject(storageFailure(error, commitSent ? "unknown" : "not-committed"));
       } finally {
-        settle();
         port.onDisconnect.removeListener(onDisconnect);
         // Cleanup cannot turn an acknowledged commit into a reported failure.
         try {
@@ -267,43 +246,22 @@ export function withStorageLock(operation) {
       storageFailure(new Error("Background storage lock cannot be re-entered"))
     );
   }
-  if (usesExtensionCoordinator() && !isBg?.()) {
-    // The caller learns about a dropped port immediately. This page's queue
-    // still waits until the in-flight operation finishes, so the next local
-    // write cannot overlap it.
-    let markSettled = () => {};
-    const settled = new Promise((resolve) => {
-      markSettled = resolve;
-    });
-    const caller = queue.then(() => {
-      try {
-        return withBackgroundLock(operation, markSettled);
-      } catch (error) {
-        markSettled();
-        throw error;
-      }
-    });
-    queue = settled.then(
-      () => {},
-      () => {}
-    );
-    return caller.catch((error) => {
-      throw storageFailure(error);
-    });
-  }
   return enqueue(() => {
     if (usesExtensionCoordinator()) {
-      backgroundHold += 1;
-      try {
-        return Promise.resolve(
-          operation({ commit: commitExtensionWrites })
-        ).finally(() => {
+      if (isBg?.()) {
+        backgroundHold += 1;
+        try {
+          return Promise.resolve(
+            operation({ commit: commitExtensionWrites })
+          ).finally(() => {
+            backgroundHold -= 1;
+          });
+        } catch (error) {
           backgroundHold -= 1;
-        });
-      } catch (error) {
-        backgroundHold -= 1;
-        throw error;
+          throw error;
+        }
       }
+      return withBackgroundLock(operation);
     }
     // Userscript storage is shared across origins, so origin locks do not apply.
     if (isGm) return operation();
@@ -377,37 +335,26 @@ export function installStorageCoordinator() {
       if (disconnected) return;
       granted = true;
       const acquiredAt = Date.now();
-      let holdExpired = false;
-      const holdLimit = new Promise((resolve) => {
-        holdTimer = setTimeout(() => {
-          // Set this before disconnect so a commit already queued in this turn
-          // cannot overwrite the next writer.
-          timedOut = true;
-          holdExpired = true;
-          kissLog(
-            `Storage lock held past the ${STORAGE_LOCK_HOLD_TIMEOUT_MS}ms limit`,
-            port.sender?.url,
-            acquiredAt
-          );
-          resolve();
-        }, STORAGE_LOCK_HOLD_TIMEOUT_MS);
-      });
+      holdTimer = setTimeout(() => {
+        if (disconnected || timedOut) return;
+        timedOut = true;
+        kissLog(
+          `Storage lock held past the ${STORAGE_LOCK_HOLD_TIMEOUT_MS}ms limit`,
+          port.sender?.url,
+          acquiredAt
+        );
+        try {
+          port.disconnect();
+        } catch {
+          // The document may already have closed this port.
+        }
+        release();
+      }, STORAGE_LOCK_HOLD_TIMEOUT_MS);
       try {
         port.postMessage({ type: "granted" });
-        // A frozen frame keeps the port open and never runs release. Hitting
-        // the limit releases the lock and disconnects that client, so its
-        // write rejects instead of resolving as a success.
-        await Promise.race([released, holdLimit]);
-        clearTimeout(holdTimer);
-        if (holdExpired) {
-          try {
-            port.disconnect();
-          } catch {
-            // The document may already have closed this port.
-          }
-        }
+        await released;
         // pendingCommit is the accepted storage.local.set still in flight.
-        // The next lock holder waits for it; unlocked readers do not.
+        // The next writer waits for it; pure readers do not.
         await pendingCommit;
       } catch {
         // A closed document cannot retain a lock or block the next writer.
