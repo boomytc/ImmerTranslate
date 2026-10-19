@@ -3407,7 +3407,6 @@ export class Translator {
             grandStyle,
             "grandStyle"
           );
-
         },
         nodes
       );
