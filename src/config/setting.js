@@ -71,7 +71,6 @@ export const DEFAULT_SYNC = {
   syncKey: "", // 同步密码或 Token
   syncEncryptKey: "", // 同步数据端到端加密口令
   syncMeta: {}, // 存储同步的元信息 (如文件 ETag/修改时间等)
-  subRulesSyncAt: 0, // 上一次订阅规则同步的时间戳
   dataCaches: {}, // 各类缓存项的最近同步时间
 };
 
@@ -202,22 +201,6 @@ export const DEFAULT_SUBTITLE_SETTING = {
   segPromptSlug: DEFAULT_SUBTITLE_PROMPT_SLUG, // 指定的 subtitle prompt slug，仅在指定提示词模式下生效
 };
 
-// 预设配置规则的在线订阅 URL 地址列表 (从服务器拉取全球主流网站的最优适配 CSS 选择器规则)
-export const DEFAULT_SUBRULES_LIST = [
-  {
-    url: process.env.REACT_APP_RULESURL, // 默认官方稳定版规则库
-    selected: true,
-  },
-  {
-    url: process.env.REACT_APP_RULESURL_ON, // 默认全部翻译规则库
-    selected: false,
-  },
-  {
-    url: process.env.REACT_APP_RULESURL_OFF, // 默认关闭翻译规则库
-    selected: false,
-  },
-];
-
 export const DEFAULT_MOUSEHOVER_KEY = ["ControlLeft"]; // 默认触发悬停翻译的触发按键 (左 Ctrl 键)
 export const OPT_MOUSE_HOVER_DISPLAY_BILINGUAL = "bilingual"; // 鼠标悬停翻译：把译文插入页面形成双语对照
 export const OPT_MOUSE_HOVER_DISPLAY_BUBBLE = "bubble"; // 鼠标悬停翻译：用悬浮气泡展示译文，不改变页面布局
@@ -269,7 +252,6 @@ export const DEFAULT_SETTING = {
   clearCache: false, // 每次浏览器重启时，是否自动清空翻译结果的本地网络缓存
   autoTranslateClipboard: false, // 打开文本翻译面板或重新聚焦独立窗口时，是否自动翻译剪贴板文本
   popupDefaultView: OPT_POPUP_DEFAULT_VIEW_PAGE, // 工具栏弹窗打开时默认显示的界面
-  injectRules: true, // 页面加载时是否自动匹配并注入云端订阅的翻译规则
   fabClickAction: 0, // 工具栏悬浮球按钮双击或单击的默认响应行为 (如开启/关闭翻译)
   // injectWebfix: true, // 是否注入修复补丁(作废)
   // detectRemote: false, // 是否使用远程语言检测 （从rule移回）
@@ -278,7 +260,6 @@ export const DEFAULT_SETTING = {
   // transTag: DEFAULT_TRANS_TAG, // 译文元素标签(移至rule，作废)
   // transOnly: false, // 是否仅显示译文(移至rule，作废)
   // transTitle: false, // 是否同时翻译页面标题(移至rule，作废)
-  subrulesList: DEFAULT_SUBRULES_LIST, // 订阅的在线翻译规则列表
   // owSubrule: DEFAULT_OW_RULE, // 覆写订阅规则 (作废)
   transApis: DEFAULT_API_LIST, // 缓存的全部可用翻译 API 配置列表（数组格式）
   prompts: [], // 用户自定义提示词；预设提示词由 config/prompt.js 提供，不写入本地配置

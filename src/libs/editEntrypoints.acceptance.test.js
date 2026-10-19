@@ -20,8 +20,6 @@ import {
   STOKEY_SYNC,
   STOKEY_WORDS,
   STOKEY_SETTING,
-  STOKEY_RULESCACHE_PREFIX,
-  STOKEY_DISABLED_SUB_RULES,
   KV_WORDS_KEY,
   KV_SETTING_KEY,
   EVENT_FAVORITE_WORD_CHANGE,
@@ -274,19 +272,10 @@ test("favorite edits after a first attempt preserve the pending upload marker", 
   });
 });
 
-test("the editor checks current inherited dependencies and preserves unrelated personal fields", async () => {
+test("the editor preserves unrelated personal fields and rejects a stale inherited snapshot", async () => {
   const href = "https://example.com/story";
-  const source = "https://rules.example.invalid/subscription";
-  const subscription = [{ pattern: "example.com", selector: ".inherited" }];
-  await storage.setObj(STOKEY_SETTING, {
-    version: 3,
-    injectRules: true,
-    subrulesList: [{ selected: true, url: source }],
-  });
-  await storage.setObj(STOKEY_RULESCACHE_PREFIX + source, subscription);
   const initial = deriveRuleContext(href, {
     personalRules: INITIAL_RULES,
-    subRules: subscription,
   });
   await storage.saveEdit(STOKEY_RULES, (rules) =>
     rules.map((rule) =>
@@ -305,11 +294,12 @@ test("the editor checks current inherited dependencies and preserves unrelated p
     selector: ".edited",
     apiSlug: "new-service",
   });
-  await enqueueStorageSync(STOKEY_RULES, async () => {});
   const beforeConflict = await storage.getObj(STOKEY_RULES);
-  await storage.setObj(STOKEY_DISABLED_SUB_RULES, {
-    [source]: ["example.com"],
-  });
+  await storage.saveEdit(STOKEY_RULES, (rules) =>
+    rules.map((rule) =>
+      rule.pattern === "*" ? { ...rule, selector: ".changed-global" } : rule
+    )
+  );
   await expect(
     writeSiteRule({
       href,
@@ -318,5 +308,14 @@ test("the editor checks current inherited dependencies and preserves unrelated p
       patch: { selector: ".stale" },
     })
   ).rejects.toThrow("rule-conflict");
-  expect(await storage.getObj(STOKEY_RULES)).toEqual(beforeConflict);
+  const stored = await storage.getObj(STOKEY_RULES);
+  expect(stored.find((rule) => rule.pattern === "example.com").selector).toBe(
+    ".edited"
+  );
+  expect(stored.find((rule) => rule.pattern === "*").selector).toBe(
+    ".changed-global"
+  );
+  expect(
+    beforeConflict.find((rule) => rule.pattern === "example.com").selector
+  ).toBe(".edited");
 });

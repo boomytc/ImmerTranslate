@@ -1,22 +1,9 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import Rules, {
-  queueDisabledSubRuleRead,
-  queueDisabledSubRuleRemoval,
-  queueDisabledSubRuleUpdate,
-} from "./Rules";
+import Rules from "./Rules";
 import { useRules } from "../../hooks/Rules";
-import { useSubRules } from "../../hooks/SubRules";
-import { useSyncCaches } from "../../hooks/Sync";
-import { loadOrFetchSubRules, syncSubRules } from "../../libs/subRules";
 import { syncShareRules } from "../../libs/sync";
-import {
-  delSubRules,
-  getDisabledSubRules,
-  getSyncWithDefault,
-  removeDisabledSubRules,
-  setDisabledSubRules,
-} from "../../libs/storage";
+import { getSyncWithDefault } from "../../libs/storage";
 import { OPT_SYNCTYPE_WORKER } from "../../config";
 import { OPTIONS_STYLES } from "./styles";
 
@@ -28,14 +15,6 @@ jest.mock("../../hooks/I18n", () => ({
 
 jest.mock("../../hooks/Rules", () => ({
   useRules: jest.fn(),
-}));
-
-jest.mock("../../hooks/SubRules", () => ({
-  useSubRules: jest.fn(),
-}));
-
-jest.mock("../../hooks/Sync", () => ({
-  useSyncCaches: jest.fn(),
 }));
 
 const mockAlert = {
@@ -80,21 +59,12 @@ jest.mock("./HelpButton", () => {
   };
 });
 
-jest.mock("../../libs/subRules", () => ({
-  syncSubRules: jest.fn(),
-  loadOrFetchSubRules: jest.fn(),
-}));
-
 jest.mock("../../libs/sync", () => ({
   syncShareRules: jest.fn(),
 }));
 
 jest.mock("../../libs/storage", () => ({
-  delSubRules: jest.fn(() => Promise.resolve()),
   getSyncWithDefault: jest.fn(() => Promise.resolve({})),
-  getDisabledSubRules: jest.fn(() => Promise.resolve([])),
-  setDisabledSubRules: jest.fn(() => Promise.resolve()),
-  removeDisabledSubRules: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock("../../libs/log", () => ({
@@ -242,15 +212,6 @@ describe("Options Rules switch spacing", () => {
       ],
       put: mockPutRule,
     });
-    mockSubRules = createSubRules();
-    useSubRules.mockImplementation(() => mockSubRules);
-    useSyncCaches.mockReturnValue({
-      dataCaches: {},
-      updateDataCache: mockUpdateDataCache,
-      deleteDataCache: mockDeleteDataCache,
-      reloadSync: mockReloadSync,
-    });
-    getDisabledSubRules.mockResolvedValue([]);
     optionsStyle = document.createElement("style");
     // jsdom cannot parse the container queries that follow the base page styles.
     optionsStyle.textContent = OPTIONS_STYLES.split("@container")[0];
@@ -262,16 +223,6 @@ describe("Options Rules switch spacing", () => {
 
   test.each([
     ["personal rules", openPersonalTab, "Toggle personal rule example.com"],
-    [
-      "subscription rules",
-      openSubscribeTab,
-      "Toggle subscription rule en.wikipedia.org",
-    ],
-    [
-      "injected subscription rules",
-      openPersonalTab,
-      "Toggle subscription rule en.wikipedia.org",
-    ],
   ])(
     "reserves a title gutter for %s with the page styles applied",
     async (_name, openTab, switchLabel) => {
@@ -324,416 +275,6 @@ describe("Options Rules switch spacing", () => {
   });
 });
 
-describe("Options Rules subscription tab", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    useRules.mockReturnValue({ list: [] });
-    mockSubRules = createSubRules();
-    useSubRules.mockImplementation(() => mockSubRules);
-    useSyncCaches.mockReturnValue({
-      dataCaches: {},
-      updateDataCache: mockUpdateDataCache,
-      deleteDataCache: mockDeleteDataCache,
-      reloadSync: mockReloadSync,
-    });
-    syncSubRules.mockResolvedValue([{ pattern: "fresh.example" }]);
-    getDisabledSubRules.mockResolvedValue([]);
-    setDisabledSubRules.mockResolvedValue(undefined);
-    Object.values(mockAlert).forEach((alertMethod) => alertMethod.mockClear());
-  });
-
-  test("links every rule tab to its panel", () => {
-    const view = renderRules();
-    const tablist = view.container.querySelector('[role="tablist"]');
-    const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
-
-    expect(tablist.getAttribute("aria-label")).toBe("rules_setting");
-    expect(tabs).toHaveLength(3);
-    tabs.forEach((tab) => {
-      const panel = view.container.querySelector(
-        `#${tab.getAttribute("aria-controls")}`
-      );
-      expect(panel.getAttribute("role")).toBe("tabpanel");
-      expect(panel.getAttribute("aria-labelledby")).toBe(tab.id);
-    });
-    view.unmount();
-  });
-
-  test("refreshes sync cache on entry without repeating it for rule edits", async () => {
-    const view = renderRules();
-    await openSubscribeTab(view);
-
-    expect(view.container.textContent).toContain("en.wikipedia.org");
-    expect(mockReloadSync).toHaveBeenCalledTimes(1);
-
-    mockSubRules = createSubRules({
-      selectedRules: [
-        { pattern: "en.wikipedia.org" },
-        { pattern: "news.ycombinator.com" },
-      ],
-    });
-    view.rerender();
-    await flushEffects();
-
-    expect(view.container.textContent).toContain("news.ycombinator.com");
-    expect(mockReloadSync).toHaveBeenCalledTimes(1);
-
-    view.unmount();
-  });
-
-  test("waits for subscription rule state before enabling its switch", async () => {
-    let resolveDisabledRules;
-    getDisabledSubRules.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveDisabledRules = resolve;
-      })
-    );
-    const view = renderRules();
-    await openSubscribeTab(view);
-
-    const switchInput = view.container.querySelector(
-      'input[aria-label="Toggle subscription rule en.wikipedia.org"]'
-    );
-    expect(switchInput).not.toBeNull();
-    expect(switchInput.disabled).toBe(true);
-    expect(switchInput.getAttribute("aria-busy")).toBe("true");
-    const control = switchInput.closest(".kt-rule-enable-control");
-    expect(control).not.toBeNull();
-    expect(control.closest(".kt-rule-accordion")).not.toBeNull();
-    expect(control.closest(".MuiAccordionSummary-root")).toBeNull();
-    act(() => control.click());
-    expect(view.container.querySelector('input[name="pattern"]')).toBeNull();
-
-    await act(async () => {
-      resolveDisabledRules([]);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(switchInput.disabled).toBe(false);
-    expect(switchInput.checked).toBe(true);
-    expect(switchInput.getAttribute("aria-busy")).toBe("false");
-    view.unmount();
-  });
-
-  test("falls back to enabled when subscription rule state cannot be read", async () => {
-    getDisabledSubRules.mockRejectedValueOnce(new Error("read failed"));
-    const view = renderRules();
-    await openSubscribeTab(view);
-
-    const switchInput = view.container.querySelector(
-      'input[aria-label="Toggle subscription rule en.wikipedia.org"]'
-    );
-    expect(switchInput.disabled).toBe(false);
-    expect(switchInput.checked).toBe(true);
-    expect(switchInput.getAttribute("aria-busy")).toBe("false");
-    view.unmount();
-  });
-
-  test("disables a pending subscription switch and rolls back a failed write", async () => {
-    let rejectWrite;
-    setDisabledSubRules.mockReturnValueOnce(
-      new Promise((_resolve, reject) => {
-        rejectWrite = reject;
-      })
-    );
-    const view = renderRules();
-    await openSubscribeTab(view);
-    const switchInput = view.container.querySelector(
-      'input[aria-label="Toggle subscription rule en.wikipedia.org"]'
-    );
-    expect(switchInput.checked).toBe(true);
-
-    await act(async () => {
-      switchInput.click();
-      await Promise.resolve();
-    });
-    expect(switchInput.checked).toBe(false);
-    expect(switchInput.disabled).toBe(true);
-    expect(switchInput.getAttribute("aria-busy")).toBe("true");
-    switchInput.click();
-    expect(setDisabledSubRules).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      rejectWrite(new Error("write failed"));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(switchInput.checked).toBe(true);
-    expect(switchInput.disabled).toBe(false);
-    expect(switchInput.getAttribute("aria-busy")).toBe("false");
-    expect(mockAlert.error).toHaveBeenCalledWith("rule_toggle_failed");
-    view.unmount();
-  });
-
-  test("serializes disabled-rule writes for the same subscription", async () => {
-    let storedPatterns = [];
-    const readDisabled = jest.fn(async () => [...storedPatterns]);
-    const writeDisabled = jest.fn(async (_url, patterns) => {
-      storedPatterns = [...patterns];
-    });
-
-    await Promise.all([
-      queueDisabledSubRuleUpdate("source", "a.example", true, {
-        readDisabled,
-        writeDisabled,
-      }),
-      queueDisabledSubRuleUpdate("source", "b.example", true, {
-        readDisabled,
-        writeDisabled,
-      }),
-    ]);
-
-    expect(storedPatterns.sort()).toEqual(["a.example", "b.example"]);
-    expect(readDisabled).toHaveBeenCalledTimes(2);
-    expect(writeDisabled).toHaveBeenLastCalledWith("source", [
-      "a.example",
-      "b.example",
-    ]);
-  });
-
-  test("serializes disabled-rule writes across subscription sources", async () => {
-    let releaseFirstWrite;
-    const firstWrite = new Promise((resolve) => {
-      releaseFirstWrite = resolve;
-    });
-    const readDisabled = jest.fn(async () => []);
-    const writeDisabled = jest
-      .fn()
-      .mockReturnValueOnce(firstWrite)
-      .mockResolvedValueOnce(undefined);
-
-    const sourceA = queueDisabledSubRuleUpdate("source-a", "a.example", true, {
-      readDisabled,
-      writeDisabled,
-    });
-    const sourceB = queueDisabledSubRuleUpdate("source-b", "b.example", true, {
-      readDisabled,
-      writeDisabled,
-    });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(readDisabled).toHaveBeenCalledTimes(1);
-    expect(readDisabled).toHaveBeenCalledWith("source-a");
-
-    releaseFirstWrite();
-    await Promise.all([sourceA, sourceB]);
-    expect(readDisabled).toHaveBeenNthCalledWith(2, "source-b");
-  });
-
-  test("serializes disabled-rule reads and removals behind pending writes", async () => {
-    let releaseWrite;
-    let markWriteStarted;
-    const order = [];
-    const pendingWrite = new Promise((resolve) => {
-      releaseWrite = resolve;
-    });
-    const writeStarted = new Promise((resolve) => {
-      markWriteStarted = resolve;
-    });
-    const write = queueDisabledSubRuleUpdate("source", "a.example", true, {
-      readDisabled: async () => [],
-      writeDisabled: async () => {
-        order.push("write-start");
-        markWriteStarted();
-        await pendingWrite;
-        order.push("write-end");
-      },
-    });
-    const read = queueDisabledSubRuleRead("source", async () => {
-      order.push("read");
-      return ["a.example"];
-    });
-    const remove = queueDisabledSubRuleRemoval("source", async () => {
-      order.push("remove");
-    });
-    await writeStarted;
-    expect(order).toEqual(["write-start"]);
-
-    releaseWrite();
-    await Promise.all([write, read, remove]);
-    expect(order.slice(0, 2)).toEqual(["write-start", "write-end"]);
-    expect(new Set(order.slice(2))).toEqual(new Set(["read", "remove"]));
-  });
-
-  test("discards a pending subscription add after cancellation", async () => {
-    let resolveSync;
-    syncSubRules.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveSync = resolve;
-      })
-    );
-    const view = renderRules();
-    await openSubscribeTab(view);
-    act(() => getButtonByText(view.container, "add").click());
-    const input = view.container.querySelector('input[type="text"]');
-    act(() => {
-      const setValue = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value"
-      ).set;
-      setValue.call(input, "https://rules.example/cancelled.json");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-
-    await act(async () => {
-      getButtonByText(view.container, "save").click();
-      await Promise.resolve();
-    });
-    expect(syncSubRules).toHaveBeenCalledWith(
-      "https://rules.example/cancelled.json",
-      { shouldCommit: expect.any(Function) }
-    );
-    expect(getButtonByText(view.container, "cancel").disabled).toBe(false);
-    act(() => getButtonByText(view.container, "cancel").click());
-    expect(view.container.querySelector('input[type="text"]')).toBeNull();
-
-    await act(async () => {
-      resolveSync([{ pattern: "cancelled.example" }]);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(mockSubRules.addSub).not.toHaveBeenCalled();
-    expect(mockUpdateDataCache).not.toHaveBeenCalled();
-    view.unmount();
-  });
-
-  test("manual subscription sync still updates the selected rules cache time", async () => {
-    const view = renderRules();
-    await openSubscribeTab(view);
-
-    const syncButton = getButtonByLabel(
-      view.container,
-      "Sync subscription https://rules.example/main.json"
-    );
-    await act(async () => {
-      syncButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
-    await flushEffects();
-
-    expect(syncSubRules).toHaveBeenCalledWith(
-      "https://rules.example/main.json"
-    );
-    expect(mockSubRules.setSelectedRulesForUrl).toHaveBeenCalledWith(
-      "https://rules.example/main.json",
-      [{ pattern: "fresh.example" }]
-    );
-    expect(mockUpdateDataCache).toHaveBeenCalledWith(
-      "https://rules.example/main.json"
-    );
-
-    view.unmount();
-  });
-
-  test("keeps the subscription sync control mounted while loading", async () => {
-    let resolveSync;
-    syncSubRules.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveSync = resolve;
-      })
-    );
-    const view = renderRules();
-    await openSubscribeTab(view);
-
-    const syncButton = getButtonByLabel(
-      view.container,
-      "Sync subscription https://rules.example/main.json"
-    );
-    await act(async () => {
-      syncButton.click();
-      await Promise.resolve();
-    });
-    expect(syncButton.getAttribute("aria-busy")).toBe("true");
-    expect(syncButton.getAttribute("aria-disabled")).toBe("true");
-    expect(syncButton.disabled).toBe(true);
-    expect(
-      syncButton.querySelector(".MuiCircularProgress-root")
-    ).not.toBeNull();
-    syncButton.click();
-    expect(syncSubRules).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolveSync([{ pattern: "fresh.example" }]);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(syncButton.getAttribute("aria-busy")).toBe("false");
-    expect(syncButton.getAttribute("aria-disabled")).toBe("false");
-    expect(syncButton.disabled).toBe(false);
-    expect(syncButton.querySelector(".MuiCircularProgress-root")).toBeNull();
-    expect(syncButton.querySelector('[data-testid="SyncIcon"]')).not.toBeNull();
-
-    view.unmount();
-  });
-
-  test("deleting a subscription still deletes its cache time", async () => {
-    mockSubRules = createSubRules({
-      subList: [
-        { url: "https://rules.example/main.json", selected: true },
-        { url: "https://rules.example/old.json", selected: false },
-      ],
-    });
-    const view = renderRules();
-    await openSubscribeTab(view);
-
-    const deleteButton = getButtonByLabel(
-      view.container,
-      "Delete subscription https://rules.example/old.json"
-    );
-    await act(async () => {
-      deleteButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
-    await flushEffects();
-
-    expect(mockSubRules.delSub).toHaveBeenCalledWith(
-      "https://rules.example/old.json"
-    );
-    expect(delSubRules).toHaveBeenCalledWith("https://rules.example/old.json");
-    expect(mockDeleteDataCache).toHaveBeenCalledWith(
-      "https://rules.example/old.json"
-    );
-    expect(removeDisabledSubRules).toHaveBeenCalledWith(
-      "https://rules.example/old.json"
-    );
-
-    view.unmount();
-  });
-
-  test("allows subscription action rows to wrap on narrow screens", async () => {
-    const view = renderRules();
-    await openSubscribeTab(view);
-
-    const addButton = getButtonByText(view.container, "add");
-    const subscriptionRadio = view.container.querySelector(
-      'input[type="radio"]'
-    );
-
-    expect(window.getComputedStyle(addButton.parentElement).flexWrap).toBe(
-      "wrap"
-    );
-    expect(
-      window.getComputedStyle(subscriptionRadio.closest(".MuiStack-root"))
-        .flexWrap
-    ).toBe("wrap");
-
-    await act(async () => {
-      addButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushEffects();
-
-    const saveButton = getButtonByText(view.container, "save");
-    expect(window.getComputedStyle(saveButton.parentElement).flexWrap).toBe(
-      "wrap"
-    );
-
-    view.unmount();
-  });
-});
-
 describe("Options Rules global tab", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -748,14 +289,6 @@ describe("Options Rules global tab", () => {
         },
       ],
       put: mockPutRule,
-    });
-    mockSubRules = createSubRules({ selectedRules: [] });
-    useSubRules.mockImplementation(() => mockSubRules);
-    useSyncCaches.mockReturnValue({
-      dataCaches: {},
-      updateDataCache: mockUpdateDataCache,
-      deleteDataCache: mockDeleteDataCache,
-      reloadSync: mockReloadSync,
     });
   });
 
@@ -784,14 +317,6 @@ describe("Options Rules personal tab", () => {
         { pattern: "*", selector: "p" },
       ],
       put: mockPutRule,
-    });
-    mockSubRules = createSubRules({ selectedRules: [] });
-    useSubRules.mockImplementation(() => mockSubRules);
-    useSyncCaches.mockReturnValue({
-      dataCaches: {},
-      updateDataCache: mockUpdateDataCache,
-      deleteDataCache: mockDeleteDataCache,
-      reloadSync: mockReloadSync,
     });
     Object.values(mockAlert).forEach((alertMethod) => alertMethod.mockClear());
   });
@@ -839,7 +364,6 @@ describe("Options Rules personal tab", () => {
       syncUrl: "https://sync.example",
       syncKey: "secret",
     });
-    loadOrFetchSubRules.mockResolvedValue([{ pattern: "sub.example" }]);
     syncShareRules.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveShare = resolve;

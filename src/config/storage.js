@@ -23,9 +23,6 @@ export const STOKEY_TRANBOX = `${APP_NAME}_tranbox`; // 划词翻译框的最后
 export const STOKEY_RULE_EDITOR_POSITION = `${APP_NAME}_rule_editor_position`;
 export const STOKEY_RULE_INSPECTOR_POSITION = `${APP_NAME}_rule_inspector_position`;
 export const STOKEY_SEPARATE_WINDOW = `${APP_NAME}_separate_window`; // 划词翻译独立小窗口的最后边界尺寸(坐标及宽高)缓存键名
-export const STOKEY_RULESCACHE_PREFIX = `${APP_NAME}_rulescache_`; // 网页规则匹配缓存键名前缀
-export const STOKEY_DISABLED_SUB_RULES = `${APP_NAME}_disabled_sub_rules`; // 被用户手动禁用的订阅规则 ID 集合的缓存键名
-
 // --- 翻译 HTTP 请求的缓存配置 ---
 export const CACHE_NAME = `${APP_NAME}_cache`; // 翻译接口响应缓存的 CacheStorage 名称
 export const DEFAULT_CACHE_TIMEOUT = 3600 * 24 * 7; // 默认翻译请求缓存有效期 (单位：秒，即 7 天)
