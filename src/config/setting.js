@@ -243,8 +243,6 @@ export const DEFAULT_SETTING = {
   version: CURRENT_SETTINGS_VERSION,
   darkMode: "auto", // 主题外观模式 ("light" 浅色, "dark" 深色, "auto" 跟随浏览器系统)
   uiLang: "en", // 插件设置面板界面的显示语言
-  // fetchLimit: DEFAULT_FETCH_LIMIT, // 最大任务数量(移至rule，作废)
-  // fetchInterval: DEFAULT_FETCH_INTERVAL, // 任务间隔时间(移至rule，作废)
   minLength: TRANS_MIN_LENGTH, // 整页翻译的段落最小有效长度限制
   maxLength: TRANS_MAX_LENGTH, // 整页翻译的段落最大有效长度限制
   newlineLength: TRANS_NEWLINE_LENGTH,
@@ -253,25 +251,16 @@ export const DEFAULT_SETTING = {
   autoTranslateClipboard: false, // 打开文本翻译面板或重新聚焦独立窗口时，是否自动翻译剪贴板文本
   popupDefaultView: OPT_POPUP_DEFAULT_VIEW_PAGE, // 工具栏弹窗打开时默认显示的界面
   fabClickAction: 0, // 工具栏悬浮球按钮双击或单击的默认响应行为 (如开启/关闭翻译)
-  // injectWebfix: true, // 是否注入修复补丁(作废)
-  // detectRemote: false, // 是否使用远程语言检测 （从rule移回）
-  // contextMenus: true, // 是否添加右键菜单(作废)
   contextMenuType: 1, // 鼠标右键上下文菜单形式 (0: 禁用, 1: 精简, 2: 完整菜单)
-  // transTag: DEFAULT_TRANS_TAG, // 译文元素标签(移至rule，作废)
-  // transOnly: false, // 是否仅显示译文(移至rule，作废)
-  // transTitle: false, // 是否同时翻译页面标题(移至rule，作废)
-  // owSubrule: DEFAULT_OW_RULE, // 覆写订阅规则 (作废)
   transApis: DEFAULT_API_LIST, // 缓存的全部可用翻译 API 配置列表（数组格式）
   prompts: [], // 用户自定义提示词；预设提示词由 config/prompt.js 提供，不写入本地配置
   shortcuts: DEFAULT_SHORTCUTS, // 键盘快捷键配置对象
   inputRule: DEFAULT_INPUT_RULE, // 输入框即时翻译相关配置
   tranboxSetting: DEFAULT_TRANBOX_SETTING, // 划词翻译及字典结果面板配置
-  // touchTranslate: 2, // 触屏翻译 {5:单指双击，6:单指三击，7:双指双击} (作废)
   touchModes: [2], // 触屏移动端翻译触发行为配置 (数组，支持多选，如单指双击/三击)
   blacklist: DEFAULT_BLACKLIST.join(",\n"), // 禁用整页双语翻译的网址/黑名单列表
   csplist: DEFAULT_CSPLIST.join(",\n"), // 强制禁用内容安全策略(CSP)以允许向翻译 API 发送请求的网址列表
   orilist: DEFAULT_ORILIST.join(",\n"), // 需要改写或删除 Cross-Origin HTTP 请求头的网址列表
-  // disableLangs: [], // 不翻译的语言(移至rule，作废)
   skipLangs: [], // 忽略翻译的语种代码列表 (即如果网页检测到是这些语言，则不触发自动整页翻译)
   translateVariants: true, // 是否继续翻译同一语言的不同变体（如简体中文与繁体中文）
   parseLatex: false, // 是否将译文中的行内 LaTeX 公式转换为可读的 Unicode 文本

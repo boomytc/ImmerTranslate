@@ -188,10 +188,19 @@ describe("rule script sources", () => {
     expect(personal).toBe(stored[0]);
     expect(effective.injectJs).toBe(SUB_INJECT);
     expect(effective.transStartHook).toBe(SUB_START);
-    expect(effective.scriptFieldOrigins.injectJs).toBe("personal");
-    expect(effective.scriptFieldOrigins.transStartHook).toBe("personal");
-    expect(shouldRunRuleScript(effective, "injectJs")).toBe(true);
-    expect(shouldRunRuleScript(effective, "transStartHook")).toBe(true);
+    expect(effective.transEndHook).toBe(SUB_END);
+    expect(effective.transRemoveHook).toBeUndefined();
+    expect(effective.reqHook).toBeUndefined();
+    expect(effective.resHook).toBeUndefined();
+    expect(effective.fixerFunc).toBeUndefined();
+    expect(effective.scriptFieldOrigins).toEqual({
+      injectJs: "personal",
+      transStartHook: "personal",
+      transEndHook: "personal",
+    });
+    ["injectJs", "transStartHook", "transEndHook"].forEach((field) => {
+      expect(shouldRunRuleScript(effective, field)).toBe(true);
+    });
   });
 
   test("lets a personal script override the global script without keeping another layer", () => {
@@ -212,8 +221,10 @@ describe("rule script sources", () => {
     expect(effective.injectJs).toBe(PERSONAL_INJECT);
     expect(effective.transStartHook).toBe(PERSONAL_START);
     expect(effective.transEndHook || "").not.toBe(SUB_END);
+    expect(effective.reqHook).toBeUndefined();
     expect(effective.scriptFieldOrigins.injectJs).toBe("personal");
     expect(effective.scriptFieldOrigins.transStartHook).toBe("personal");
+    expect(effective.scriptFieldOrigins.reqHook).toBeUndefined();
     expect(shouldRunRuleScript(effective, "injectJs")).toBe(true);
     expect(shouldRunRuleScript(effective, "transStartHook")).toBe(true);
   });
