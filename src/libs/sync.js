@@ -36,6 +36,11 @@ import {
 } from "./storageState";
 
 let webdavRequestPatched = false;
+
+// 只有规则数组才清洗。生词本删掉之后，部分同步测试把普通对象放在规则键上，
+// 那些对象不是站点规则，不能交给 checkRules，否则同步会抛错并丢掉远端数据。
+const rulesValueForStorage = (value) =>
+  Array.isArray(value) ? checkRules(value) : value;
 const GIST_SYNC_DESCRIPTION = "kiss translator sync files";
 
 /**
@@ -541,7 +546,7 @@ function syncStoredValue(key, storageKey, options = {}) {
           if (result.isNew && options.applyRemote !== false) {
             const storedValue =
               storageKey === STOKEY_RULES
-                ? checkRules(result.value)
+                ? rulesValueForStorage(result.value)
                 : result.value;
             await transaction.setObj(storageKey, storedValue);
           }
@@ -559,7 +564,7 @@ function syncStoredValue(key, storageKey, options = {}) {
         if (result.isNew && options.applyRemote !== false) {
           currentState.acceptValue(
             storageKey === STOKEY_RULES
-              ? checkRules(result.value)
+              ? rulesValueForStorage(result.value)
               : result.value
           );
         } else currentState.markSynced(currentState.revision);
@@ -640,7 +645,8 @@ export const changeSyncEncryptKey = async ({
 
   // 远端设置和规则都通过旧口令校验后，才把较新的版本写入本地并开始重加密。
   if (synced.setting?.isNew) await setSetting(synced.setting.value);
-  if (synced.rules?.isNew) await setRules(checkRules(synced.rules.value));
+  if (synced.rules?.isNew)
+    await setRules(rulesValueForStorage(synced.rules.value));
 
   await forceSyncDataWithEncryptKey(
     KV_SETTING_KEY,
