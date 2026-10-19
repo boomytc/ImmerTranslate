@@ -68,7 +68,7 @@ describe("storage resume", () => {
         transOpen: "false",
         selector: "p",
       }));
-      const applyLocationRule = jest.fn();
+      const applyTarget = jest.fn();
       runtime = new PageRuntime({
         setting: STORED_SETTING,
         getHref: () => "http://localhost/index.html",
@@ -76,21 +76,23 @@ describe("storage resume", () => {
         createManager: () => ({
           start: jest.fn(),
           stop: jest.fn(),
-          applyLocationRule,
+          pause: jest.fn(),
+          resume: jest.fn(),
+          applyTarget,
         }),
       });
       await runtime.start();
       // 第一次把尚未读过的存储装进来。第二次内容相同，不能再重算。
       window.dispatchEvent(new Event(eventName));
       const matches = await settle(runtime, matchRule);
-      const applications = applyLocationRule.mock.calls.length;
+      const applications = applyTarget.mock.calls.length;
       expect(matches).toBeGreaterThan(1);
 
       window.dispatchEvent(new Event(eventName));
       await settle(runtime, matchRule);
 
       expect(matchRule).toHaveBeenCalledTimes(matches);
-      expect(applyLocationRule).toHaveBeenCalledTimes(applications);
+      expect(applyTarget).toHaveBeenCalledTimes(applications);
     }
   );
 });

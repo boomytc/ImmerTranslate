@@ -403,6 +403,7 @@ export class Translator {
   #rule; // 规则
   #isInitialized = false; // 初始化状态
   #editorPaused = false;
+  #pagePaused = false; // 黑名单暂停：只停本页网页翻译，不清共享请求池
   #isJsInjected = false; // 注入用户JS
   #isShadowRootJsInjected = false; //
   #mouseHoverEnabled = false; // 鼠标悬停翻译
@@ -5262,6 +5263,49 @@ overflow-wrap: anywhere !important;`;
     this.setTouchMode(touchMode);
   }
 
+  /**
+   * 黑名单暂停本页网页翻译和观察。
+   * 只递增本翻译器的 runId / 按住代次，让自己的回调失效；
+   * 不调用 disable/rescan，因此不会清空共享请求池。
+   */
+  pausePage() {
+    if (this.#pagePaused || this.#editorPaused) return;
+    this.#pagePaused = true;
+    const wasEnabled = this.#enabled;
+    this.#enabled = false;
+    this.#rule.transOpen = "false";
+    if (wasEnabled) {
+      this.#runId++;
+      this.#holdGeneration += 1;
+      this.#cleanupAllNodes();
+      if (this.#rule.transTitle === "true" && this.#docInfo.title) {
+        document.title = this.#docInfo.title;
+      }
+      this.#reportsToolbarIcon && isExt && sendBgMsg(MSG_UPDATE_ICON, false);
+    }
+    this.#resetOptions();
+  }
+
+  /** 黑名单结束且本页应继续翻译。重新观察，不走 enable/rescan。 */
+  continuePage() {
+    if (this.#editorPaused) return;
+    this.#pagePaused = false;
+    if (this.#enabled) return;
+    this.#enabled = true;
+    this.#rule.transOpen = "true";
+    this.#runId++;
+    this.#init();
+    if (this.#rule.transTitle === "true") {
+      this.#translateTitle();
+    }
+    this.#reportsToolbarIcon && isExt && sendBgMsg(MSG_UPDATE_ICON, true);
+  }
+
+  /** 黑名单结束但本页保持关闭。只解除暂停标记，不重新扫描。 */
+  resumePage() {
+    this.#pagePaused = false;
+  }
+
   // 切换是否翻译
   toggle() {
     this.#enabled ? this.disable() : this.enable();
@@ -5421,6 +5465,9 @@ overflow-wrap: anywhere !important;`;
     if (Object.prototype.hasOwnProperty.call(newRule, "aiTerms")) {
       this.#glossary = parseAITerms(this.#rule.aiTerms);
     }
+
+    // 暂停期间只记下规则。重扫会清空共享请求池，等 continuePage 再观察。
+    if (this.#pagePaused) return;
 
     const needsTriggerRescan =
       this.#enabled &&

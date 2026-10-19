@@ -2,11 +2,7 @@ import { GLOBAL_KEY, MSG_SAVE_RULE } from "../../config";
 import { isExt } from "../../libs/client";
 import { sendBgMsg } from "../../libs/msg";
 import { findMatchingRule, saveRule } from "../../libs/rules";
-import {
-  SITE_TRANS_OPEN,
-  isSiteTransOpen,
-  siteTransOpenValue,
-} from "../../libs/siteTransOpen";
+import { SITE_TRANS_OPEN, siteTransOpenValue } from "../../libs/siteTransOpen";
 import { getDomainOptions } from "../../libs/url";
 
 export { SITE_TRANS_OPEN };
@@ -23,11 +19,17 @@ export const SITE_TRANS_OPEN_OPTIONS = [
  * `*` follows the global rule; missing or unknown values do the same.
  */
 export function readSiteTransOpen(href, rules) {
-  const value =
+  const matched =
     typeof findMatchingRule === "function"
-      ? findMatchingRule(rules || [], href)?.transOpen
+      ? findMatchingRule(rules || [], href)
       : undefined;
-  return isSiteTransOpen(value) ? value : SITE_TRANS_OPEN.FOLLOW_GLOBAL;
+  // 没有个人规则才是跟随全局。匹配到的规则缺值或值非法必须报错，
+  // 不能把「不自动翻译」和坏数据都读成「*」。
+  if (!matched) return SITE_TRANS_OPEN.FOLLOW_GLOBAL;
+  if (!Object.prototype.hasOwnProperty.call(matched, "transOpen")) {
+    throw new TypeError("Site rule is missing transOpen");
+  }
+  return siteTransOpenValue(matched.transOpen);
 }
 
 /**

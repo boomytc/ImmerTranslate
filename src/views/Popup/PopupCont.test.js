@@ -936,7 +936,7 @@ describe("PopupCont capability parity", () => {
     expect(processActions).toHaveBeenCalledTimes(1);
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_TRANS_TOGGLE,
-      args: { enabled: false, persistSite: false },
+      args: { enabled: false },
     });
     expect(saveRule).not.toHaveBeenCalled();
     expect(mainSwitch.checked).toBe(false);
@@ -1152,7 +1152,6 @@ describe("PopupCont capability parity", () => {
     ).toBe(true);
     expect(mockSendTabMsg).toHaveBeenCalledWith(MSG_TRANS_TOGGLE, {
       enabled: false,
-      persistSite: false,
     });
     expect(mockSendTopFrameMsg).toHaveBeenCalledWith(
       MSG_TRANS_GETRULE,
@@ -1526,7 +1525,7 @@ describe("PopupCont capability parity", () => {
     });
     expect(mockSendTabMsg).toHaveBeenCalledWith(
       MSG_TRANS_TOGGLE,
-      { enabled: false, persistSite: false },
+      { enabled: false },
       undefined,
       42
     );
@@ -1565,7 +1564,7 @@ describe("PopupCont capability parity", () => {
       expect(mockSendTabMsg).toHaveBeenCalledTimes(1);
       expect(mockSendTabMsg).toHaveBeenCalledWith(
         MSG_TRANS_TOGGLE,
-        { enabled: true, persistSite: false },
+        { enabled: true },
         undefined,
         42,
         undefined,
@@ -1607,7 +1606,7 @@ describe("PopupCont capability parity", () => {
       expect(mockSendTabMsg).toHaveBeenNthCalledWith(
         1,
         MSG_TRANS_TOGGLE,
-        { enabled: true, persistSite: false },
+        { enabled: true },
         undefined,
         42,
         undefined,

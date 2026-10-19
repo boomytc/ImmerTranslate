@@ -5,13 +5,12 @@ const LOCATION_HOOK_MARKER = "__immertranslateLocationHook";
 /**
  * 包住页面自己的 history。必须能被 scripting.executeScript 原样序列化进 MAIN world，
  * 所以事件名和标记都写在函数体内，不引用外层变量。
- * 传入 target 时包那一页（用户脚本的 unsafeWindow）；否则在当前 window 上包。
+ * 传入 target 时包那一页；否则包当前 window。
  */
 export function installLocationHook(target) {
   const eventName = "immertranslate:locationchange";
   const marker = "__immertranslateLocationHook";
-  const win =
-    target || (typeof unsafeWindow !== "undefined" ? unsafeWindow : window);
+  const win = target || window;
   if (!win || win[marker]) return false;
   const history = win.history;
   if (!history) return false;

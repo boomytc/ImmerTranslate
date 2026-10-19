@@ -1,36 +1,24 @@
 import {
   MSG_INSTALL_LOCATION_HOOK,
-  MSG_TRANS_GETRULE,
   STOKEY_RULES,
   STOKEY_SETTING,
 } from "../config";
-import { browser } from "./browser";
 import { matchingBlacklistEntries } from "./blacklist";
+import { isExt } from "./client";
 import { withFeatureBlacklists } from "./featureBlacklists";
-import { isExt, isGm } from "./client";
-import {
-  applyParentRuntime,
-  installFrameRuntimeBridge,
-  queryParentFrameRuntime,
-} from "./iframe";
-import { LOCATION_CHANGE_EVENT, installLocationHook } from "./locationHook";
+import { applyParentRuntime, queryParentFrameRuntime } from "./iframe";
+import { LOCATION_CHANGE_EVENT } from "./locationHook";
 import { logger } from "./log";
-import { acceptsFrameMessage, sendBgMsg } from "./msg";
-import { getPopupDocumentIdentity } from "./popupDocument";
+import { sendBgMsg } from "./msg";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
-import { ruleApplication, settingApplication } from "./runtimeUpdate";
-import { isSameStorageValue } from "./storageEquality";
+import { ManualOverride, pageTarget } from "./pageSwitch";
+import { SITE_TRANS_OPEN } from "./siteTransOpen";
 import { getStorageState } from "./storageState";
+import { readSiteTransOpen } from "../views/Action/sitePolicy";
 import TranslatorManager from "./translatorManager";
 
 export function ensureLocationHook() {
-  if (isGm) {
-    installLocationHook(
-      typeof unsafeWindow !== "undefined" ? unsafeWindow : window
-    );
-    return;
-  }
   if (!isExt) return;
   void Promise.resolve(sendBgMsg(MSG_INSTALL_LOCATION_HOOK)).catch((error) => {
     logger.info("location hook", error);
@@ -40,80 +28,17 @@ export function ensureLocationHook() {
 export function watchPageLocation(onChange) {
   if (typeof window === "undefined") return () => {};
   const notify = () => onChange(window.location.href);
-  const targets = new Set([window]);
-  if (typeof unsafeWindow !== "undefined") targets.add(unsafeWindow);
-  targets.forEach((target) => {
-    target.addEventListener(LOCATION_CHANGE_EVENT, notify);
-  });
+  window.addEventListener(LOCATION_CHANGE_EVENT, notify);
   window.addEventListener("popstate", notify);
   window.addEventListener("hashchange", notify);
   return () => {
-    targets.forEach((target) => {
-      target.removeEventListener(LOCATION_CHANGE_EVENT, notify);
-    });
+    window.removeEventListener(LOCATION_CHANGE_EVENT, notify);
     window.removeEventListener("popstate", notify);
     window.removeEventListener("hashchange", notify);
   };
 }
 
 export { withFeatureBlacklists } from "./featureBlacklists";
-
-export function parkedPageResponse({ rule, setting, href, isIframe = false }) {
-  const identity = getPopupDocumentIdentity();
-  return {
-    rule: { ...(rule || {}), transOpen: "false" },
-    setting,
-    capabilities: {
-      pageTranslation: true,
-      selectionTranslation: false,
-      hoverTranslation: false,
-      inputTranslation: false,
-      ruleEditor: !isIframe,
-    },
-    isTopFrame: !isIframe,
-    blocked: true,
-    blacklistEntries: matchingBlacklistEntries(setting?.blacklist, href),
-    document: isIframe ? identity : { ...identity, frameId: 0 },
-  };
-}
-
-function listenForParkedPage(handler, { isUserscript, isIframe }) {
-  const stops = [];
-  const onWindow = (event) => {
-    const result = handler(event?.data);
-    if (
-      result !== undefined &&
-      typeof event?.source?.postMessage === "function"
-    ) {
-      event.source.postMessage(result, "*");
-    }
-  };
-  if (isUserscript || isIframe) {
-    window.addEventListener("message", onWindow);
-    stops.push(() => window.removeEventListener("message", onWindow));
-  }
-  const runtime = browser?.runtime?.onMessage;
-  if (!isUserscript && typeof runtime?.addListener === "function") {
-    const onRuntime = (message, _sender, sendResponse) => {
-      const result = handler(message);
-      if (result === undefined) return;
-      if (result && typeof result.then === "function") {
-        result.then(sendResponse, (error) =>
-          sendResponse({ error: error?.message || String(error) })
-        );
-        return true;
-      }
-      sendResponse(result);
-      return true;
-    };
-    runtime.addListener(onRuntime);
-    stops.push(() => runtime.removeListener?.(onRuntime));
-  }
-  stops.push(
-    installFrameRuntimeBridge(() => ({ transOpen: false, fabVisible: false }))
-  );
-  return () => stops.forEach((stop) => stop());
-}
 
 function subscribeStorage(key, defaultValue, onData) {
   const state = getStorageState(key, defaultValue);
@@ -131,26 +56,32 @@ function subscribeStorage(key, defaultValue, onData) {
   });
 }
 
+function globalTransOpenOf(rules) {
+  const value = (rules || []).find(
+    (rule) => rule?.pattern === SITE_TRANS_OPEN.FOLLOW_GLOBAL
+  )?.transOpen;
+  return value === SITE_TRANS_OPEN.AUTO_TRANSLATE
+    ? SITE_TRANS_OPEN.AUTO_TRANSLATE
+    : SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE;
+}
+
 export class PageRuntime {
   #started = false;
   #generation = 0;
   #queue = Promise.resolve();
   #href = "";
   #setting;
+  #rules = null;
   #rule;
-  #appliedSetting;
   #manager;
-  // The live switch captured when this document was parked. It applies only
-  // when the same URL leaves the blacklist; a later URL uses its own rule.
-  #pausedTransOpen;
-  #closeParked = null;
+  #override = null;
+  #context = null;
   #unwatch = () => {};
   #unsubscribeSetting = () => {};
   #unsubscribeRules = () => {};
 
   constructor(options = {}) {
     this.#setting = options.setting || {};
-    this.#appliedSetting = this.#setting;
     this.#rule = options.rule || null;
     this.#manager = options.manager || null;
     this.#href = options.href || "";
@@ -166,14 +97,29 @@ export class PageRuntime {
     this.#started = true;
     const options = this.options;
     this.#href = options.getHref ? options.getHref() : window.location.href;
+    this.#bindManualSwitch(this.#manager);
+    if (this.#manager) {
+      const policy =
+        this.#rule?.transOpen || SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE;
+      this.#context = {
+        rule: {
+          ...(this.#rule || {}),
+          transOpen: policy,
+        },
+        policy,
+        href: this.#href,
+        blacklistHit: Boolean(
+          matchingBlacklistEntries(this.#setting?.blacklist, this.#href).length
+        ),
+        globalTransOpen: SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE,
+        setting: withFeatureBlacklists(this.#setting, this.#href),
+        favWords: options.favWords || [],
+      };
+    }
     const blocked = matchingBlacklistEntries(
       this.#setting?.blacklist,
       this.#href
     ).length;
-    // 已有管理器时，基线是当前网址折出来的那份，不是被改过的存储对象。
-    if (this.#manager && !blocked) {
-      this.#appliedSetting = withFeatureBlacklists(this.#setting, this.#href);
-    }
     const ready =
       blocked || !this.#manager ? this.requestReconcile() : Promise.resolve();
     ensureLocationHook();
@@ -192,7 +138,9 @@ export class PageRuntime {
       this.#setting = snapshot.data;
       void this.requestReconcile();
     });
-    this.#unsubscribeRules = subscribeRules(() => {
+    this.#unsubscribeRules = subscribeRules((snapshot) => {
+      if (!Array.isArray(snapshot?.data)) return;
+      this.#rules = snapshot.data;
       void this.requestReconcile();
     });
     return ready;
@@ -200,6 +148,17 @@ export class PageRuntime {
 
   whenIdle() {
     return this.#queue;
+  }
+
+  /** 本页手动开关。黑名单期间也记下，离开后仍按记录时的策略决定是否生效。 */
+  setManualSwitch(enabled) {
+    if (!this.#context) return;
+    this.#override = new ManualOverride(
+      this.#context.href,
+      this.#context.policy,
+      enabled ? "on" : "off"
+    );
+    this.#apply(this.#context);
   }
 
   stop() {
@@ -210,8 +169,6 @@ export class PageRuntime {
     this.#unsubscribeRules();
     this.#unsubscribeSetting = () => {};
     this.#unsubscribeRules = () => {};
-    this.#closeParked?.();
-    this.#closeParked = null;
     this.#started = false;
   }
 
@@ -231,53 +188,9 @@ export class PageRuntime {
       ? this.options.getHref()
       : window.location.href;
     this.#href = href;
-    if (matchingBlacklistEntries(this.#setting?.blacklist, href).length) {
-      this.#park();
-      return;
-    }
-    await this.#activate(generation);
-  }
-
-  #park() {
-    if (this.#manager) {
-      // stop() clears the translator, and Translator.stop() forces transOpen
-      // to false. Read the live switch first.
-      const live = this.#manager.readLiveTransOpen?.();
-      if ((live === "true" || live === "false") && this.#href) {
-        this.#pausedTransOpen = { href: this.#href, transOpen: live };
-      }
-      this.#manager.stop();
-      this.#manager = null;
-    }
-    if (this.#closeParked) return;
-    const listen = this.options.listen || listenForParkedPage;
-    this.#closeParked = listen((message) => this.#onParkedMessage(message), {
-      isUserscript: Boolean(this.options.isUserscript),
-      isIframe: Boolean(this.options.isIframe),
-    });
-  }
-
-  #onParkedMessage(message) {
-    if (message?.action !== MSG_TRANS_GETRULE) return undefined;
-    if (
-      !acceptsFrameMessage(message, {
-        isIframe: Boolean(this.options.isIframe),
-      })
-    ) {
-      return undefined;
-    }
-    return parkedPageResponse({
-      rule: this.#rule,
-      setting: this.#setting,
-      href: this.#href,
-      isIframe: Boolean(this.options.isIframe),
-    });
-  }
-
-  async #activate(generation) {
-    this.#closeParked?.();
-    this.#closeParked = null;
-    const href = this.#href;
+    const blacklistHit = Boolean(
+      matchingBlacklistEntries(this.#setting?.blacklist, href).length
+    );
     const setting = withFeatureBlacklists(this.#setting, href);
     const ruleHref = this.options.ruleHref
       ? this.options.ruleHref(href, Boolean(this.options.isIframe))
@@ -285,58 +198,70 @@ export class PageRuntime {
     const match = this.options.matchRule || matchRuleDefault;
     let rule = await match(ruleHref, setting);
     if (generation !== this.#generation) return;
+    let policy = this.#rules
+      ? readSiteTransOpen(href, this.#rules)
+      : rule?.transOpen;
     if (this.options.isIframe) {
       const query = this.options.queryParent || queryParentFrameRuntime;
       const parent = await query();
       if (generation !== this.#generation) return;
-      if (parent) rule = applyParentRuntime(rule, parent);
+      if (parent) {
+        rule = applyParentRuntime(rule, parent);
+        policy = rule?.transOpen;
+      }
     }
     const favWords = this.options.getFavWords
       ? await this.options.getFavWords(rule)
       : this.options.favWords || [];
     if (generation !== this.#generation) return;
-    const previousTransOpen = this.#rule?.transOpen;
-    const previousSetting = this.#appliedSetting;
-    this.#rule = rule;
-    const settingChanged = !isSameStorageValue(previousSetting, setting);
-    this.#appliedSetting = setting;
-    if (this.#manager) {
-      this.#pausedTransOpen = undefined;
-      this.#manager.applyLocationRule?.(
-        ruleApplication({
-          previousTransOpen,
-          rule,
-          setting: settingChanged
-            ? settingApplication({ previous: previousSetting, setting })
-            : null,
-        })
-      );
-      return;
-    }
-    const fabConfig = this.options.getFabConfig
-      ? await this.options.getFabConfig()
-      : this.options.fabConfig;
-    if (generation !== this.#generation) return;
-    const paused = this.#pausedTransOpen;
-    this.#pausedTransOpen = undefined;
-    const startRule =
-      paused?.href === href ? { ...rule, transOpen: paused.transOpen } : rule;
-    const create =
-      this.options.createManager || ((config) => new TranslatorManager(config));
-    this.#manager = create({
+    const context = {
+      rule: { ...(rule || {}), transOpen: policy },
+      policy,
+      href,
+      blacklistHit,
+      globalTransOpen: globalTransOpenOf(this.#rules),
       setting,
-      rule: startRule,
-      fabConfig,
       favWords,
-      isIframe: Boolean(this.options.isIframe),
-      isUserscript: Boolean(this.options.isUserscript),
-      transboxOnly: Boolean(this.options.transboxOnly),
-    });
-    this.#manager.start();
-    // A page that was blocked at load only had { transOpen: "false" } to give
-    // the popup. Publish the matched rule once the manager exists.
-    this.#manager.publishRuntimeRule?.();
-    this.options.onActivate?.({ href, setting, rule: startRule });
+    };
+    this.#rule = context.rule;
+    this.#apply(context);
+  }
+
+  #apply(context) {
+    this.#context = context;
+    const target = pageTarget({ ...context, override: this.#override });
+    if (!this.#manager) {
+      const create =
+        this.options.createManager ||
+        ((config) => new TranslatorManager(config));
+      this.#manager = create({
+        setting: target.setting,
+        rule: target.rule,
+        fabConfig: this.options.fabConfig,
+        favWords: context.favWords,
+        isIframe: Boolean(this.options.isIframe),
+        isUserscript: Boolean(this.options.isUserscript),
+        transboxOnly: Boolean(this.options.transboxOnly),
+        onManualSwitch: (enabled) => this.setManualSwitch(enabled),
+      });
+      this.#bindManualSwitch(this.#manager);
+      this.#manager.start();
+      this.options.onActivate?.({
+        href: context.href,
+        setting: target.setting,
+        rule: target.rule,
+      });
+    } else {
+      this.#manager.applyTarget?.(target);
+    }
+    if (target.state === "paused") this.#manager.pause?.();
+    else this.#manager.resume?.();
+  }
+
+  #bindManualSwitch(manager) {
+    manager?.setManualSwitchHandler?.((enabled) =>
+      this.setManualSwitch(enabled)
+    );
   }
 }
 

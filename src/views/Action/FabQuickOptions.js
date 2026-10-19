@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   API_SPE_TYPES,
   EVENT_KISS_INNER,
-  GLOBAL_KEY,
   MSG_TRANS_CURRULE,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
-  MSG_TRANS_TOGGLE,
   OPT_LANGS_TO,
   OPT_STYLE_NONE,
   OPT_TRANS_QWENMT,
@@ -22,7 +20,6 @@ import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import { configuredByokApis, isMissingRequiredApiKey } from "../../libs/apiKey";
 import { kissLog } from "../../libs/log";
 import { fetchModelCatalog } from "../../libs/modelList";
-import { effectiveTransOpen } from "../../libs/pageRuleSync";
 import {
   readSiteTransOpen,
   siteRulePattern,
@@ -182,20 +179,6 @@ export default function FabQuickOptions({
   const selectSiteTransOpen = (next) => {
     if (!sitePattern || rulesLoading || next === siteTransOpen) return;
     setSiteDraft(next);
-    const globalTransOpen = rules.find(
-      (item) => item.pattern === GLOBAL_KEY
-    )?.transOpen;
-    const nextRuntime = effectiveTransOpen(next, globalTransOpen);
-    const currentRuntime = rule?.transOpen === "true" ? "true" : "false";
-    if (!rule || nextRuntime !== currentRuntime) {
-      void processActions?.({
-        action: MSG_TRANS_TOGGLE,
-        args: {
-          enabled: nextRuntime === "true",
-          persistSite: false,
-        },
-      });
-    }
     const persist = writeSiteTransOpen(href, next, rules);
     void Promise.resolve(persist)
       .then((response) => {

@@ -8,7 +8,6 @@ import {
 } from "../config";
 import { browser } from "./browser";
 import { acceptsFrameMessage } from "./msg";
-import { applyRuleUpdate } from "./runtimeUpdate";
 import { Translator } from "./translator";
 import { InputTranslator } from "./inputTranslate";
 import { TransboxManager } from "./tranbox";
@@ -49,20 +48,14 @@ import {
   isFabVisible,
   normalizeFabConfig,
   isFabVisibilityHeld,
-  applyFabSitePolicy,
   DEFAULT_FAB,
 } from "../config/fab";
-import { mountFabRestoreHandle } from "../views/Action/FabRestoreHandle";
 import { STOKEY_FAB } from "../config/storage";
 import { getStorageState } from "./storageState";
 import { logger } from "./log";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { MSG_GET_FRAME_ID, MSG_VALIDATE_DOCUMENT } from "../config/msg";
-import {
-  persistSharedSiteRule,
-  pickSharedRulePatch,
-  publishPageRule,
-} from "./pageRuleSync";
+import { publishPageRule } from "./pageRuleSync";
 
 /**
  * 前台翻译业务的总生命周期管理器。
@@ -114,7 +107,8 @@ export default class TranslatorManager {
   #spaNavigationHandler = null;
   #unsubscribeFabStorage = null;
   #removeFrameBridge = null;
-  #removeRestoreHandle = null;
+  #paused = false;
+  #onManualSwitch = null;
 
   // 运行期子模块实例。它们可能挂载 DOM，因此随 restart 销毁并重建。
   _translator = null;
@@ -139,6 +133,7 @@ export default class TranslatorManager {
     isIframe,
     isUserscript,
     transboxOnly = false,
+    onManualSwitch = null,
   }) {
     this.#setting = this.#cloneConfig(setting);
     this.#rule = this.#cloneConfig(rule);
@@ -147,6 +142,7 @@ export default class TranslatorManager {
     this.#isIframe = isIframe;
     this.#isUserscript = isUserscript;
     this.#transboxOnly = transboxOnly;
+    this.#onManualSwitch = onManualSwitch;
 
     this.#innerMessageHandler = this.#handleInnerMessage.bind(this);
     this.#browserMessageHandler = this.#handleBrowserMessage.bind(this);
@@ -186,7 +182,6 @@ export default class TranslatorManager {
     this.#removeFrameBridge = installFrameRuntimeBridge(() =>
       this.#frameRuntimeState()
     );
-    this.#syncRestoreHandle();
     this.#isActive = true;
     logger.info("TranslatorManager started.");
   }
@@ -261,22 +256,93 @@ export default class TranslatorManager {
     this.#unsubscribeFabStorage = null;
     this.#removeFrameBridge?.();
     this.#removeFrameBridge = null;
-    this.#clearRestoreHandle();
     this.#destroyRuntimeModules();
     this.#isActive = false;
     logger.info("TranslatorManager stopped.");
   }
 
-  /** Live page switch, read before stop() clears the translator. */
-  readLiveTransOpen() {
-    const value = this._translator?.rule?.transOpen ?? this.#rule?.transOpen;
-    return value === "true" || value === "false" ? value : undefined;
+  setManualSwitchHandler(handler) {
+    this.#onManualSwitch = handler;
   }
 
-  /** Push the current rule to an already open popup or FAB. */
-  publishRuntimeRule() {
-    if (!this.#isActive) return;
+  /** 黑名单只暂停本页网页翻译，管理器和完整规则都留着。 */
+  pause() {
+    if (this.#paused) return;
+    this.#paused = true;
+    this._translator?.pausePage();
+  }
+
+  resume() {
+    if (!this.#paused) return;
+    this.#paused = false;
+  }
+
+  /**
+   * 应用纯函数算出的目标。开关只看 target.rule.transOpen，
+   * 设置按传入的折后值整份写入。
+   */
+  applyTarget(target) {
+    if (!this.#isActive || !target?.rule) return;
+    if (target.setting) this.#applyFoldedSetting(target.setting);
+    const nextRule = this.#cloneConfig(target.rule);
+    this.#rule = nextRule;
+    if (!this._translator) {
+      if (target.state === "paused") this.pause();
+      else if (this.#paused) this.resume();
+      publishPageRule(this.#getRuntimeResponse());
+      return;
+    }
+    if (target.state === "paused") {
+      this.pause();
+      this._translator.updateRule(nextRule);
+      publishPageRule(this.#getRuntimeResponse());
+      return;
+    }
+    if (this.#paused) {
+      this._translator.updateRule(nextRule);
+      if (nextRule.transOpen === "true") this._translator.continuePage();
+      else this._translator.resumePage();
+      this.resume();
+      publishPageRule(this.#getRuntimeResponse());
+      return;
+    }
+    const wasOn = this._translator.rule?.transOpen === "true";
+    const nextOn = nextRule.transOpen === "true";
+    if (wasOn && !nextOn) this._translator.disable();
+    this._translator.updateRule(nextRule);
+    if (!wasOn && nextOn) this._translator.enable();
     publishPageRule(this.#getRuntimeResponse());
+  }
+
+  #applyFoldedSetting(setting) {
+    const stored = this.#cloneConfig(setting);
+    this.#setting = stored;
+    if (typeof this._translator?.updateSetting === "function") {
+      this._translator.updateSetting(this.#cloneConfig(stored));
+    }
+    const tranboxOn = Boolean(stored.tranboxSetting?.transOpen);
+    if (typeof this._transboxManager?.update === "function") {
+      this._transboxManager.update({
+        tranboxSetting: this.#cloneConfig(stored.tranboxSetting),
+      });
+    }
+    if (this._transboxManager) {
+      if (tranboxOn) this._transboxManager.enable?.();
+      else this._transboxManager.disable?.();
+    }
+    if (!this._inputTranslator) return;
+    if (typeof this._inputTranslator.updateConfig === "function") {
+      this._inputTranslator.updateConfig({
+        inputRule: this.#cloneConfig(stored.inputRule),
+        transApis: stored.transApis,
+        prompts: stored.prompts,
+        subtitleSetting: stored.subtitleSetting,
+        uiLang: stored.uiLang,
+      });
+    }
+    const inputOn = Boolean(stored.inputRule?.transOpen);
+    if (inputOn) this._inputTranslator.enable?.();
+    else this._inputTranslator.disable?.();
   }
 
   #subscribeFabStorage() {
@@ -307,113 +373,6 @@ export default class TranslatorManager {
     };
   }
 
-  applyLocationRule(update) {
-    if (!this.#isActive || !update?.fields) return;
-    if (update.setting) this.#applyRuntimeSetting(update.setting);
-    if (!this._translator) {
-      const nextTransOpen = update.policy
-        ? update.policy.transOpen
-        : this.#rule?.transOpen;
-      this.#rule = this.#cloneConfig({
-        ...update.fields,
-        transOpen: nextTransOpen,
-      });
-      return;
-    }
-    const nextRule = applyRuleUpdate({
-      liveTransOpen: this._translator.rule?.transOpen,
-      fields: update.fields,
-      policy: update.policy,
-      disable: () => this._translator.disable(),
-      updateRule: (rule) => this._translator.updateRule(rule),
-      enable: () => this._translator.enable(),
-    });
-    this.#rule = this.#cloneConfig(nextRule);
-    publishPageRule(this.#getRuntimeResponse());
-  }
-
-  #applyRuntimeSetting(update) {
-    if (!update?.fields) return;
-    const switches = update.switches || {};
-    // 基线保留折后的存储值。运行时副本只改这次真的变化的划词、输入、悬停开关。
-    const stored = this.#cloneConfig(update.fields);
-    this.#setting = stored;
-    const runtime = this.#cloneConfig(stored);
-    const liveTranbox =
-      typeof this._transboxManager?.isEnabled === "function"
-        ? Boolean(this._transboxManager.isEnabled())
-        : Boolean(runtime.tranboxSetting?.transOpen);
-    const liveInput = Boolean(this._translator?.setting?.inputRule?.transOpen);
-    const liveHover = Boolean(
-      this._translator?.setting?.mouseHoverSetting?.useMouseHover
-    );
-    runtime.tranboxSetting = {
-      ...(runtime.tranboxSetting || {}),
-      transOpen: "tranbox" in switches ? switches.tranbox : liveTranbox,
-    };
-    runtime.inputRule = {
-      ...(runtime.inputRule || {}),
-      transOpen: "input" in switches ? switches.input : liveInput,
-    };
-    runtime.mouseHoverSetting = {
-      ...(runtime.mouseHoverSetting || {}),
-      useMouseHover: "hover" in switches ? switches.hover : liveHover,
-    };
-    if (typeof this._translator?.updateSetting === "function") {
-      this._translator.updateSetting(this.#cloneConfig(runtime));
-    }
-    if (typeof this._transboxManager?.update === "function") {
-      this._transboxManager.update({
-        tranboxSetting: this.#cloneConfig(runtime.tranboxSetting),
-      });
-    } else if ("tranbox" in switches && this._transboxManager) {
-      if (switches.tranbox) this._transboxManager.enable();
-      else this._transboxManager.disable();
-    }
-    if (!this._inputTranslator) return;
-    if (typeof this._inputTranslator.updateConfig === "function") {
-      this._inputTranslator.updateConfig({
-        inputRule: this.#cloneConfig(runtime.inputRule),
-        transApis: runtime.transApis,
-        prompts: runtime.prompts,
-        subtitleSetting: runtime.subtitleSetting,
-        uiLang: runtime.uiLang,
-      });
-    }
-    if (!("input" in switches)) return;
-    if (switches.input) this._inputTranslator.enable();
-    else this._inputTranslator.disable();
-  }
-
-  #clearRestoreHandle() {
-    this.#removeRestoreHandle?.();
-    this.#removeRestoreHandle = null;
-  }
-
-  #syncRestoreHandle() {
-    if (this.#isIframe || this.#transboxOnly || !this.#isUserscript) {
-      this.#clearRestoreHandle();
-      return;
-    }
-    const href = window.location?.href || "";
-    if (isFabVisibilityHeld() || isFabVisible(href, this.#fabConfig)) {
-      this.#clearRestoreHandle();
-      return;
-    }
-    if (this.#removeRestoreHandle) return;
-    const label = newI18n(this.#setting?.uiLang || "en")("show_fab_on_site");
-    this.#removeRestoreHandle = mountFabRestoreHandle({
-      label,
-      fabConfig: this.#fabConfig,
-      onClick: () => {
-        const pageHref = window.location?.href || "";
-        void getStorageState(STOKEY_FAB, DEFAULT_FAB).save((previous) =>
-          applyFabSitePolicy(previous, pageHref, true)
-        );
-      },
-    });
-  }
-
   #applyFabVisibility() {
     if (this.#isIframe || this.#transboxOnly || isFabVisibilityHeld()) return;
     const href = window.location?.href || "";
@@ -434,7 +393,6 @@ export default class TranslatorManager {
       this._fabManager?.destroy();
       this._fabManager = null;
     }
-    this.#syncRestoreHandle();
   }
 
   /**
@@ -1146,55 +1104,34 @@ export default class TranslatorManager {
     logger.debug("process action:", action, args);
 
     let publishRule = false;
-    let sharedPatch = null;
     switch (action) {
       case MSG_TRANS_TOGGLE: {
         const currentlyEnabled = this._translator?.rule?.transOpen === "true";
         const enabled =
           typeof args?.enabled === "boolean" ? args.enabled : !currentlyEnabled;
-        enabled ? this._translator?.enable() : this._translator?.disable();
+        if (this.#onManualSwitch) this.#onManualSwitch(enabled);
+        else if (enabled) this._translator?.enable();
+        else this._translator?.disable();
         if (!fromExt) {
           sendIframeMsg(MSG_TRANS_TOGGLE, { ...(args || {}), enabled });
         }
         publishRule = true;
-        // 页面翻译开关只改运行态。站点策略由 writeSiteTransOpen 单独写入。
-        if (args?.persistSite === true) {
-          const transOpen =
-            typeof args?.enabled === "boolean"
-              ? args.enabled
-                ? "true"
-                : "false"
-              : this._translator?.rule?.transOpen;
-          if (transOpen === "true" || transOpen === "false") {
-            sharedPatch = { transOpen };
-          }
-        }
         break;
       }
       case MSG_TRANS_TOGGLE_ONLY:
         this._translator?.toggleTransOnly();
         publishRule = true;
-        if (
-          this._translator?.rule?.transOnly === "true" ||
-          this._translator?.rule?.transOnly === "false"
-        ) {
-          sharedPatch = { transOnly: this._translator.rule.transOnly };
-        }
         break;
       case MSG_TRANS_TOGGLE_STYLE:
         this._translator?.toggleStyle(args?.textStyle);
         publishRule = true;
-        if (this._translator?.rule?.textStyle) {
-          sharedPatch = { textStyle: this._translator.rule.textStyle };
-        }
         break;
       case MSG_TRANS_GETRULE:
         break;
       case MSG_TRANS_PUTRULE:
+        // 只改本页这一次的规则字段，不写存储。站点策略不走这里。
         this._translator?.updateRule(args);
         publishRule = true;
-        sharedPatch = pickSharedRulePatch(args);
-        if (!Object.keys(sharedPatch).length) sharedPatch = null;
         break;
       case MSG_TRANS_SET_MODEL:
         this._translator?.updateApiModel?.(args?.apiSlug, args?.model);
@@ -1287,12 +1224,7 @@ export default class TranslatorManager {
         return { error: `Message action is unavailable: ${action}` };
     }
     const response = this.#getRuntimeResponse();
-    if (publishRule) {
-      publishPageRule(response);
-      // Iframes mirror the command. Only the top frame writes the site rule.
-      if (sharedPatch && !this.#isIframe)
-        void persistSharedSiteRule(sharedPatch);
-    }
+    if (publishRule) publishPageRule(response);
     return response;
   }
 }

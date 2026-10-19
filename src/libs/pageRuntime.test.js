@@ -24,9 +24,28 @@ jest.mock("./translatorManager", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
-jest.mock("./rules", () => ({
-  matchRule: jest.fn(async () => ({ transOpen: "false" })),
-}));
+jest.mock("./rules", () => {
+  const { isMatch } = jest.requireActual("./utils");
+  const { GLOBAL_KEY } = jest.requireActual("../config");
+  const matchesRulePattern = (href, pattern) =>
+    String(pattern || "")
+      .split(/\n|,/)
+      .some((item) => {
+        const text = item.trim();
+        return text !== "" && text !== GLOBAL_KEY && isMatch(href, text);
+      });
+  return {
+    matchRule: jest.fn(async () => ({ transOpen: "false" })),
+    matchesRulePattern,
+    findMatchingRule: (rules, href) =>
+      (rules || []).find(
+        (rule) =>
+          rule?.pattern !== GLOBAL_KEY &&
+          rule?.enabled !== false &&
+          matchesRulePattern(href, rule.pattern)
+      ),
+  };
+});
 jest.mock("./subRules", () => ({
   loadOrFetchSubRules: jest.fn(),
 }));
@@ -46,7 +65,6 @@ function deepFreeze(value) {
 }
 const { LOCATION_CHANGE_EVENT } = require("./locationHook");
 
-const MSG_TRANS_GETRULE = "trans_getrule";
 const nativePushState = History.prototype.pushState;
 
 function goViaPage(path) {
@@ -89,22 +107,22 @@ describe("PageRuntime", () => {
       createManager: (config) => {
         created.push(config);
         let liveTransOpen = config.rule?.transOpen;
+        let paused = false;
         const manager = {
           start: jest.fn(),
           stop: jest.fn(),
-          publishRuntimeRule: jest.fn(),
-          applyLocationRule: jest.fn((update) => {
-            if (
-              update?.policy?.transOpen === "true" ||
-              update?.policy?.transOpen === "false"
-            ) {
-              liveTransOpen = update.policy.transOpen;
-            }
+          pause: jest.fn(() => {
+            paused = true;
+            liveTransOpen = "false";
+          }),
+          resume: jest.fn(() => {
+            paused = false;
+          }),
+          applyTarget: jest.fn((target) => {
+            liveTransOpen = target?.rule?.transOpen;
           }),
           readLiveTransOpen: () => liveTransOpen,
-          setLiveTransOpen: (value) => {
-            liveTransOpen = value;
-          },
+          isPaused: () => paused,
         };
         managers.push(manager);
         return manager;
@@ -159,20 +177,27 @@ describe("PageRuntime", () => {
 
     goViaPage("/page-blocked");
     await runtime.whenIdle();
-    expect(managers[0].stop).toHaveBeenCalledTimes(1);
-    expect(listeners).toHaveLength(1);
-    const parked = listeners[0]({ action: MSG_TRANS_GETRULE });
-    expect(parked.rule.transOpen).toBe("false");
-    expect(parked.setting).toBeTruthy();
-    expect(parked.blacklistEntries).toEqual(["page-blocked"]);
-    expect(parked.capabilities.pageTranslation).toBe(true);
+    expect(managers[0].stop).not.toHaveBeenCalled();
+    expect(managers[0].pause).toHaveBeenCalledTimes(1);
+    expect(created).toHaveLength(1);
+    expect(managers[0].applyTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: "paused",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
 
     window.history.back();
     await flushHistory();
     await runtime.whenIdle();
-    expect(created).toHaveLength(2);
-    expect(created[1].rule.transOpen).toBe("false");
-    expect(listeners).toHaveLength(0);
+    expect(created).toHaveLength(1);
+    expect(managers[0].resume).toHaveBeenCalled();
+    expect(managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
   });
 
   test("pushState applies the next URL's site rule", async () => {
@@ -181,18 +206,18 @@ describe("PageRuntime", () => {
     await runtime.start();
     goViaPage("/auto-translate");
     await runtime.whenIdle();
-    expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
+    expect(managers[0].applyTarget).toHaveBeenCalledWith(
       expect.objectContaining({
-        policy: { transOpen: "true" },
-        setting: null,
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
       })
     );
     goViaPage("/plain-page");
     await runtime.whenIdle();
-    expect(managers[0].applyLocationRule).toHaveBeenLastCalledWith(
+    expect(managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        policy: { transOpen: "false" },
-        setting: null,
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
       })
     );
   });
@@ -218,8 +243,9 @@ describe("PageRuntime", () => {
     await flushHistory();
     await runtime.whenIdle();
     expect(window.location.href).toContain("/page-blocked");
-    expect(managers[0].stop).toHaveBeenCalledTimes(1);
-    expect(listeners).toHaveLength(1);
+    expect(managers[0].pause).toHaveBeenCalledTimes(1);
+    expect(managers[0].stop).not.toHaveBeenCalled();
+    expect(listeners).toHaveLength(0);
   });
 
   function pageSetting(blacklist) {
@@ -237,25 +263,31 @@ describe("PageRuntime", () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();
     await harness.runtime.start();
-    harness.managers[0].setLiveTransOpen("true");
+    harness.runtime.setManualSwitch(true);
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
     harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
     await harness.runtime.whenIdle();
-    expect(harness.managers[0].stop).toHaveBeenCalledTimes(1);
-    expect(harness.created).toHaveLength(2);
-    expect(harness.created[1].rule.transOpen).toBe("true");
-    expect(harness.managers[1].readLiveTransOpen()).toBe("true");
+    expect(harness.managers[0].pause).toHaveBeenCalled();
+    expect(harness.managers[0].stop).not.toHaveBeenCalled();
+    expect(harness.created).toHaveLength(1);
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+    expect(harness.managers[0].readLiveTransOpen()).toBe("true");
   });
 
   test("a manually enabled page stays on when an unrelated blacklist entry is saved", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();
     await harness.runtime.start();
-    harness.managers[0].setLiveTransOpen("true");
+    harness.runtime.setManualSwitch(true);
     harness.onSetting(pageSetting("example.com"));
     await harness.runtime.whenIdle();
-    expect(harness.managers[0].stop).not.toHaveBeenCalled();
+    expect(harness.managers[0].pause).not.toHaveBeenCalled();
     expect(harness.created).toHaveLength(1);
     expect(harness.managers[0].readLiveTransOpen()).toBe("true");
   });
@@ -265,26 +297,98 @@ describe("PageRuntime", () => {
     const harness = boot();
     await harness.runtime.start();
     expect(harness.created[0].rule.transOpen).toBe("true");
-    harness.managers[0].setLiveTransOpen("false");
+    harness.runtime.setManualSwitch(false);
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
     harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
     await harness.runtime.whenIdle();
-    expect(harness.created).toHaveLength(2);
-    expect(harness.created[1].rule.transOpen).toBe("false");
-    expect(harness.managers[1].readLiveTransOpen()).toBe("false");
+    expect(harness.created).toHaveLength(1);
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
+  });
+
+  test("a never-translate policy chosen while parked turns the page off", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    let siteTransOpen = "*";
+    const harness = boot({
+      matchRule: async (href) => ({ transOpen: siteTransOpen, pattern: href }),
+    });
+    await harness.runtime.start();
+    harness.runtime.setManualSwitch(true);
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    siteTransOpen = "false";
+    harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
+  });
+
+  test("an always-translate policy chosen while parked turns the page on", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    let siteTransOpen = "*";
+    const harness = boot({
+      matchRule: async (href) => ({ transOpen: siteTransOpen, pattern: href }),
+    });
+    await harness.runtime.start();
+    harness.runtime.setManualSwitch(false);
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    siteTransOpen = "true";
+    harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+  });
+
+  test("an unchanged site policy restores the live switch after parking", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    let siteTransOpen = "*";
+    const harness = boot({
+      matchRule: async (href) => ({ transOpen: siteTransOpen, pattern: href }),
+    });
+    await harness.runtime.start();
+    harness.runtime.setManualSwitch(true);
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
+    await harness.runtime.whenIdle();
+    expect(siteTransOpen).toBe("*");
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
   });
 
   test("does not keep a parked switch after the page moves to another url", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();
     await harness.runtime.start();
-    harness.managers[0].setLiveTransOpen("true");
+    harness.runtime.setManualSwitch(true);
     harness.onSetting(pageSetting("spa2.html/plain"));
     await harness.runtime.whenIdle();
     goViaPage("/other-clear");
     await harness.runtime.whenIdle();
-    expect(harness.created[1].rule.transOpen).toBe("false");
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
   });
 
   test("publishes the matched rule when a blocked page leaves the blacklist", async () => {
@@ -305,20 +409,28 @@ describe("PageRuntime", () => {
       }),
     });
     await harness.runtime.start();
-    expect(harness.created).toHaveLength(0);
-    expect(harness.listeners[0]({ action: MSG_TRANS_GETRULE }).rule).toEqual({
-      transOpen: "false",
-    });
-    harness.onSetting(pageSetting(""));
-    await harness.runtime.whenIdle();
+    expect(harness.created).toHaveLength(1);
     expect(harness.created[0].rule).toEqual(
       expect.objectContaining({
         fromLang: "en",
         toLang: "zh-CN",
         apiSlug: "deepl",
+        transOpen: "false",
       })
     );
-    expect(harness.managers[0].publishRuntimeRule).toHaveBeenCalledTimes(1);
+    expect(harness.managers[0].pause).toHaveBeenCalledTimes(1);
+    expect(harness.listeners).toHaveLength(0);
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        rule: expect.objectContaining({
+          fromLang: "en",
+          toLang: "zh-CN",
+          apiSlug: "deepl",
+        }),
+      })
+    );
   });
 
   test("a blacklist edit stops translation, and removing it does not auto-start unless the rule says so", async () => {
@@ -334,7 +446,8 @@ describe("PageRuntime", () => {
       },
     });
     await harness.runtime.whenIdle();
-    expect(harness.managers[0].stop).toHaveBeenCalledTimes(1);
+    expect(harness.managers[0].pause).toHaveBeenCalledTimes(1);
+    expect(harness.managers[0].stop).not.toHaveBeenCalled();
     harness.onSetting({
       data: {
         blacklist: "",
@@ -344,14 +457,19 @@ describe("PageRuntime", () => {
       },
     });
     await harness.runtime.whenIdle();
-    expect(harness.created[1].rule.transOpen).toBe("false");
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
 
     goViaPage("/auto-translate");
     await harness.runtime.whenIdle();
-    expect(harness.managers[1].applyLocationRule).toHaveBeenCalledWith(
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        policy: { transOpen: "true" },
-        setting: null,
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
       })
     );
   });
@@ -371,21 +489,21 @@ describe("PageRuntime", () => {
 
     nativePushState.call(window.history, {}, "", "/auto-translate");
     await runtime.whenIdle();
-    expect(managers[0].applyLocationRule).not.toHaveBeenCalled();
+    expect(managers[0].applyTarget).not.toHaveBeenCalled();
 
     window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
     await runtime.whenIdle();
-    expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
+    expect(managers[0].applyTarget).toHaveBeenCalledWith(
       expect.objectContaining({
-        policy: { transOpen: "true" },
-        setting: null,
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
       })
     );
 
     runtime.stop();
     window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
     await runtime.whenIdle();
-    expect(managers[0].applyLocationRule).toHaveBeenCalledTimes(1);
+    expect(managers[0].applyTarget).toHaveBeenCalledTimes(1);
     expect(window.history.pushState).toBe(historyPush);
   });
 
@@ -405,21 +523,26 @@ describe("PageRuntime", () => {
     parent = { transOpen: false, fabVisible: true };
     harness.onRules({ data: [{ pattern: "*", transOpen: "false" }] });
     await harness.runtime.whenIdle();
-    expect(harness.managers[0].applyLocationRule).toHaveBeenCalledWith(
+    expect(harness.managers[0].applyTarget).toHaveBeenCalledWith(
       expect.objectContaining({
-        fields: expect.objectContaining({ apiSlug: "stored" }),
-        policy: { transOpen: "false" },
+        state: "off",
+        rule: expect.objectContaining({
+          apiSlug: "stored",
+          transOpen: "false",
+        }),
       })
     );
   });
 
-  test("a selector edit reaches the running page without changing the translation switch", async () => {
+  test("S20 a selector edit keeps a manual on switch", async () => {
     window.history.pushState({}, "", "/index.html");
     let matched = { transOpen: "false", selector: "p", pattern: "stored" };
     const manager = {
       start: jest.fn(),
       stop: jest.fn(),
-      applyLocationRule: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      applyTarget: jest.fn(),
       rule: { transOpen: "true" },
     };
     const harness = boot({
@@ -428,47 +551,32 @@ describe("PageRuntime", () => {
       matchRule: async () => matched,
     });
     await harness.runtime.start();
+    harness.runtime.setManualSwitch(true);
     matched = { transOpen: "false", selector: "article", pattern: "stored" };
     harness.onRules({
       data: [{ pattern: "localhost", selector: "article", transOpen: "false" }],
     });
     await harness.runtime.whenIdle();
     expect(manager.stop).not.toHaveBeenCalled();
-    expect(manager.applyLocationRule).toHaveBeenCalledWith({
-      fields: { selector: "article", pattern: "stored" },
-      policy: null,
-      setting: null,
-    });
-    expect(manager.rule.transOpen).toBe("true");
+    expect(manager.applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({
+          selector: "article",
+          transOpen: "true",
+        }),
+      })
+    );
   });
 
-  test("changing the site policy to false stops a running translation", async () => {
+  test("S21 changing the site policy to false turns the page off", async () => {
     window.history.pushState({}, "", "/index.html");
-    const { applyRuleUpdate } = require("./runtimeUpdate");
-    const translator = {
-      rule: { transOpen: "true" },
-      disable: jest.fn(),
-      enable: jest.fn(),
-      updateRule: jest.fn(),
-    };
     const manager = {
       start: jest.fn(),
       stop: jest.fn(),
-      rule: { transOpen: "true" },
-      applyLocationRule(update) {
-        const nextRule = applyRuleUpdate({
-          liveTransOpen: translator.rule.transOpen,
-          fields: update.fields,
-          policy: update.policy,
-          disable: () => translator.disable(),
-          updateRule: (rule) => {
-            translator.updateRule(rule);
-            translator.rule = { ...translator.rule, ...rule };
-          },
-          enable: () => translator.enable(),
-        });
-        this.rule = { ...this.rule, ...nextRule };
-      },
+      pause: jest.fn(),
+      resume: jest.fn(),
+      applyTarget: jest.fn(),
     };
     let matched = { transOpen: "true", selector: "p", pattern: "stored" };
     const harness = boot({
@@ -482,11 +590,11 @@ describe("PageRuntime", () => {
       data: [{ pattern: "localhost", selector: "p", transOpen: "false" }],
     });
     await harness.runtime.whenIdle();
-    expect(translator.disable).toHaveBeenCalledTimes(1);
-    expect(translator.enable).not.toHaveBeenCalled();
-    expect(manager.rule.transOpen).toBe("false");
-    expect(translator.updateRule).toHaveBeenCalledWith(
-      expect.objectContaining({ selector: "p", transOpen: "false" })
+    expect(manager.applyTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ selector: "p", transOpen: "false" }),
+      })
     );
   });
 
@@ -526,7 +634,9 @@ describe("PageRuntime", () => {
     const manager = {
       start: jest.fn(),
       stop: jest.fn(),
-      applyLocationRule: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      applyTarget: jest.fn(),
       rule: { transOpen: "false" },
     };
     const harness = boot({
@@ -536,44 +646,36 @@ describe("PageRuntime", () => {
       matchRule: async () => ({ transOpen: "false", selector: "p" }),
     });
     await harness.runtime.start();
-    expect(manager.applyLocationRule).not.toHaveBeenCalled();
+    expect(manager.applyTarget).not.toHaveBeenCalled();
     expect(stored.tranboxSetting.transOpen).toBe(true);
     expect(stored.inputRule.transOpen).toBe(true);
     expect(stored.mouseHoverSetting.useMouseHover).toBe(true);
 
     goViaPage("/clear-page");
     await harness.runtime.whenIdle();
-    expect(manager.applyLocationRule).toHaveBeenCalledWith(
+    expect(manager.applyTarget).toHaveBeenCalledWith(
       expect.objectContaining({
-        policy: null,
-        setting: {
-          fields: expect.objectContaining({
-            tranboxSetting: expect.objectContaining({ transOpen: true }),
-            inputRule: expect.objectContaining({ transOpen: true }),
-            mouseHoverSetting: expect.objectContaining({
-              useMouseHover: true,
-            }),
+        setting: expect.objectContaining({
+          tranboxSetting: expect.objectContaining({ transOpen: true }),
+          inputRule: expect.objectContaining({ transOpen: true }),
+          mouseHoverSetting: expect.objectContaining({
+            useMouseHover: true,
           }),
-          switches: { tranbox: true, input: true, hover: true },
-        },
+        }),
       })
     );
 
     goViaPage("/feature-off/back");
     await harness.runtime.whenIdle();
-    expect(manager.applyLocationRule).toHaveBeenLastCalledWith(
+    expect(manager.applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        policy: null,
-        setting: {
-          fields: expect.objectContaining({
-            tranboxSetting: expect.objectContaining({ transOpen: false }),
-            inputRule: expect.objectContaining({ transOpen: false }),
-            mouseHoverSetting: expect.objectContaining({
-              useMouseHover: false,
-            }),
+        setting: expect.objectContaining({
+          tranboxSetting: expect.objectContaining({ transOpen: false }),
+          inputRule: expect.objectContaining({ transOpen: false }),
+          mouseHoverSetting: expect.objectContaining({
+            useMouseHover: false,
           }),
-          switches: { tranbox: false, input: false, hover: false },
-        },
+        }),
       })
     );
     expect(stored.tranboxSetting.transOpen).toBe(true);
@@ -586,7 +688,9 @@ describe("PageRuntime", () => {
     const manager = {
       start: jest.fn(),
       stop: jest.fn(),
-      applyLocationRule: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      applyTarget: jest.fn(),
       rule: { transOpen: "true" },
     };
     const harness = boot({
@@ -601,6 +705,7 @@ describe("PageRuntime", () => {
       matchRule: async () => ({ transOpen: "false", selector: "p" }),
     });
     await harness.runtime.start();
+    harness.runtime.setManualSwitch(true);
     harness.onSetting({
       data: {
         blacklist: "",
@@ -611,32 +716,28 @@ describe("PageRuntime", () => {
     });
     await harness.runtime.whenIdle();
     expect(manager.stop).not.toHaveBeenCalled();
-    expect(manager.rule.transOpen).toBe("true");
-    expect(manager.applyLocationRule).toHaveBeenCalledWith(
+    expect(manager.pause).not.toHaveBeenCalled();
+    expect(manager.applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        fields: { selector: "p" },
-        policy: null,
-        setting: {
-          fields: expect.objectContaining({
-            tranboxSetting: expect.objectContaining({
-              blacklist: "index.html",
-              transOpen: false,
-            }),
-            inputRule: expect.objectContaining({ transOpen: true }),
-            mouseHoverSetting: expect.objectContaining({
-              useMouseHover: true,
-            }),
+        state: "on",
+        rule: expect.objectContaining({ selector: "p", transOpen: "true" }),
+        setting: expect.objectContaining({
+          tranboxSetting: expect.objectContaining({
+            blacklist: "index.html",
+            transOpen: false,
           }),
-          switches: { tranbox: false },
-        },
+          inputRule: expect.objectContaining({ transOpen: true }),
+          mouseHoverSetting: expect.objectContaining({
+            useMouseHover: true,
+          }),
+        }),
       })
     );
   });
 
-  test("a child frame parking on its own url leaves the top frame and its popup snapshot", async () => {
+  test("a child frame pauses on its own url and leaves the top frame running", async () => {
     const topNotify = [];
     const childNotify = [];
-    const parked = [];
     let topHref = "http://localhost:8765/spa-frame.html";
     let childHref = "http://localhost:8765/spa2.html";
     const setting = {
@@ -649,18 +750,12 @@ describe("PageRuntime", () => {
       bucket.push(onChange);
       return () => {};
     };
-    const listen = (handler, info) => {
-      const entry = { handler, isIframe: Boolean(info?.isIframe) };
-      parked.push(entry);
-      return () => {
-        const index = parked.indexOf(entry);
-        if (index >= 0) parked.splice(index, 1);
-      };
-    };
     const topManager = {
       start: jest.fn(),
       stop: jest.fn(),
-      applyLocationRule: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      applyTarget: jest.fn(),
       rule: { transOpen: "true" },
     };
     const top = boot({
@@ -668,7 +763,6 @@ describe("PageRuntime", () => {
       setting,
       getHref: () => topHref,
       watchLocation: watchLocation(topNotify),
-      listen,
       matchRule: async () => ({ transOpen: "false" }),
     });
     const child = boot({
@@ -676,7 +770,6 @@ describe("PageRuntime", () => {
       setting,
       getHref: () => childHref,
       watchLocation: watchLocation(childNotify),
-      listen,
       matchRule: async () => ({ transOpen: "false", apiSlug: "child" }),
       queryParent: async () => ({ transOpen: true, fabVisible: true }),
     });
@@ -687,24 +780,23 @@ describe("PageRuntime", () => {
 
     childHref = "http://localhost:8765/spa2.html/blocked";
     childNotify.forEach((onChange) => onChange());
-    expect(topNotify.length).toBeGreaterThan(0);
+    expect(topNotify).toHaveLength(1);
     await Promise.all([top.runtime.whenIdle(), child.runtime.whenIdle()]);
 
-    expect(childManager.stop).toHaveBeenCalledTimes(1);
-    expect(parked.some((entry) => entry.isIframe)).toBe(true);
+    expect(childManager.pause).toHaveBeenCalledTimes(1);
+    expect(childManager.stop).not.toHaveBeenCalled();
+    expect(childManager.applyTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
+    expect(topManager.pause).not.toHaveBeenCalled();
     expect(topManager.stop).not.toHaveBeenCalled();
-    expect(topManager.applyLocationRule).not.toHaveBeenCalled();
+    expect(topManager.applyTarget).not.toHaveBeenCalled();
     expect(topManager.rule.transOpen).toBe("true");
-
-    const replies = parked
-      .map((entry) =>
-        entry.handler({ action: MSG_TRANS_GETRULE, targetTopFrame: true })
-      )
-      .filter((reply) => reply !== undefined);
-    expect(replies).toEqual([]);
+    expect(top.listeners).toHaveLength(0);
+    expect(child.listeners).toHaveLength(0);
   });
 
-  test("a blacklisted top frame does not park a child that misses the blacklist", async () => {
+  test("a blacklisted top frame does not pause a child that misses the blacklist", async () => {
     const topNotify = [];
     const childNotify = [];
     let topHref = "http://localhost:8765/spa-frame.html";
@@ -722,7 +814,9 @@ describe("PageRuntime", () => {
     const topManager = {
       start: jest.fn(),
       stop: jest.fn(),
-      applyLocationRule: jest.fn(),
+      pause: jest.fn(),
+      resume: jest.fn(),
+      applyTarget: jest.fn(),
       rule: { transOpen: "true" },
     };
     const top = boot({
@@ -746,13 +840,15 @@ describe("PageRuntime", () => {
 
     topHref = "http://localhost:8765/spa-frame.html/blocked";
     topNotify.forEach((onChange) => onChange());
-    expect(childNotify.length).toBeGreaterThan(0);
+    expect(childNotify).toHaveLength(1);
     await Promise.all([top.runtime.whenIdle(), child.runtime.whenIdle()]);
 
-    expect(topManager.stop).toHaveBeenCalledTimes(1);
-    expect(top.listeners).toHaveLength(1);
+    expect(topManager.pause).toHaveBeenCalledTimes(1);
+    expect(topManager.stop).not.toHaveBeenCalled();
+    expect(top.listeners).toHaveLength(0);
+    expect(childManager.pause).not.toHaveBeenCalled();
     expect(childManager.stop).not.toHaveBeenCalled();
     expect(child.listeners).toHaveLength(0);
-    expect(childManager.applyLocationRule).not.toHaveBeenCalled();
+    expect(childManager.applyTarget).not.toHaveBeenCalled();
   });
 });

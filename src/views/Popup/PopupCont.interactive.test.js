@@ -706,7 +706,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         expect(saveRule).not.toHaveBeenCalled();
         expect(processActions).toHaveBeenCalledWith({
           action: MSG_TRANS_TOGGLE,
-          args: { enabled: false, persistSite: false },
+          args: { enabled: false },
         });
         expect(
           view.container.querySelector(".kt-popup-policy-mode--active")
@@ -718,7 +718,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       }
     });
 
-    test("selecting site policy saves rule and dispatches MSG_TRANS_TOGGLE if state changes", async () => {
+    test("selecting site policy saves the rule and leaves the page switch to storage", async () => {
       const processActions = jest.fn(pageReply);
       const view = renderPopup({
         processActions,
@@ -750,10 +750,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
           transOpen: "false",
         })
       );
-      expect(processActions).toHaveBeenCalledWith({
-        action: MSG_TRANS_TOGGLE,
-        args: { enabled: false, persistSite: false },
-      });
+      expect(processActions).not.toHaveBeenCalled();
 
       view.cleanup();
     });

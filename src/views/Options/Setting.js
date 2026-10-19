@@ -297,6 +297,12 @@ export default function Settings() {
   )
     ? popupDefaultView
     : OPT_POPUP_DEFAULT_VIEW_PAGE;
+  const [blacklistDraft, setBlacklistDraft] = useState(null);
+  const blacklistValue = blacklistDraft ?? blacklist;
+  const commitBlacklist = (value) => {
+    setBlacklistDraft(null);
+    if (value !== blacklist) updateSetting({ blacklist: value });
+  };
   // 悬浮球显隐：全局开关只改 isHide，两个名单各自保持含义。
   const {
     isHide,
@@ -669,8 +675,14 @@ export default function Settings() {
           label={i18n("translate_blacklist")}
           helperText={i18n("pattern_helper")}
           name="blacklist"
-          value={blacklist}
-          onChange={handleChange}
+          value={blacklistValue}
+          onChange={(event) => setBlacklistDraft(event.target.value)}
+          onBlur={(event) => commitBlacklist(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey) return;
+            event.preventDefault();
+            commitBlacklist(event.target.value);
+          }}
           maxRows={10}
           multiline
         />

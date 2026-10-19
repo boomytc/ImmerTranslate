@@ -980,10 +980,9 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       pattern,
       transOpen: "false",
     });
-    expect(processActions).toHaveBeenCalledWith({
-      action: MSG_TRANS_TOGGLE,
-      args: { enabled: false, persistSite: false },
-    });
+    expect(processActions).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: MSG_TRANS_TOGGLE })
+    );
 
     processActions.mockClear();
     sendBgMsg.mockClear();
@@ -1009,10 +1008,9 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       pattern,
       transOpen: "*",
     });
-    expect(processActions).toHaveBeenCalledWith({
-      action: MSG_TRANS_TOGGLE,
-      args: { enabled: false, persistSite: false },
-    });
+    expect(processActions).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: MSG_TRANS_TOGGLE })
+    );
   });
 
   // Video fullscreen hides the FAB, so its menu must close too.

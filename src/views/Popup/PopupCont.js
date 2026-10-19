@@ -30,7 +30,6 @@ import { useI18n } from "../../hooks/I18n";
 import {
   API_SPE_TYPES,
   EVENT_KISS_INNER,
-  GLOBAL_KEY,
   MSG_FAB_TOGGLE,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_CURRULE,
@@ -68,7 +67,6 @@ import {
 } from "../Action/sitePolicy";
 import { browser } from "../../libs/browser";
 import { saveRule } from "../../libs/rules";
-import { effectiveTransOpen } from "../../libs/pageRuleSync";
 import { tryClearCaches } from "../../libs/cache";
 import { kissLog } from "../../libs/log";
 import { getDomainOptions, truncateMiddle } from "../../libs/url";
@@ -482,7 +480,6 @@ export default function PopupCont({
       try {
         const response = await dispatchPageAction(MSG_TRANS_TOGGLE, {
           enabled,
-          persistSite: false,
         });
         if (!activeRef.current) return;
 
@@ -983,29 +980,6 @@ export default function PopupCont({
     async (next) => {
       if (rulesLoading || !sitePattern || next === siteTransOpen) return;
       setSiteDraft(next);
-      const globalTransOpen = rules.find(
-        (item) => item.pattern === GLOBAL_KEY
-      )?.transOpen;
-      const nextRuntime = effectiveTransOpen(next, globalTransOpen);
-      const currentRuntime = rule?.transOpen === "true" ? "true" : "false";
-
-      if (canTranslatePage && nextRuntime !== currentRuntime) {
-        void Promise.resolve(
-          processActions
-            ? processActions({
-                action: MSG_TRANS_TOGGLE,
-                args: {
-                  enabled: nextRuntime === "true",
-                  persistSite: false,
-                },
-              })
-            : sendPageMessage(MSG_TRANS_TOGGLE, {
-                enabled: nextRuntime === "true",
-                persistSite: false,
-              })
-        ).catch((err) => kissLog("toggle site transOpen error", err));
-      }
-
       try {
         const response = await writeSiteTransOpen(currentHref, next, rules, {
           throughBackground: isExt && isContent,
@@ -1019,15 +993,11 @@ export default function PopupCont({
       }
     },
     [
-      canTranslatePage,
       currentHref,
       i18n,
       isContent,
-      processActions,
-      rule?.transOpen,
       rules,
       rulesLoading,
-      sendPageMessage,
       showMessage,
       sitePattern,
       siteTransOpen,
