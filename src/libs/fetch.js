@@ -65,7 +65,6 @@ export const fetchData = async (
  * @param {string} input 请求 URL。
  * @param {Object} init Fetch 初始化参数。
  * @param {Object} [options={}] 请求选项。
- * @param {boolean} [options.useCache] 是否读取本地 HTTP 缓存。
  * @param {boolean} [options.usePool] 是否进入全局请求池。
  * @param {number} [options.fetchInterval] 请求池启动间隔。
  * @param {number} [options.fetchLimit] 请求池并发限制。
@@ -75,18 +74,11 @@ export const fetchData = async (
 export async function* fetchStream(
   input,
   init,
-  { useCache, usePool, fetchInterval, fetchLimit, ...opts } = {}
+  { usePool, fetchInterval, fetchLimit, ...opts } = {}
 ) {
+  delete opts.useCache;
   if (!input?.trim()) {
     throw new Error("URL is empty");
-  }
-
-  if (useCache) {
-    const resCache = await getHttpCachePolyfill(input, init);
-    if (resCache) {
-      yield resCache;
-      return;
-    }
   }
 
   if (usePool) {

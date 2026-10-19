@@ -257,18 +257,9 @@ export const getFetchPool = (interval, limit) => {
       limit ?? DEFAULT_FETCH_LIMIT
     );
   } else if (interval && limit) {
-    updateFetchPool(interval, limit);
+    fetchPool.update(interval, limit);
   }
   return fetchPool;
-};
-
-/**
- * 更新全局请求池参数
- * @param {number} interval - 最小间隔（毫秒）
- * @param {number} limit - 并发限制数
- */
-export const updateFetchPool = (interval, limit) => {
-  fetchPool?.update(interval, limit);
 };
 
 /**
