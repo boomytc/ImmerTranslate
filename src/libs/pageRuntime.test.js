@@ -31,7 +31,19 @@ jest.mock("./subRules", () => ({
   loadOrFetchSubRules: jest.fn(),
 }));
 
-const { PageRuntime, watchPageLocation } = require("./pageRuntime");
+const {
+  PageRuntime,
+  watchPageLocation,
+  withFeatureBlacklists,
+} = require("./pageRuntime");
+
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+}
 const { LOCATION_CHANGE_EVENT } = require("./locationHook");
 
 const MSG_TRANS_GETRULE = "trans_getrule";
@@ -364,6 +376,97 @@ describe("PageRuntime", () => {
     expect(translator.updateRule).toHaveBeenCalledWith(
       expect.objectContaining({ selector: "p", transOpen: "false" })
     );
+  });
+
+  test("withFeatureBlacklists leaves a frozen stored setting unchanged", () => {
+    const stored = deepFreeze({
+      blacklist: "",
+      tranboxSetting: { transOpen: true, blacklist: "feature-off" },
+      inputRule: { transOpen: true, blacklist: "feature-off" },
+      mouseHoverSetting: { useMouseHover: true, blacklist: "feature-off" },
+    });
+    const blocked = withFeatureBlacklists(
+      stored,
+      "http://localhost/feature-off/page"
+    );
+    const open = withFeatureBlacklists(stored, "http://localhost/clear-page");
+    expect(blocked.tranboxSetting.transOpen).toBe(false);
+    expect(blocked.inputRule.transOpen).toBe(false);
+    expect(blocked.mouseHoverSetting.useMouseHover).toBe(false);
+    expect(open.tranboxSetting.transOpen).toBe(true);
+    expect(open.inputRule.transOpen).toBe(true);
+    expect(open.mouseHoverSetting.useMouseHover).toBe(true);
+    expect(stored.tranboxSetting.transOpen).toBe(true);
+    expect(stored.inputRule.transOpen).toBe(true);
+    expect(stored.mouseHoverSetting.useMouseHover).toBe(true);
+    expect(blocked).not.toBe(stored);
+    expect(blocked.tranboxSetting).not.toBe(stored.tranboxSetting);
+  });
+
+  test("leaving a feature blacklist restores selection input and hover and returning turns them off", async () => {
+    window.history.pushState({}, "", "/feature-off/page");
+    const stored = deepFreeze({
+      blacklist: "",
+      tranboxSetting: { transOpen: true, blacklist: "feature-off" },
+      inputRule: { transOpen: true, blacklist: "feature-off" },
+      mouseHoverSetting: { useMouseHover: true, blacklist: "feature-off" },
+    });
+    const manager = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      applyLocationRule: jest.fn(),
+      rule: { transOpen: "false" },
+    };
+    const harness = boot({
+      manager,
+      setting: stored,
+      rule: { transOpen: "false", selector: "p" },
+      matchRule: async () => ({ transOpen: "false", selector: "p" }),
+    });
+    await harness.runtime.start();
+    expect(manager.applyLocationRule).not.toHaveBeenCalled();
+    expect(stored.tranboxSetting.transOpen).toBe(true);
+    expect(stored.inputRule.transOpen).toBe(true);
+    expect(stored.mouseHoverSetting.useMouseHover).toBe(true);
+
+    goViaPage("/clear-page");
+    await harness.runtime.whenIdle();
+    expect(manager.applyLocationRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        policy: null,
+        setting: {
+          fields: expect.objectContaining({
+            tranboxSetting: expect.objectContaining({ transOpen: true }),
+            inputRule: expect.objectContaining({ transOpen: true }),
+            mouseHoverSetting: expect.objectContaining({
+              useMouseHover: true,
+            }),
+          }),
+          switches: { tranbox: true, input: true, hover: true },
+        },
+      })
+    );
+
+    goViaPage("/feature-off/back");
+    await harness.runtime.whenIdle();
+    expect(manager.applyLocationRule).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        policy: null,
+        setting: {
+          fields: expect.objectContaining({
+            tranboxSetting: expect.objectContaining({ transOpen: false }),
+            inputRule: expect.objectContaining({ transOpen: false }),
+            mouseHoverSetting: expect.objectContaining({
+              useMouseHover: false,
+            }),
+          }),
+          switches: { tranbox: false, input: false, hover: false },
+        },
+      })
+    );
+    expect(stored.tranboxSetting.transOpen).toBe(true);
+    expect(stored.inputRule.transOpen).toBe(true);
+    expect(stored.mouseHoverSetting.useMouseHover).toBe(true);
   });
 
   test("a feature blacklist edit is applied without changing the translation switch", async () => {

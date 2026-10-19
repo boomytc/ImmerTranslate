@@ -5,7 +5,8 @@ import {
   STOKEY_SETTING,
 } from "../config";
 import { browser } from "./browser";
-import { isInBlacklist, matchingBlacklistEntries } from "./blacklist";
+import { matchingBlacklistEntries } from "./blacklist";
+import { withFeatureBlacklists } from "./featureBlacklists";
 import { isExt, isGm } from "./client";
 import {
   applyParentRuntime,
@@ -55,24 +56,7 @@ export function watchPageLocation(onChange) {
   };
 }
 
-export function withFeatureBlacklists(setting, href) {
-  const next = {
-    ...(setting || {}),
-    tranboxSetting: { ...(setting?.tranboxSetting || {}) },
-    inputRule: { ...(setting?.inputRule || {}) },
-    mouseHoverSetting: { ...(setting?.mouseHoverSetting || {}) },
-  };
-  if (isInBlacklist(href, next.tranboxSetting.blacklist)) {
-    next.tranboxSetting.transOpen = false;
-  }
-  if (isInBlacklist(href, next.inputRule.blacklist)) {
-    next.inputRule.transOpen = false;
-  }
-  if (isInBlacklist(href, next.mouseHoverSetting.blacklist)) {
-    next.mouseHoverSetting.useMouseHover = false;
-  }
-  return next;
-}
+export { withFeatureBlacklists } from "./featureBlacklists";
 
 export function parkedPageResponse({ rule, setting, href, isIframe = false }) {
   const identity = getPopupDocumentIdentity();
@@ -183,6 +167,10 @@ export class PageRuntime {
       this.#setting?.blacklist,
       this.#href
     ).length;
+    // 已有管理器时，基线是当前网址折出来的那份，不是被改过的存储对象。
+    if (this.#manager && !blocked) {
+      this.#appliedSetting = withFeatureBlacklists(this.#setting, this.#href);
+    }
     const ready =
       blocked || !this.#manager ? this.requestReconcile() : Promise.resolve();
     ensureLocationHook();

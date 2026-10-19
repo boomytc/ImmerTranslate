@@ -11,7 +11,8 @@ import { genEventName } from "./libs/utils";
 import { handlePing, injectScript } from "./libs/gm";
 import { matchRule } from "./libs/rules";
 import { trySyncAllSubRules } from "./libs/subRules";
-import { isInBlacklist, matchingBlacklistEntries } from "./libs/blacklist";
+import { matchingBlacklistEntries } from "./libs/blacklist";
+import { withFeatureBlacklists } from "./libs/featureBlacklists";
 import { startPageRuntime } from "./libs/pageRuntime";
 import { runSubtitle } from "./subtitle/subtitle";
 import { logger } from "./libs/log";
@@ -314,25 +315,15 @@ export async function run(isUserscript = false) {
       return;
     }
 
-    // 6. 细粒度划词/输入框/鼠标悬停组件的专属黑名单拦截，若命中则单独禁用该交互组件
-    if (isInBlacklist(href, setting.tranboxSetting?.blacklist)) {
-      setting.tranboxSetting.transOpen = false;
-    }
-
-    if (isInBlacklist(href, setting.inputRule?.blacklist)) {
-      setting.inputRule.transOpen = false;
-    }
-
-    if (isInBlacklist(href, setting.mouseHoverSetting?.blacklist)) {
-      setting.mouseHoverSetting.useMouseHover = false;
-    }
+    // 6. 划词、输入、悬停按当前网址另算一份。存储原值留给 PageRuntime，不在这里改。
+    const pageSetting = withFeatureBlacklists(setting, href);
 
     // 7. 匹配当前网页专用的规则 (三级规则合并：个人 > 订阅 > 内置全局)
     // www/new/sh 的子 frame（GIS iframe、about:blank）自己的 href 匹配不到站点规则，
     // 会退回全局 autoScan，把 frame 里的按钮文案译掉。改用外层页面 URL 选同一条规则。
     // 顶层帖文 document 仍用自己的 href。黑名单继续看子 frame 自己的地址。
     const ruleHref = readRedditEmbeddingHref(window, isIframe) || href;
-    const rule = await matchRule(ruleHref, setting);
+    const rule = await matchRule(ruleHref, pageSetting);
     const favWords = await getFavWords(rule);
     // 读出的配置已经是 hiddenSites / shownSites。页面是否显示由 isFabVisible
     // 按当前网址计算，这里不再改写 isHide。
@@ -340,7 +331,7 @@ export async function run(isUserscript = false) {
 
     // 8. 创建翻译调度器管理器并启动
     const translatorManager = new TranslatorManager({
-      setting,
+      setting: pageSetting,
       rule,
       fabConfig,
       favWords,
@@ -349,7 +340,7 @@ export async function run(isUserscript = false) {
       transboxOnly: isPdfDocument,
     });
     translatorManager.start();
-    startSideEffects({ href, setting, rule });
+    startSideEffects({ href, setting: pageSetting, rule });
     await startPageRuntime({
       ...runtimeOptions,
       manager: translatorManager,

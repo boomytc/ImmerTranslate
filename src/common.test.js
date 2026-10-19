@@ -237,6 +237,41 @@ describe("common iframe startup", () => {
     expect(runSubtitle).toHaveBeenCalledTimes(1);
   });
 
+  test("folds feature blacklists into a new setting and keeps the stored values", async () => {
+    const stored = {
+      blacklist: "",
+      tranboxSetting: { blacklist: "feature-off", transOpen: true },
+      inputRule: { blacklist: "feature-off", transOpen: true },
+      mouseHoverSetting: { blacklist: "feature-off", useMouseHover: true },
+      logLevel: 1,
+    };
+    const freeze = (value) => {
+      if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+        return value;
+      }
+      Object.values(value).forEach(freeze);
+      return Object.freeze(value);
+    };
+    freeze(stored);
+    getSettingWithDefault.mockResolvedValue(stored);
+    isInBlacklist.mockImplementation(
+      (_href, blacklist) => blacklist === "feature-off"
+    );
+
+    await run();
+
+    const managerSetting = TranslatorManager.mock.calls[0][0].setting;
+    expect(managerSetting).not.toBe(stored);
+    expect(managerSetting.tranboxSetting.transOpen).toBe(false);
+    expect(managerSetting.inputRule.transOpen).toBe(false);
+    expect(managerSetting.mouseHoverSetting.useMouseHover).toBe(false);
+    const runtimeSetting = mockStartPageRuntime.mock.calls.at(-1)[0].setting;
+    expect(runtimeSetting).toBe(stored);
+    expect(stored.tranboxSetting.transOpen).toBe(true);
+    expect(stored.inputRule.transOpen).toBe(true);
+    expect(stored.mouseHoverSetting.useMouseHover).toBe(true);
+  });
+
   test("passes a normalized FAB config through when hiddenSites lists the page", async () => {
     getFabWithDefault.mockResolvedValue({
       isHide: false,
