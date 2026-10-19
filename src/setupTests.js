@@ -5,4 +5,8 @@ if (typeof globalThis !== "undefined") {
   globalThis.Translator = globalThis.Translator || {
     availability: () => Promise.resolve("readily"),
   };
+  if (typeof globalThis.structuredClone !== "function") {
+    globalThis.structuredClone =
+      require("vm").runInThisContext("structuredClone");
+  }
 }
