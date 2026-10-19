@@ -213,6 +213,9 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
     clearEffects() {
       for (const name of MENU_EFFECTS) this[name].mockClear();
     },
+    actionIds() {
+      return vm.runInContext("Object.keys(contextMenuActions)", context);
+    },
   };
 }
 
@@ -420,12 +423,13 @@ describe("context menu registration", () => {
 
 describe("context menu clicks", () => {
   test("every created menu id sends its message in both modes", async () => {
+    const created = new Set();
     for (const type of [1, 2]) {
       const harness = createHarness();
       await drain(harness, harness.add(type));
-      expect(harness.items.length).toBeGreaterThan(0);
 
       for (const item of harness.items) {
+        if (item.type !== "separator") created.add(item.id);
         harness.clearEffects();
         harness.click({
           menuItemId: item.id,
@@ -434,22 +438,18 @@ describe("context menu clicks", () => {
         expectMenuClick(harness, item.id);
       }
     }
+
+    const harness = createHarness();
+    expect(harness.actionIds().sort()).toEqual([...created].sort());
   });
 
-  test("onClicked ignores CMD_TOGGLE_TRANBOX", async () => {
-    for (const type of [1, 2]) {
-      const harness = createHarness();
-      await drain(harness, harness.add(type));
-      expect(harness.items.map((item) => item.id)).not.toContain(
-        CMD_TOGGLE_TRANBOX
-      );
-
-      harness.click({
-        menuItemId: CMD_TOGGLE_TRANBOX,
-        selectionText: "selected words",
-      });
-      expectNoMenuMessage(harness);
-    }
+  test("onClicked ignores CMD_TOGGLE_TRANBOX", () => {
+    const harness = createHarness();
+    harness.click({
+      menuItemId: CMD_TOGGLE_TRANBOX,
+      selectionText: "selected words",
+    });
+    expectNoMenuMessage(harness);
   });
 });
 
