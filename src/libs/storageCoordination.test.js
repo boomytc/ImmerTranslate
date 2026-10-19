@@ -576,6 +576,78 @@ describe("storage transaction coordination", () => {
     await expect(next).resolves.toBe("retried");
   });
 
+  test("releases a held or queued port when its page enters the back/forward cache", async () => {
+    const enterBackForwardCache = () =>
+      window.dispatchEvent(
+        new PageTransitionEvent("pagehide", { persisted: true })
+      );
+    const expectUnlocked = async (write) => {
+      let timer;
+      const hung = new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("bfcache page kept the storage lock")),
+          400
+        );
+      });
+      try {
+        await Promise.race([write, hung]);
+      } finally {
+        clearTimeout(timer);
+      }
+      await expect(write).resolves.toBe("popup");
+    };
+
+    const queuedRuntime = createRuntime();
+    const queuedBackground = loadCoordinator({
+      runtime: queuedRuntime,
+      background: true,
+    });
+    queuedBackground.installStorageCoordinator();
+    const releaseBackground = deferred();
+    const backgroundWrite = queuedBackground.withStorageLock(
+      () => releaseBackground.promise
+    );
+    const cachedPage = loadCoordinator({ runtime: queuedRuntime });
+    const queuedOperation = jest.fn(() => "queued");
+    const queuedWrite = cachedPage.withStorageLock(queuedOperation);
+    const queuedResult = queuedWrite.catch((error) => error);
+    await flushPromises();
+    // The queued port is not granted yet. pagehide is the last chance to run
+    // before Chrome freezes the page; this does not emit onDisconnect itself.
+    enterBackForwardCache();
+    releaseBackground.resolve();
+    await backgroundWrite;
+    await expectUnlocked(
+      loadCoordinator({ runtime: queuedRuntime }).withStorageLock(() => "popup")
+    );
+    expect(queuedOperation).not.toHaveBeenCalled();
+    expect(await queuedResult).toMatchObject({
+      message: expect.stringMatching(/disconnect/i),
+      storageOutcome: "not-committed",
+    });
+
+    const heldRuntime = createRuntime();
+    loadCoordinator({
+      runtime: heldRuntime,
+      background: true,
+    }).installStorageCoordinator();
+    const heldPage = loadCoordinator({ runtime: heldRuntime });
+    const heldWrite = heldPage.withStorageLock(() => new Promise(() => {}));
+    const heldResult = heldWrite.catch((error) => error);
+    await flushPromises();
+    enterBackForwardCache();
+    await expectUnlocked(
+      loadCoordinator({ runtime: heldRuntime }).withStorageLock(() => "popup")
+    );
+    expect(await heldResult).toMatchObject({
+      message: expect.stringMatching(/disconnect/i),
+      storageOutcome: "not-committed",
+    });
+    await expect(heldPage.withStorageLock(() => "restored")).resolves.toBe(
+      "restored"
+    );
+  });
+
   test("gives the next queued request the lock when the holder hides into the back/forward cache", async () => {
     const holderEvents = new EventTarget();
     const nextEvents = new EventTarget();
