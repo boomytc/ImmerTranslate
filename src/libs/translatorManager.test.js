@@ -880,58 +880,58 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(mockTransboxInstances[0].isEnabled()).toBe(false);
   });
 
-  test("applies an explicit page translation state without double toggling", () => {
-    const manager = createManager();
+  test("a toggle without a page runtime changes nothing", () => {
+    const manager = createManager({ rule: { transOpen: "true" } });
     manager.start();
+    const { processActions } = PopupManager.mock.calls.at(-1)[0];
 
-    const runtimeHandler =
-      browser.runtime.onMessage.addListener.mock.calls[0][0];
-    runtimeHandler(
-      { action: "trans-toggle", args: { enabled: false } },
-      {},
-      jest.fn()
-    );
-    runtimeHandler(
-      { action: "trans-toggle", args: { enabled: true } },
-      {},
-      jest.fn()
-    );
+    processActions({ action: "trans-toggle", args: { enabled: false } });
+    processActions({ action: "trans-toggle", args: { enabled: true } });
+    processActions({ action: "trans-toggle" });
 
-    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
-  });
-
-  test("computes one target when no translation state is supplied", () => {
-    const manager = createManager();
-    manager.start();
-
-    const runtimeHandler =
-      browser.runtime.onMessage.addListener.mock.calls[0][0];
-    runtimeHandler({ action: "trans-toggle" }, {}, jest.fn());
-
-    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
     expect(sendIframeMsg).not.toHaveBeenCalled();
+    expect(processActions({ action: "trans-getrule" }).pageSwitch).toBeNull();
   });
 
-  test("forwards that target to child frames and they converge", () => {
-    const top = createManager({ rule: { transOpen: "true" } });
+  test("the top frame broadcasts the page switch and child frames follow it", () => {
+    const topRuntime = jest.fn(() => {
+      top.applyTarget({
+        state: "off",
+        rule: { transOpen: "false" },
+      });
+    });
+    const top = createManager({
+      rule: { transOpen: "true" },
+      pageSwitch: "on",
+      onManualSwitch: topRuntime,
+    });
     top.start();
     const { processActions } = PopupManager.mock.calls.at(-1)[0];
     processActions({ action: "trans-toggle" });
+    expect(topRuntime).toHaveBeenCalledWith(undefined);
     expect(sendIframeMsg).toHaveBeenCalledWith("trans-toggle", {
       enabled: false,
     });
+    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
 
+    const childOnRuntime = jest.fn();
+    const childOffRuntime = jest.fn();
     const childOn = createManager({
       isIframe: true,
       rule: { transOpen: "true" },
+      pageSwitch: "on",
+      onManualSwitch: childOnRuntime,
     });
     childOn.start();
     const childOff = createManager({
       isIframe: true,
       rule: { transOpen: "false" },
+      pageSwitch: "off",
+      onManualSwitch: childOffRuntime,
     });
     childOff.start();
     const handlers = browser.runtime.onMessage.addListener.mock.calls;
@@ -945,12 +945,18 @@ describe("TranslatorManager SPA lifecycle", () => {
       {},
       jest.fn()
     );
+    handlers.at(-2)[0]({ action: "trans-toggle" }, {}, jest.fn());
+    handlers.at(-1)[0]({ action: "trans-toggle" }, {}, jest.fn());
 
-    expect(mockTranslatorInstances.at(-2).disable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances.at(-1).disable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances.at(-2).toggle).not.toHaveBeenCalled();
+    expect(childOnRuntime).toHaveBeenCalledTimes(1);
+    expect(childOnRuntime).toHaveBeenCalledWith(false);
+    expect(childOffRuntime).toHaveBeenCalledTimes(1);
+    expect(childOffRuntime).toHaveBeenCalledWith(false);
+    expect(mockTranslatorInstances.at(-2).enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances.at(-2).disable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances.at(-1).enable).not.toHaveBeenCalled();
-    expect(mockTranslatorInstances.at(-1).toggle).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances.at(-1).disable).not.toHaveBeenCalled();
+    expect(sendIframeMsg).toHaveBeenCalledTimes(1);
   });
 
   test("applies explicit feature states without flipping them on replay", () => {
@@ -1107,8 +1113,13 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(response.error).toBeUndefined();
       expect(response.isTopFrame).toBe(false);
     }
-    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: false } });
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: true } });
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
     expect(mockTransboxInstances[0].toggle).toHaveBeenCalledTimes(1);
     expect(mockTranslatorInstances[0].toggleMouseHover).toHaveBeenCalledTimes(
       1
@@ -1285,9 +1296,8 @@ describe("TranslatorManager SPA lifecycle", () => {
             })
           );
         }
-        expect(mockTranslatorInstances[index].enable).toHaveBeenCalledTimes(
-          selected ? 1 : 0
-        );
+        expect(mockTranslatorInstances[index].enable).not.toHaveBeenCalled();
+        expect(mockTranslatorInstances[index].disable).not.toHaveBeenCalled();
       }
       expect(sendIframeMsg).not.toHaveBeenCalled();
     }
@@ -1304,7 +1314,7 @@ describe("TranslatorManager SPA lifecycle", () => {
       const manager = createManager({ isIframe: true });
       manager.start();
       await flushMutationObserver();
-      mockTranslatorInstances[0].enable.mockImplementation(() => {
+      mockTransboxInstances[0].enable.mockImplementation(() => {
         throw new Error("Translation initialization failed.");
       });
       const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
@@ -1313,7 +1323,7 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(
         handler(
           {
-            action: throws ? "trans-toggle" : "transinput-toggle",
+            action: throws ? "transbox-toggle" : "transinput-toggle",
             args: { enabled: true },
             responseDocumentToken: selected
               ? "current-document"
@@ -1331,9 +1341,10 @@ describe("TranslatorManager SPA lifecycle", () => {
             : "Message action is unavailable in this frame: transinput-toggle",
         });
       }
-      expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(
+      expect(mockTransboxInstances[0].enable).toHaveBeenCalledTimes(
         selected && throws ? 1 : 0
       );
+      expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
     }
   );
 
@@ -1361,7 +1372,8 @@ describe("TranslatorManager SPA lifecycle", () => {
       await expect(response).resolves.toMatchObject({
         document: { token: "current-document" },
       });
-      expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+      expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+      expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
       expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
       expect(sendIframeMsg).not.toHaveBeenCalled();
     }

@@ -1131,26 +1131,19 @@ export default class TranslatorManager {
     let publishRule = false;
     switch (action) {
       case MSG_TRANS_TOGGLE: {
-        if (this.#pageSwitch === PAGE_SWITCH.PAUSED) break;
-        const explicit = typeof args?.enabled === "boolean";
-        let enabled = explicit ? args.enabled : null;
-        if (this.#onManualSwitch) {
-          this.#onManualSwitch(explicit ? args.enabled : undefined);
-          if (this.#pageSwitch === PAGE_SWITCH.ON) enabled = true;
-          else if (this.#pageSwitch === PAGE_SWITCH.OFF) enabled = false;
-          else enabled = null;
-        } else {
-          const currentlyOn =
-            this.#pageSwitch === PAGE_SWITCH.ON ||
-            (this.#pageSwitch == null &&
-              this._translator?.rule?.transOpen === "true");
-          enabled = explicit ? args.enabled : !currentlyOn;
-          if (enabled) this._translator?.enable();
-          else this._translator?.disable();
-          this.#pageSwitch = enabled ? PAGE_SWITCH.ON : PAGE_SWITCH.OFF;
+        // 唯一路径：交给页面运行时。子框架只接受顶层广播来的 enabled。
+        // 没有运行时，或开关还未知，直接结束，不读折叠后的 rule.transOpen。
+        if (this.#pageSwitch === PAGE_SWITCH.PAUSED || !this.#onManualSwitch) {
+          break;
         }
+        const explicit = typeof args?.enabled === "boolean";
+        if (this.#isIframe && !explicit) break;
+        this.#onManualSwitch(explicit ? args.enabled : undefined);
+        let enabled = null;
+        if (this.#pageSwitch === PAGE_SWITCH.ON) enabled = true;
+        else if (this.#pageSwitch === PAGE_SWITCH.OFF) enabled = false;
         if (!fromExt && typeof enabled === "boolean") {
-          sendIframeMsg(MSG_TRANS_TOGGLE, { ...(args || {}), enabled });
+          sendIframeMsg(MSG_TRANS_TOGGLE, { enabled });
         }
         publishRule = true;
         break;
