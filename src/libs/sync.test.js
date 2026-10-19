@@ -8,8 +8,6 @@ jest.mock("../config", () => ({
   STOKEY_RULES: "rules",
   STOKEY_WORDS: "words",
   STOKEY_SYNC: "sync",
-  KV_RULES_SHARE_KEY: "kiss-rules-share_v2.json",
-  KV_SALT_SHARE: "share-salt",
   OPT_SYNCTYPE_WEBDAV: "WebDAV",
   OPT_SYNCTYPE_GIST: "GitHub Gist",
 }));
@@ -31,7 +29,6 @@ jest.mock("./storage", () => ({
 }));
 
 jest.mock("../apis", () => ({
-  apiSyncData: jest.fn(),
   apiCreateGist: jest.fn(),
   apiListGists: jest.fn(),
   apiGetGist: jest.fn(),
@@ -659,6 +656,42 @@ describe("GitHub Gist sync", () => {
     expect(encryptSyncValue).not.toHaveBeenCalledWith(
       JSON.stringify({ setting: true }),
       "stale-local-passphrase"
+    );
+  });
+});
+
+describe("removed sync types", () => {
+  beforeEach(() => {
+    encryptSyncValue.mockImplementation((value) =>
+      Promise.resolve(`cipher:${Buffer.from(value).toString("base64")}`)
+    );
+    decryptSyncValue.mockImplementation((value) =>
+      Promise.resolve({
+        value: Buffer.from(value.slice("cipher:".length), "base64").toString(),
+        encrypted: true,
+      })
+    );
+  });
+
+  test("rejects a stored worker sync type without calling WebDAV or Gist", async () => {
+    getSyncWithDefault.mockResolvedValue({
+      syncType: "KISS-Worker",
+      syncUrl: "https://sync.example",
+      syncUser: "user",
+      syncKey: SYNC_KEY,
+      syncEncryptKey: SYNC_ENCRYPT_KEY,
+      syncMeta: {},
+    });
+
+    await expect(syncData(SETTING_KEY, { local: true })).rejects.toThrow(
+      "unsupported sync type: KISS-Worker"
+    );
+    expect(createClient).not.toHaveBeenCalled();
+    expect(apiCreateGist).not.toHaveBeenCalled();
+    expect(apiGetGist).not.toHaveBeenCalled();
+    expect(apiUpdateGistFile).not.toHaveBeenCalled();
+    expect(putSync).not.toHaveBeenCalledWith(
+      expect.objectContaining({ syncType: expect.anything() })
     );
   });
 });

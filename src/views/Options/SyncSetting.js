@@ -15,10 +15,8 @@ import DialogTitle from "@mui/material/DialogTitle";
 import FormHelperText from "@mui/material/FormHelperText";
 import InputAdornment from "@mui/material/InputAdornment";
 import {
-  URL_KISS_WORKER,
   URL_GITHUB_GIST_TOKEN,
   OPT_SYNCTYPE_ALL,
-  OPT_SYNCTYPE_WORKER,
   OPT_SYNCTYPE_WEBDAV,
   OPT_SYNCTYPE_GIST,
   OPT_SYNCTOKEN_PERFIX,
@@ -33,7 +31,6 @@ import SyncIcon from "@mui/icons-material/Sync";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import EditIcon from "@mui/icons-material/Edit";
-import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded";
 import FolderSharedRoundedIcon from "@mui/icons-material/FolderSharedRounded";
 import CodeRoundedIcon from "@mui/icons-material/CodeRounded";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -47,11 +44,6 @@ const SYNC_METHOD_METADATA = {
   [OPT_SYNCTYPE_GIST]: {
     Icon: CodeRoundedIcon,
     descriptionKey: "sync_method_gist_description",
-  },
-  [OPT_SYNCTYPE_WORKER]: {
-    Icon: CloudSyncRoundedIcon,
-    descriptionKey: "sync_method_worker_description",
-    nameKey: "sync_method_worker_name",
   },
 };
 
@@ -295,7 +287,7 @@ export default function SyncSetting() {
   }
 
   const {
-    syncType = OPT_SYNCTYPE_WORKER,
+    syncType = OPT_SYNCTYPE_WEBDAV,
     syncUrl = "",
     syncUser = "",
     syncKey = "",
@@ -329,8 +321,7 @@ export default function SyncSetting() {
           aria-label={i18n("data_sync_type")}
         >
           {OPT_SYNCTYPE_ALL.map((item, index) => {
-            const { Icon, descriptionKey, nameKey } =
-              SYNC_METHOD_METADATA[item];
+            const { Icon, descriptionKey } = SYNC_METHOD_METADATA[item];
             return (
               <button
                 type="button"
@@ -347,9 +338,7 @@ export default function SyncSetting() {
                 onKeyDown={(event) => handleSyncTypeKeyDown(event, index)}
               >
                 <Icon />
-                <span className="kt-sync-method__name">
-                  {nameKey ? i18n(nameKey) : item}
-                </span>
+                <span className="kt-sync-method__name">{item}</span>
                 <span className="kt-sync-method__description">
                   {i18n(descriptionKey)}
                 </span>
@@ -371,13 +360,6 @@ export default function SyncSetting() {
             name="syncUrl"
             value={syncUrl}
             onChange={handleChange}
-            helperText={
-              syncType === OPT_SYNCTYPE_WORKER && (
-                <Link href={URL_KISS_WORKER} target="_blank">
-                  {i18n("about_sync_api")}
-                </Link>
-              )
-            }
           />
         )}
 
@@ -392,7 +374,7 @@ export default function SyncSetting() {
           />
         )}
 
-        {/* 云端数据访问密码或 Worker 同步密钥 */}
+        {/* 云端数据访问密码或 Gist Token */}
         <TextField
           size="small"
           type={showSyncKey ? "text" : "password"}

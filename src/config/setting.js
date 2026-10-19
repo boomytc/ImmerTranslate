@@ -54,17 +54,12 @@ export const DEFAULT_CSPLIST = []; // 默认禁用 CSP 安全策略的网址列�
 export const DEFAULT_ORILIST = ["https://dict.youdao.com"]; // 默认在跨域请求中需要重写 Origin 请求头的域名
 
 // --- 配置同步设置 ---
-export const OPT_SYNCTYPE_WORKER = "KISS-Worker"; // 自建 Cloudflare Worker 同步方案
 export const OPT_SYNCTYPE_WEBDAV = "WebDAV"; // 通用 WebDAV 网盘同步方案
 export const OPT_SYNCTYPE_GIST = "GitHub Gist"; // GitHub Gist 同步方案
-export const OPT_SYNCTOKEN_PERFIX = "kt_"; // 自建同步服务的 Token 前缀
-export const OPT_SYNCTYPE_ALL = [
-  OPT_SYNCTYPE_WORKER,
-  OPT_SYNCTYPE_WEBDAV,
-  OPT_SYNCTYPE_GIST,
-];
+export const OPT_SYNCTOKEN_PERFIX = "kt_"; // 同步配置分享口令前缀
+export const OPT_SYNCTYPE_ALL = [OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_GIST];
 export const DEFAULT_SYNC = {
-  syncType: OPT_SYNCTYPE_WORKER, // 默认同步方式
+  syncType: OPT_SYNCTYPE_WEBDAV, // 默认同步方式
   syncUrl: "", // 数据同步服务器端点
   syncUser: "", // 同步用户名
   syncKey: "", // 同步密码或 Token
