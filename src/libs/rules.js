@@ -15,13 +15,6 @@ import {
   OPT_SPLIT_PARAGRAPH_ALL,
   OPT_HIGHLIGHT_WORDS_ALL,
 } from "../config";
-import {
-  SCRIPT_SOURCE_BUILTIN,
-  SCRIPT_SOURCE_PERSONAL,
-  assignScriptSources,
-  mergeRuleScriptFields,
-  withScriptSources,
-} from "./ruleScript";
 import { getRulesWithDefault, saveEdit } from "./storage";
 import { trySyncRules } from "./sync";
 import { kissLog } from "./log";
@@ -135,13 +128,7 @@ export const findMatchingRule = (rules, href) => {
  * @param {Object} overrideRule 覆盖高优先级规则
  * @returns {Object} 合并后的最终规则
  */
-const copyRule = (rule) => {
-  const merged = { ...rule };
-  if (merged.scriptFieldOrigins) {
-    merged.scriptFieldOrigins = { ...merged.scriptFieldOrigins };
-  }
-  return merged;
-};
+const copyRule = (rule) => ({ ...rule });
 
 export const mergeRules = (baseRule, overrideRule) => {
   if (!overrideRule) return copyRule(baseRule);
@@ -176,10 +163,6 @@ export const mergeRules = (baseRule, overrideRule) => {
       merged[key] = overrideRule[key];
     }
   });
-
-  // 脚本字段单独合并，并在返回前记下每个字段的来源。
-  // 订阅里的文本保留，执行点用 scriptFieldOrigins 决定是否运行。
-  mergeRuleScriptFields(merged, overrideRule);
 
   // 3. 合并枚举类型的属性，若高优先级属性为星号 '*' 则继续继承，否则直接覆盖
   [
@@ -220,7 +203,7 @@ export const mergeRules = (baseRule, overrideRule) => {
     merged.pattern = overrideRule.pattern;
   }
 
-  return assignScriptSources(merged, baseRule, overrideRule);
+  return merged;
 };
 
 /** Resolve rule precedence without storage access or network requests. */
@@ -250,20 +233,8 @@ export const deriveRuleContext = (href, { personalRules }, sitePattern) => {
 
   const matchedBuiltinRule = findMatchingRule(BUILTIN_RULES, href) || null;
 
-  // 来源只打在合并用的副本上。返回的 personal / global
-  // 仍是存储里的原对象，避免编辑器把来源标记当成规则冲突。
-  const inherited = mergeRules(
-    withScriptSources(globalRule, SCRIPT_SOURCE_PERSONAL),
-    matchedBuiltinRule
-      ? withScriptSources(matchedBuiltinRule, SCRIPT_SOURCE_BUILTIN)
-      : null
-  );
-  const finalRule = mergeRules(
-    inherited,
-    matchedPersonalRule
-      ? withScriptSources(matchedPersonalRule, SCRIPT_SOURCE_PERSONAL)
-      : null
-  );
+  const inherited = mergeRules(globalRule, matchedBuiltinRule || null);
+  const finalRule = mergeRules(inherited, matchedPersonalRule || null);
 
   return {
     effective: finalRule,
@@ -271,12 +242,7 @@ export const deriveRuleContext = (href, { personalRules }, sitePattern) => {
     // Restore the page rule after previewing an off-page rule.
     pageEffective:
       matchedPersonalRule !== activePersonalRule
-        ? mergeRules(
-            inherited,
-            activePersonalRule
-              ? withScriptSources(activePersonalRule, SCRIPT_SOURCE_PERSONAL)
-              : null
-          )
+        ? mergeRules(inherited, activePersonalRule || null)
         : null,
     personal: matchedPersonalRule || null,
     global: globalRule,
@@ -341,7 +307,6 @@ export const checkRules = (rules) => {
         selectStyle,
         parentStyle,
         grandStyle,
-        injectJs,
         injectCss,
         apiSlug,
         fromLang,
@@ -361,8 +326,6 @@ export const checkRules = (rules) => {
         isPlainText,
         transTag,
         transTitle,
-        transStartHook,
-        transEndHook,
         splitParagraph,
         splitLength,
         highlightWords,
@@ -383,7 +346,6 @@ export const checkRules = (rules) => {
         selectStyle: type(selectStyle) === "string" ? selectStyle : "",
         parentStyle: type(parentStyle) === "string" ? parentStyle : "",
         grandStyle: type(grandStyle) === "string" ? grandStyle : "",
-        injectJs: type(injectJs) === "string" ? injectJs : "",
         injectCss: type(injectCss) === "string" ? injectCss : "",
         apiSlug:
           type(apiSlug) === "string" && apiSlug.trim() !== ""
@@ -432,8 +394,6 @@ export const checkRules = (rules) => {
         isPlainText: matchValue([GLOBAL_KEY, "true", "false"], isPlainText),
         transTag: matchValue([GLOBAL_KEY, "span", "font"], transTag),
         transTitle: matchValue([GLOBAL_KEY, "true", "false"], transTitle),
-        transStartHook: type(transStartHook) === "string" ? transStartHook : "",
-        transEndHook: type(transEndHook) === "string" ? transEndHook : "",
         splitParagraph: matchValue(
           [GLOBAL_KEY, ...OPT_SPLIT_PARAGRAPH_ALL],
           splitParagraph

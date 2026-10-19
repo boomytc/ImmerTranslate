@@ -112,7 +112,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     selectStyle = "", // 针对特定选择器的样式
     parentStyle = "", // 针对选择器父元素的样式
     grandStyle = "", // 针对选择器祖父元素的样式
-    injectJs = "", // 页面注入 JS 脚本
     injectCss = "", // 页面注入 CSS 样式
     apiSlug, // 指定的翻译服务标识
     fromLang, // 源语言
@@ -133,8 +132,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     isPlainText = "false", // 是否启用 <pre> 纯文本翻译
     transTag = DEFAULT_TRANS_TAG, // 翻译结果容器标签 (span / font)
     transTitle = "false", // 是否翻译网页标题
-    transStartHook = "", // 翻译开始前的钩子函数
-    transEndHook = "", // 翻译结束后的钩子函数
     splitParagraph = OPT_SPLIT_PARAGRAPH_DISABLE, // 段落切分策略
     splitLength = 0, // 段落切分最大长度
     highlightWords = OPT_HIGHLIGHT_WORDS_DISABLE, // 单词高亮策略
@@ -546,20 +543,22 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               </TextField>
             </Grid>
 
-            {/* 悬停恢复原文延迟时长配置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                size="small"
-                fullWidth
-                name="transOnlyRevertDelay"
-                value={transOnlyRevertDelay}
-                label={i18n("transonly_revert_delay")}
-                disabled={disabled}
-                onChange={handleChange}
-                type="number"
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
+            {/* 悬停恢复原文延迟只属于全局规则，个人规则保持 * 且不进数字框 */}
+            {rule?.pattern === GLOBAL_KEY && (
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  name="transOnlyRevertDelay"
+                  value={transOnlyRevertDelay}
+                  label={i18n("transonly_revert_delay")}
+                  disabled={disabled}
+                  onChange={handleChange}
+                  type="number"
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
+            )}
 
             {/* 长段落切分翻译配置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
@@ -803,29 +802,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               maxRows={10}
             />
 
-            {/* 翻译开始回调脚本配置 */}
-            <CodeField
-              size="small"
-              label={i18n("translate_start_hook")}
-              helperText={i18n("translate_start_hook_helper")}
-              name="transStartHook"
-              value={transStartHook}
-              disabled={disabled}
-              onChange={handleChange}
-              maxRows={10}
-            />
-            {/* 翻译结束回调脚本配置 */}
-            <CodeField
-              size="small"
-              label={i18n("translate_end_hook")}
-              helperText={i18n("translate_end_hook_helper")}
-              name="transEndHook"
-              value={transEndHook}
-              disabled={disabled}
-              onChange={handleChange}
-              maxRows={10}
-            />
-
             {/* 页面注入的 CSS 样式代码 */}
             <CodeField
               size="small"
@@ -833,17 +809,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               helperText={i18n("inject_css_helper")}
               name="injectCss"
               value={injectCss}
-              disabled={disabled}
-              onChange={handleChange}
-              maxRows={10}
-            />
-            {/* 页面注入的 JS 脚本代码 */}
-            <CodeField
-              size="small"
-              label={i18n("inject_js")}
-              helperText={i18n("inject_js_helper")}
-              name="injectJs"
-              value={injectJs}
               disabled={disabled}
               onChange={handleChange}
               maxRows={10}

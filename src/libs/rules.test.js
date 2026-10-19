@@ -1,6 +1,6 @@
 import { checkRules, matchRule, saveRule, saveRuleMessage } from "./rules";
 import { getRulesWithDefault, saveEdit } from "./storage";
-import { GLOBLA_RULE } from "../config/rules";
+import { GLOBAL_KEY, GLOBLA_RULE } from "../config/rules";
 import { OPT_TRANS_MICROSOFT, OPT_TRANS_TENCENT } from "../config/api";
 import { DEFAULT_API_SETTING } from "../config";
 
@@ -37,6 +37,27 @@ jest.mock("./detect", () => ({
 
 test("uses Microsoft as the default webpage translator", () => {
   expect(GLOBLA_RULE.apiSlug).toBe(OPT_TRANS_MICROSOFT);
+});
+
+test("resolves a personal * transOnlyRevertDelay to the global value", async () => {
+  getRulesWithDefault.mockResolvedValue([
+    {
+      pattern: "example.com",
+      transOnlyRevertDelay: GLOBAL_KEY,
+    },
+    {
+      pattern: "*",
+      selector: "p",
+      transOnlyRevertDelay: "1.5",
+    },
+  ]);
+
+  const rule = await matchRule("https://example.com/post", {
+    injectRules: false,
+    subrulesList: [],
+  });
+
+  expect(rule.transOnlyRevertDelay).toBe("1.5");
 });
 
 test("keeps an explicitly stored Tencent global rule", async () => {

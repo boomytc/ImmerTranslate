@@ -164,10 +164,6 @@ export const I18N = {
     zh: `每次请求间隔时间 (0-5000ms)`,
     en: `Time Between Requests (0-5000ms)`,
   },
-  translate_interval: {
-    zh: `翻译间隔时间 (1-2000ms)`,
-    en: `Translation Interval (1-2000ms)`,
-  },
   http_timeout: {
     zh: `请求超时时间 (1-600s)`,
     en: `Request Timeout Time (1-600s)`,
@@ -203,18 +199,6 @@ export const I18N = {
   gemini_2_url_help: {
     zh: `Google AI Studio 的 OpenAI 兼容接口（/v1beta/openai/chat/completions），适用于中转或代理`,
     en: `Google AI Studio OpenAI-compatible API (/v1beta/openai/chat/completions), suitable for proxies/relays`,
-  },
-  min_translate_length: {
-    zh: `最小翻译字符数 (1-100)`,
-    en: `Minimum number Of Translated Characters (1-100)`,
-  },
-  max_translate_length: {
-    zh: `最大翻译字符数 (100-100000)`,
-    en: `Maximum number Of Translated Characters (100-100000)`,
-  },
-  num_of_newline_characters: {
-    zh: `换行字符数 (1-1000)`,
-    en: `Number of Newline Characters (1-1000)`,
   },
   translate_service: {
     zh: `翻译服务`,
@@ -659,30 +643,6 @@ export const I18N = {
   selector_grand_style: {
     zh: `选择器祖节点样式`,
     en: `Grand Selector Style`,
-  },
-  inject_js: {
-    zh: `注入JS`,
-    en: `Inject JS`,
-  },
-  inject_js_helper: {
-    zh: `预加载时注入，一个页面仅运行一次。内置全局对象 KT: {
-      apiTranslate,
-      apiDectect,
-      apiSetting,
-      apisMap,
-      toLang,
-      docInfo,
-      glossary,
-    }`,
-    en: `Injected during preload, runs only once per page. Built-in global object KT: {
-      apiTranslate,
-      apiDectect,
-      apiSetting,
-      apisMap,
-      toLang,
-      docInfo,
-      glossary,
-    }`,
   },
   inject_css: {
     zh: `注入CSS`,
@@ -1728,32 +1688,6 @@ export const I18N = {
     zh: `列表中的语言不弹窗（设定后，第二目标语言互译功能将自动禁用）`,
     en: `Don't show popup for languages in this list (when enabled, will automatically disable bidirectional translation for the second target language)`,
   },
-  translate_start_hook: {
-    zh: `翻译开始钩子函数`,
-    en: `Translate Start Hook`,
-  },
-  translate_start_hook_helper: {
-    zh: `翻译前时运行，入参为： {text,
-      fromLang,
-      toLang,
-      apiSetting,
-      docInfo,
-      glossary,}`,
-    en: `Run before translation, input parameters are: {text,
-      fromLang,
-      toLang,
-      apiSetting,
-      docInfo,
-      glossary,}`,
-  },
-  translate_end_hook: {
-    zh: `翻译完成钩子函数`,
-    en: `Translate End Hook`,
-  },
-  translate_end_hook_helper: {
-    zh: `翻译完成时运行，入参为： ({hostNode, parentNode, nodes, wrapperNode, innerNode})`,
-    en: `Run when translation is complete, input parameters are: ({hostNode, parentNode, nodes, wrapperNode, innerNode})`,
-  },
   english_dict: {
     zh: `英文词典`,
     en: `English Dictionary`,
@@ -2061,10 +1995,6 @@ export const I18N = {
   placeholder: {
     zh: `占位符`,
     en: `Placeholder`,
-  },
-  if_pre_init: {
-    zh: `是否预初始化`,
-    en: `Whether to pre-initialize`,
   },
   favorite_words_helper: {
     zh: `导入词汇请使用txt文件，每一行一个单词。`,
