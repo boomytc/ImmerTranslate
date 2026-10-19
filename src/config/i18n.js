@@ -173,8 +173,8 @@ export const I18N = {
     en: `Custom Header Params`,
   },
   custom_header_help: {
-    zh: `使用JSON格式，例如 "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0"`,
-    en: `Use JSON format, for example "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0"`,
+    zh: `使用JSON格式，例如 "User-Agent": "Mozilla/5.0 Chrome/123.0.0.0"`,
+    en: `Use JSON format, for example "User-Agent": "Mozilla/5.0 Chrome/123.0.0.0"`,
   },
   custom_body: {
     zh: `自定义Body参数`,
@@ -963,10 +963,6 @@ export const I18N = {
   open_setting_shortcut: {
     zh: `"打开设置"快捷键`,
     en: `"Open Setting" Shortcut`,
-  },
-  firefox_shortcut_edit_hint: {
-    zh: `Firefox 不支持直接打开扩展快捷键管理页。请在地址栏输入 about:addons，然后点击齿轮菜单中的“管理扩展快捷键”。`,
-    en: `Firefox cannot open the extension shortcut manager directly. Enter about:addons in the address bar, then select Manage Extension Shortcuts from the gear menu.`,
   },
   hide_fab_button: {
     zh: `隐藏悬浮按钮`,

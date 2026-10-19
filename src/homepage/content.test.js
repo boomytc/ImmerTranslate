@@ -5,8 +5,8 @@ import {
 } from "./content";
 
 const expectedStoreLocales = {
-  en: { chromium: "en", firefox: "en-US" },
-  zh_CN: { chromium: "zh-CN", firefox: "zh-CN" },
+  en: { chromium: "en" },
+  zh_CN: { chromium: "zh-CN" },
 };
 
 const removedContentKeys = [
@@ -44,7 +44,7 @@ describe("homepage content", () => {
       expect(content.title).toBeTruthy();
       expect(content.subtitle).toBeTruthy();
       expect(content.features).toHaveLength(9);
-      expect(content.installs).toHaveLength(4);
+      expect(content.installs).toHaveLength(3);
       expect(content.licenseAttribution).toBe(
         expectedLicenseAttribution[value]
       );
@@ -69,32 +69,26 @@ describe("homepage content", () => {
   });
 
   test("uses localized browser store links", () => {
-    Object.entries(expectedStoreLocales).forEach(
-      ([language, { chromium, firefox }]) => {
-        const [chrome, edge, firefoxInstall] =
-          homepageContent[language].installs;
+    Object.entries(expectedStoreLocales).forEach(([language]) => {
+      const [chrome, edge] = homepageContent[language].installs;
 
-        expect(chrome.href).toBe(
-          "https://github.com/boomytc/ImmerTranslate/releases"
-        );
-        expect(edge.href).toBe(
-          "https://github.com/boomytc/ImmerTranslate/releases"
-        );
-        expect(firefoxInstall.href).toBe(
-          "https://github.com/boomytc/ImmerTranslate/releases"
-        );
-      }
-    );
+      expect(chrome.href).toBe(
+        "https://github.com/boomytc/ImmerTranslate/releases"
+      );
+      expect(edge.href).toBe(
+        "https://github.com/boomytc/ImmerTranslate/releases"
+      );
+    });
   });
 
   test("keeps non-store download targets unchanged", () => {
     const englishTargets = homepageContent.en.installs
-      .slice(3)
+      .slice(2)
       .map(({ href }) => href);
 
     languageOptions.forEach(({ value }) => {
       expect(
-        homepageContent[value].installs.slice(3).map(({ href }) => href)
+        homepageContent[value].installs.slice(2).map(({ href }) => href)
       ).toEqual(englishTargets);
     });
   });

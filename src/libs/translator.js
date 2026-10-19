@@ -422,9 +422,7 @@ export class Translator {
   #blockSelectorInvalid = false; // 自定义块级选择器是否已确认无效
   #textClass = {}; // 译文样式class
   #lastActiveTextStyle = null; // 上次选中的有效译文样式
-  #textSheet = null; // CSSStyleSheet 实例（Firefox 内容脚本中不可用时为 null）
-  #textStylesRaw = ""; // 原始 CSS 文本（Firefox adoptedStyleSheets 回退备用）
-  #useSheetFallback = false; // Firefox 跨作用域限制标记：adoptedStyleSheets 不可用时直接走内联 <style>
+  #textSheet = null;
   #apisMap = new Map(); // 用于接口快速查找
 
   #observedNodes = new WeakSet(); // 存储所有被识别出的、可翻译的 DOM 节点单元
@@ -1235,50 +1233,21 @@ export class Translator {
   #createTextStyles() {
     const [textClass, textStyles] = genTextClass(this.#setting.customStyles);
     this.#textClass = textClass;
-    this.#textStylesRaw = `${textStyles}\n${PAGE_TRANSLATION_CHROME_CSS}`;
+    const cssText = `${textStyles}\n${PAGE_TRANSLATION_CHROME_CSS}`;
     ensurePageTranslationChromeStyle();
 
-    try {
-      const textSheet = new CSSStyleSheet();
-      textSheet.replaceSync(this.#textStylesRaw);
-      this.#textSheet = textSheet;
-    } catch (err) {
-      kissLog("createTextStyles: CSSStyleSheet not available", err);
-      // CSSStyleSheet 在当前环境不可用（Firefox 内容脚本等），改用内联 <style>
-      this.#useSheetFallback = true;
-    }
+    const textSheet = new CSSStyleSheet();
+    textSheet.replaceSync(cssText);
+    this.#textSheet = textSheet;
   }
 
-  // 注入样式（优先 adoptedStyleSheets，失败时回退到 <style>）
   #injectSheet(shadowRoot) {
-    if (this.#useSheetFallback || !this.#textSheet) {
-      this.#injectSheetFallback(shadowRoot);
-      return;
+    if (!shadowRoot.adoptedStyleSheets.includes(this.#textSheet)) {
+      shadowRoot.adoptedStyleSheets = [
+        ...shadowRoot.adoptedStyleSheets,
+        this.#textSheet,
+      ];
     }
-
-    try {
-      if (!shadowRoot.adoptedStyleSheets.includes(this.#textSheet)) {
-        shadowRoot.adoptedStyleSheets = [
-          ...shadowRoot.adoptedStyleSheets,
-          this.#textSheet,
-        ];
-      }
-    } catch {
-      // Firefox 跨作用域限制：内容脚本的 CSSStyleSheet 无法赋值给页面 ShadowRoot
-      this.#useSheetFallback = true;
-      this.#injectSheetFallback(shadowRoot);
-    }
-  }
-
-  // 回退方案：通过内联 <style> 元素注入样式（兼容 Firefox）
-  #injectSheetFallback(shadowRoot) {
-    const fallbackStyleId = `${APP_LCNAME}-fallback-style`;
-    if (shadowRoot.getElementById(fallbackStyleId)) return;
-
-    const style = document.createElement("style");
-    style.id = fallbackStyleId;
-    style.textContent = this.#textStylesRaw || "";
-    shadowRoot.append(style);
   }
 
   // 解析专业术语字符串
@@ -2274,11 +2243,6 @@ export class Translator {
 
   // 获取元素的 shadowRoot（支持 closed 模式）
   #getShadowRoot(element) {
-    // Firefox 原生支持
-    if (element.openOrClosedShadowRoot) {
-      return element.openOrClosedShadowRoot;
-    }
-    // Chrome 扩展 API
     if (
       typeof globalThis !== "undefined" &&
       globalThis.chrome?.dom?.openOrClosedShadowRoot &&

@@ -106,7 +106,6 @@ jest.mock("../../hooks/CustomStyles", () => ({
 }));
 jest.mock("../../libs/client", () => ({
   isExt: true,
-  isFirefox: false,
   client: "chrome",
   isAutoTranslateClipboardSupported: false,
 }));
