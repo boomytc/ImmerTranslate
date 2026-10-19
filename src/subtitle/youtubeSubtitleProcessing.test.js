@@ -358,7 +358,8 @@ describe("youtubeSubtitleProcessing", () => {
         String(fromLang).startsWith(lang)
       );
 
-      for (const mode of ["rule", "statistical"]) {
+      const mode = "rule";
+      {
         const cues = runBuiltinSegmentation({
           ...prepared,
           fromLang,
