@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import ApiRoundedIcon from "@mui/icons-material/ApiRounded";
-import BookmarksRoundedIcon from "@mui/icons-material/BookmarksRounded";
 import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
@@ -93,7 +92,6 @@ export default function Navigator({ open, isMobile = false, onClose }) {
         label: i18n("options_group_data"),
         items: [
           ["sync", i18n("options_data_sync"), "/sync", CloudSyncRoundedIcon],
-          ["words", i18n("favorite_words"), "/words", BookmarksRoundedIcon],
         ],
       },
       {

@@ -38,8 +38,7 @@ describe("translation box defaults", () => {
     expect(DEFAULT_TRANBOX_SETTING.skipLangs).toEqual([]);
   });
 
-  test("does not remember the subtitle position by default", () => {
-    expect(DEFAULT_SUBTITLE_SETTING.rememberPosition).toBe(false);
+  test("places subtitles near the bottom by default", () => {
     expect(DEFAULT_SUBTITLE_SETTING.positionRatio).toBe(0.05);
   });
 

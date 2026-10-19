@@ -2,24 +2,20 @@ import {
   APP_LCNAME,
   KV_SETTING_KEY,
   KV_RULES_KEY,
-  KV_WORDS_KEY,
   KV_RULES_SHARE_KEY,
   KV_SALT_SHARE,
   OPT_SYNCTYPE_WEBDAV,
   OPT_SYNCTYPE_GIST,
   STOKEY_SETTING,
   STOKEY_RULES,
-  STOKEY_WORDS,
 } from "../config";
 import {
   getSyncWithDefault,
   putSync,
   getSettingWithDefault,
   getRulesWithDefault,
-  getWordsWithDefault,
   setSetting,
   setRules,
-  setWords,
   updateSyncState,
   storage,
 } from "./storage";
@@ -151,7 +147,6 @@ const findGistByDescription = async (syncKey) => {
 
 const getGistFilename = (key) => {
   if (key.startsWith("kiss-rules_")) return `sync-rules_${key}`;
-  if (key === KV_WORDS_KEY) return `sync-words_${key}`;
   return key;
 };
 
@@ -395,7 +390,6 @@ export const syncData = async (
   const storageKey = {
     [KV_SETTING_KEY]: STOKEY_SETTING,
     [KV_RULES_KEY]: STOKEY_RULES,
-    [KV_WORDS_KEY]: STOKEY_WORDS,
   }[key];
   if (isFirstSync && originalMeta.pendingUpload && !forceRemoteRead) {
     // A failed first attempt preserves edits, but does not prove that this
@@ -620,24 +614,6 @@ export const trySyncRules = async () => {
 };
 
 /**
- * 同步生词本词汇 (Fav Words)。若云端有更新，则覆盖本地。
- */
-const syncWords = async (options) => {
-  return syncStoredValue(KV_WORDS_KEY, STOKEY_WORDS, options);
-};
-
-/**
- * 包装错误捕获的生词本同步入口。
- */
-export const trySyncWords = async () => {
-  try {
-    await syncWords();
-  } catch (err) {
-    kissLog("sync fav words", err.message);
-  }
-};
-
-/**
  * 同步并公开分享当前规则。
  * 将用户的规则数组推送到 Worker 云端服务，并生成一个基于 sha256 签名的唯一订阅分享链接。
  * @param {Object} params
@@ -669,19 +645,18 @@ export const syncShareRules = async ({ rules, syncUrl, syncKey }) => {
 };
 
 /**
- * 顺序同步个人设置、自定义规则以及生词本。
+ * 顺序同步个人设置和自定义规则。
  */
 export const syncSettingAndRules = async (options) => {
   const setting = await syncSetting(options);
   const rules = await syncRules(options);
-  const words = await syncWords(options);
-  return { setting, rules, words };
+  return { setting, rules };
 };
 
 /**
  * 修改同步加密口令，并用新口令重新加密个人同步数据。
  *
- * 先用旧口令完成一次普通同步，确保本地拿到远端最新数据；三类数据全部
+ * 先用旧口令完成一次普通同步，确保本地拿到远端最新数据；设置和规则都
  * 用新口令回写成功后，才保存新的 syncEncryptKey，避免半失败导致旧密文不可读。
  * @param {Object} params 口令轮换参数
  * @param {string} params.oldEncryptKey 用于解密当前云端数据的旧口令
@@ -699,10 +674,9 @@ export const changeSyncEncryptKey = async ({
     applyRemote: false,
   });
 
-  // 三类远端数据都通过旧口令校验后，才把较新的版本写入本地并开始重加密。
+  // 远端设置和规则都通过旧口令校验后，才把较新的版本写入本地并开始重加密。
   if (synced.setting?.isNew) await setSetting(synced.setting.value);
   if (synced.rules?.isNew) await setRules(synced.rules.value);
-  if (synced.words?.isNew) await setWords(synced.words.value);
 
   await forceSyncDataWithEncryptKey(
     KV_SETTING_KEY,
@@ -712,11 +686,6 @@ export const changeSyncEncryptKey = async ({
   await forceSyncDataWithEncryptKey(
     KV_RULES_KEY,
     await getRulesWithDefault(),
-    newEncryptKey
-  );
-  await forceSyncDataWithEncryptKey(
-    KV_WORDS_KEY,
-    await getWordsWithDefault(),
     newEncryptKey
   );
 
@@ -732,5 +701,4 @@ export const changeSyncEncryptKey = async ({
 export const trySyncSettingAndRules = async () => {
   await trySyncSetting();
   await trySyncRules();
-  await trySyncWords();
 };

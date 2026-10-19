@@ -1,10 +1,10 @@
 import {
   DEFAULT_SETTING,
   KV_SETTING_KEY,
-  KV_WORDS_KEY,
+  KV_RULES_KEY,
   STOKEY_SETTING,
   STOKEY_SYNC,
-  STOKEY_WORDS,
+  STOKEY_FAB,
 } from "../config";
 
 jest.mock("./browser", () => ({}));
@@ -37,7 +37,7 @@ const initialSync = {
   destinationRevision: 0,
   syncMeta: {
     [KV_SETTING_KEY]: { updateAt: 10, syncAt: 11 },
-    [KV_WORDS_KEY]: { updateAt: 20, syncAt: 21 },
+    [KV_RULES_KEY]: { updateAt: 20, syncAt: 21 },
   },
 };
 
@@ -80,33 +80,33 @@ test("persists edits with monotonically increasing timestamps before returning",
 test("uses the latest stored value for a second page's updater", async () => {
   const firstPage = loadPage();
   const secondPage = loadPage();
-  await firstPage.saveEdit(STOKEY_WORDS, { original: {} });
-  await firstPage.saveEdit(STOKEY_WORDS, (words) => ({ ...words, first: {} }));
-  const saved = await secondPage.saveEdit(STOKEY_WORDS, (words) => ({
+  await firstPage.saveEdit(STOKEY_FAB, { original: {} });
+  await firstPage.saveEdit(STOKEY_FAB, (words) => ({ ...words, first: {} }));
+  const saved = await secondPage.saveEdit(STOKEY_FAB, (words) => ({
     ...words,
     second: {},
   }));
   expect(saved.value).toEqual({ original: {}, first: {}, second: {} });
-  expect(await firstPage.getWords()).toEqual(saved.value);
+  expect(await firstPage.storage.getObj(STOKEY_FAB)).toEqual(saved.value);
 });
 
 test("does not write or advance metadata for reordered object properties", async () => {
   const page = loadPage();
-  await page.storage.setObj(STOKEY_WORDS, {
+  await page.storage.setObj(STOKEY_FAB, {
     first: { word: "first", date: 1 },
     second: { word: "second", date: 2 },
   });
   await page.storage.setObj(STOKEY_SYNC, initialSync);
   const listener = jest.fn();
-  page.subscribeStorageWrite(STOKEY_WORDS, listener);
+  page.subscribeStorageWrite(STOKEY_FAB, listener);
   const setItem = jest.spyOn(Storage.prototype, "setItem");
   const result = await page.saveEdit(
-    STOKEY_WORDS,
+    STOKEY_FAB,
     {
       second: { date: 2, word: "second" },
       first: { date: 1, word: "first" },
     },
-    KV_WORDS_KEY,
+    KV_RULES_KEY,
     { timestamp: 100 }
   );
   expect(result).toMatchObject({ changed: false, updateAt: 20 });
@@ -160,24 +160,27 @@ test("stages related edits and their metadata under one transaction", async () =
   await page.storage.setObj(STOKEY_SYNC, initialSync);
   const result = await page.withTransaction(async (transaction) => {
     const first = await transaction.saveEdit(
-      STOKEY_WORDS,
+      STOKEY_FAB,
       (words) => ({ ...words, first: {} }),
-      KV_WORDS_KEY,
+      KV_RULES_KEY,
       { timestamp: 100 }
     );
-    expect(await page.getWords()).toBeNull();
+    expect(await page.storage.getObj(STOKEY_FAB)).toBeNull();
     const second = await transaction.saveEdit(
-      STOKEY_WORDS,
+      STOKEY_FAB,
       (words) => ({ ...words, second: {} }),
-      KV_WORDS_KEY,
+      KV_RULES_KEY,
       { timestamp: 100 }
     );
     return { first, second };
   });
   expect(result.first.updateAt).toBe(100);
   expect(result.second.updateAt).toBe(101);
-  expect(await page.getWords()).toEqual({ first: {}, second: {} });
-  expect((await page.getSync()).syncMeta[KV_WORDS_KEY].updateAt).toBe(101);
+  expect(await page.storage.getObj(STOKEY_FAB)).toEqual({
+    first: {},
+    second: {},
+  });
+  expect((await page.getSync()).syncMeta[KV_RULES_KEY].updateAt).toBe(101);
 });
 
 test("discards business edits and metadata when a later transaction guard fails", async () => {
@@ -185,29 +188,31 @@ test("discards business edits and metadata when a later transaction guard fails"
   await page.storage.setObj(STOKEY_SYNC, initialSync);
   await expect(
     page.withTransaction(async (transaction) => {
-      await transaction.saveEdit(STOKEY_WORDS, { staged: {} });
+      await transaction.saveEdit(STOKEY_FAB, { staged: {} });
       throw new Error("Conflicting rule changed");
     })
   ).rejects.toMatchObject({ storageOutcome: "not-committed" });
-  expect(await page.getWords()).toBeNull();
+  expect(await page.storage.getObj(STOKEY_FAB)).toBeNull();
   expect(await page.getSync()).toEqual(initialSync);
 });
 
 test("isolates updater inputs from staged values even when the updater fails", async () => {
   const page = loadPage();
-  await page.storage.setObj(STOKEY_WORDS, { original: { word: "original" } });
+  await page.storage.setObj(STOKEY_FAB, { original: { word: "original" } });
   await page.withTransaction(async (transaction) => {
     await expect(
-      transaction.saveEdit(STOKEY_WORDS, (previous) => {
+      transaction.saveEdit(STOKEY_FAB, (previous) => {
         previous.original.word = "mutated";
         throw new Error("Invalid edit");
       })
     ).rejects.toThrow("Invalid edit");
-    expect(await transaction.getObj(STOKEY_WORDS)).toEqual({
+    expect(await transaction.getObj(STOKEY_FAB)).toEqual({
       original: { word: "original" },
     });
   });
-  expect(await page.getWords()).toEqual({ original: { word: "original" } });
+  expect(await page.storage.getObj(STOKEY_FAB)).toEqual({
+    original: { word: "original" },
+  });
 });
 
 test("captures replacement values before they wait in the write queue", async () => {
@@ -218,23 +223,25 @@ test("captures replacement values before they wait in the write queue", async ()
   );
   await Promise.resolve();
   const replacement = { captured: { word: "captured" } };
-  const edit = page.saveEdit(STOKEY_WORDS, replacement);
+  const edit = page.saveEdit(STOKEY_FAB, replacement);
   replacement.captured.word = "mutated";
   release();
   await blocker;
   expect((await edit).value).toEqual({ captured: { word: "captured" } });
-  expect(await page.getWords()).toEqual({ captured: { word: "captured" } });
+  expect(await page.storage.getObj(STOKEY_FAB)).toEqual({
+    captured: { word: "captured" },
+  });
 });
 
 test("rejects asynchronous updaters before any data or metadata is written", async () => {
   const page = loadPage();
   await expect(
-    page.saveEdit(STOKEY_WORDS, async () => ({ delayed: {} }))
+    page.saveEdit(STOKEY_FAB, async () => ({ delayed: {} }))
   ).rejects.toMatchObject({
     message: "Storage edit updaters must be synchronous",
     storageOutcome: "not-committed",
   });
-  expect(await page.getWords()).toBeNull();
+  expect(await page.storage.getObj(STOKEY_FAB)).toBeNull();
   expect(await page.getSync()).toBeNull();
 });
 
@@ -242,7 +249,7 @@ test("retains current metadata when editing a stale same-destination configurati
   const page = loadPage();
   await page.storage.setObj(STOKEY_SYNC, initialSync);
   const stale = await page.getSync();
-  await page.saveEdit(STOKEY_WORDS, { changed: {} }, KV_WORDS_KEY, {
+  await page.saveEdit(STOKEY_FAB, { changed: {} }, KV_RULES_KEY, {
     timestamp: 100,
   });
   const result = await page.saveEdit(STOKEY_SYNC, {
@@ -253,7 +260,7 @@ test("retains current metadata when editing a stale same-destination configurati
   expect(result.value).toMatchObject({
     dataCaches: { rules: 50 },
     destinationRevision: 0,
-    syncMeta: { [KV_WORDS_KEY]: { updateAt: 100 } },
+    syncMeta: { [KV_RULES_KEY]: { updateAt: 100 } },
   });
   const changed = await page.saveEdit(STOKEY_SYNC, (current) => ({
     ...current,
@@ -348,12 +355,12 @@ test("does not persist staged writes after an unsuccessful guard", async () => {
   const page = loadPage();
   await expect(
     page.withTransaction(async (transaction) => {
-      await transaction.setObj(STOKEY_WORDS, { example: {} });
-      expect(await transaction.getObj(STOKEY_WORDS)).toEqual({ example: {} });
+      await transaction.setObj(STOKEY_FAB, { example: {} });
+      expect(await transaction.getObj(STOKEY_FAB)).toEqual({ example: {} });
       throw new Error("stale request");
     })
   ).rejects.toThrow("stale request");
-  expect(await page.storage.getObj(STOKEY_WORDS)).toBeNull();
+  expect(await page.storage.getObj(STOKEY_FAB)).toBeNull();
 });
 
 test("advances the destination generation and resets metadata only for a user change", async () => {
@@ -383,21 +390,21 @@ test("retains a durable first-attempt marker when saving a stale same-destinatio
     ...current,
     syncMeta: {
       ...current.syncMeta,
-      [KV_WORDS_KEY]: { ...current.syncMeta[KV_WORDS_KEY], firstAttemptAt: 50 },
+      [KV_RULES_KEY]: { ...current.syncMeta[KV_RULES_KEY], firstAttemptAt: 50 },
     },
   }));
   await page.storage.setObj(STOKEY_SYNC, {
     ...initialSync,
     dataCaches: { "https://rules.example": 123 },
   });
-  expect((await page.getSync()).syncMeta[KV_WORDS_KEY].firstAttemptAt).toBe(50);
+  expect((await page.getSync()).syncMeta[KV_RULES_KEY].firstAttemptAt).toBe(50);
 });
 
 function installGmStorage() {
   const values = new Map([
     [STOKEY_SYNC, JSON.stringify(initialSync)],
     [STOKEY_SETTING, JSON.stringify({ darkMode: "auto" })],
-    [STOKEY_WORDS, JSON.stringify({ original: {} })],
+    [STOKEY_FAB, JSON.stringify({ original: {} })],
   ]);
   globalThis.GM = {
     getValue: jest.fn(async (key) => values.get(key)),
@@ -412,7 +419,7 @@ test.each([false, true])(
   async (isGm) => {
     const seed = {
       ...initialSync,
-      syncMeta: { [KV_WORDS_KEY]: { updateAt: 10, syncAt: 0 } },
+      syncMeta: { [KV_RULES_KEY]: { updateAt: 10, syncAt: 0 } },
     };
     if (isGm) installGmStorage().set(STOKEY_SYNC, JSON.stringify(seed));
     else localStorage.setItem(STOKEY_SYNC, JSON.stringify(seed));
@@ -421,8 +428,8 @@ test.each([false, true])(
       ...current,
       syncMeta: {
         ...current.syncMeta,
-        [KV_WORDS_KEY]: {
-          ...current.syncMeta[KV_WORDS_KEY],
+        [KV_RULES_KEY]: {
+          ...current.syncMeta[KV_RULES_KEY],
           firstAttemptAt: 50,
         },
       },
@@ -430,12 +437,12 @@ test.each([false, true])(
 
     // No in-memory attempted-request set is inherited by this new registry.
     const newPage = loadPage(isGm);
-    await newPage.saveEdit(STOKEY_WORDS, { added: {} }, KV_WORDS_KEY, {
+    await newPage.saveEdit(STOKEY_FAB, { added: {} }, KV_RULES_KEY, {
       timestamp: 100,
     });
 
-    expect(await newPage.getWords()).toEqual({ added: {} });
-    expect((await newPage.getSync()).syncMeta[KV_WORDS_KEY]).toEqual({
+    expect(await newPage.storage.getObj(STOKEY_FAB)).toEqual({ added: {} });
+    expect((await newPage.getSync()).syncMeta[KV_RULES_KEY]).toEqual({
       updateAt: 100,
       syncAt: 0,
       firstAttemptAt: 50,
@@ -456,13 +463,13 @@ test("retains GM metadata when configuration changes without changing destinatio
 
 test("discard removes only the staged business write after a stale guard", async () => {
   const page = loadPage();
-  await page.storage.setObj(STOKEY_WORDS, { original: {} });
+  await page.storage.setObj(STOKEY_FAB, { original: {} });
   await page.withTransaction(async (transaction) => {
-    await transaction.setObj(STOKEY_WORDS, { remote: {} });
+    await transaction.setObj(STOKEY_FAB, { remote: {} });
     await transaction.setObj("retained-key", { retained: true });
-    transaction.discard(STOKEY_WORDS);
-    expect(await transaction.getObj(STOKEY_WORDS)).toEqual({ original: {} });
+    transaction.discard(STOKEY_FAB);
+    expect(await transaction.getObj(STOKEY_FAB)).toEqual({ original: {} });
   });
-  expect(await page.getWords()).toEqual({ original: {} });
+  expect(await page.storage.getObj(STOKEY_FAB)).toEqual({ original: {} });
   expect(await page.storage.getObj("retained-key")).toEqual({ retained: true });
 });

@@ -1,6 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo } from "react";
 import Stack from "@mui/material/Stack";
-import FavBtn from "./FavBtn";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
@@ -62,7 +61,7 @@ function DictBody({ text, setCopyText, setRealWord, dict }) {
 }
 
 /**
- * Dictionary container with copy, favorite, and headword controls.
+ * Dictionary container with copy and headword controls.
  *
  * @param {Object} props
  * @param {string} props.text - Word or text to look up.
@@ -95,8 +94,6 @@ export default function DictCont({ text, enDict }) {
               title={i18n("copy")}
               copiedLabel={i18n("copy_success", "Copied")}
             />
-            {/* Favorite word action. */}
-            <FavBtn word={realWord} title={i18n("collect")} />
           </Stack>
         </Stack>
       )}

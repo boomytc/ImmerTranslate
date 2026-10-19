@@ -1,19 +1,14 @@
-import {
-  STOKEY_RULES,
-  STOKEY_SETTING,
-  STOKEY_SYNC,
-  STOKEY_WORDS,
-} from "../../config";
+import { STOKEY_RULES, STOKEY_SETTING, STOKEY_SYNC } from "../../config";
 import { isGm } from "../../libs/client";
 import { adaptScript } from "../../libs/gm";
 import { kissLog } from "../../libs/log";
 
 import { refreshStorageKeys } from "../../libs/storageRefresh";
-import { trySyncRules, trySyncSetting, trySyncWords } from "../../libs/sync";
+import { trySyncRules, trySyncSetting } from "../../libs/sync";
 import { sleep } from "../../libs/utils";
 import { normalizeOptionsPath } from "./paths";
 
-export const OPTIONS_SYNC_KEYS = [STOKEY_SETTING, STOKEY_RULES, STOKEY_WORDS];
+export const OPTIONS_SYNC_KEYS = [STOKEY_SETTING, STOKEY_RULES];
 
 export function getRequiredOptionsSyncKeys(path) {
   const pathname = normalizeOptionsPath(path);
@@ -24,9 +19,6 @@ export function getRequiredOptionsSyncKeys(path) {
     pathname.startsWith("/rules/")
   ) {
     return [STOKEY_SETTING, STOKEY_RULES];
-  }
-  if (pathname === "/words" || pathname.startsWith("/words/")) {
-    return [STOKEY_SETTING, STOKEY_WORDS];
   }
   return [STOKEY_SETTING];
 }
@@ -85,14 +77,7 @@ export function createOptionsStartup() {
     syncAndRefresh(STOKEY_SETTING, trySyncSetting)
   );
   const completed = { [STOKEY_SETTING]: previous };
-  const remaining = [
-    [STOKEY_RULES, trySyncRules],
-    [STOKEY_WORDS, trySyncWords],
-  ];
-  const required = getRequiredOptionsSyncKeys(window.location.hash);
-  if (required.includes(STOKEY_WORDS) && !required.includes(STOKEY_RULES)) {
-    remaining.reverse();
-  }
+  const remaining = [[STOKEY_RULES, trySyncRules]];
   // Complete the entry page first without racing shared sync metadata writes.
   remaining.forEach(([key, sync]) => {
     previous = previous.then(() => syncAndRefresh(key, sync));

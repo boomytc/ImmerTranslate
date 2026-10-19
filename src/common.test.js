@@ -8,7 +8,6 @@ jest.mock("./config", () => ({
 jest.mock("./libs/storage", () => ({
   getSettingWithDefault: jest.fn(),
   getFabWithDefault: jest.fn(),
-  getWordsWithDefault: jest.fn(),
 }));
 
 jest.mock("./libs/iframe", () => ({
@@ -60,11 +59,7 @@ jest.mock("./libs/translatorManager", () => ({
   })),
 }));
 
-const {
-  getSettingWithDefault,
-  getFabWithDefault,
-  getWordsWithDefault,
-} = require("./libs/storage");
+const { getSettingWithDefault, getFabWithDefault } = require("./libs/storage");
 const { matchRule } = require("./libs/rules");
 const { readRedditEmbeddingHref } = require("./libs/redditFrame");
 const { isInBlacklist } = require("./libs/blacklist");
@@ -124,7 +119,6 @@ describe("common iframe startup", () => {
       logLevel: 1,
     });
     getFabWithDefault.mockResolvedValue({ isHide: false });
-    getWordsWithDefault.mockResolvedValue({});
     matchRule.mockResolvedValue({
       transOpen: "true",
       highlightWords: "-",

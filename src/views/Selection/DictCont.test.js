@@ -37,17 +37,6 @@ jest.mock("./CopyBtn", () => {
   };
 });
 
-jest.mock("./FavBtn", () => {
-  const React = require("react");
-  return function MockFavoriteButton({ word }) {
-    return React.createElement(
-      "button",
-      { type: "button", "data-favorite-word": word },
-      "favorite"
-    );
-  };
-});
-
 test("resets dictionary actions to the current query while loading", async () => {
   useAsyncNow.mockReturnValue({
     loading: false,
@@ -72,9 +61,6 @@ test("resets dictionary actions to the current query while loading", async () =>
   expect(container.querySelector("[data-copy-text]").dataset.copyText).toBe(
     "current"
   );
-  expect(
-    container.querySelector("[data-favorite-word]").dataset.favoriteWord
-  ).toBe("current");
   expect(container.querySelector(".MuiCircularProgress-root")).not.toBeNull();
 
   act(() => root.unmount());

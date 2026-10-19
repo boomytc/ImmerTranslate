@@ -1,13 +1,11 @@
 import { logger } from "../libs/log.js";
 import { apiSubtitle, apiSummarizeContext } from "../apis/index.js";
 import { BilingualSubtitleManager } from "./BilingualSubtitleManager.js";
-import { YouTubeSubtitleList } from "./YouTubeSubtitleList.js";
 import { MSG_XHR_DATA_YOUTUBE, API_SPE_TYPES } from "../config";
 import { downloadBlobFile } from "../libs/utils.js";
 import { newI18n } from "../config";
 import { buildBilingualVtt } from "./vtt.js";
 import { getDocInfo } from "../libs/docInfo.js";
-import { isSubtitleModeEnabled } from "./modes.js";
 import { clearMsgHistory } from "../apis/history.js";
 import {
   buildTrackKey,
@@ -70,8 +68,6 @@ export class YouTubeCaptionProvider {
   #aiChunkScheduler = null;
   // 当前字幕断句/分块处理的取消控制器，用于视频或字幕轨切换时中止旧流式请求
   #subtitleAbortController = null;
-  // 广告开始前用户设置的播放速度，广告结束后恢复，避免覆盖用户的倍速选择
-  #playbackRateBeforeAd = null;
 
   // 控制双语字幕渲染、显示和位置计算的管理器实例
   #managerInstance = null;
@@ -81,9 +77,6 @@ export class YouTubeCaptionProvider {
   #playerUi = null;
   // YouTube 底部控制条原生字幕激活状态的 DOM 监听器
   #ytSubtitleStateObserver = null;
-
-  // 挂载在视频右侧/下方的双语字幕列表面板管理器实例
-  #subtitleListManager = null;
 
   /**
    * 创建 YouTube 字幕处理器实例，并初始化用户配置、国际化和播放器 UI 管理器。
@@ -259,38 +252,16 @@ export class YouTubeCaptionProvider {
    */
   #moAds(adContainer) {
     const adLayoutSelector = ".ytp-ad-player-overlay-layout";
-    const skipBtnSelector =
-      ".ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern";
     const observer = new MutationObserver((mutations) => {
-      const { skipAd = false } = this.#setting;
       for (const mutation of mutations) {
         if (mutation.type !== "childList") continue;
 
-        const videoEl = this.#videoEl;
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType !== Node.ELEMENT_NODE) return;
 
           if (node.matches(adLayoutSelector)) {
             logger.debug("Youtube Provider: AD start playing!", node);
-            if (videoEl && skipAd) {
-              if (this.#playbackRateBeforeAd === null) {
-                this.#playbackRateBeforeAd = videoEl.playbackRate;
-              }
-              videoEl.playbackRate = 16;
-              videoEl.currentTime = videoEl.duration;
-            }
             this.#managerInstance?.setIsAdPlaying(true);
-          } else if (node.matches(skipBtnSelector) && skipAd) {
-            logger.debug("Youtube Provider: AD skip button!", node);
-            node.click();
-          }
-
-          if (skipAd) {
-            const skipBtn = node?.querySelector(skipBtnSelector);
-            if (skipBtn) {
-              logger.debug("Youtube Provider: AD skip button!!", skipBtn);
-              skipBtn.click();
-            }
           }
         });
 
@@ -301,12 +272,6 @@ export class YouTubeCaptionProvider {
             logger.debug("Youtube Provider: Ad ends!");
             if (this.#setting.autoTranslate) {
               this.#playerUi.hideYtCaption();
-            }
-            if (this.#playbackRateBeforeAd !== null) {
-              if (videoEl) {
-                videoEl.playbackRate = this.#playbackRateBeforeAd;
-              }
-              this.#playbackRateBeforeAd = null;
             }
             this.#managerInstance?.setIsAdPlaying(false);
           }
@@ -354,11 +319,7 @@ export class YouTubeCaptionProvider {
 
     this.#playerUi.updateMenuProps();
 
-    if (
-      name === "isBilingual" ||
-      name === "blurTranslation" ||
-      name === "displayOrder"
-    ) {
+    if (name === "isBilingual" || name === "displayOrder") {
       this.#managerInstance?.updateSetting({ [name]: value });
     } else if (name === "segSlug" || name === "forceSubtitleRetranslate") {
       this.#reProcessEvents();
@@ -471,9 +432,7 @@ export class YouTubeCaptionProvider {
       transApis,
       apiSlug,
       segSlug,
-      skipAd,
       isBilingual,
-      blurTranslation,
       autoTranslate,
       aiContextSlug,
     } = this.#setting;
@@ -486,9 +445,7 @@ export class YouTubeCaptionProvider {
       formData: {
         apiSlug,
         segSlug,
-        skipAd,
         isBilingual,
-        blurTranslation,
         autoTranslate,
         aiContextSlug,
       },
@@ -800,10 +757,6 @@ export class YouTubeCaptionProvider {
     }
 
     this.#managerInstance?.appendSubtitles(managedSubtitles);
-    this.#subtitleListManager?.setBilingualSubtitles(
-      this.#subtitles,
-      this.#progressed
-    );
     this.#managerInstance?.repairChunkTranslations(managedSubtitles);
   }
 
@@ -995,26 +948,6 @@ export class YouTubeCaptionProvider {
       },
     });
 
-    const showList = isSubtitleModeEnabled(this.#setting.showList);
-
-    if (showList && !this.#subtitleListManager) {
-      this.#subtitleListManager = new YouTubeSubtitleList(videoEl, this.#i18n, {
-        enableHoverLookup: isSubtitleModeEnabled(this.#setting.hoverLookupMode),
-        autoFavWord: this.#setting.autoFavWord === true,
-      });
-      this.#subtitleListManager.initialize(
-        this.#subtitles,
-        this.#rawSubtitleEvents,
-        this.#progressed
-      );
-
-      this.#managerInstance.onSubtitleUpdate = (subtitleUpdate) => {
-        this.#subtitleListManager.updateSingleSubtitle(subtitleUpdate);
-      };
-
-      this.#subtitleListManager.turnOnAutoSub();
-    }
-
     this.#managerInstance.start();
     this.#playerUi.showNotification(this.#i18n("subtitle_load_succeed"));
     this.#playerUi.hideYtCaption();
@@ -1038,11 +971,6 @@ export class YouTubeCaptionProvider {
     this.#managerInstance.onSubtitleUpdate = null;
     this.#managerInstance.destroy();
     this.#managerInstance = null;
-
-    if (this.#subtitleListManager) {
-      this.#subtitleListManager.destroy();
-      this.#subtitleListManager = null;
-    }
   }
 }
 

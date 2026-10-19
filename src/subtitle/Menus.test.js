@@ -22,9 +22,7 @@ function renderMenus({
         formData={{
           apiSlug,
           segSlug: "-",
-          skipAd: false,
           isBilingual: true,
-          blurTranslation: false,
           autoTranslate,
           aiContextSlug: "-",
         }}
@@ -48,10 +46,6 @@ function renderMenus({
 describe("subtitle Menus", () => {
   test("keeps immediate translation enabled by default", () => {
     expect(DEFAULT_SUBTITLE_SETTING.autoTranslate).toBe(true);
-  });
-
-  test("keeps automatic subtitle word favorites disabled by default", () => {
-    expect(DEFAULT_SUBTITLE_SETTING.autoFavWord).toBe(false);
   });
 
   test("renders translation first and updates the current video state", () => {

@@ -1,7 +1,6 @@
 import {
   STOKEY_SETTING,
   STOKEY_RULES,
-  STOKEY_WORDS,
   STOKEY_FAB,
   STOKEY_TRANBOX,
   STOKEY_SYNC,
@@ -15,7 +14,6 @@ import {
   normalizeApiThinkingSettings,
   KV_SETTING_KEY,
   KV_RULES_KEY,
-  KV_WORDS_KEY,
 } from "../config";
 import { isExt, isGm } from "./client";
 import { browser } from "./browser";
@@ -30,13 +28,11 @@ import { normalizeFabConfig } from "../config/fab";
 const SYNC_KEYS = {
   [STOKEY_SETTING]: KV_SETTING_KEY,
   [STOKEY_RULES]: KV_RULES_KEY,
-  [STOKEY_WORDS]: KV_WORDS_KEY,
 };
 const sameValue = isSameStorageValue;
 const EDIT_DEFAULTS = {
   [STOKEY_SETTING]: DEFAULT_SETTING,
   [STOKEY_RULES]: DEFAULT_RULES,
-  [STOKEY_WORDS]: {},
   [STOKEY_SYNC]: DEFAULT_SYNC,
   [STOKEY_FAB]: {},
   [STOKEY_TRANBOX]: {},
@@ -481,9 +477,7 @@ export function readSyncSnapshot(storageKey) {
         ? normalizeStoredSetting(rawValue)
         : storageKey === STOKEY_RULES
           ? rawValue || DEFAULT_RULES
-          : storageKey === STOKEY_WORDS
-            ? rawValue || {}
-            : rawValue;
+          : rawValue;
     return { value, syncConfig };
   });
 }
@@ -556,11 +550,6 @@ export const getRules = () => getObj(STOKEY_RULES);
 export const getRulesWithDefault = async () =>
   (await getRules()) || DEFAULT_RULES;
 export const setRules = (val) => setObj(STOKEY_RULES, val);
-
-// --- 个人生词本词汇 (Fav Words) 数据存取 ---
-export const getWords = () => getObj(STOKEY_WORDS);
-export const getWordsWithDefault = async () => (await getWords()) || {};
-export const setWords = (val) => setObj(STOKEY_WORDS, val);
 
 // --- 订阅翻译规则 (Subscription Rules Cache) 数据存取 ---
 export const getSubRules = (url) => getObj(STOKEY_RULESCACHE_PREFIX + url);

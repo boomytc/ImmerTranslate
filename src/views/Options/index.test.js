@@ -1,13 +1,8 @@
 import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import Options, { normalizeOptionsHashPath } from "./index";
-import {
-  STOKEY_RULES,
-  STOKEY_SETTING,
-  STOKEY_SYNC,
-  STOKEY_WORDS,
-} from "../../config";
-import { trySyncRules, trySyncSetting, trySyncWords } from "../../libs/sync";
+import { STOKEY_RULES, STOKEY_SETTING, STOKEY_SYNC } from "../../config";
+import { trySyncRules, trySyncSetting } from "../../libs/sync";
 import { refreshStorageKeys } from "../../libs/storageRefresh";
 import { kissLog } from "../../libs/log";
 import { adaptScript } from "../../libs/gm";
@@ -27,7 +22,6 @@ jest.mock("../../libs/client", () => ({
 jest.mock("../../libs/sync", () => ({
   trySyncRules: jest.fn(),
   trySyncSetting: jest.fn(),
-  trySyncWords: jest.fn(),
 }));
 jest.mock("../../libs/storageRefresh", () => ({
   refreshStorageKeys: jest.fn(),
@@ -113,7 +107,6 @@ function mockComponent(testId) {
 }
 
 jest.mock("./Rules", () => mockComponent("rules-page"));
-jest.mock("./FavWords", () => mockComponent("words-page"));
 jest.mock("./Apis", () => mockComponent("apis-page"));
 jest.mock("./Setting", () => mockComponent("setting-page"));
 jest.mock("./StylesSetting", () => mockComponent("styles-page"));
@@ -210,7 +203,6 @@ describe("Options startup sync", () => {
     jest.resetAllMocks();
     trySyncRules.mockResolvedValue(undefined);
     trySyncSetting.mockResolvedValue(undefined);
-    trySyncWords.mockResolvedValue(undefined);
     refreshStorageKeys.mockResolvedValue(undefined);
     sleep.mockResolvedValue(undefined);
     process.env.REACT_APP_NAME = "ImmerTranslate";
@@ -230,7 +222,6 @@ describe("Options startup sync", () => {
   test.each([
     ["#/?source=test", "setting-page"],
     ["#/rules", "rules-page"],
-    ["#/words", "words-page"],
     ["#/apis", "apis-page"],
     ["#/styles", "styles-page"],
   ])(
@@ -246,7 +237,6 @@ describe("Options startup sync", () => {
       expectLocked(view);
       expect(trySyncSetting).toHaveBeenCalledTimes(1);
       expect(trySyncRules).not.toHaveBeenCalled();
-      expect(trySyncWords).not.toHaveBeenCalled();
 
       await resolveDeferred(settingSync);
       expectLocked(view, false);
@@ -295,44 +285,21 @@ describe("Options startup sync", () => {
     expect(trySyncRules).not.toHaveBeenCalled();
     await resolveDeferred(settingSync);
     expect(trySyncRules).toHaveBeenCalledTimes(1);
-    expect(trySyncWords).not.toHaveBeenCalled();
     expectLocked(view);
     await resolveDeferred(rulesSync);
-    expectLocked(view, false);
-  });
-
-  test("syncs words before background rules when opened on favorite words", async () => {
-    const wordsSync = createDeferred();
-    trySyncWords.mockReturnValueOnce(wordsSync.promise);
-    const view = renderOptions("#/words");
-    await flushEffects();
-
-    expect(trySyncWords).toHaveBeenCalledTimes(1);
-    expect(trySyncRules).not.toHaveBeenCalled();
-    expectLocked(view);
-    await resolveDeferred(wordsSync);
-    expect(trySyncRules).toHaveBeenCalledTimes(1);
     expectLocked(view, false);
   });
 
   test("refreshes background data without remounting an unlocked settings page", async () => {
     const rulesSync = createDeferred();
-    const wordsSync = createDeferred();
     trySyncRules.mockReturnValueOnce(rulesSync.promise);
-    trySyncWords.mockReturnValueOnce(wordsSync.promise);
     const view = renderOptions("#/apis");
     await flushEffects();
 
     expectLocked(view, false);
-    expect(trySyncWords).not.toHaveBeenCalled();
     await resolveDeferred(rulesSync);
-    await resolveDeferred(wordsSync);
     expect(refreshStorageKeys).toHaveBeenCalledWith([
       STOKEY_RULES,
-      STOKEY_SYNC,
-    ]);
-    expect(refreshStorageKeys).toHaveBeenCalledWith([
-      STOKEY_WORDS,
       STOKEY_SYNC,
     ]);
     expectLocked(view, false);
@@ -341,29 +308,15 @@ describe("Options startup sync", () => {
     ).toHaveLength(1);
   });
 
-  test("locks the destination route when its background words sync is pending", async () => {
-    const wordsSync = createDeferred();
-    trySyncWords.mockReturnValueOnce(wordsSync.promise);
-    const view = renderOptions("#/apis");
-    await flushEffects();
-    expectLocked(view, false);
-
-    act(() => view.container.querySelector("a[href='#/words']").click());
-    expect(view.query("words-page")).not.toBe(null);
-    expectLocked(view);
-    await resolveDeferred(wordsSync);
-    expectLocked(view, false);
-  });
-
   test("keeps sync configuration locked until all startup syncs finish", async () => {
-    const wordsSync = createDeferred();
-    trySyncWords.mockReturnValueOnce(wordsSync.promise);
+    const rulesSync = createDeferred();
+    trySyncRules.mockReturnValueOnce(rulesSync.promise);
     const view = renderOptions("#/sync");
     await flushEffects();
 
     expect(view.query("sync-page")).not.toBe(null);
     expectLocked(view);
-    await resolveDeferred(wordsSync);
+    await resolveDeferred(rulesSync);
     expectLocked(view, false);
   });
 
@@ -420,8 +373,7 @@ describe("Options startup sync", () => {
 
     await resolveDeferred(settingSync);
     expect(trySyncRules).toHaveBeenCalledTimes(1);
-    expect(trySyncWords).toHaveBeenCalledTimes(1);
-    expect(refreshStorageKeys).toHaveBeenCalledTimes(3);
+    expect(refreshStorageKeys).toHaveBeenCalledTimes(2);
     expectLocked(view, false);
   });
 
@@ -435,7 +387,7 @@ describe("Options startup sync", () => {
 
     await resolveDeferred(settingSync);
     expect(mockSettingProvider).toHaveBeenCalledTimes(renderCount);
-    expect(refreshStorageKeys).toHaveBeenCalledTimes(3);
+    expect(refreshStorageKeys).toHaveBeenCalledTimes(2);
   });
 
   test("waits for an older compatible GM bridge before rendering and syncing", async () => {

@@ -1,10 +1,5 @@
-import { OPT_HIGHLIGHT_WORDS_DISABLE } from "./config";
 import { APP_LCNAME, APP_NAME } from "./config/app";
-import {
-  getFabWithDefault,
-  getSettingWithDefault,
-  getWordsWithDefault,
-} from "./libs/storage";
+import { getFabWithDefault, getSettingWithDefault } from "./libs/storage";
 import { isIframe } from "./libs/iframe";
 import { readRedditEmbeddingHref } from "./libs/redditFrame";
 import { genEventName } from "./libs/utils";
@@ -153,23 +148,7 @@ function showErr(message) {
   setTimeout(removeBanner, 10000); // 10秒后自动消失
 }
 
-/**
- * 依据匹配规则，获取用户生词本中的所有单词用于高亮显示。
- * @param {Object} rule 当前页面的翻译匹配规则
- * @returns {Promise<Array<string>>} 生词本里的单词数组
- */
-async function getFavWords(rule) {
-  if (
-    rule.highlightWords &&
-    rule.highlightWords !== OPT_HIGHLIGHT_WORDS_DISABLE
-  ) {
-    try {
-      return Object.keys(await getWordsWithDefault());
-    } catch (err) {
-      logger.info("get fav words", err);
-    }
-  }
-
+async function getFavWords() {
   return [];
 }
 

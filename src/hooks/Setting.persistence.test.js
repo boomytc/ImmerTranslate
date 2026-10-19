@@ -73,15 +73,15 @@ describe("settings persistence results", () => {
   test("returns the child update promise and rebases only the captured patch", () => {
     const pending = Promise.resolve({ changed: true });
     mockUpdate.mockReturnValueOnce(pending);
-    const patch = { autoFavWord: true };
+    const patch = { singleWordNoTrans: true };
 
     expect(settings.updateChild("tranboxSetting")(patch)).toBe(pending);
-    patch.autoFavWord = false;
+    patch.singleWordNoTrans = false;
     const reduce = mockUpdate.mock.calls[0][0];
     const previous = { tranboxSetting: { width: 600 }, uiLang: "en" };
 
     expect(reduce(previous)).toMatchObject({
-      tranboxSetting: { width: 600, autoFavWord: true },
+      tranboxSetting: { width: 600, singleWordNoTrans: true },
       uiLang: "en",
     });
     expect(previous.tranboxSetting).toEqual({ width: 600 });

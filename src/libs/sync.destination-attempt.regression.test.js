@@ -1,11 +1,11 @@
 import { createClient } from "webdav";
 import { storage, putSync, getSync } from "./storage";
 import { getStorageState } from "./storageState";
-import { trySyncWords } from "./sync";
+import { trySyncRules } from "./sync";
 import {
-  STOKEY_WORDS,
+  STOKEY_RULES,
   STOKEY_SYNC,
-  KV_WORDS_KEY,
+  KV_RULES_KEY,
   OPT_SYNCTYPE_WEBDAV,
 } from "../config";
 
@@ -33,17 +33,17 @@ test("a previous destination's attempt cannot change the new destination's first
   localStorage.clear();
   jest.useFakeTimers();
   jest.setSystemTime(100);
-  await storage.setObj(STOKEY_WORDS, { initial: {} });
+  await storage.setObj(STOKEY_RULES, { initial: {} });
   await storage.setObj(STOKEY_SYNC, {
     syncType: OPT_SYNCTYPE_WEBDAV,
     syncUrl: "https://first.example.invalid",
     syncUser: "review-user",
     syncKey: "review-token",
     syncEncryptKey: "review-passphrase",
-    syncMeta: { [KV_WORDS_KEY]: { updateAt: 20, syncAt: 0 } },
+    syncMeta: { [KV_RULES_KEY]: { updateAt: 20, syncAt: 0 } },
   });
-  const state = getStorageState(STOKEY_WORDS, {});
-  state.configureSync(KV_WORDS_KEY);
+  const state = getStorageState(STOKEY_RULES, {});
+  state.configureSync(KV_RULES_KEY);
   const unsubscribe = state.subscribe(() => {});
   try {
     await state.ensureLoaded();
@@ -55,14 +55,14 @@ test("a previous destination's attempt cannot change the new destination's first
       putFileContents: jest.fn(async () => {}),
     };
     createClient.mockReturnValue(oldClient);
-    await trySyncWords();
+    await trySyncRules();
     expect(oldClient.getFileContents).toHaveBeenCalledTimes(1);
-    expect((await getSync()).syncMeta[KV_WORDS_KEY].firstAttemptAt).toBe(100);
+    expect((await getSync()).syncMeta[KV_RULES_KEY].firstAttemptAt).toBe(100);
     await putSync({ syncUrl: "https://second.example.invalid" });
     expect((await getSync()).syncMeta).toEqual({});
     await state.save({ newEdit: {} });
     let remote = {
-      key: KV_WORDS_KEY,
+      key: KV_RULES_KEY,
       value: `cipher:${JSON.stringify({ cloud: {} })}`,
       updateAt: 50,
     };
@@ -74,9 +74,9 @@ test("a previous destination's attempt cannot change the new destination's first
       }),
     };
     createClient.mockReturnValue(client);
-    await trySyncWords();
+    await trySyncRules();
     expect(client.putFileContents).not.toHaveBeenCalled();
-    expect(await storage.getObj(STOKEY_WORDS)).toEqual({ cloud: {} });
+    expect(await storage.getObj(STOKEY_RULES)).toEqual({ cloud: {} });
   } finally {
     state.cancelSync();
     unsubscribe();

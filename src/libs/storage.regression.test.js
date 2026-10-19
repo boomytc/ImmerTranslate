@@ -31,19 +31,19 @@ test("preserves metadata updates from independent pages sharing storage", async 
   try {
     const first = newPageStorage();
     const second = newPageStorage();
-    const { STOKEY_SYNC, KV_SETTING_KEY, KV_WORDS_KEY } = require("../config");
+    const { STOKEY_SYNC, KV_SETTING_KEY, KV_RULES_KEY } = require("../config");
     localStorage.clear();
     await first.storage.setObj(STOKEY_SYNC, { syncMeta: {} });
 
     // Separate registries prevent a module-local queue from hiding the race.
     await Promise.all([
       first.putSyncMeta(KV_SETTING_KEY),
-      second.putSyncMeta(KV_WORDS_KEY),
+      second.putSyncMeta(KV_RULES_KEY),
     ]);
 
     expect(
       Object.keys((await first.getSyncWithDefault()).syncMeta).sort()
-    ).toEqual([KV_SETTING_KEY, KV_WORDS_KEY].sort());
+    ).toEqual([KV_SETTING_KEY, KV_RULES_KEY].sort());
   } finally {
     if (originalLocks) Object.defineProperty(navigator, "locks", originalLocks);
     else delete navigator.locks;

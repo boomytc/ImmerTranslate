@@ -228,10 +228,6 @@ export const I18N = {
     zh: `单个单词划词不调用翻译服务`,
     en: `Do not use translation services for single word`,
   },
-  auto_fav_word: {
-    zh: `自动收藏词汇`,
-    en: `Automatically favorite words`,
-  },
   mk_pagescroll: {
     zh: `滚动加载翻译（推荐）`,
     en: `Rolling Loading (Suggested)`,
@@ -976,10 +972,6 @@ export const I18N = {
     zh: `清除缓存`,
     en: `Clear Cache`,
   },
-  disable_on_mobile: {
-    zh: `移动端禁用`,
-    en: `Disable on Mobile`,
-  },
   clear_success: {
     zh: `清除成功`,
     en: `Clear success`,
@@ -1199,10 +1191,6 @@ export const I18N = {
   original_text: {
     zh: `原文`,
     en: `Original Text`,
-  },
-  favorite_words: {
-    zh: `收藏词汇`,
-    en: `Favorite Words`,
   },
   touch_translate_shortcut: {
     zh: `触屏翻译快捷方式 (支持多选)`,
@@ -1500,18 +1488,6 @@ export const I18N = {
     zh: `跨设备同步配置、规则与生词本`,
     en: `Sync settings, rules, and vocabulary across devices`,
   },
-  options_words_description: {
-    zh: `生词本与学习记录`,
-    en: `Vocabulary and learning history`,
-  },
-  favorite_words_empty: {
-    zh: `还没有收藏词汇`,
-    en: `No saved words yet`,
-  },
-  favorite_words_empty_hint: {
-    zh: `在划词翻译或字幕查词时点击收藏，词汇会出现在这里。`,
-    en: `Save a word from selection translation or subtitle lookup to see it here.`,
-  },
   options_selection_description: {
     zh: `控制划词后的翻译面板、词典与触发方式`,
     en: `Configure the selection panel, dictionaries, and triggers`,
@@ -1596,10 +1572,6 @@ export const I18N = {
     zh: `用大模型生成释义与例句`,
     en: `Generate definitions and examples with an AI model`,
   },
-  settings_auto_favorite_description: {
-    zh: `查询过的单词自动加入生词本`,
-    en: `Automatically save looked-up words`,
-  },
   settings_subtitle_auto_start: {
     zh: `自动开始`,
     en: `Start automatically`,
@@ -1611,18 +1583,6 @@ export const I18N = {
   settings_quality_group: {
     zh: `质量`,
     en: `Quality`,
-  },
-  settings_learning_group: {
-    zh: `学习`,
-    en: `Learning`,
-  },
-  settings_skip_ad_description: {
-    zh: `检测到广告时自动快进或点击跳过按钮`,
-    en: `Automatically fast-forward ads or click the skip button`,
-  },
-  settings_blur_translation_description: {
-    zh: `悬停显示译文，适合听力练习`,
-    en: `Reveal the translation on hover for listening practice`,
   },
   settings_appearance_group: {
     zh: `外观`,
@@ -2078,10 +2038,6 @@ export const I18N = {
     zh: `是否预初始化`,
     en: `Whether to pre-initialize`,
   },
-  favorite_words_helper: {
-    zh: `导入词汇请使用txt文件，每一行一个单词。`,
-    en: `To import vocabulary, please use a txt file with one word per line.`,
-  },
   btn_tip_click_away: {
     zh: `失焦隐藏/显示`,
     en: `Loss of focus hide/show`,
@@ -2162,14 +2118,6 @@ export const I18N = {
     zh: `双语显示`,
     en: `Enable bilingual display`,
   },
-  is_blur_translation: {
-    zh: `模糊译文`,
-    en: `Blur Translation`,
-  },
-  is_skip_ad: {
-    zh: `快进广告`,
-    en: `Skip AD`,
-  },
   download_subtitles: {
     zh: `下载字幕`,
     en: `Download subtitles`,
@@ -2218,10 +2166,6 @@ export const I18N = {
     zh: `3、亦可以启用AI智能断句，但需考虑切割长度及AI接口能力，可能处理时间会很长。若处理失败，将自动降级为内置断句并翻译。`,
     en: `3. You can also enable AI intelligent segmentation, but consider the chunk length and AI interface capacity, as processing may take a long time. If it fails, it will automatically fall back to built-in sentence break and translation.`,
   },
-  show_subtitle_list: {
-    zh: `显示字幕列表`,
-    en: `Show Subtitle List`,
-  },
   subtitle_loading_notification: {
     zh: `字幕加载通知`,
     en: `Subtitle loading notification`,
@@ -2229,14 +2173,6 @@ export const I18N = {
   hide_subtitle_button: {
     zh: `隐藏功能按钮`,
     en: `Hide function button`,
-  },
-  remember_subtitle_position: {
-    zh: `记住字幕位置`,
-    en: `Remember subtitle position`,
-  },
-  subtitle_hover_lookup: {
-    zh: `悬停查词`,
-    en: `Hover Word Lookup`,
   },
   subtitle_load_succeed: {
     zh: `双语字幕加载成功！`,
@@ -2413,10 +2349,6 @@ export const I18N = {
   submit: {
     zh: `提交`,
     en: `Submit`,
-  },
-  collect: {
-    zh: `收藏`,
-    en: `Save`,
   },
   favorite_word_lookup_loading: {
     zh: `正在查询释义…`,

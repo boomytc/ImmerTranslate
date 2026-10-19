@@ -2,11 +2,6 @@
 import { createClient } from "webdav";
 import { saveRule } from "./rules";
 import { storage, getRulesWithDefault, getSyncWithDefault } from "./storage";
-import { browser } from "./browser";
-import {
-  saveFavoriteWordIfMissing,
-  toggleFavoriteWord,
-} from "../subtitle/favoriteWords";
 import { persistSubtitlePosition } from "../subtitle/subtitle";
 import { writeSiteRule } from "./ruleEditorStorage";
 import { deriveRuleContext } from "./rules";
@@ -18,13 +13,10 @@ import {
   OPT_SYNCTYPE_WEBDAV,
   STOKEY_RULES,
   STOKEY_SYNC,
-  STOKEY_WORDS,
   STOKEY_SETTING,
   STOKEY_RULESCACHE_PREFIX,
   STOKEY_DISABLED_SUB_RULES,
-  KV_WORDS_KEY,
   KV_SETTING_KEY,
-  EVENT_FAVORITE_WORD_CHANGE,
 } from "../config";
 
 // Keep the production storage and sync chain while isolating unused ESM utilities.
@@ -186,56 +178,6 @@ test("control: the existing atomic edit API retains an edit against the same new
   expect(remoteClient.putFileContents).toHaveBeenCalledTimes(1);
 });
 
-test("concurrent favorite intents keep both words and duplicate automatic collection is a no-op", async () => {
-  const events = jest.fn();
-  document.addEventListener(EVENT_FAVORITE_WORD_CHANGE, events);
-  try {
-    await expect(
-      Promise.all([
-        saveFavoriteWordIfMissing("first"),
-        saveFavoriteWordIfMissing("second"),
-      ])
-    ).resolves.toEqual([true, true]);
-    const words = await storage.getObj(STOKEY_WORDS);
-    const metadata = (await getSyncWithDefault()).syncMeta[KV_WORDS_KEY];
-    expect(Object.keys(words)).toEqual(["first", "second"]);
-    await expect(
-      saveFavoriteWordIfMissing("first", { definition: "ignored" })
-    ).resolves.toBe(false);
-    expect(await storage.getObj(STOKEY_WORDS)).toEqual(words);
-    expect((await getSyncWithDefault()).syncMeta[KV_WORDS_KEY]).toEqual(
-      metadata
-    );
-    expect(events).toHaveBeenCalledTimes(2);
-    await expect(toggleFavoriteWord("first")).resolves.toBe(false);
-    expect(Object.keys(await storage.getObj(STOKEY_WORDS))).toEqual(["second"]);
-  } finally {
-    document.removeEventListener(EVENT_FAVORITE_WORD_CHANGE, events);
-  }
-});
-
-test("a failed favorite transaction does not publish success or keep a partial edit", async () => {
-  const events = jest.fn();
-  document.addEventListener(EVENT_FAVORITE_WORD_CHANGE, events);
-  const originalSet = browser.storage.local.set;
-  const set = jest
-    .spyOn(browser.storage.local, "set")
-    .mockImplementation(async (entries) => {
-      if (entries[STOKEY_SYNC]) throw new Error("metadata unavailable");
-      return originalSet(entries);
-    });
-  try {
-    await expect(saveFavoriteWordIfMissing("lost")).rejects.toThrow(
-      "metadata unavailable"
-    );
-    expect(await storage.getObj(STOKEY_WORDS)).toBeNull();
-    expect(events).not.toHaveBeenCalled();
-  } finally {
-    set.mockRestore();
-    document.removeEventListener(EVENT_FAVORITE_WORD_CHANGE, events);
-  }
-});
-
 test("subtitle position intents retain concurrent settings and the last requested position", async () => {
   await storage.setObj(STOKEY_SETTING, {
     darkMode: "light",
@@ -256,22 +198,6 @@ test("subtitle position intents retain concurrent settings and the last requeste
   expect(
     (await getSyncWithDefault()).syncMeta[KV_SETTING_KEY].updateAt
   ).toBeGreaterThanOrEqual(EDIT_TIME);
-});
-
-test("favorite edits after a first attempt preserve the pending upload marker", async () => {
-  await storage.setObj(STOKEY_SYNC, {
-    ...(await getSyncWithDefault()),
-    syncMeta: {
-      [KV_WORDS_KEY]: { updateAt: 90000, syncAt: 0, firstAttemptAt: 100000 },
-    },
-  });
-  await saveFavoriteWordIfMissing("retained");
-  expect((await getSyncWithDefault()).syncMeta[KV_WORDS_KEY]).toMatchObject({
-    updateAt: EDIT_TIME,
-    syncAt: 0,
-    firstAttemptAt: 100000,
-    pendingUpload: true,
-  });
 });
 
 test("the editor checks current inherited dependencies and preserves unrelated personal fields", async () => {
