@@ -9,19 +9,13 @@ import {
   STOKEY_SETTING,
   STOKEY_SYNC,
 } from "../../config";
-import { adaptScript } from "../../libs/gm";
 import { browser } from "../../libs/browser";
 import { storage } from "../../libs/storage";
 import { syncData, trySyncRules, trySyncSetting } from "../../libs/sync";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-let mockIsGm = false;
-
 jest.mock("../../libs/client", () => ({
-  get isGm() {
-    return mockIsGm;
-  },
   isExt: true,
 }));
 
@@ -44,8 +38,6 @@ jest.mock("../../libs/storageCoordination", () => {
     },
   };
 });
-
-jest.mock("../../libs/gm", () => ({ adaptScript: jest.fn() }));
 
 jest.mock("../../libs/msg", () => ({ sendBgMsg: jest.fn() }));
 
@@ -254,7 +246,6 @@ describe("Options startup with real storage hooks", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.resetAllMocks();
-    mockIsGm = false;
     storedValues = new Map([
       [
         STOKEY_SETTING,
@@ -415,40 +406,6 @@ describe("Options startup with real storage hooks", () => {
     expectInteractionBlocked(host, false);
     expect(trySyncRules).toHaveBeenCalledTimes(1);
   });
-
-  test.each([undefined, "test-gm-bridge"])(
-    "accepts an older compatible userscript bridge (%p) before local storage access",
-    async (eventName) => {
-      mockIsGm = true;
-      process.env.REACT_APP_NAME = "ImmerTranslate";
-      process.env.REACT_APP_VERSION = "2.0.32";
-      const settingSync = deferred();
-      trySyncSetting.mockReturnValue(settingSync.promise);
-      const host = renderOptions("#/apis");
-      await flushEffects();
-
-      expect(storage.getObj).not.toHaveBeenCalled();
-      expect(browser.storage.local.get).not.toHaveBeenCalled();
-      expect(host.container.querySelector("[data-testid='apis-page']")).toBe(
-        null
-      );
-
-      window.APP_INFO = {
-        name: "ImmerTranslate",
-        version: "2.0.31",
-        eventName,
-      };
-      await advanceTime(1000);
-      if (eventName) expect(adaptScript).toHaveBeenCalledWith(eventName);
-      else expect(adaptScript).not.toHaveBeenCalled();
-      expect(readSetting(host).marker).toBe("local-setting");
-      expectInteractionBlocked(host, true);
-      expect(trySyncSetting).toHaveBeenCalledTimes(1);
-      await advanceTime(6000);
-      expect(storage.setObj).not.toHaveBeenCalled();
-      expect(syncData).not.toHaveBeenCalled();
-    }
-  );
 
   test("ignores a failed refresh after browser back unmounts its route", async () => {
     const rulesSync = deferred();

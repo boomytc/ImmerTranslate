@@ -21,11 +21,6 @@ import Typography from "@mui/material/Typography";
 
 import {
   OPT_LANGDETECTOR_ALL,
-  OPT_SHORTCUT_TRANSLATE,
-  OPT_SHORTCUT_TRANSONLY,
-  OPT_SHORTCUT_STYLE,
-  OPT_SHORTCUT_POPUP,
-  OPT_SHORTCUT_SETTING,
   DEFAULT_BLACKLIST,
   DEFAULT_CSPLIST,
   DEFAULT_ORILIST,
@@ -38,8 +33,6 @@ import {
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
   APP_LCNAME,
 } from "../../config";
-import { useShortcut } from "../../hooks/Shortcut";
-import ShortcutInput from "./ShortcutInput";
 import { useFab } from "../../hooks/Fab";
 import { normalizeFabConfig } from "../../config/fab";
 import { sendBgMsg } from "../../libs/msg";
@@ -49,16 +42,6 @@ import UploadButton from "./UploadButton";
 import DownloadButton from "./DownloadButton";
 import OverviewHero from "./OverviewHero";
 import FabAppearanceSetting from "./FabAppearanceSetting";
-
-/**
- * 包装单个快捷键录入表单项组件
- */
-function ShortcutItem({ action, label }) {
-  const { shortcut, setShortcut } = useShortcut(action);
-  return (
-    <ShortcutInput value={shortcut} onChange={setShortcut} label={label} />
-  );
-}
 
 /**
  * 展示扩展版快捷键的组件 (仅 Extension 模式)
@@ -574,90 +557,50 @@ export default function Settings() {
         />
 
         {/* 扩展专属的高级网络设置 (只在 Extension 模式下展示) */}
-        {isExt ? (
-          <>
-            {/* 是否在浏览器关闭/重启时自动清空网页翻译的已缓存译文 */}
-            <TextField
-              select
-              fullWidth
-              size="small"
-              name="clearCache"
-              value={clearCache}
-              label={i18n("if_clear_cache")}
-              onChange={handleChange}
-              helperText={
-                <Link component="button" onClick={handleClearCache}>
-                  {i18n("clear_all_cache_now")}
-                </Link>
-              }
-            >
-              <MenuItem value={false}>{i18n("clear_cache_never")}</MenuItem>
-              <MenuItem value={true}>{i18n("clear_cache_restart")}</MenuItem>
-            </TextField>
+        <>
+          {/* 是否在浏览器关闭/重启时自动清空网页翻译的已缓存译文 */}
+          <TextField
+            select
+            fullWidth
+            size="small"
+            name="clearCache"
+            value={clearCache}
+            label={i18n("if_clear_cache")}
+            onChange={handleChange}
+            helperText={
+              <Link component="button" onClick={handleClearCache}>
+                {i18n("clear_all_cache_now")}
+              </Link>
+            }
+          >
+            <MenuItem value={false}>{i18n("clear_cache_never")}</MenuItem>
+            <MenuItem value={true}>{i18n("clear_cache_restart")}</MenuItem>
+          </TextField>
 
-            {/* 跨域安全 CSP 旁路加载白名单与 Ori 白名单 */}
-            <TextField
-              size="small"
-              label={i18n("disabled_orilist")}
-              helperText={i18n("pattern_helper")}
-              name="orilist"
-              value={orilist}
-              onChange={handleChange}
-              multiline
-            />
-            <TextField
-              size="small"
-              label={i18n("disabled_csplist")}
-              helperText={
-                i18n("pattern_helper") + " " + i18n("disabled_csplist_helper")
-              }
-              name="csplist"
-              value={csplist}
-              onChange={handleChange}
-              multiline
-            />
+          {/* 跨域安全 CSP 旁路加载白名单与 Ori 白名单 */}
+          <TextField
+            size="small"
+            label={i18n("disabled_orilist")}
+            helperText={i18n("pattern_helper")}
+            name="orilist"
+            value={orilist}
+            onChange={handleChange}
+            multiline
+          />
+          <TextField
+            size="small"
+            label={i18n("disabled_csplist")}
+            helperText={
+              i18n("pattern_helper") + " " + i18n("disabled_csplist_helper")
+            }
+            name="csplist"
+            value={csplist}
+            onChange={handleChange}
+            multiline
+          />
 
-            <ExtCommands />
-          </>
-        ) : (
-          // 油猴脚本环境运行：渲染脚本侧注册的全局热键录入面板
-          <>
-            <Box>
-              <Grid container spacing={2} columns={12}>
-                <Grid item xs={12} sm={12} md={6} lg={6}>
-                  <ShortcutItem
-                    action={OPT_SHORTCUT_TRANSLATE}
-                    label={i18n("toggle_translate_shortcut")}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={12} md={6} lg={6}>
-                  <ShortcutItem
-                    action={OPT_SHORTCUT_TRANSONLY}
-                    label={i18n("toggle_transonly_shortcut")}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={12} md={6} lg={6}>
-                  <ShortcutItem
-                    action={OPT_SHORTCUT_STYLE}
-                    label={i18n("toggle_style_shortcut")}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={12} md={6} lg={6}>
-                  <ShortcutItem
-                    action={OPT_SHORTCUT_POPUP}
-                    label={i18n("toggle_popup_shortcut")}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={12} md={6} lg={6}>
-                  <ShortcutItem
-                    action={OPT_SHORTCUT_SETTING}
-                    label={i18n("open_setting_shortcut")}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
-          </>
-        )}
+          <ExtCommands />
+        </>
       </Stack>
     </Box>
   );

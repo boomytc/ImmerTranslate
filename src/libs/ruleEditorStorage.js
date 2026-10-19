@@ -119,7 +119,7 @@ export function writeSiteRule({
     }
     throw new Error("rule-conflict");
   };
-  // Userscript pages on the same origin can also coordinate through Web Locks.
+  // Non-extension pages on the same origin coordinate through Web Locks.
   const result = writeQueue.then(() =>
     !isExt && globalThis.navigator?.locks
       ? navigator.locks.request("kiss-rule-editor-write", write)

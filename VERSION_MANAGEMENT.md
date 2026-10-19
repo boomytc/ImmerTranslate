@@ -48,7 +48,7 @@ git diff --check
 git diff
 ```
 
-`pnpm build` 会同步版本、清理旧 build 并构建各客户端，不再自动格式化源码。压缩使用锁文件中已安装的 bestzip，不临时下载工具。检查 ZIP 内 manifest、两个用户脚本的 `@version` 及 `build/web/version.txt`，都应为目标版本。
+`pnpm build` 会同步版本、清理旧 build，并只构建 Chrome 与 Edge。不再自动格式化源码。压缩使用锁文件中已安装的 bestzip，不临时下载工具。检查这两个 ZIP 内的 manifest，版本都应为目标版本。
 
 只暂存经过审查的发布文件，提交并推送发布分支，创建标题为 `Release v1.1.1`、目标为 main 的 PR。等待 `release checks / checks` 及其他要求的检查全部通过，再通过 PR 合并；失败时先修复，不绕过检查。仓库工作流提供检查，但分支保护中是否将其设为 required 由仓库设置控制。
 
@@ -68,13 +68,12 @@ git push origin v1.1.1
 
 1. 校验稳定版本、CHANGELOG 和标签提交位于 main 历史中。
 2. 运行发布脚本测试、产品测试、完整构建，确认构建没有修改受控文件。
-3. 校验五端 ZIP、两种用户脚本和 Pages 版本，生成包含源 SHA、ZIP 大小及 SHA-256、Pages 文件摘要的 `release-manifest.json`，保存原构建 artifact 90 天。
-4. 用 GitHub CLI 创建 draft，先上传来源清单，再上传五个 ZIP。全部上传并校验后才正式发布。按 tag 的 REST 接口仅返回已发布 Release；草稿通过有 push 权限的 release-state job 分页查询，构建 job 保持只读权限。
-5. 发布成功后才部署 Pages；只部署当前 latest 稳定版，且不得低于 gh-pages 的现有 `version.txt`。同版本发布串行，Pages 部署单独串行。推送 gh-pages 后显式请求 Pages 构建，等待该分支提交构建成功并确认线上 `version.txt`；不能仅以分支推送成功判断站点已部署。同一提交已构建且线上版本正确时不会重复请求构建。
+3. 校验 Chrome 与 Edge 两个 ZIP，生成包含源 SHA、ZIP 大小及 SHA-256 的 `release-manifest.json`，保存原构建 artifact 90 天。不再构建或发布 web，CI 也不再更新 gh-pages。
+4. 用 GitHub CLI 创建 draft，先上传来源清单，再上传两个 ZIP。全部上传并校验后才正式发布。按 tag 的 REST 接口仅返回已发布 Release；草稿通过有 push 权限的 release-state job 分页查询，构建 job 保持只读权限。
 
-下载包命名为 `immer-translate_v1.1.1_<client>.zip`，client 为 chrome、edge、firefox、userscript、thunderbird；另有 `immer-translate_v1.1.1_manifest.json` 用于检查来源和摘要。Safari 原生扩展构建不在本发布矩阵中。
+下载包命名为 `immer-translate_v1.1.1_<client>.zip`，client 为 chrome、edge；另有 `immer-translate_v1.1.1_manifest.json` 用于检查来源和摘要。
 
-发布和 Pages job 显式使用 `contents: write`，Pages job 另用 `pages: write` 请求构建，构建 job 仅使用读权限。认证错误、版本错误或产物摘要冲突都会停止，不能被解释为“版本不存在”。
+发布 job 显式使用 `contents: write`，构建 job 仅使用读权限。认证错误、版本错误或产物摘要冲突都会停止，不能被解释为“版本不存在”。
 
 ## 失败恢复与重复运行
 
@@ -82,9 +81,9 @@ GitHub 的 Re-run 使用原事件 SHA 和 ref，不能通过重跑 v1.1.0 带入
 
 - 构建或测试失败、尚未创建 Release：修复原因后按发布门禁继续。
 - 上传失败：保留 draft、已上传资产及原构建 artifact。重跑同一运行时复用原 artifact，验证已上传文件后只补传缺失文件。
-- Release 已完整发布：重跑只校验资产，不删除、不覆盖、不重复发布；Pages 仍按 latest 和现有版本决定是否部署。
+- Release 已完整发布：重跑只校验资产，不删除、不覆盖、不重复发布。当前工作流不再更新 gh-pages。
 - 已发布资产冲突、缺少来源清单、原 artifact 缺失或过期：停止自动恢复，保留已发布历史。不要使用 `--clobber`、删旧标签或重新构建不同字节的包替换历史资产。
-- Pages 单独失败：原 Release 保持有效，可从原 artifact 恢复部署。使用新版工作流恢复旧版时会跳过 Pages，保护当前站点。v1.1.0 等历史标签保存的旧工作流没有这些保护，不应重跑其 Pages job；main 中的新 YAML 不会替换历史运行所用的 YAML。
+- 历史标签上的旧工作流仍可能包含 Pages job。不要重跑那些 job 去改 gh-pages。main 中的新 YAML 不会替换历史运行所用的 YAML，当前发布也不再部署站点。
 
 也可从 main 的 Actions 页面手动运行发布工作流，指定已有稳定标签和原发布运行 ID：
 
@@ -100,6 +99,6 @@ gh workflow run release.yml --ref main \
 
 ## 发布验收
 
-确认标签对应 main 中的发布提交、工作流状态查询、构建、发布、部署四个 job 成功、五端 ZIP 与来源清单齐全、包内版本及两个脚本版本正确，并核对线上 `version.txt` 为目标版本。浏览器升级后验证订阅脚本不执行、个人规则仍可运行且看不到密钥、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
+确认标签对应 main 中的发布提交、工作流的状态查询、构建、发布三个 job 成功，Chrome 与 Edge ZIP 和来源清单齐全，包内版本正确。浏览器升级后验证订阅脚本不执行、个人规则仍可运行且看不到密钥、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
 
 报告发布 PR、main 提交 SHA、标签、Release URL、工作流结果和最终分支状态。静态测试及构建通过不能替代浏览器实际升级验证。

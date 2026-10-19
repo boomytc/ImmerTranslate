@@ -1,14 +1,13 @@
 /**
  * @file request.js
- * @description 普通网络请求的跨环境适配层。负责 native fetch、油猴 GM.xmlHttpRequest、
+ * @description 普通网络请求适配层。负责 native fetch、
  * WebExtension content script 到 background 的代理，以及超时信号与外部取消信号的合并。
  */
 
-import { isExt, isGm } from "./client";
+import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
 import { MSG_FETCH, DEFAULT_HTTP_TIMEOUT } from "../config";
 import { isBg } from "./browser";
-import { kissLog } from "./log";
 import { parseResponse } from "./response";
 import { requestThroughPort } from "./requestPort";
 
@@ -85,148 +84,8 @@ export const attachPoolSignal = (args, signal) => {
 export const createTimeoutSignal = (timeout) =>
   AbortSignal?.timeout && timeout ? AbortSignal.timeout(timeout) : undefined;
 
-const parseResponseHeaders = (responseHeaders) => {
-  const headers = {};
-  try {
-    responseHeaders &&
-      responseHeaders.split(/\r?\n/).forEach((line) => {
-        const [name, value] = line.split(":").map((item) => item.trim());
-        if (name && value) {
-          headers[name] = value;
-        }
-      });
-  } catch (e) {
-    kissLog("fetchGM parse headers error", e);
-  }
-
-  return headers;
-};
-
-const createGMResponse = ({
-  response,
-  responseHeaders,
-  status,
-  statusText,
-} = {}) => ({
-  body: response,
-  headers: parseResponseHeaders(responseHeaders),
-  status,
-  statusText,
-});
-
 /**
- * 通过 GM.xmlHttpRequest 发起普通请求，并包装成接近 Fetch Response 的对象。
- *
- * @param {string} input 目标 URL。
- * @param {Object} [init] 请求初始化参数。
- * @param {string} [init.method="GET"] HTTP 方法。
- * @param {Object} [init.headers] 请求头。
- * @param {*} [init.body] 请求体。
- * @param {number} [init.timeout] 超时时间，单位毫秒。
- * @param {AbortSignal} [init.signal] 外部取消信号。
- * @returns {Promise<Object>} 包含 body、headers、status、statusText 的响应对象。
- */
-export const fetchGM = async (
-  input,
-  { method = "GET", headers, body, timeout, signal } = {}
-) =>
-  new Promise((resolve, reject) => {
-    let requestHandle = null;
-    let settled = false;
-
-    const finish = (fn, value) => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener?.("abort", abortBySignal);
-      fn(value);
-    };
-
-    const abortBySignal = () => {
-      requestHandle?.abort?.();
-      finish(
-        reject,
-        new DOMException("The operation was aborted.", "AbortError")
-      );
-    };
-
-    if (signal?.aborted) {
-      abortBySignal();
-      return;
-    }
-
-    signal?.addEventListener?.("abort", abortBySignal, { once: true });
-
-    requestHandle = GM.xmlHttpRequest({
-      method,
-      url: input,
-      headers,
-      data: body,
-      anonymous: true,
-      timeout,
-      onload(responseEvent) {
-        finish(resolve, createGMResponse(responseEvent || this));
-      },
-      onerror: (error) => finish(reject, error),
-      onabort: () =>
-        finish(
-          reject,
-          new DOMException("The operation was aborted.", "AbortError")
-        ),
-      ontimeout: () => finish(reject, new Error("GM request timeout.")),
-    });
-  });
-
-const fetchKissGM = async (
-  input,
-  { method = "GET", headers, body, timeout, signal } = {}
-) =>
-  new Promise((resolve, reject) => {
-    let requestHandle = null;
-    let settled = false;
-
-    const finish = (fn, value) => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener?.("abort", abortBySignal);
-      fn(value);
-    };
-
-    const abortBySignal = () => {
-      requestHandle?.abort?.();
-      finish(
-        reject,
-        new DOMException("The operation was aborted.", "AbortError")
-      );
-    };
-
-    if (signal?.aborted) {
-      abortBySignal();
-      return;
-    }
-
-    signal?.addEventListener?.("abort", abortBySignal, { once: true });
-
-    requestHandle = window.KISS_GM.xmlHttpRequest({
-      method,
-      url: input,
-      headers,
-      data: body,
-      anonymous: true,
-      timeout,
-      onload: (responseEvent) =>
-        finish(resolve, createGMResponse(responseEvent)),
-      onerror: (error) => finish(reject, error),
-      onabort: () =>
-        finish(
-          reject,
-          new DOMException("The operation was aborted.", "AbortError")
-        ),
-      ontimeout: () => finish(reject, new Error("GM request timeout.")),
-    });
-  });
-
-/**
- * 执行底层普通请求，自动选择 GM 或 native fetch。
+ * 执行底层普通请求。
  *
  * @param {string} input 请求 URL。
  * @param {Object} [init={}] Fetch 初始化参数。
@@ -242,23 +101,7 @@ export const fetchPatcher = async (input, init = {}, opts) => {
     opts?.signal,
     createTimeoutSignal(timeout),
   ]);
-  const requestInit = { ...init, signal };
-
-  if (isGm) {
-    const gmInit = { ...requestInit, timeout };
-
-    const { body, headers, status, statusText } = window.KISS_GM
-      ? await fetchKissGM(input, gmInit)
-      : await fetchGM(input, gmInit);
-
-    return new Response(body, {
-      headers: new Headers(headers),
-      status,
-      statusText,
-    });
-  }
-
-  return fetch(input, requestInit);
+  return fetch(input, { ...init, signal });
 };
 
 /**

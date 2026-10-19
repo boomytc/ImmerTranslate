@@ -1,11 +1,8 @@
 import { STOKEY_RULES, STOKEY_SETTING, STOKEY_SYNC } from "../../config";
-import { isGm } from "../../libs/client";
-import { adaptScript } from "../../libs/gm";
 import { kissLog } from "../../libs/log";
 
 import { refreshStorageKeys } from "../../libs/storageRefresh";
 import { trySyncRules, trySyncSetting } from "../../libs/sync";
-import { sleep } from "../../libs/utils";
 import { normalizeOptionsPath } from "./paths";
 
 export const OPTIONS_SYNC_KEYS = [STOKEY_SETTING, STOKEY_RULES];
@@ -23,42 +20,6 @@ export function getRequiredOptionsSyncKeys(path) {
   return [STOKEY_SETTING];
 }
 
-async function prepareGmBridge() {
-  for (let attempt = 0; attempt <= 8; attempt += 1) {
-    if (
-      window.APP_INFO &&
-      window.APP_INFO.name === process.env.REACT_APP_NAME
-    ) {
-      const { version, eventName } = window.APP_INFO;
-      const installed = version?.split(".");
-      const bundled = process.env.REACT_APP_VERSION?.split(".");
-      if (
-        !installed ||
-        !bundled ||
-        installed[0] !== bundled[0] ||
-        installed[1] !== bundled[1]
-      ) {
-        throw new Error(
-          `\u672c\u5730\u811a\u672c\u7248\u672c(v${version})\u4e0e\u8bbe\u7f6e\u9875\u7248\u672c(v${process.env.REACT_APP_VERSION})\u4e0d\u517c\u5bb9\uff0c\u8bf7\u66f4\u65b0\u811a\u672c\u6216\u5237\u65b0\u8bbe\u7f6e\u9875\u3002\nThe version of the local script(v${version}) is not the latest version(v${process.env.REACT_APP_VERSION}).`
-        );
-      }
-
-      if (eventName) adaptScript(eventName);
-      return;
-    }
-
-    if (attempt < 8) await sleep(1000);
-  }
-
-  throw new Error(
-    "\u8fde\u63a5\u6cb9\u7334\u811a\u672c\u8d85\u65f6\uff0c\u8bf7\u786e\u8ba4\u5df2\u5b89\u88c5\u5e76\u542f\u7528 ImmerTranslate \u811a\u672c\uff0c\u7136\u540e\u5237\u65b0\u8bbe\u7f6e\u9875\u3002\nTime out. Please confirm whether to install or enable ImmerTranslate GreaseMonkey script?"
-  );
-}
-
-async function prepareLocalStorage() {
-  if (isGm) await prepareGmBridge();
-}
-
 async function syncAndRefresh(key, sync) {
   try {
     await sync();
@@ -71,11 +32,9 @@ async function syncAndRefresh(key, sync) {
 }
 
 export function createOptionsStartup() {
-  const localReady = prepareLocalStorage();
+  const localReady = Promise.resolve();
   // Settings initialize the shared remote destination before other syncs start.
-  let previous = localReady.then(() =>
-    syncAndRefresh(STOKEY_SETTING, trySyncSetting)
-  );
+  let previous = syncAndRefresh(STOKEY_SETTING, trySyncSetting);
   const completed = { [STOKEY_SETTING]: previous };
   const remaining = [[STOKEY_RULES, trySyncRules]];
   // Complete the entry page first without racing shared sync metadata writes.

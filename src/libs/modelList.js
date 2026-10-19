@@ -543,7 +543,7 @@ export async function collectDashscopeModelIds(
 /**
  * 拉取并解析当前 API 配置对应的模型列表。
  *
- * 这里使用项目统一的普通请求代理层，确保 WebExtension、userscript、background
+ * 这里使用项目统一的普通请求代理层，确保扩展页面和 background
  * 等运行环境都能复用已有的跨域、超时和错误解析逻辑。
  *
  * @param {Object} params 参数对象。

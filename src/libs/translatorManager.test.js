@@ -339,7 +339,6 @@ function setupMockConstructors() {
 function createManager({
   rule = { transOpen: "true" },
   setting = {},
-  isUserscript = false,
   isIframe = false,
   transboxOnly = false,
   onManualSwitch = () => {},
@@ -358,7 +357,6 @@ function createManager({
     rule,
     fabConfig: { isHide: false },
     isIframe,
-    isUserscript,
     transboxOnly,
     onManualSwitch,
     pageSwitch,
@@ -2059,5 +2057,14 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(mockFabStorage.listeners).toHaveLength(0);
       iframe.stop();
     });
+  });
+
+  test("cloneConfig copies deeply and throws on non-cloneable values", () => {
+    const tranboxSetting = { transOpen: true };
+    const manager = createManager({ setting: { tranboxSetting } });
+    manager.start();
+    mockTranslatorArgs.at(-1).setting.tranboxSetting.transOpen = false;
+    expect(tranboxSetting.transOpen).toBe(true);
+    expect(() => createManager({ setting: { bad: () => 0 } })).toThrow();
   });
 });

@@ -16,9 +16,8 @@ import {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-jest.mock("../libs/client", () => ({ isExt: false, isGm: false }));
+jest.mock("../libs/client", () => ({ isExt: false }));
 jest.mock("../libs/browser", () => ({ isOptions: () => true }));
-jest.mock("../libs/gm", () => ({ getGmMethod: jest.fn() }));
 jest.mock("../libs/msg", () => ({ sendBgMsg: jest.fn() }));
 jest.mock("../libs/log", () => ({
   ...jest.requireActual("../libs/log"),

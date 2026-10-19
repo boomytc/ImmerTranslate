@@ -1,5 +1,4 @@
-jest.mock("./gm", () => ({ getGmMethod: jest.fn() }));
-jest.mock("./client", () => ({ isExt: false, isGm: false }));
+jest.mock("./client", () => ({ isExt: false }));
 jest.mock("./browser", () => ({}));
 jest.mock("./log", () => ({
   ...jest.requireActual("./log"),

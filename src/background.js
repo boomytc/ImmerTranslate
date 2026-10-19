@@ -27,7 +27,6 @@ import {
   CMD_OPEN_TRANBOX,
   CMD_TOGGLE_TRANBOX,
   CMD_OPEN_SEPARATE_WINDOW,
-  CLIENT_THUNDERBIRD,
   MSG_SET_LOGLEVEL,
   MSG_CLEAR_CACHES,
   MSG_OPEN_SEPARATE_WINDOW,
@@ -774,15 +773,6 @@ async function updateCspRules({ csplist, orilist }) {
 }
 
 /**
- * 在 Thunderbird (雷鸟邮件客户端) 中注册脚本，实现邮件正文区域的注入翻译。
- */
-async function registerMsgDisplayScript() {
-  await messenger.messageDisplayScripts.register({
-    js: [{ file: "/content.js" }],
-  });
-}
-
-/**
  * 把浏览器界面语言收成项目支持的两种界面语言。
  * @returns {Promise<"zh" | "en">}
  */
@@ -804,11 +794,6 @@ browser.runtime.onInstalled.addListener(async (details) => {
   const uiLang = await getUiLanguage();
   await tryInitDefaultData(uiLang);
 
-  // 在 Thunderbird 场景下注册特定的邮件脚本
-  if (process.env.REACT_APP_CLIENT === CLIENT_THUNDERBIRD) {
-    registerMsgDisplayScript();
-  }
-
   const { contextMenuType, csplist, orilist } = await getSettingWithDefault();
 
   addContextMenus(contextMenuType);
@@ -829,11 +814,7 @@ browser.runtime.onStartup.addListener(async () => {
     tryClearCaches();
   }
 
-  if (process.env.REACT_APP_CLIENT === CLIENT_THUNDERBIRD) {
-    registerMsgDisplayScript();
-  }
-
-  // REVIEW: 针对“Firefox 重启后菜单消失”的系统 Bug，此处在启动时必须重新添加一次 addContextMenus
+  // Firefox 重启后菜单会消失，启动时重新添加一次。
   addContextMenus(contextMenuType);
 
   updateCspRules({ csplist, orilist });

@@ -37,8 +37,7 @@ import {
   OPT_TRANS_YANDEXFREE,
   OPT_TRANS_ZAI,
 } from "../config";
-import { browser, isOptions } from "../libs/browser";
-import { isGm } from "../libs/client";
+import { browser } from "../libs/browser";
 
 const API_ICON_FILES = {
   [OPT_TRANS_BUILTINAI]: "BuiltinAI.svg",
@@ -102,7 +101,7 @@ export function getApiIconSrc(
   {
     runtime = browser?.runtime,
     publicUrl = process.env.PUBLIC_URL || ".",
-    allowPublicUrl = !isGm || isOptions(),
+    allowPublicUrl = true,
   } = {}
 ) {
   const fileName = API_ICON_FILES[apiType];

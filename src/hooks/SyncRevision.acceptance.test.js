@@ -26,7 +26,7 @@ import {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-jest.mock("../libs/client", () => ({ isExt: true, isGm: false }));
+jest.mock("../libs/client", () => ({ isExt: true }));
 jest.mock("../libs/browser", () => ({
   isOptions: () => true,
   browser: {
@@ -64,7 +64,6 @@ jest.mock("../libs/log", () => ({
 }));
 jest.mock("../libs/fetch", () => ({
   fetchPatcher: jest.fn(),
-  fetchGM: jest.fn(),
 }));
 jest.mock("webdav", () => ({
   createClient: jest.fn(),
