@@ -56,14 +56,12 @@ const flushWork = async () => {
   for (let step = 0; step < 6; step++) await pump(50);
 };
 
-// 瞬时 Failed to fetch：1s、2s、4s 后再试，第四次仍失败才画横幅。
+// 任务池对非 AbortError 再试两次，间隔 1000ms。第三次仍失败才画横幅。
 const exhaustNetworkRetries = async () => {
   await flushWork();
   await pump(1000);
   await flushWork();
-  await pump(2000);
-  await flushWork();
-  await pump(4000);
+  await pump(1000);
   await flushWork();
 };
 
@@ -244,6 +242,36 @@ describe("Microsoft page batches", () => {
     expectNoNetworkBanner();
   });
 
+  test("translates the heading after one Failed to fetch is retried", async () => {
+    let attempts = 0;
+    global.fetch = jest.fn(async (_url, init) => {
+      attempts += 1;
+      if (attempts === 1) throw new TypeError("Failed to fetch");
+      return microsoftResponse(JSON.parse(init.body));
+    });
+
+    mountFixture();
+    await flushWork();
+
+    const heading = document.getElementById("heading");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(heading.textContent).toContain(H1);
+    expect(heading.textContent).not.toContain(translated(H1));
+    expect(heading.textContent).not.toContain(I18N.test_connection_network.en);
+    expect(
+      document.querySelector(`.${Translator.KISS_CLASS.error}`)
+    ).toBeNull();
+
+    await pump(1000);
+    await flushWork();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(requestTexts()[1]).toEqual(expect.arrayContaining([H1, P1, P2, P3]));
+    expect(heading.textContent).toContain(translated(H1));
+    expect(document.getElementById("p0").textContent).toContain(translated(P1));
+    expectNoNetworkBanner();
+  });
+
   test("still shows the network banner when every attempt fails", async () => {
     global.fetch = jest.fn(async () => {
       throw new TypeError("Failed to fetch");
@@ -253,7 +281,7 @@ describe("Microsoft page batches", () => {
     await exhaustNetworkRetries();
 
     const heading = document.getElementById("heading");
-    expect(global.fetch).toHaveBeenCalledTimes(4);
+    expect(global.fetch).toHaveBeenCalledTimes(3);
     expect(heading.textContent).toContain(H1);
     expect(heading.textContent).toContain(I18N.test_connection_network.en);
     expect(heading.textContent).not.toContain(translated(H1));
