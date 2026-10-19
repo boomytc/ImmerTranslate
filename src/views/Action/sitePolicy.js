@@ -1,5 +1,7 @@
-import { GLOBAL_KEY } from "../../config";
-import { findMatchingRule } from "../../libs/rules";
+import { GLOBAL_KEY, MSG_SAVE_RULE } from "../../config";
+import { isExt } from "../../libs/client";
+import { sendBgMsg } from "../../libs/msg";
+import { findMatchingRule, saveRule } from "../../libs/rules";
 import { getDomainOptions } from "../../libs/url";
 
 const SITE_TRANS_OPEN = new Set([GLOBAL_KEY, "true", "false"]);
@@ -33,4 +35,26 @@ export function siteRulePattern(href, rules) {
       ? findMatchingRule(rules || [], href)?.pattern
       : undefined;
   return matched || getDomainOptions(href)[0] || "";
+}
+
+/**
+ * 本站开关只写这一条记录：已有个人规则就改它，否则用当前主机名新建一条。
+ * 不另选下拉框里的宽模式，避免同一次切换再落一条规则。
+ */
+export function sitePolicyRecord(href, rules, transOpen) {
+  const pattern = siteRulePattern(href, rules);
+  if (!pattern || pattern === GLOBAL_KEY) return null;
+  return { pattern, transOpen };
+}
+
+export async function writeSiteTransOpen(
+  href,
+  transOpen,
+  rules,
+  { throughBackground = isExt } = {}
+) {
+  const record = sitePolicyRecord(href, rules, transOpen);
+  if (!record) return null;
+  if (throughBackground) return sendBgMsg(MSG_SAVE_RULE, record);
+  return saveRule(record);
 }

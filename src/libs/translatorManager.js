@@ -11,7 +11,7 @@ import { Translator } from "./translator";
 import { InputTranslator } from "./inputTranslate";
 import { TransboxManager } from "./tranbox";
 import { shortcutRegister } from "./shortcut";
-import { sendIframeMsg } from "./iframe";
+import { installFrameRuntimeBridge, sendIframeMsg } from "./iframe";
 import {
   EVENT_KISS_INNER,
   EVENT_KISS_TRANSLATOR,
@@ -47,8 +47,10 @@ import {
   isFabVisible,
   normalizeFabConfig,
   isFabVisibilityHeld,
+  applyFabSitePolicy,
   DEFAULT_FAB,
 } from "../config/fab";
+import { mountFabRestoreHandle } from "../views/Action/FabRestoreHandle";
 import { STOKEY_FAB } from "../config/storage";
 import { getStorageState } from "./storageState";
 import { logger } from "./log";
@@ -109,6 +111,8 @@ export default class TranslatorManager {
   #pageRestoreHandler = null;
   #spaNavigationHandler = null;
   #unsubscribeFabStorage = null;
+  #removeFrameBridge = null;
+  #removeRestoreHandle = null;
 
   // 运行期子模块实例。它们可能挂载 DOM，因此随 restart 销毁并重建。
   _translator = null;
@@ -177,6 +181,10 @@ export default class TranslatorManager {
       this.#setupSpaListeners();
     }
     this.#subscribeFabStorage();
+    this.#removeFrameBridge = installFrameRuntimeBridge(() =>
+      this.#frameRuntimeState()
+    );
+    this.#syncRestoreHandle();
     this.#isActive = true;
     logger.info("TranslatorManager started.");
   }
@@ -249,6 +257,9 @@ export default class TranslatorManager {
 
     this.#unsubscribeFabStorage?.();
     this.#unsubscribeFabStorage = null;
+    this.#removeFrameBridge?.();
+    this.#removeFrameBridge = null;
+    this.#clearRestoreHandle();
     this.#destroyRuntimeModules();
     this.#isActive = false;
     logger.info("TranslatorManager stopped.");
@@ -267,6 +278,59 @@ export default class TranslatorManager {
       if (!snapshot?.data || typeof snapshot.data !== "object") return;
       this.#fabConfig = normalizeFabConfig(snapshot.data);
       this.#applyFabVisibility();
+    });
+  }
+
+  #frameRuntimeState() {
+    const href = window.location?.href || "";
+    return {
+      transOpen: this._translator?.rule?.transOpen,
+      fabVisible:
+        !this.#isIframe &&
+        !this.#transboxOnly &&
+        Boolean(this._fabManager) &&
+        isFabVisible(href, this.#fabConfig),
+    };
+  }
+
+  applyLocationRule(rule) {
+    if (!this.#isActive || !rule) return;
+    const wasOn = this._translator?.rule?.transOpen === "true";
+    const nextOn = rule.transOpen === "true";
+    this.#rule = this.#cloneConfig(rule);
+    if (!this._translator) return;
+    if (wasOn && !nextOn) this._translator.disable();
+    this._translator.updateRule(rule);
+    if (!wasOn && nextOn) this._translator.enable();
+    publishPageRule(this.#getRuntimeResponse());
+  }
+
+  #clearRestoreHandle() {
+    this.#removeRestoreHandle?.();
+    this.#removeRestoreHandle = null;
+  }
+
+  #syncRestoreHandle() {
+    if (this.#isIframe || this.#transboxOnly || !this.#isUserscript) {
+      this.#clearRestoreHandle();
+      return;
+    }
+    const href = window.location?.href || "";
+    if (isFabVisibilityHeld() || isFabVisible(href, this.#fabConfig)) {
+      this.#clearRestoreHandle();
+      return;
+    }
+    if (this.#removeRestoreHandle) return;
+    const label = newI18n(this.#setting?.uiLang || "en")("show_fab_on_site");
+    this.#removeRestoreHandle = mountFabRestoreHandle({
+      label,
+      fabConfig: this.#fabConfig,
+      onClick: () => {
+        const pageHref = window.location?.href || "";
+        void getStorageState(STOKEY_FAB, DEFAULT_FAB).save((previous) =>
+          applyFabSitePolicy(previous, pageHref, true)
+        );
+      },
     });
   }
 
@@ -290,6 +354,7 @@ export default class TranslatorManager {
       this._fabManager?.destroy();
       this._fabManager = null;
     }
+    this.#syncRestoreHandle();
   }
 
   /**
@@ -1009,8 +1074,8 @@ export default class TranslatorManager {
           sendIframeMsg(MSG_TRANS_TOGGLE, { ...(args || {}), enabled });
         }
         publishRule = true;
-        // A binary toggle pins the site. Follow-mode applies runtime only.
-        if (args?.persistSite !== false) {
+        // 页面翻译开关只改运行态。站点策略由 writeSiteTransOpen 单独写入。
+        if (args?.persistSite === true) {
           const transOpen =
             typeof args?.enabled === "boolean"
               ? args.enabled

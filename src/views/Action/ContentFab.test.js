@@ -982,7 +982,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     });
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_TRANS_TOGGLE,
-      args: { enabled: false, persistSite: true },
+      args: { enabled: false, persistSite: false },
     });
 
     processActions.mockClear();

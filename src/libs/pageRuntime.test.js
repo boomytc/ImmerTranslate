@@ -1,0 +1,238 @@
+jest.mock("./browser", () => ({
+  browser: {
+    runtime: {
+      onMessage: { addListener: jest.fn(), removeListener: jest.fn() },
+    },
+  },
+}));
+jest.mock("./log", () => ({
+  logger: { info: jest.fn(), debug: jest.fn() },
+  LogLevel: { INFO: { value: 1, name: "INFO" } },
+}));
+jest.mock("./popupDocument", () => ({
+  getPopupDocumentIdentity: () => ({
+    token: "document",
+    url: "http://localhost/stay-clear",
+  }),
+}));
+jest.mock("./storageState", () => ({
+  getStorageState: jest.fn(() => ({
+    subscribe: () => () => {},
+  })),
+}));
+jest.mock("./translatorManager", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+jest.mock("./rules", () => ({
+  matchRule: jest.fn(async () => ({ transOpen: "false" })),
+}));
+jest.mock("./subRules", () => ({
+  loadOrFetchSubRules: jest.fn(),
+}));
+
+const { PageRuntime } = require("./pageRuntime");
+
+const MSG_TRANS_GETRULE = "trans_getrule";
+
+async function flushHistory() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe("PageRuntime", () => {
+  const runtimes = [];
+
+  afterEach(() => {
+    runtimes.forEach((runtime) => runtime.stop());
+    runtimes.length = 0;
+    window.history.pushState({}, "", "/stay-clear");
+  });
+
+  function boot(options) {
+    const created = [];
+    const managers = [];
+    const listeners = [];
+    let onSetting = () => {};
+    let onRules = () => {};
+    const runtime = new PageRuntime({
+      setting: {
+        blacklist: "",
+        tranboxSetting: {},
+        inputRule: {},
+        mouseHoverSetting: {},
+      },
+      getHref: () => window.location.href,
+      matchRule: async (href) => ({
+        transOpen: String(href).includes("auto-translate") ? "true" : "false",
+        pattern: href,
+      }),
+      createManager: (config) => {
+        created.push(config);
+        const manager = {
+          start: jest.fn(),
+          stop: jest.fn(),
+          applyLocationRule: jest.fn(),
+        };
+        managers.push(manager);
+        return manager;
+      },
+      subscribeSetting: (listener) => {
+        onSetting = listener;
+        return () => {};
+      },
+      subscribeRules: (listener) => {
+        onRules = listener;
+        return () => {};
+      },
+      listen: (handler) => {
+        listeners.push(handler);
+        return () => {
+          const index = listeners.indexOf(handler);
+          if (index >= 0) listeners.splice(index, 1);
+        };
+      },
+      getFavWords: async () => [],
+      ...options,
+    });
+    runtimes.push(runtime);
+    return {
+      runtime,
+      created,
+      managers,
+      listeners,
+      get onSetting() {
+        return onSetting;
+      },
+      get onRules() {
+        return onRules;
+      },
+    };
+  }
+
+  test("pushState into and out of the blacklist parks and resumes without auto-translate", async () => {
+    window.history.pushState({}, "", "/stay-clear");
+    const { runtime, created, managers, listeners } = boot({
+      setting: {
+        blacklist: "page-blocked",
+        tranboxSetting: {},
+        inputRule: {},
+        mouseHoverSetting: {},
+      },
+    });
+    await runtime.start();
+    expect(created).toHaveLength(1);
+    expect(created[0].rule.transOpen).toBe("false");
+    expect(listeners).toHaveLength(0);
+
+    window.history.pushState({}, "", "/page-blocked");
+    await runtime.whenIdle();
+    expect(managers[0].stop).toHaveBeenCalledTimes(1);
+    expect(listeners).toHaveLength(1);
+    const parked = listeners[0]({ action: MSG_TRANS_GETRULE });
+    expect(parked.rule.transOpen).toBe("false");
+    expect(parked.setting).toBeTruthy();
+    expect(parked.blacklistEntries).toEqual(["page-blocked"]);
+    expect(parked.capabilities.pageTranslation).toBe(true);
+
+    window.history.back();
+    await flushHistory();
+    await runtime.whenIdle();
+    expect(created).toHaveLength(2);
+    expect(created[1].rule.transOpen).toBe("false");
+    expect(listeners).toHaveLength(0);
+  });
+
+  test("pushState applies the next URL's site rule", async () => {
+    window.history.pushState({}, "", "/stay-clear");
+    const { runtime, managers } = boot();
+    await runtime.start();
+    window.history.pushState({}, "", "/auto-translate");
+    await runtime.whenIdle();
+    expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
+      expect.objectContaining({ transOpen: "true" })
+    );
+    window.history.pushState({}, "", "/plain-page");
+    await runtime.whenIdle();
+    expect(managers[0].applyLocationRule).toHaveBeenLastCalledWith(
+      expect.objectContaining({ transOpen: "false" })
+    );
+  });
+
+  test("popstate recalculates blacklist and site rules", async () => {
+    window.history.pushState({}, "", "/auto-translate");
+    window.history.pushState({}, "", "/page-blocked");
+    window.history.back();
+    await flushHistory();
+    const { runtime, created, managers, listeners } = boot({
+      setting: {
+        blacklist: "page-blocked",
+        tranboxSetting: {},
+        inputRule: {},
+        mouseHoverSetting: {},
+      },
+    });
+    await runtime.start();
+    expect(window.location.href).toContain("/auto-translate");
+    expect(created[0].rule.transOpen).toBe("true");
+    expect(listeners).toHaveLength(0);
+    window.history.forward();
+    await flushHistory();
+    await runtime.whenIdle();
+    expect(window.location.href).toContain("/page-blocked");
+    expect(managers[0].stop).toHaveBeenCalledTimes(1);
+    expect(listeners).toHaveLength(1);
+  });
+
+  test("a blacklist edit stops translation, and removing it does not auto-start unless the rule says so", async () => {
+    window.history.pushState({}, "", "/live-page");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.onSetting({
+      data: {
+        blacklist: "live-page",
+        tranboxSetting: {},
+        inputRule: {},
+        mouseHoverSetting: {},
+      },
+    });
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].stop).toHaveBeenCalledTimes(1);
+    harness.onSetting({
+      data: {
+        blacklist: "",
+        tranboxSetting: {},
+        inputRule: {},
+        mouseHoverSetting: {},
+      },
+    });
+    await harness.runtime.whenIdle();
+    expect(harness.created[1].rule.transOpen).toBe("false");
+
+    window.history.pushState({}, "", "/auto-translate");
+    await harness.runtime.whenIdle();
+    expect(harness.managers[1].applyLocationRule).toHaveBeenCalledWith(
+      expect.objectContaining({ transOpen: "true" })
+    );
+  });
+
+  test("an inserted iframe follows the top frame and is told to restore when it turns off", async () => {
+    window.history.pushState({}, "", "/child-embed");
+    let parent = { transOpen: true, fabVisible: false };
+    const { runtime, created, managers } = boot({
+      isIframe: true,
+      queryParent: async () => parent,
+      matchRule: async () => ({ transOpen: "false", apiSlug: "stored" }),
+    });
+    await runtime.start();
+    expect(created[0].rule).toMatchObject({
+      transOpen: "true",
+      apiSlug: "stored",
+    });
+    parent = { transOpen: false, fabVisible: true };
+    await runtime.requestReconcile("parent");
+    expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
+      expect.objectContaining({ transOpen: "false" })
+    );
+  });
+});

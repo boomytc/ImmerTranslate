@@ -663,6 +663,61 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       view.cleanup();
     });
 
+    test("site policy follows the stored rule while page translation is on", async () => {
+      const rulesState = {
+        snapshot: {
+          data: [{ pattern: "*", transOpen: "false" }],
+          isLoading: false,
+        },
+        configureSync: jest.fn(),
+        subscribe(listener) {
+          listener(this.snapshot);
+          return () => {};
+        },
+        ensureLoaded: jest.fn(async () => {}),
+        save: jest.fn(),
+      };
+      const actualGetStorageState = storageStateModule.getStorageState;
+      const spy = jest
+        .spyOn(storageStateModule, "getStorageState")
+        .mockImplementation((key, defaultValue) => {
+          if (key === STOKEY_RULES) return rulesState;
+          return actualGetStorageState(key, defaultValue);
+        });
+      const processActions = jest.fn(async ({ args }) => ({
+        rule: { transOpen: args?.enabled ? "true" : "false" },
+      }));
+      let view;
+      try {
+        view = renderPopup({ processActions });
+        await flushEffects();
+        const active = view.container.querySelector(
+          ".kt-popup-policy-mode--active"
+        );
+        expect(active.textContent).toBe("site_trans_follow");
+        const mainSwitch = view.container.querySelector(
+          'input[aria-label="popup_translate_page"]'
+        );
+        expect(mainSwitch.checked).toBe(true);
+        await act(async () => {
+          mainSwitch.click();
+        });
+        await flushEffects();
+        expect(saveRule).not.toHaveBeenCalled();
+        expect(processActions).toHaveBeenCalledWith({
+          action: MSG_TRANS_TOGGLE,
+          args: { enabled: false, persistSite: false },
+        });
+        expect(
+          view.container.querySelector(".kt-popup-policy-mode--active")
+            .textContent
+        ).toBe("site_trans_follow");
+      } finally {
+        spy.mockRestore();
+        view?.cleanup();
+      }
+    });
+
     test("selecting site policy saves rule and dispatches MSG_TRANS_TOGGLE if state changes", async () => {
       const processActions = jest.fn(pageReply);
       const view = renderPopup({
@@ -697,7 +752,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       );
       expect(processActions).toHaveBeenCalledWith({
         action: MSG_TRANS_TOGGLE,
-        args: { enabled: false, persistSite: true },
+        args: { enabled: false, persistSite: false },
       });
 
       view.cleanup();

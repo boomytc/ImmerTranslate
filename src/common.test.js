@@ -36,6 +36,7 @@ jest.mock("./libs/subRules", () => ({
 
 jest.mock("./libs/blacklist", () => ({
   isInBlacklist: jest.fn(() => false),
+  matchingBlacklistEntries: jest.fn(() => []),
 }));
 
 jest.mock("./subtitle/subtitle", () => ({
@@ -53,6 +54,11 @@ jest.mock("./libs/injector", () => ({
   injectInlineJs: jest.fn(),
 }));
 
+const mockStartPageRuntime = jest.fn(async () => ({}));
+jest.mock("./libs/pageRuntime", () => ({
+  startPageRuntime: (...args) => mockStartPageRuntime(...args),
+}));
+
 jest.mock("./libs/translatorManager", () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
@@ -67,7 +73,7 @@ const {
 } = require("./libs/storage");
 const { matchRule } = require("./libs/rules");
 const { readRedditEmbeddingHref } = require("./libs/redditFrame");
-const { isInBlacklist } = require("./libs/blacklist");
+const { isInBlacklist, matchingBlacklistEntries } = require("./libs/blacklist");
 const { runSubtitle } = require("./subtitle/subtitle");
 const { injectInlineJs } = require("./libs/injector");
 const TranslatorManager = require("./libs/translatorManager").default;
@@ -112,6 +118,8 @@ describe("common iframe startup", () => {
     jest.clearAllMocks();
     readRedditEmbeddingHref.mockReturnValue("");
     isInBlacklist.mockImplementation(() => false);
+    matchingBlacklistEntries.mockImplementation(() => []);
+    mockStartPageRuntime.mockClear();
 
     TranslatorManager.mockImplementation(() => ({
       start: mockTranslatorManagerStart,
@@ -286,6 +294,21 @@ describe("common iframe startup", () => {
     expect(TranslatorManager.mock.calls[0][0].fabConfig.isHide).toBe(false);
     expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
     expect(runSubtitle).not.toHaveBeenCalled();
+  });
+
+  test("keeps a parked runtime when the page blacklist matches", async () => {
+    matchingBlacklistEntries.mockReturnValue(["localhost"]);
+
+    await run();
+
+    expect(TranslatorManager).not.toHaveBeenCalled();
+    expect(mockTranslatorManagerStart).not.toHaveBeenCalled();
+    expect(runSubtitle).not.toHaveBeenCalled();
+    expect(matchRule).not.toHaveBeenCalled();
+    expect(mockStartPageRuntime).toHaveBeenCalledTimes(1);
+    const parkedOptions = mockStartPageRuntime.mock.calls[0][0];
+    expect(parkedOptions.manager).toBeUndefined();
+    expect(parkedOptions.isIframe).toBe(false);
   });
 
   test("skips non-PDF media documents before rule matching and manager startup", async () => {

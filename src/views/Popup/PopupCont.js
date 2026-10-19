@@ -64,6 +64,7 @@ import {
   readSiteTransOpen,
   siteRulePattern,
   SITE_TRANS_OPEN_OPTIONS,
+  writeSiteTransOpen,
 } from "../Action/sitePolicy";
 import { browser } from "../../libs/browser";
 import { saveRule } from "../../libs/rules";
@@ -77,7 +78,11 @@ import {
   useAllTextStyles,
 } from "../../hooks/CustomStyles";
 import { useOverviewShortcuts } from "../../hooks/Commands";
-import { isInBlacklist } from "../../libs/blacklist";
+import {
+  isInBlacklist,
+  matchingBlacklistEntries,
+  removeBlacklistEntry,
+} from "../../libs/blacklist";
 import { useSetting } from "../../hooks/Setting";
 import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import ApiProviderIcon from "../../components/ApiProviderIcon";
@@ -169,7 +174,14 @@ export default function PopupCont({
   const pageActionSequenceRef = useRef(0);
   const hasTargetTab = targetTab != null;
   const targetTabUrl = targetTab?.url;
-  const canTranslatePage = capabilities?.pageTranslation !== false;
+  const blacklistValue = contextSetting?.blacklist || "";
+  const blacklistHits = useMemo(
+    () => matchingBlacklistEntries(blacklistValue, currentHref),
+    [blacklistValue, currentHref]
+  );
+  const pageBlocked = blacklistHits.length > 0;
+  const canTranslatePage =
+    capabilities?.pageTranslation !== false && !pageBlocked;
   const canEditRule = isTopFrame && capabilities?.ruleEditor !== false;
   const { allTextStyles } = useAllTextStyles();
   const visiblePopupTextStyles = useMemo(
@@ -206,12 +218,6 @@ export default function PopupCont({
     touchActivityRef.current += 1;
   }, [isVisible, targetTab?.id, documentInfo?.token]);
 
-  const blacklistValue = contextSetting?.blacklist || "";
-  const isInCurrentBlacklist = useMemo(() => {
-    if (!selectedDomain || !blacklistValue) return false;
-    return isInBlacklist(currentHref, blacklistValue);
-  }, [blacklistValue, currentHref, selectedDomain]);
-
   const handleAddToBlacklist = useCallback(async () => {
     if (!selectedDomain) return;
     try {
@@ -233,23 +239,22 @@ export default function PopupCont({
     }
   }, [i18n, selectedDomain, showMessage, updateSetting]);
 
-  const handleRemoveFromBlacklist = useCallback(async () => {
-    if (!selectedDomain) return;
-    try {
-      await updateSetting((previous) => ({
-        ...previous,
-        blacklist: (previous?.blacklist || "")
-          .split(/\n|,/)
-          .map((entry) => entry.trim())
-          .filter((entry) => entry && !isInBlacklist(currentHref, entry))
-          .join("\n"),
-      }));
-      showMessage(`${i18n("remove_from_blacklist")}: ${selectedDomain}`);
-    } catch (error) {
-      kissLog("remove from blacklist", error);
-      showMessage(i18n("error_got_some_wrong"), "error");
-    }
-  }, [currentHref, i18n, selectedDomain, showMessage, updateSetting]);
+  const handleRemoveBlacklistEntry = useCallback(
+    async (entry) => {
+      if (!entry) return;
+      try {
+        await updateSetting((previous) => ({
+          ...previous,
+          blacklist: removeBlacklistEntry(previous?.blacklist, entry),
+        }));
+        showMessage(`${i18n("remove_from_blacklist")}: ${entry}`);
+      } catch (error) {
+        kissLog("remove from blacklist", error);
+        showMessage(i18n("error_got_some_wrong"), "error");
+      }
+    },
+    [i18n, showMessage, updateSetting]
+  );
 
   const sendPageMessage = useCallback(
     (action, args, topFrame = false) => {
@@ -477,6 +482,7 @@ export default function PopupCont({
       try {
         const response = await dispatchPageAction(MSG_TRANS_TOGGLE, {
           enabled,
+          persistSite: false,
         });
         if (!activeRef.current) return;
 
@@ -977,9 +983,6 @@ export default function PopupCont({
     async (next) => {
       if (rulesLoading || !sitePattern || next === siteTransOpen) return;
       setSiteDraft(next);
-      const saved = { pattern: sitePattern, transOpen: next };
-      const persist =
-        isExt && isContent ? sendBgMsg(MSG_SAVE_RULE, saved) : saveRule(saved);
       const globalTransOpen = rules.find(
         (item) => item.pattern === GLOBAL_KEY
       )?.transOpen;
@@ -993,18 +996,20 @@ export default function PopupCont({
                 action: MSG_TRANS_TOGGLE,
                 args: {
                   enabled: nextRuntime === "true",
-                  persistSite: next !== GLOBAL_KEY,
+                  persistSite: false,
                 },
               })
             : sendPageMessage(MSG_TRANS_TOGGLE, {
                 enabled: nextRuntime === "true",
-                persistSite: next !== GLOBAL_KEY,
+                persistSite: false,
               })
         ).catch((err) => kissLog("toggle site transOpen error", err));
       }
 
       try {
-        const response = await Promise.resolve(persist);
+        const response = await writeSiteTransOpen(currentHref, next, rules, {
+          throughBackground: isExt && isContent,
+        });
         if (response?.error) throw new Error(response.error);
         showMessage(i18n("save_success"));
       } catch (error) {
@@ -1015,6 +1020,7 @@ export default function PopupCont({
     },
     [
       canTranslatePage,
+      currentHref,
       i18n,
       isContent,
       processActions,
@@ -1254,13 +1260,11 @@ export default function PopupCont({
           </select>
           <span
             className={`kt-popup-site__badge ${
-              isInCurrentBlacklist ? "kt-popup-site__badge--blocked" : ""
+              pageBlocked ? "kt-popup-site__badge--blocked" : ""
             }`}
           >
             {i18n(
-              isInCurrentBlacklist
-                ? "popup_domain_blocked"
-                : "popup_domain_allowed"
+              pageBlocked ? "popup_domain_blocked" : "popup_domain_allowed"
             )}
           </span>
         </div>
@@ -1273,23 +1277,33 @@ export default function PopupCont({
           >
             {i18n("save_rule")}
           </Button>
-          <Button
-            variant={isInCurrentBlacklist ? "contained" : "outlined"}
-            color={isInCurrentBlacklist ? "error" : "primary"}
-            onClick={
-              isInCurrentBlacklist
-                ? handleRemoveFromBlacklist
-                : handleAddToBlacklist
-            }
-            disabled={!domainOptions.length}
-          >
-            {i18n(
-              isInCurrentBlacklist
-                ? "remove_from_blacklist"
-                : "add_to_blacklist"
-            )}
-          </Button>
+          {!pageBlocked && (
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={handleAddToBlacklist}
+              disabled={!domainOptions.length}
+            >
+              {i18n("add_to_blacklist")}
+            </Button>
+          )}
         </div>
+        {pageBlocked && (
+          <ul className="kt-popup-blacklist" aria-label={i18n("blacklist")}>
+            {blacklistHits.map((entry, index) => (
+              <li key={`${entry}-${index}`}>
+                <span className="kt-popup-blacklist__entry">{entry}</span>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={() => void handleRemoveBlacklistEntry(entry)}
+                >
+                  {i18n("remove_from_blacklist")}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {canTranslatePage && domainOptions.length > 0 && (

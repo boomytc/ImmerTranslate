@@ -11,7 +11,8 @@ import { genEventName } from "./libs/utils";
 import { handlePing, injectScript } from "./libs/gm";
 import { matchRule } from "./libs/rules";
 import { trySyncAllSubRules } from "./libs/subRules";
-import { isInBlacklist } from "./libs/blacklist";
+import { isInBlacklist, matchingBlacklistEntries } from "./libs/blacklist";
+import { startPageRuntime } from "./libs/pageRuntime";
 import { runSubtitle } from "./subtitle/subtitle";
 import { logger } from "./libs/log";
 import { injectInlineJs } from "./libs/injector";
@@ -272,13 +273,44 @@ export async function run(isUserscript = false) {
       return;
     }
 
-    // 5. 网页黑名单校验，命中时彻底不启动翻译
-    if (isInBlacklist(href, setting.blacklist)) {
+    // 5.1. iframe 空内容拦截：默认允许 iframe 翻译，但空 iframe 不继续挂载后续脚本
+    if (isIframe && !(await waitForIframeTranslatableText())) {
       return;
     }
 
-    // 5.1. iframe 空内容拦截：默认允许 iframe 翻译，但空 iframe 不继续挂载后续脚本
-    if (isIframe && !(await waitForIframeTranslatableText())) {
+    let sideEffectsStarted = false;
+    const startSideEffects = ({
+      href: pageHref,
+      setting: pageSetting,
+      rule: pageRule,
+    }) => {
+      if (sideEffectsStarted || isIframe || isPdfDocument) return;
+      sideEffectsStarted = true;
+      runSubtitle({
+        href: pageHref,
+        setting: pageSetting,
+        rule: pageRule,
+        isUserscript,
+      });
+      if (isUserscript) {
+        trySyncAllSubRules(pageSetting);
+      }
+    };
+
+    const runtimeOptions = {
+      setting,
+      fabConfig: null,
+      isIframe,
+      isUserscript,
+      transboxOnly: isPdfDocument,
+      getFavWords,
+      onActivate: startSideEffects,
+    };
+
+    // 5. 命中翻译黑名单时仍留下轻量入口：不挂翻译 DOM，订阅存储和地址变化。
+    if (matchingBlacklistEntries(setting.blacklist, href).length) {
+      runtimeOptions.fabConfig = normalizeFabConfig(await getFabWithDefault());
+      await startPageRuntime(runtimeOptions);
       return;
     }
 
@@ -317,19 +349,15 @@ export async function run(isUserscript = false) {
       transboxOnly: isPdfDocument,
     });
     translatorManager.start();
-
-    // 9. 若当前页面是嵌套的 iframe，不进行视频字幕翻译，避免多个 iframe 里重复跑字幕服务造成冲突
-    if (isIframe || isPdfDocument) {
-      return;
-    }
-
-    // 10. 启动视频字幕翻译子模块 (仅在顶级 frame 下运行)
-    runSubtitle({ href, setting, rule, isUserscript });
-
-    // 11. 在油猴环境下，每次进入顶级页面时尝试触发一次订阅规则的自动同步检查 (每日一次)
-    if (isUserscript) {
-      trySyncAllSubRules(setting);
-    }
+    startSideEffects({ href, setting, rule });
+    await startPageRuntime({
+      ...runtimeOptions,
+      manager: translatorManager,
+      setting,
+      rule,
+      fabConfig,
+      favWords,
+    });
   } catch (err) {
     console.error("[ImmerTranslate]", err);
     showErr(err.message); // 向前台页面绘制报错 Banner，便于用户感知与排查问题

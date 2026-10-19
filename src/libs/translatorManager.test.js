@@ -18,7 +18,7 @@ const mockPopupInstances = [];
 const mockFabInstances = [];
 const mockPopupDocumentIdentity = jest.fn();
 const activeManagers = [];
-const mockFabStorage = { listeners: [] };
+const mockFabStorage = { listeners: [], save: jest.fn() };
 
 jest.mock("./storageState", () => ({
   getStorageState: () => ({
@@ -30,6 +30,7 @@ jest.mock("./storageState", () => ({
         );
       };
     },
+    save: (...args) => mockFabStorage.save(...args),
   }),
 }));
 
@@ -187,6 +188,7 @@ jest.mock("./touch", () => ({
 
 jest.mock("./iframe", () => ({
   sendIframeMsg: jest.fn(),
+  installFrameRuntimeBridge: jest.fn(() => jest.fn()),
 }));
 
 jest.mock("./pageRuleSync", () => ({
@@ -226,6 +228,7 @@ const { InputTranslator } = require("./inputTranslate");
 const { PopupManager } = require("./popupManager");
 const { FabManager } = require("./fabManager");
 const { sendIframeMsg } = require("./iframe");
+const { shortcutRegister } = require("./shortcut");
 const { publishPageRule, persistSharedSiteRule } = require("./pageRuleSync");
 const TranslatorManager = require("./translatorManager").default;
 
@@ -374,6 +377,7 @@ describe("TranslatorManager SPA lifecycle", () => {
     jest.useFakeTimers();
     document.documentElement.innerHTML = "<head></head><body></body>";
     jest.clearAllMocks();
+    shortcutRegister.mockImplementation(() => () => {});
     browser.runtime.sendMessage.mockReset().mockResolvedValue(12);
     mockPopupDocumentIdentity.mockReset();
     mockPopupDocumentIdentity.mockReturnValue({
@@ -1398,6 +1402,30 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(persistSharedSiteRule).not.toHaveBeenCalled();
   });
 
+  test("does not store site policy when the page translation switch changes", () => {
+    createManager().start();
+    persistSharedSiteRule.mockClear();
+    sendRuntimeMessage({
+      action: "trans-toggle",
+      args: { enabled: true },
+    });
+    expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(1);
+    expect(persistSharedSiteRule).not.toHaveBeenCalled();
+  });
+
+  test("applyLocationRule turns translation off and back on with the matched rule", () => {
+    const manager = createManager({ rule: { transOpen: "true" } });
+    manager.start();
+    manager.applyLocationRule({ transOpen: "false", apiSlug: "deepl" });
+    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({ transOpen: "false", apiSlug: "deepl" })
+    );
+    mockTranslatorInstances[0].rule.transOpen = "false";
+    manager.applyLocationRule({ transOpen: "true", apiSlug: "deepl" });
+    expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(1);
+  });
+
   test("continues checking queued controls after a verification rejects", async () => {
     createManager().start();
     browser.runtime.sendMessage
@@ -1705,6 +1733,55 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(FabManager.mock.calls.at(-1)[0].fabConfig).toMatchObject(
         restoredConfig
       );
+    });
+
+    test("userscript leaves an edge handle after the fab is hidden", () => {
+      const manager = createManager({ isUserscript: true });
+      manager.start();
+      expect(document.querySelector(".kt-fab-restore-handle")).toBeNull();
+      const listener = mockFabStorage.listeners.at(-1);
+      listener({
+        data: {
+          isHide: false,
+          hiddenSites: window.location.hostname,
+          shownSites: "",
+        },
+      });
+      const handle = document.querySelector(".kt-fab-restore-handle");
+      expect(handle).not.toBeNull();
+      handle.click();
+      const reducer = mockFabStorage.save.mock.calls[0][0];
+      expect(
+        reducer({
+          isHide: false,
+          hiddenSites: window.location.hostname,
+          shownSites: "",
+        }).hiddenSites
+      ).toBe("");
+      manager.stop();
+      expect(document.querySelector(".kt-fab-restore-handle")).toBeNull();
+    });
+
+    test("extension does not add a restore handle when the fab is hidden", () => {
+      const manager = createManager({ isUserscript: false });
+      manager.start();
+      const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
+      handler(
+        {
+          action: "toggle_fab",
+          args: {
+            fabConfig: {
+              isHide: false,
+              hiddenSites: window.location.hostname,
+              shownSites: "",
+            },
+          },
+        },
+        {},
+        jest.fn()
+      );
+      expect(document.querySelector(".kt-fab-restore-handle")).toBeNull();
+      manager.stop();
     });
 
     test("follows STOKEY_FAB, uses it on restart, and unsubscribes on stop", () => {
