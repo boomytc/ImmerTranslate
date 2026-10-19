@@ -6,6 +6,19 @@ const isAbortError = (error) => error?.name === "AbortError";
 const cancellationError = (message = "The operation was aborted.") =>
   new DOMException(message, "AbortError");
 
+// 立刻失败的传输错误。超时不在这里：一次超时已经等过 httpTimeout，
+// 再按指数拉开只会把真失败的横幅拖得很久。
+const FAST_NETWORK_RE =
+  /failed to fetch|networkerror|net::err_|load failed|econnrefused|enotfound|err_internet|err_name_not_resolved|err_connection|err_network|internet disconnected/i;
+
+const isFastNetworkFailure = (error) => {
+  if (!error || isAbortError(error) || error.name === "TimeoutError") {
+    return false;
+  }
+  if (error.name === "NetworkError") return true;
+  return FAST_NETWORK_RE.test(String(error.message || ""));
+};
+
 /**
  * 任务池（TaskPool）
  * 用于控制异步任务（如网络请求）的并发数、最小执行间隔和重试机制，防止请求过于密集被翻译服务封禁。
@@ -100,16 +113,29 @@ class TaskPool {
     }, delay);
   }
 
-  #scheduleRetry(task) {
-    const timer = setTimeout(() => {
-      this.#retryTimers.delete(timer);
-      this.#pendingRetries.delete(task);
-      if (task.settled || task.generation !== this.#generation) return;
-      task.retry += 1;
-      task.controller = null;
-      this.#pool.unshift(task);
-      this.#scheduleNext();
-    }, this.#retryInterval);
+  #retryLimit(error) {
+    // 瞬时传输失败比普通 HTTP 错误多一次。四次都失败后仍把原错误交给调用方。
+    return isFastNetworkFailure(error) ? this.#maxRetry + 1 : this.#maxRetry;
+  }
+
+  #retryDelay(task, error) {
+    if (!isFastNetworkFailure(error)) return this.#retryInterval;
+    return this.#retryInterval * 2 ** task.retry;
+  }
+
+  #scheduleRetry(task, error) {
+    const timer = setTimeout(
+      () => {
+        this.#retryTimers.delete(timer);
+        this.#pendingRetries.delete(task);
+        if (task.settled || task.generation !== this.#generation) return;
+        task.retry += 1;
+        task.controller = null;
+        this.#pool.unshift(task);
+        this.#scheduleNext();
+      },
+      this.#retryDelay(task, error)
+    );
     this.#retryTimers.add(timer);
     this.#pendingRetries.add(task);
   }
@@ -151,8 +177,8 @@ class TaskPool {
       }
 
       kissLog("task pool", err);
-      if (task.retry < this.#maxRetry) {
-        this.#scheduleRetry(task);
+      if (task.retry < this.#retryLimit(err)) {
+        this.#scheduleRetry(task, err);
       } else {
         // 达到最大重试次数后，抛出错误并拒绝 Promise
         this.#rejectTask(task, err);

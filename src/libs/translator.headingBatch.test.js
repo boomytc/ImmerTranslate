@@ -52,27 +52,37 @@ const pump = async (ms = 0) => {
   for (let i = 0; i < 20; i++) await Promise.resolve();
 };
 
-const finishRequests = async () => {
-  // 译文插入、批量窗口和任务池启动都是 setTimeout(0)。
-  // 失败发生在微任务里，任务池才会排上下一次重试（间隔 1000ms）。
-  // 必须先清空微任务，下一次推进才会执行那次重试。
-  // 默认再试两次，三次都失败后，现有的网络错误横幅才会画出来。
-  for (let step = 0; step < 4; step++) await pump(50);
-  await pump(1100);
-  await pump(1100);
-  await pump(1100);
-  await pump(50);
+const flushWork = async () => {
+  for (let step = 0; step < 6; step++) await pump(50);
+};
+
+// 瞬时 Failed to fetch：1s、2s、4s 后再试，第四次仍失败才画横幅。
+const exhaustNetworkRetries = async () => {
+  await flushWork();
+  await pump(1000);
+  await flushWork();
+  await pump(2000);
+  await flushWork();
+  await pump(4000);
+  await flushWork();
 };
 
 const created = [];
 
-const mountFixture = () => {
-  document.body.innerHTML = `<h1 id="heading">${H1}</h1><p id="p1">${P1}</p><p id="p2">${P2}</p><p id="p3">${P3}</p>`;
+const mountFixture = ({
+  paragraphs = [P1, P2, P3],
+  batchSize = 20,
+  fromLang = "auto",
+} = {}) => {
+  const markup = paragraphs
+    .map((text, index) => `<p id="p${index}">${text}</p>`)
+    .join("");
+  document.body.innerHTML = `<h1 id="heading">${H1}</h1>${markup}`;
   const translator = new Translator({
     rule: {
       transOpen: "true",
       apiSlug: "Microsoft",
-      fromLang: "auto",
+      fromLang,
       toLang: "zh-CN",
       rootsSelector: "body",
       transTitle: "false",
@@ -86,6 +96,8 @@ const mountFixture = () => {
         {
           ...DEFAULT_API_SETTING,
           batchInterval: 0,
+          batchSize,
+          batchConcurrency: 10,
           fetchInterval: 1,
           fetchLimit: 10,
           httpTimeout: 30,
@@ -101,7 +113,14 @@ const mountFixture = () => {
 const requestTexts = () =>
   global.fetch.mock.calls.map(([, init]) => JSON.parse(init.body));
 
-describe("Microsoft heading shares the page batch", () => {
+const expectNoNetworkBanner = () => {
+  expect(document.querySelector(`.${Translator.KISS_CLASS.error}`)).toBeNull();
+  expect(document.body.textContent).not.toContain(
+    I18N.test_connection_network.en
+  );
+};
+
+describe("Microsoft page batches", () => {
   let originalIntersectionObserver;
   let originalCSSStyleSheet;
   let originalFetch;
@@ -151,46 +170,90 @@ describe("Microsoft heading shares the page batch", () => {
     jest.useRealTimers();
   });
 
-  test("translates the heading with the paragraphs when its own request would fail", async () => {
-    global.fetch = jest.fn(async (url, init) => {
+  test("translates a page that sends several Microsoft batches at once", async () => {
+    const paragraphs = [P1, P2, P3, P1, P2];
+    const release = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    global.fetch = jest.fn(async (_url, init) => {
       const texts = JSON.parse(init.body);
-      if (texts.length === 1 && texts[0] === H1) {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => release.push(resolve));
+      inFlight -= 1;
+      return microsoftResponse(texts);
+    });
+
+    mountFixture({ paragraphs, batchSize: 2 });
+
+    for (
+      let step = 0;
+      step < 40 && global.fetch.mock.calls.length < 3;
+      step++
+    ) {
+      await pump(20);
+    }
+
+    expect(global.fetch.mock.calls.length).toBe(3);
+    expect(maxInFlight).toBeGreaterThanOrEqual(2);
+    expect(requestTexts().flat()).toEqual(
+      expect.arrayContaining([H1, P1, P2, P3])
+    );
+
+    release.splice(0).forEach((finish) => finish());
+    await flushWork();
+
+    expect(document.getElementById("heading").textContent).toContain(
+      translated(H1)
+    );
+    paragraphs.forEach((text, index) => {
+      expect(document.getElementById(`p${index}`).textContent).toContain(
+        translated(text)
+      );
+    });
+    expectNoNetworkBanner();
+  });
+
+  test("recovers when one of several batches fails once", async () => {
+    const paragraphs = [P1, P2, P3, P1, P2];
+    let failed = false;
+    global.fetch = jest.fn(async (_url, init) => {
+      const texts = JSON.parse(init.body);
+      if (!failed && !texts.includes(H1)) {
+        failed = true;
         throw new TypeError("Failed to fetch");
       }
       return microsoftResponse(texts);
     });
 
-    mountFixture();
-    await finishRequests();
+    mountFixture({ paragraphs, batchSize: 2 });
+    await flushWork();
+    await pump(1000);
+    await flushWork();
 
-    const bodies = requestTexts();
-    expect(bodies).toHaveLength(1);
-    expect(bodies[0]).toEqual([H1, P1, P2, P3]);
-    expect(new URL(global.fetch.mock.calls[0][0]).searchParams.get("from")).toBe(
-      ""
-    );
+    expect(failed).toBe(true);
+    expect(global.fetch.mock.calls.length).toBeGreaterThanOrEqual(4);
     expect(document.getElementById("heading").textContent).toContain(
       translated(H1)
     );
-    expect(document.getElementById("p1").textContent).toContain(translated(P1));
-    expect(
-      document.querySelector(`.${Translator.KISS_CLASS.error}`)
-    ).toBeNull();
-    expect(document.body.textContent).not.toContain(
-      I18N.test_connection_network.en
-    );
+    paragraphs.forEach((text, index) => {
+      expect(document.getElementById(`p${index}`).textContent).toContain(
+        translated(text)
+      );
+    });
+    expectNoNetworkBanner();
   });
 
-  test("still shows the network banner when the shared request fails", async () => {
+  test("still shows the network banner when every attempt fails", async () => {
     global.fetch = jest.fn(async () => {
       throw new TypeError("Failed to fetch");
     });
 
     mountFixture();
-    await finishRequests();
+    await exhaustNetworkRetries();
 
     const heading = document.getElementById("heading");
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch).toHaveBeenCalledTimes(4);
     expect(heading.textContent).toContain(H1);
     expect(heading.textContent).toContain(I18N.test_connection_network.en);
     expect(heading.textContent).not.toContain(translated(H1));
@@ -209,7 +272,7 @@ describe("Microsoft heading shares the page batch", () => {
     });
 
     mountFixture();
-    await finishRequests();
+    await exhaustNetworkRetries();
     expect(document.getElementById("heading").textContent).toContain(
       I18N.test_connection_network.en
     );
@@ -220,15 +283,13 @@ describe("Microsoft heading shares the page batch", () => {
       .forEach((node) => {
         node.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       });
-    await finishRequests();
+    await flushWork();
 
     const heading = document.getElementById("heading");
     expect(heading.textContent).toContain(translated(H1));
     expect(heading.textContent).not.toContain(I18N.test_connection_network.en);
-    expect(document.getElementById("p1").textContent).toContain(translated(P1));
-    expect(
-      document.querySelector(`.${Translator.KISS_CLASS.error}`)
-    ).toBeNull();
+    expect(document.getElementById("p0").textContent).toContain(translated(P1));
+    expectNoNetworkBanner();
   });
 
   test("does not paint a network banner when the request is aborted", async () => {
@@ -237,15 +298,11 @@ describe("Microsoft heading shares the page batch", () => {
     });
 
     mountFixture();
-    await finishRequests();
+    await flushWork();
 
-    expect(
-      document.querySelector(`.${Translator.KISS_CLASS.error}`)
-    ).toBeNull();
-    expect(document.body.textContent).not.toContain(
-      I18N.test_connection_network.en
-    );
+    expectNoNetworkBanner();
     expect(document.getElementById("heading").textContent).toBe(H1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   test("keeps an explicit source language on one shared request", async () => {
@@ -253,39 +310,13 @@ describe("Microsoft heading shares the page batch", () => {
     global.fetch = jest.fn(async (_url, init) =>
       microsoftResponse(JSON.parse(init.body))
     );
-    document.body.innerHTML = `<h1 id="heading">${H1}</h1><p id="p1">${P1}</p>`;
-    const translator = new Translator({
-      rule: {
-        transOpen: "true",
-        apiSlug: "Microsoft",
-        fromLang: "en",
-        toLang: "zh-CN",
-        rootsSelector: "body",
-        transTitle: "false",
-      },
-      setting: {
-        uiLang: "en",
-        transInterval: 0,
-        rootMargin: 0,
-        minLength: 0,
-        transApis: [
-          {
-            ...DEFAULT_API_SETTING,
-            batchInterval: 0,
-            fetchInterval: 1,
-            httpTimeout: 30,
-            useStream: false,
-          },
-        ],
-      },
-    });
-    created.push(translator);
-    await finishRequests();
+    mountFixture({ paragraphs: [P1], fromLang: "en" });
+    await flushWork();
 
     expect(requestTexts()).toEqual([[H1, P1]]);
-    expect(new URL(global.fetch.mock.calls[0][0]).searchParams.get("from")).toBe(
-      "en"
-    );
+    expect(
+      new URL(global.fetch.mock.calls[0][0]).searchParams.get("from")
+    ).toBe("en");
     expect(tryDetectLang).not.toHaveBeenCalled();
     expect(document.getElementById("heading").textContent).toContain(
       translated(H1)

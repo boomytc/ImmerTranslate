@@ -66,10 +66,7 @@ import {
 import { createLoadingSVG, createRetrySVG } from "./svg";
 import { shortcutRegister } from "./shortcut";
 import { tryDetectLang } from "./detect";
-import {
-  isSameTranslationLanguage,
-  normalizeLanguageCode,
-} from "./language";
+import { isSameTranslationLanguage, normalizeLanguageCode } from "./language";
 import { trustedTypesHelper } from "./trustedTypes";
 import { injectJs, INJECTOR } from "../injectors";
 import { injectInternalCss, INJECT_SOURCE_PREFIX } from "./injector";
@@ -91,7 +88,9 @@ import { visitTranslationTargets } from "./translationTargets";
 // Only wrappers created by this runtime are trusted across instance recreation.
 const touchTranslationOwners = new WeakMap();
 
-// 同一基础语言的不同变体（zh-TW → zh-CN）不能并进 from 为空的自动批次。
+// 源语言为自动时，普通文本共用一个批量键，少发请求。
+// 这只减少请求次数，不能掩盖网络失败。
+// 同一基础语言的不同变体（zh-TW → zh-CN）不能并进 from 为空的批次。
 const microsoftAutoBatchFromLang = (deLang, toLang, translateVariants) => {
   if (deLang && translateVariants !== false) {
     const source = normalizeLanguageCode(deLang);
@@ -4364,10 +4363,9 @@ overflow-wrap: anywhere !important;`;
   ) {
     const { toLang } = this.#rule;
     const rawApiSetting = { ...(apiSettingOverride || this.#apiSetting) };
-    // 微软按段自动检测。短标题经常没有本地检测结果，若把已检出的段落语言
-    // 写进批量键，标题会单独成批。那一次请求失败时标题留下网络错误，
-    // 同页段落却已经翻译成功。源语言为自动时，普通文本共用 auto。
-    // 简繁这类变体必须保留检出的源语言，否则无法指定 from 做变体翻译。
+    // 微软在源语言为自动时按段检测。短标题经常没有本地检测结果，
+    // 若把已检出的段落语言写进批量键，标题会多占一次请求。
+    // 这里把普通文本收成 auto，只为少发请求。简繁变体仍保留检出的源语言。
     const fromLang =
       this.#rule.fromLang === "auto" &&
       rawApiSetting.apiType === OPT_TRANS_MICROSOFT
