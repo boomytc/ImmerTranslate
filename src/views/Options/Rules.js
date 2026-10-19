@@ -534,20 +534,22 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               </TextField>
             </Grid>
 
-            {/* 悬停恢复原文延迟时长配置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                size="small"
-                fullWidth
-                name="transOnlyRevertDelay"
-                value={transOnlyRevertDelay}
-                label={i18n("transonly_revert_delay")}
-                disabled={disabled}
-                onChange={handleChange}
-                type="number"
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
+            {/* 悬停恢复原文延迟只属于全局规则，个人规则保持 * 且不进数字框 */}
+            {rule?.pattern === GLOBAL_KEY && (
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  name="transOnlyRevertDelay"
+                  value={transOnlyRevertDelay}
+                  label={i18n("transonly_revert_delay")}
+                  disabled={disabled}
+                  onChange={handleChange}
+                  type="number"
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
+            )}
 
             {/* 长段落切分翻译配置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
