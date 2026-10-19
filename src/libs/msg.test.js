@@ -155,12 +155,19 @@ describe("tab messaging targets", () => {
     });
   });
 
-  test("broadcasts the top frame translation target to the other frames", async () => {
+  test("broadcasts the top frame page switch to the other frames", async () => {
     mockSendMessage
-      .mockResolvedValueOnce({ rule: { transOpen: "false" } })
-      .mockResolvedValueOnce({ rule: { transOpen: "false" } });
+      .mockResolvedValueOnce({
+        pageSwitch: "off",
+        rule: { transOpen: "false" },
+      })
+      .mockResolvedValueOnce({
+        pageSwitch: "off",
+        rule: { transOpen: "false" },
+      });
 
     await expect(broadcastTranslateToggle(29)).resolves.toEqual({
+      pageSwitch: "off",
       rule: { transOpen: "false" },
     });
     expect(mockSendMessage).toHaveBeenNthCalledWith(
@@ -173,6 +180,34 @@ describe("tab messaging targets", () => {
       action: MSG_TRANS_TOGGLE,
       args: { enabled: false },
     });
+  });
+
+  test("broadcasts on from the page switch, not from a locally folded rule", async () => {
+    mockSendMessage
+      .mockResolvedValueOnce({
+        pageSwitch: "on",
+        rule: { transOpen: "false" },
+      })
+      .mockResolvedValueOnce({ pageSwitch: "on" });
+
+    await broadcastTranslateToggle(29);
+    expect(mockSendMessage).toHaveBeenNthCalledWith(2, 29, {
+      action: MSG_TRANS_TOGGLE,
+      args: { enabled: true },
+    });
+  });
+
+  test("does not rebroadcast a folded off state while the page stays paused", async () => {
+    mockSendMessage.mockResolvedValueOnce({
+      pageSwitch: "paused",
+      rule: { transOpen: "false" },
+    });
+
+    await expect(broadcastTranslateToggle(29)).resolves.toEqual({
+      pageSwitch: "paused",
+      rule: { transOpen: "false" },
+    });
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
   });
 
   test("does not guess a translation target when the top frame cannot answer", async () => {

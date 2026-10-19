@@ -91,6 +91,7 @@ import CompactLanguageSelect from "./CompactLanguageSelect";
 import PopupStylePreview from "./PopupStylePreview";
 import { queryPopupData } from "./loadData";
 import { useConfirmedPopupUpdate } from "./useConfirmedPopupUpdate";
+import { isPageSwitch, PAGE_SWITCH } from "../../libs/pageSwitch";
 
 const uniqueModels = (values) => {
   const seen = new Set();
@@ -142,6 +143,7 @@ export default function PopupCont({
   capabilities,
   isTopFrame = true,
   isContent = false,
+  pageSwitch: pageSwitchFromPage = null,
 }) {
   const i18n = useI18n();
   const advancedPanelId = useId();
@@ -162,8 +164,13 @@ export default function PopupCont({
   const [translationBusy, setTranslationBusy] = useState(false);
   const [translationTogglePending, setTranslationTogglePending] =
     useState(false);
+  const [pageSwitch, setPageSwitch] = useState(pageSwitchFromPage);
   const busyTimerRef = useRef(null);
   const translationTogglePendingRef = useRef(false);
+  useEffect(() => {
+    if (translationTogglePendingRef.current) return;
+    setPageSwitch(pageSwitchFromPage);
+  }, [pageSwitchFromPage]);
   const snackbarSequenceRef = useRef(0);
   const ruleRef = useRef(rule);
   const activeRef = useRef(true);
@@ -392,12 +399,25 @@ export default function PopupCont({
     (nextRule) => {
       if (!nextRule || typeof nextRule !== "object") return;
       const patch = { ...nextRule };
-      // The main switch confirms transOpen itself. Don't let a broadcast
-      // rewind that optimistic value while the toggle is still in flight.
-      if (translationTogglePendingRef.current) delete patch.transOpen;
+      // The main switch confirms pageSwitch itself. A folded transOpen must
+      // not move the switch, including while a toggle is still in flight.
+      delete patch.transOpen;
       updateRule.applyExternal?.(patch);
     },
     [updateRule]
+  );
+  const applyPublishedPage = useCallback(
+    (detail) => {
+      if (!detail || typeof detail !== "object") return;
+      if (detail.rule) applyExternalRule(detail.rule);
+      if (
+        !translationTogglePendingRef.current &&
+        isPageSwitch(detail.pageSwitch)
+      ) {
+        setPageSwitch(detail.pageSwitch);
+      }
+    },
+    [applyExternalRule]
   );
   const documentToken = documentInfo?.token;
   const targetTabId = targetTab?.id;
@@ -410,7 +430,7 @@ export default function PopupCont({
     const onInner = (event) => {
       if (event.detail?.action !== MSG_TRANS_CURRULE) return;
       if (!matchesDocument(event.detail.document)) return;
-      applyExternalRule(event.detail.rule);
+      applyPublishedPage(event.detail);
     };
     const onRuntime = (message, sender) => {
       if (message?.action !== MSG_TRANS_CURRULE) return;
@@ -427,7 +447,7 @@ export default function PopupCont({
       } else if (message.args?.isTopFrame === false) {
         return;
       }
-      applyExternalRule(message.args?.rule);
+      applyPublishedPage(message.args);
     };
     document.addEventListener(EVENT_KISS_INNER, onInner);
     const runtimeEvents = browser?.runtime?.onMessage;
@@ -438,7 +458,7 @@ export default function PopupCont({
       document.removeEventListener(EVENT_KISS_INNER, onInner);
       runtimeEvents?.removeListener?.(onRuntime);
     };
-  }, [applyExternalRule, documentToken, processActions, targetTabId]);
+  }, [applyPublishedPage, documentToken, processActions, targetTabId]);
   const putRuleValues = useCallback(
     (values) => {
       if (!canTranslatePage) return;
@@ -467,15 +487,12 @@ export default function PopupCont({
       if (!canTranslatePage || translationTogglePendingRef.current) return;
       translationTogglePendingRef.current = true;
       setTranslationTogglePending(true);
-      const previousTransOpen = rule?.transOpen;
+      const previousPageSwitch = pageSwitch;
       if (busyTimerRef.current) {
         window.clearTimeout(busyTimerRef.current);
         busyTimerRef.current = null;
       }
-      setRule((previous) => ({
-        ...previous,
-        transOpen: enabled ? "true" : "false",
-      }));
+      setPageSwitch(enabled ? PAGE_SWITCH.ON : PAGE_SWITCH.OFF);
       setTranslationBusy(true);
       try {
         const response = await dispatchPageAction(MSG_TRANS_TOGGLE, {
@@ -483,22 +500,17 @@ export default function PopupCont({
         });
         if (!activeRef.current) return;
 
-        const responseTransOpen = response?.rule?.transOpen;
-        const hasConfirmedState =
-          responseTransOpen === "true" || responseTransOpen === "false";
-
-        if (!hasConfirmedState) {
+        const confirmed = response?.pageSwitch;
+        if (!isPageSwitch(confirmed)) {
           throw new Error("Page translation state was not confirmed");
         }
-
-        const resolvedEnabled = responseTransOpen === "true";
-        if (resolvedEnabled !== enabled) {
-          throw new Error("Page translation state did not match the request");
+        if (confirmed !== PAGE_SWITCH.PAUSED) {
+          const resolvedEnabled = confirmed === PAGE_SWITCH.ON;
+          if (resolvedEnabled !== enabled) {
+            throw new Error("Page translation state did not match the request");
+          }
         }
-        setRule((previous) => ({
-          ...previous,
-          transOpen: resolvedEnabled ? "true" : "false",
-        }));
+        setPageSwitch(confirmed);
 
         // The card already shows successful state changes. Reserve snackbars
         // for failures so they do not obscure the other translation controls.
@@ -506,15 +518,12 @@ export default function PopupCont({
           () => {
             setTranslationBusy(false);
           },
-          resolvedEnabled ? 900 : 0
+          confirmed === PAGE_SWITCH.ON ? 900 : 0
         );
       } catch (error) {
         if (!activeRef.current) return;
         kissLog("toggle translation", error);
-        setRule((previous) => ({
-          ...previous,
-          transOpen: previousTransOpen,
-        }));
+        setPageSwitch(previousPageSwitch);
         setTranslationBusy(false);
         showMessage(i18n("rule_toggle_failed"), "error");
       } finally {
@@ -524,14 +533,7 @@ export default function PopupCont({
         }
       }
     },
-    [
-      canTranslatePage,
-      dispatchPageAction,
-      i18n,
-      rule?.transOpen,
-      setRule,
-      showMessage,
-    ]
+    [canTranslatePage, dispatchPageAction, i18n, pageSwitch, showMessage]
   );
 
   const handleOpenRuleEditor = useCallback(async () => {
@@ -606,7 +608,6 @@ export default function PopupCont({
   );
 
   const {
-    transOpen,
     apiSlug,
     fromLang,
     toLang,
@@ -617,7 +618,7 @@ export default function PopupCont({
     scanAll,
     isPlainText: plainTextValue = false,
   } = rule || {};
-  const translationEnabled = canTranslatePage && transOpen === "true";
+  const translationEnabled = canTranslatePage && pageSwitch === PAGE_SWITCH.ON;
   const isPlainText = plainTextValue === "true";
   const targetName =
     OPT_LANGS_TO.find(([key]) => key === toLang)?.[1] || toLang;
@@ -1060,6 +1061,7 @@ export default function PopupCont({
         className={`kt-popup-hero ${
           heroActive ? "" : "kt-popup-hero--off"
         } ${heroBusy ? "kt-popup-hero--busy" : ""}`}
+        data-page-switch={pageSwitch || ""}
         aria-busy={translationTogglePending || heroBusy}
         aria-disabled={!canTranslatePage}
         onClick={() => {

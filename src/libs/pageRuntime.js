@@ -12,7 +12,12 @@ import { logger } from "./log";
 import { sendBgMsg } from "./msg";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
-import { ManualOverride, pageTarget } from "./pageSwitch";
+import {
+  ManualOverride,
+  PAGE_SWITCH,
+  pageSwitchState,
+  pageTarget,
+} from "./pageSwitch";
 import { SITE_TRANS_OPEN, sitePolicy, sitePolicyValue } from "./siteTransOpen";
 import { getStorageState } from "./storageState";
 import { readSiteTransOpen } from "../views/Action/sitePolicy";
@@ -147,15 +152,30 @@ export class PageRuntime {
     return this.#queue;
   }
 
-  /** 本页手动开关。黑名单期间也记下，离开后仍按记录时的策略决定是否生效。 */
+  /**
+   * 本页手动开关。传入布尔是明确的开/关；不传则翻转黑名单之外的目标。
+   * 黑名单期间也记下，离开后仍按记录时的策略决定是否生效。
+   */
   setManualSwitch(enabled) {
     if (!this.#context) return;
+    const next = typeof enabled === "boolean" ? enabled : !this.#desiredOn();
     this.#override = new ManualOverride(
       this.#context.href,
       sitePolicyValue(this.#context.policy),
-      enabled ? "on" : "off"
+      next ? PAGE_SWITCH.ON : PAGE_SWITCH.OFF
     );
     this.#apply(this.#context);
+  }
+
+  /** 黑名单只暂停生效状态。翻转看的是策略和手动覆盖，不看暂停本身。 */
+  #desiredOn() {
+    return (
+      pageSwitchState({
+        ...this.#context,
+        blacklistHit: false,
+        override: this.#override,
+      }) === PAGE_SWITCH.ON
+    );
   }
 
   stop() {
@@ -234,6 +254,7 @@ export class PageRuntime {
       this.#manager = create({
         setting: target.setting,
         rule: target.rule,
+        pageSwitch: target.state,
         fabConfig: this.options.fabConfig,
         isIframe: Boolean(this.options.isIframe),
         isUserscript: Boolean(this.options.isUserscript),

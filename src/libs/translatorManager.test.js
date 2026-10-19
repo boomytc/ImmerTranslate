@@ -342,6 +342,8 @@ function createManager({
   isUserscript = false,
   isIframe = false,
   transboxOnly = false,
+  onManualSwitch = null,
+  pageSwitch = null,
 } = {}) {
   const manager = new TranslatorManager({
     setting: {
@@ -358,6 +360,8 @@ function createManager({
     isIframe,
     isUserscript,
     transboxOnly,
+    onManualSwitch,
+    pageSwitch,
   });
   activeManagers.push(manager);
   return manager;
@@ -436,7 +440,12 @@ function loadContextMenuClick() {
     },
   };
   vm.runInContext(source.slice(start, end), vm.createContext(sandbox));
-  return { sendTabMsg, click: sandbox.click, real };
+  return {
+    sendTabMsg,
+    click: sandbox.click,
+    real,
+    broadcastTranslateToggle: sandbox.broadcastTranslateToggle,
+  };
 }
 
 function sendRuntimeMessage(message) {
@@ -864,6 +873,7 @@ describe("TranslatorManager SPA lifecycle", () => {
         url: "https://example.com/page",
         frameId: 0,
       },
+      pageSwitch: null,
     });
     expect(response.setting.uiLang).toBe("en");
     expect(response.setting.tranboxSetting.transOpen).toBe(false);
@@ -1089,9 +1099,9 @@ describe("TranslatorManager SPA lifecycle", () => {
     ).not.toHaveBeenCalled();
 
     for (const action of [
-      "trans-toggle",
-      "transbox-toggle",
       "mousehover-toggle",
+      "transbox-toggle",
+      "trans-toggle",
     ]) {
       const response = sendRuntimeMessage({ action });
       expect(response.error).toBeUndefined();
@@ -1100,6 +1110,13 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
     expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
     expect(mockTransboxInstances[0].toggle).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].toggleMouseHover).toHaveBeenCalledTimes(
+      1
+    );
+    sendRuntimeMessage({
+      action: "mousehover-toggle",
+      args: { enabled: true },
+    });
     expect(mockTranslatorInstances[0].toggleMouseHover).toHaveBeenCalledTimes(
       1
     );
@@ -1520,6 +1537,95 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(translator.enable).not.toHaveBeenCalled();
     expect(translator.disable).not.toHaveBeenCalled();
     expect(translator.rescan).not.toHaveBeenCalled();
+  });
+
+  test("hover stays off while the page switch is paused or off", () => {
+    const manager = createManager({
+      setting: {
+        mouseHoverSetting: { useMouseHover: true, blacklist: "" },
+      },
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    const hoverSetting = {
+      mouseHoverSetting: { useMouseHover: true, blacklist: "" },
+      tranboxSetting: { transOpen: true },
+      inputRule: { transOpen: true },
+    };
+
+    manager.applyTarget({
+      state: "paused",
+      rule: { transOpen: "false" },
+      setting: hoverSetting,
+    });
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(false);
+    expect(translator.updateSetting).toHaveBeenCalled();
+    expect(
+      sendRuntimeMessage({ action: "touch-state" }).touchTranslate.blocked
+    ).toBe(true);
+    expect(sendRuntimeMessage({ action: "trans-getrule" }).pageSwitch).toBe(
+      "paused"
+    );
+
+    const runtimeHandler =
+      browser.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    runtimeHandler(
+      { action: "mousehover-toggle", args: { enabled: true } },
+      {},
+      jest.fn()
+    );
+    expect(translator.toggleMouseHover).not.toHaveBeenCalled();
+
+    manager.applyTarget({
+      state: "off",
+      rule: { transOpen: "false" },
+      setting: hoverSetting,
+    });
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(false);
+    expect(
+      sendRuntimeMessage({ action: "touch-state" }).touchTranslate.blocked
+    ).toBe(true);
+
+    manager.applyTarget({
+      state: "on",
+      rule: { transOpen: "true" },
+      setting: hoverSetting,
+    });
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(true);
+    expect(
+      sendRuntimeMessage({ action: "touch-state" }).touchTranslate.blocked
+    ).toBe(false);
+    runtimeHandler(
+      { action: "mousehover-toggle", args: { enabled: false } },
+      {},
+      jest.fn()
+    );
+    expect(translator.toggleMouseHover).toHaveBeenCalledTimes(1);
+  });
+
+  test("a bare toggle asks the page runtime instead of the folded transOpen", () => {
+    const onManualSwitch = jest.fn();
+    const manager = createManager({
+      rule: { transOpen: "false" },
+      onManualSwitch,
+    });
+    manager.start();
+    sendRuntimeMessage({ action: "trans-toggle" });
+    expect(onManualSwitch).toHaveBeenCalledTimes(1);
+    expect(onManualSwitch).toHaveBeenCalledWith(undefined);
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+  });
+
+  test("the context menu translate item uses the shared page toggle", () => {
+    const harness = loadContextMenuClick();
+    harness.click({ menuItemId: harness.real.CMD_TOGGLE_TRANSLATE });
+    expect(harness.broadcastTranslateToggle).toHaveBeenCalledTimes(1);
+    expect(harness.sendTabMsg).not.toHaveBeenCalled();
+    harness.click({ menuItemId: harness.real.CMD_TOGGLE_TRANBOX });
+    expect(harness.sendTabMsg).toHaveBeenCalledWith(
+      harness.real.MSG_TRANSBOX_TOGGLE
+    );
   });
 
   test("applyTarget keeps translation on when the target says on", () => {

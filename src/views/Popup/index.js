@@ -395,6 +395,7 @@ export default function Popup() {
     if (!previewMode) return null;
     return {
       rule: { ...GLOBLA_RULE, transOpen: "true", textStyle: "dash_line" },
+      pageSwitch: "on",
       setting: {
         ...DEFAULT_SETTING,
         uiLang: "zh",
@@ -415,6 +416,7 @@ export default function Popup() {
   const {
     rule,
     setting,
+    pageSwitch,
     capabilities,
     isTopFrame,
     document: documentInfo,
@@ -563,6 +565,7 @@ export default function Popup() {
             capabilities={capabilities}
             isTopFrame={isTopFrame}
             rule={rule}
+            pageSwitch={pageSwitch}
             setting={setting}
             setRule={setRule}
             handleOpenSetting={handleOpenSetting}

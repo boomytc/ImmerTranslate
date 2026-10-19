@@ -13,6 +13,10 @@ export const PAGE_SWITCH = Object.freeze({
 
 const SWITCH_VALUES = new Set([PAGE_SWITCH.ON, PAGE_SWITCH.OFF]);
 
+export function isPageSwitch(value) {
+  return value === PAGE_SWITCH.PAUSED || SWITCH_VALUES.has(value);
+}
+
 /**
  * 本页这一次手动开关。
  * 只在同一网址、且记录时的站点策略 transOpen 没变时生效。

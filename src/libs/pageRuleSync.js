@@ -11,6 +11,7 @@ export function publishPageRule(response) {
     isTopFrame: response.isTopFrame,
     document: response.document,
   };
+  if (response.pageSwitch) detail.pageSwitch = response.pageSwitch;
   document.dispatchEvent(new CustomEvent(EVENT_KISS_INNER, { detail }));
   if (!isExt || typeof browser?.runtime?.sendMessage !== "function") return;
   Promise.resolve(

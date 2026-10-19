@@ -269,6 +269,46 @@ describe("PageRuntime", () => {
     };
   }
 
+  test("a bare toggle while paused flips the saved choice and stays paused", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
+
+    harness.runtime.setManualSwitch();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "paused",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
+
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    harness.runtime.setManualSwitch();
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
+  });
+
   test("a manually enabled page stays on after a blacklist entry temporarily matches", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();
