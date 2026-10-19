@@ -65,7 +65,6 @@ function OptionsContent({ pendingKeys, children }) {
 
 export default function Options() {
   const [error, setError] = useState("");
-  const [localStorageReady, setLocalStorageReady] = useState(false);
   const [pendingKeys, setPendingKeys] = useState(OPTIONS_SYNC_KEYS);
   const startupRef = useRef(null);
 
@@ -77,9 +76,6 @@ export default function Options() {
       if (active) setError(err?.message || String(err));
     };
 
-    startupRef.current.localReady.then(() => {
-      if (active) setLocalStorageReady(true);
-    }, reportError);
     Object.entries(startupRef.current.completed).forEach(([key, completed]) => {
       completed.then(() => {
         if (active) {
@@ -105,8 +101,6 @@ export default function Options() {
       </center>
     );
   }
-
-  if (!localStorageReady) return <SyncBackdrop open />;
 
   return (
     <SettingProvider context="options">

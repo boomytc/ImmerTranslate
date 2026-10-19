@@ -60,7 +60,7 @@ function createHarness({
           listeners.removed = callback;
         },
       },
-      // Deliberately omit onBoundsChanged, as on Firefox and Safari.
+      // Deliberately omit onBoundsChanged unless the test opts in.
     },
   };
   if (boundsEvents) {

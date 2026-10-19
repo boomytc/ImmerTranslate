@@ -10,7 +10,6 @@ import { SEPARATE_WINDOW_CONTENT_WIDTH } from "../../config/app";
 import { loadPopupData } from "./loadData";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-let mockIsFirefox = false;
 
 jest.mock("../../hooks/Setting", () => ({ useSetting: jest.fn() }));
 jest.mock("../../hooks/I18n", () => ({
@@ -18,9 +17,6 @@ jest.mock("../../hooks/I18n", () => ({
 }));
 jest.mock("../../libs/client", () => ({
   isAutoTranslateClipboardSupported: true,
-  get isFirefox() {
-    return mockIsFirefox;
-  },
 }));
 jest.mock("../../libs/clipboard", () => ({
   readClipboardTextIfAllowed: jest.fn(),
@@ -430,7 +426,6 @@ describe("separate window auto-fit", () => {
 
   beforeEach(() => {
     sendBgMsg.mockClear();
-    mockIsFirefox = false;
     browser.windows.getCurrent.mockResolvedValue({ width: 760, height: 800 });
     browser.tabs.getCurrent.mockResolvedValue({ id: 7 });
     browser.tabs.getZoom.mockResolvedValue(1);
@@ -543,60 +538,6 @@ describe("separate window auto-fit", () => {
     }
   );
 
-  test("converts Gecko screen limits from layout pixels", async () => {
-    mockIsFirefox = true;
-    browser.tabs.getZoom.mockResolvedValue(2);
-    setWindowMetric("innerWidth", 372);
-    setWindowMetric("innerHeight", 380);
-    setWindowMetric("outerWidth", 380);
-    setWindowMetric("outerHeight", 400);
-    Object.defineProperty(window.screen, "availWidth", {
-      configurable: true,
-      value: 960,
-    });
-    Object.defineProperty(window.screen, "availHeight", {
-      configurable: true,
-      value: 600,
-    });
-
-    Object.defineProperty(window.screen, "availLeft", {
-      configurable: true,
-      value: -640,
-    });
-    Object.defineProperty(window.screen, "availTop", {
-      configurable: true,
-      value: -360,
-    });
-    await renderAndMeasure(430);
-
-    expect(sendBgMsg).toHaveBeenCalledWith(
-      MSG_FIT_SEPARATE_WINDOW,
-      expect.objectContaining({
-        width: 1456,
-        height: 900,
-        availWidth: 1920,
-        availHeight: 1200,
-        availLeft: -1280,
-        availTop: -720,
-      })
-    );
-  });
-
-  test("does not apply Gecko text-only zoom twice", async () => {
-    mockIsFirefox = true;
-    browser.tabs.getZoom.mockResolvedValue(2);
-    await renderAndMeasure(900);
-
-    expect(sendBgMsg).toHaveBeenCalledWith(
-      MSG_FIT_SEPARATE_WINDOW,
-      expect.objectContaining({
-        width: 736,
-        height: 940,
-        availWidth: 2560,
-        availHeight: 1440,
-      })
-    );
-  });
   test.each([
     ["760px", "important"],
     ["760px", ""],

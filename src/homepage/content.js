@@ -24,11 +24,6 @@ const createInstalls = (meta = {}) => {
       href: RELEASES_URL,
     },
     {
-      name: "Firefox",
-      meta: meta.extension || "Browser extension",
-      href: RELEASES_URL,
-    },
-    {
       name: "Thunderbird",
       meta: meta.release || "Release package",
       href: RELEASES_URL,

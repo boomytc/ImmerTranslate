@@ -32,10 +32,7 @@ import TranslationPanelContent from "../../components/TranslationPanel/Content";
 import { useSetting } from "../../hooks/Setting";
 import { useSeparateWindowBounds } from "../../hooks/SeparateWindowBounds";
 import { browser } from "../../libs/browser";
-import {
-  isFirefox,
-  isAutoTranslateClipboardSupported,
-} from "../../libs/client";
+import { isAutoTranslateClipboardSupported } from "../../libs/client";
 import { readClipboardTextIfAllowed } from "../../libs/clipboard";
 import { POPUP_STYLES } from "./styles";
 import { usePopupPage } from "./usePopupPage";
@@ -78,14 +75,8 @@ function useFitSeparateWindow(enabled, panelRef) {
           const panel = panelRef.current;
           if (!panel) return;
 
-          // Gecko scales DOM outer/screen values with layout zoom. Its tab zoom
-          // may instead be text-only, which is already reflected in scrollHeight.
-          const isGecko = isFirefox;
-          const screenScale =
-            isGecko && window.outerWidth > 0
-              ? currentWindow.width / window.outerWidth
-              : 1;
-          const layoutZoom = isGecko ? screenScale : zoom;
+          const screenScale = 1;
+          const layoutZoom = zoom;
           const chromeHeight = Math.max(
             0,
             currentWindow.height - window.innerHeight * layoutZoom

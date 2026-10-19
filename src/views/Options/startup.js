@@ -32,7 +32,6 @@ async function syncAndRefresh(key, sync) {
 }
 
 export function createOptionsStartup() {
-  const localReady = Promise.resolve();
   // Settings initialize the shared remote destination before other syncs start.
   let previous = syncAndRefresh(STOKEY_SETTING, trySyncSetting);
   const completed = { [STOKEY_SETTING]: previous };
@@ -42,5 +41,5 @@ export function createOptionsStartup() {
     previous = previous.then(() => syncAndRefresh(key, sync));
     completed[key] = previous;
   });
-  return { localReady, completed };
+  return { completed };
 }
