@@ -24,6 +24,7 @@ function createRuntime() {
   const onChanged = createEvent();
   const runtime = {
     values,
+    ports: [],
     onConnect: createEvent(),
     storage: {
       onChanged,
@@ -81,6 +82,7 @@ function createRuntime() {
         if (!disconnected) front.onMessage.emit(message, front);
       });
     };
+    runtime.ports.push({ front, back });
     Promise.resolve().then(() => runtime.onConnect.emit(back));
     return front;
   };
@@ -172,6 +174,34 @@ test("a pure read returns while another page holds the storage lock", async () =
     await holderResult;
     await loaded.catch(() => undefined);
   }
+});
+
+test("a recovering read waits for a commit whose reply was lost", async () => {
+  const { runtime, first } = await setup();
+  runtime.pauseEvents = true;
+  const state = await mountState(first);
+  const writeStarted = deferred();
+  const commitGate = deferred();
+  runtime.storage.local.set.mockImplementationOnce(async (entries) => {
+    writeStarted.resolve();
+    await commitGate.promise;
+    Object.assign(runtime.values, entries);
+  });
+  const save = state.save((previous) => ({ ...previous, kept: true }));
+  await writeStarted.promise;
+  const readsBeforeRecovery = runtime.storage.local.get.mock.calls.length;
+  runtime.ports[0].front.disconnect();
+  for (let step = 0; step < 30; step += 1) await Promise.resolve();
+
+  expect(state.isRecovering).toBe(true);
+  expect(runtime.storage.local.get.mock.calls.length).toBe(readsBeforeRecovery);
+  expect(state.snapshot.data).toEqual({ original: {} });
+
+  commitGate.resolve();
+  await expect(save).rejects.toMatchObject({ storageOutcome: "unknown" });
+  expect(state.isRecovering).toBe(false);
+  expect(state.snapshot.data).toEqual({ original: {}, kept: true });
+  expect(state.editTimestamp).toBe(300);
 });
 
 test("concurrent read-then-write transactions stay serial and keep both writes", async () => {
