@@ -342,7 +342,7 @@ function createManager({
   isUserscript = false,
   isIframe = false,
   transboxOnly = false,
-  onManualSwitch = null,
+  onManualSwitch = () => {},
   pageSwitch = null,
 } = {}) {
   const manager = new TranslatorManager({
@@ -880,20 +880,15 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(mockTransboxInstances[0].isEnabled()).toBe(false);
   });
 
-  test("a toggle without a page runtime changes nothing", () => {
-    const manager = createManager({ rule: { transOpen: "true" } });
-    manager.start();
-    const { processActions } = PopupManager.mock.calls.at(-1)[0];
-
-    processActions({ action: "trans-toggle", args: { enabled: false } });
-    processActions({ action: "trans-toggle", args: { enabled: true } });
-    processActions({ action: "trans-toggle" });
-
-    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
-    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
-    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
-    expect(sendIframeMsg).not.toHaveBeenCalled();
-    expect(processActions({ action: "trans-getrule" }).pageSwitch).toBeNull();
+  test("throws when the page-switch callback is missing", () => {
+    expect(
+      () =>
+        new TranslatorManager({
+          setting: {},
+          rule: { transOpen: "true" },
+          fabConfig: {},
+        })
+    ).toThrow(TypeError);
   });
 
   test("the top frame broadcasts the page switch and child frames follow it", () => {
@@ -1657,6 +1652,29 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(harness.sendTabMsg).toHaveBeenCalledWith(
       harness.real.MSG_TRANSBOX_TOGGLE
     );
+  });
+
+  test("leaving pause follows the page switch even if the rule transOpen disagrees", () => {
+    const manager = createManager({
+      rule: { transOpen: "true" },
+      pageSwitch: "on",
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    translator.rule.transOpen = "true";
+    manager.applyTarget({
+      state: "paused",
+      rule: { transOpen: "false" },
+    });
+    translator.rule.transOpen = "false";
+    manager.applyTarget({
+      state: "on",
+      rule: { transOpen: "false" },
+    });
+    expect(translator.continuePage).toHaveBeenCalledTimes(1);
+    expect(translator.resumePage).not.toHaveBeenCalled();
+    expect(translator.enable).not.toHaveBeenCalled();
+    expect(translator.disable).not.toHaveBeenCalled();
   });
 
   test("applyTarget keeps translation on when the target says on", () => {

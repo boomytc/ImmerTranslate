@@ -133,9 +133,12 @@ export default class TranslatorManager {
     isIframe,
     isUserscript,
     transboxOnly = false,
-    onManualSwitch = null,
+    onManualSwitch,
     pageSwitch = null,
   }) {
+    if (typeof onManualSwitch !== "function") {
+      throw new TypeError("TranslatorManager requires onManualSwitch");
+    }
     this.#setting = this.#cloneConfig(setting);
     this.#rule = this.#cloneConfig(rule);
     this.#fabConfig = this.#cloneConfig(fabConfig);
@@ -279,8 +282,8 @@ export default class TranslatorManager {
   }
 
   /**
-   * 应用纯函数算出的目标。开关只看 target.rule.transOpen，
-   * 设置按传入的折后值整份写入。
+   * 应用纯函数算出的目标。开或关看 #pageSwitch。
+   * 翻译器自己的 rule.transOpen 只表示它现在是否已经开着。
    */
   applyTarget(target) {
     if (!this.#isActive || !target?.rule) return;
@@ -303,14 +306,14 @@ export default class TranslatorManager {
     }
     if (this.#paused) {
       this._translator.updateRule(nextRule);
-      if (nextRule.transOpen === "true") this._translator.continuePage();
+      if (this.#pageSwitch === PAGE_SWITCH.ON) this._translator.continuePage();
       else this._translator.resumePage();
       this.resume();
       publishPageRule(this.#getRuntimeResponse());
       return;
     }
     const wasOn = this._translator.rule?.transOpen === "true";
-    const nextOn = nextRule.transOpen === "true";
+    const nextOn = this.#pageSwitch === PAGE_SWITCH.ON;
     if (wasOn && !nextOn) this._translator.disable();
     this._translator.updateRule(nextRule);
     if (!wasOn && nextOn) this._translator.enable();
@@ -1131,11 +1134,8 @@ export default class TranslatorManager {
     let publishRule = false;
     switch (action) {
       case MSG_TRANS_TOGGLE: {
-        // 唯一路径：交给页面运行时。子框架只接受顶层广播来的 enabled。
-        // 没有运行时，或开关还未知，直接结束，不读折叠后的 rule.transOpen。
-        if (this.#pageSwitch === PAGE_SWITCH.PAUSED || !this.#onManualSwitch) {
-          break;
-        }
+        // 唯一路径：交给页面运行时。子框架只跟顶层广播来的 enabled，不自己算开关。
+        if (this.#pageSwitch === PAGE_SWITCH.PAUSED) break;
         const explicit = typeof args?.enabled === "boolean";
         if (this.#isIframe && !explicit) break;
         this.#onManualSwitch(explicit ? args.enabled : undefined);

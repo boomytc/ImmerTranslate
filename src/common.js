@@ -290,6 +290,8 @@ export async function run(isUserscript = false) {
       isIframe,
       isUserscript,
       transboxOnly: isPdfDocument,
+      // PageRuntime.start 会立刻换成 setManualSwitch。这里先占住必填参数。
+      onManualSwitch: () => {},
     });
     translatorManager.start();
     startSideEffects({ href, setting: pageSetting, rule });
