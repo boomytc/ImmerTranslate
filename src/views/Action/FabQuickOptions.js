@@ -2,12 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   API_SPE_TYPES,
   EVENT_KISS_INNER,
-  GLOBAL_KEY,
-  MSG_SAVE_RULE,
   MSG_TRANS_CURRULE,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
-  MSG_TRANS_TOGGLE,
   OPT_LANGS_TO,
   OPT_STYLE_NONE,
   OPT_TRANS_QWENMT,
@@ -21,16 +18,13 @@ import { useAllTextStyles } from "../../hooks/CustomStyles";
 import { getApiDisplayName } from "../../hooks/Api";
 import ApiKeyEmptyState from "../../components/ApiKeyEmptyState";
 import { configuredByokApis, isMissingRequiredApiKey } from "../../libs/apiKey";
-import { isExt } from "../../libs/client";
 import { kissLog } from "../../libs/log";
 import { fetchModelCatalog } from "../../libs/modelList";
-import { sendBgMsg } from "../../libs/msg";
-import { saveRule } from "../../libs/rules";
-import { effectiveTransOpen } from "../../libs/pageRuleSync";
 import {
   readSiteTransOpen,
   siteRulePattern,
   SITE_TRANS_OPEN_OPTIONS,
+  writeSiteTransOpen,
 } from "./sitePolicy";
 
 const uniqueModels = (values) => {
@@ -185,24 +179,7 @@ export default function FabQuickOptions({
   const selectSiteTransOpen = (next) => {
     if (!sitePattern || rulesLoading || next === siteTransOpen) return;
     setSiteDraft(next);
-    const saved = { pattern: sitePattern, transOpen: next };
-    const persist = isExt ? sendBgMsg(MSG_SAVE_RULE, saved) : saveRule(saved);
-    const globalTransOpen = rules.find(
-      (item) => item.pattern === GLOBAL_KEY
-    )?.transOpen;
-    const nextRuntime = effectiveTransOpen(next, globalTransOpen);
-    const currentRuntime = rule?.transOpen === "true" ? "true" : "false";
-    // Pinning true/false also asks the page to translate now. Follow (`*`)
-    // moves runtime to the global value without saving that boolean over `*`.
-    if (!rule || nextRuntime !== currentRuntime) {
-      void processActions?.({
-        action: MSG_TRANS_TOGGLE,
-        args: {
-          enabled: nextRuntime === "true",
-          persistSite: next !== GLOBAL_KEY,
-        },
-      });
-    }
+    const persist = writeSiteTransOpen(href, next, rules);
     void Promise.resolve(persist)
       .then((response) => {
         if (response?.error) throw new Error(response.error);

@@ -17,3 +17,70 @@ export const sendIframeMsg = (action, args) => {
     iframe.contentWindow.postMessage({ action, args }, "*");
   });
 };
+
+export const MSG_FRAME_RUNTIME_QUERY = "frame_runtime_query";
+export const MSG_FRAME_RUNTIME_STATE = "frame_runtime_state";
+
+export function frameRuntimeState(state) {
+  return {
+    transOpen: state?.transOpen === true || state?.transOpen === "true",
+    fabVisible: Boolean(state?.fabVisible),
+  };
+}
+
+/** 把存储里的规则改成顶层此刻的运行态。没有父页面回复时保持原规则。 */
+export function applyParentRuntime(rule, state) {
+  if (!rule || !state) return rule;
+  const runtime = frameRuntimeState(state);
+  return { ...rule, transOpen: runtime.transOpen ? "true" : "false" };
+}
+
+export function replyFrameRuntime(event, state) {
+  if (event?.data?.action !== MSG_FRAME_RUNTIME_QUERY) return false;
+  const requestId = event.data.requestId;
+  event.source?.postMessage(
+    {
+      action: MSG_FRAME_RUNTIME_STATE,
+      requestId,
+      ...frameRuntimeState(state),
+    },
+    "*"
+  );
+  return true;
+}
+
+export function installFrameRuntimeBridge(getState) {
+  const handler = (event) => {
+    replyFrameRuntime(event, getState?.());
+  };
+  window.addEventListener("message", handler);
+  return () => window.removeEventListener("message", handler);
+}
+
+export function queryParentFrameRuntime(timeout = 300) {
+  let topWindow = null;
+  try {
+    topWindow = window.top;
+  } catch {
+    topWindow = window.parent;
+  }
+  if (!topWindow || topWindow === window) return Promise.resolve(null);
+
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve) => {
+    const finish = (value) => {
+      window.clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+      resolve(value);
+    };
+    const onMessage = (event) => {
+      const data = event.data;
+      if (!data || data.action !== MSG_FRAME_RUNTIME_STATE) return;
+      if (data.requestId !== requestId) return;
+      finish(frameRuntimeState(data));
+    };
+    const timer = window.setTimeout(() => finish(null), timeout);
+    window.addEventListener("message", onMessage);
+    topWindow.postMessage({ action: MSG_FRAME_RUNTIME_QUERY, requestId }, "*");
+  });
+}

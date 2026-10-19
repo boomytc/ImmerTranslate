@@ -1,4 +1,4 @@
-import { checkRules, matchRule, saveRule } from "./rules";
+import { checkRules, matchRule, saveRule, saveRuleMessage } from "./rules";
 import { getRulesWithDefault, saveEdit } from "./storage";
 import { GLOBAL_KEY, GLOBLA_RULE } from "../config/rules";
 import { OPT_TRANS_MICROSOFT, OPT_TRANS_TENCENT } from "../config/api";
@@ -262,6 +262,121 @@ describe("rules enabled state", () => {
         subrulesList: [],
       })
     ).resolves.toMatchObject({ transOpen: "true" });
+  });
+
+  test.each([false, "bogus"])(
+    "rejects illegal transOpen %s instead of storing follow",
+    async (transOpen) => {
+      getRulesWithDefault.mockResolvedValue([{ ...GLOBLA_RULE }]);
+
+      await expect(
+        saveRule({ pattern: "example.com", transOpen })
+      ).rejects.toThrow(/Unknown site translation policy/);
+      await expect(
+        saveRuleMessage({ pattern: "example.com", transOpen })
+      ).resolves.toEqual({
+        error: expect.stringMatching(/Unknown site translation policy/),
+      });
+
+      expect(saveEdit).not.toHaveBeenCalled();
+    }
+  );
+
+  test("matchRule fills selector fields on a sparse personal rule from the global rule", async () => {
+    getRulesWithDefault.mockResolvedValue([
+      {
+        ...GLOBLA_RULE,
+        selector: "article",
+        keepSelector: "code",
+        terms: "Foo=Bar",
+        transOnlyRevertDelay: "1.5",
+      },
+      { pattern: "localhost", transOpen: "true" },
+    ]);
+
+    await expect(
+      matchRule("http://localhost/page", {
+        injectRules: false,
+        subrulesList: [],
+      })
+    ).resolves.toMatchObject({
+      selector: "article",
+      keepSelector: "code",
+      terms: "Foo=Bar",
+      transOnlyRevertDelay: "1.5",
+      transOpen: "true",
+    });
+  });
+
+  test("a sparse selector save writes only the given fields", async () => {
+    getRulesWithDefault.mockResolvedValue([
+      { ...GLOBLA_RULE, transOpen: "true" },
+    ]);
+
+    await saveRule({ pattern: "example.com", selector: "article" });
+
+    const saved = (await saveEdit.mock.results[0].value).value.find(
+      (rule) => rule.pattern === "example.com"
+    );
+    expect(saved).toEqual({
+      pattern: "example.com",
+      selector: "article",
+    });
+  });
+
+  test("auto then follow leaves no personal rule", async () => {
+    let stored = [{ ...GLOBLA_RULE }];
+    getRulesWithDefault.mockImplementation(async () =>
+      stored.map((rule) => ({ ...rule }))
+    );
+    saveEdit.mockImplementation(async (_key, update) => {
+      const value = update(await getRulesWithDefault());
+      stored = value;
+      return { value, changed: true };
+    });
+
+    await saveRule({ pattern: "localhost", transOpen: "true" });
+    await saveRule({ pattern: "localhost", transOpen: "*" });
+
+    expect(stored.filter((rule) => rule.pattern !== "*")).toEqual([]);
+  });
+
+  test("auto stores only pattern and transOpen", async () => {
+    getRulesWithDefault.mockResolvedValue([{ ...GLOBLA_RULE }]);
+
+    await saveRule({ pattern: "localhost", transOpen: "true" });
+
+    const saved = (await saveEdit.mock.results[0].value).value.find(
+      (rule) => rule.pattern === "localhost"
+    );
+    expect(saved).toEqual({
+      pattern: "localhost",
+      transOpen: "true",
+    });
+  });
+
+  test("a sparse policy save leaves an existing rule's other fields untouched", async () => {
+    getRulesWithDefault.mockResolvedValue([
+      {
+        pattern: "example.com",
+        selector: "article",
+        fromLang: "en",
+        transOpen: "false",
+      },
+      { ...GLOBLA_RULE },
+    ]);
+
+    await saveRule({ pattern: "example.com", transOpen: "true" });
+
+    const saved = (await saveEdit.mock.results[0].value).value.find(
+      (rule) => rule.pattern === "example.com"
+    );
+    expect(saved).toEqual({
+      pattern: "example.com",
+      selector: "article",
+      fromLang: "en",
+      transOpen: "true",
+    });
   });
 
   test.each([

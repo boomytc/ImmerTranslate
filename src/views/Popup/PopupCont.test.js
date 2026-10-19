@@ -938,6 +938,7 @@ describe("PopupCont capability parity", () => {
       action: MSG_TRANS_TOGGLE,
       args: { enabled: false },
     });
+    expect(saveRule).not.toHaveBeenCalled();
     expect(mainSwitch.checked).toBe(false);
     expect(view.container.querySelector('[role="alert"]')).toBeNull();
     view.cleanup();
@@ -1351,27 +1352,71 @@ describe("PopupCont capability parity", () => {
     }
   );
 
-  test("removes every blacklist entry that matches the current URL", async () => {
-    mockContextSetting = { blacklist: "*.example.com\nkeep.example" };
+  test("lists every matching blacklist entry and removes one at a time", async () => {
+    mockContextSetting = {
+      blacklist: "*.example.com\nexample.com\nkeep.example",
+    };
     const view = renderPopupCont({
       targetTab: { id: 7, url: "https://sub.example.com/reader" },
     });
     try {
       await flushEffects();
-      const action = Array.from(view.container.querySelectorAll("button")).find(
-        (button) => button.textContent === "remove_from_blacklist"
+      const shown = Array.from(
+        view.container.querySelectorAll(".kt-popup-blacklist__entry")
+      ).map((node) => node.textContent);
+      expect(shown).toEqual(["*.example.com", "example.com"]);
+      const buttons = view.container.querySelectorAll(
+        ".kt-popup-blacklist button"
       );
-      await act(async () => action.click());
-      const reduce = mockUpdateSetting.mock.calls[0][0];
+      await act(async () => buttons[0].click());
+      const reduceWide = mockUpdateSetting.mock.calls[0][0];
       expect(
-        reduce({
+        reduceWide({
           blacklist: "*.example.com\nexample.com\nkeep.example",
           retained: true,
         })
       ).toEqual({
-        blacklist: "keep.example",
+        blacklist: "example.com\nkeep.example",
         retained: true,
       });
+      await act(async () => buttons[1].click());
+      const reduceHost = mockUpdateSetting.mock.calls[1][0];
+      expect(
+        reduceHost({
+          blacklist: "example.com\nkeep.example",
+          retained: true,
+        }).blacklist
+      ).toBe("keep.example");
+    } finally {
+      view.cleanup();
+    }
+  });
+
+  test("lists a wide blacklist entry and removes that entry", async () => {
+    mockContextSetting = { blacklist: "localhost\n*.x.com\nkeep.example" };
+    const view = renderPopupCont({
+      targetTab: { id: 7, url: "http://localhost:8080/app" },
+    });
+    try {
+      await flushEffects();
+      expect(
+        Array.from(
+          view.container.querySelectorAll(".kt-popup-blacklist__entry")
+        ).map((node) => node.textContent)
+      ).toEqual(["localhost"]);
+      const button = view.container.querySelector(".kt-popup-blacklist button");
+      await act(async () => button.click());
+      const reduce = mockUpdateSetting.mock.calls[0][0];
+      expect(
+        reduce({
+          blacklist: "localhost\n*.x.com\nkeep.example",
+          retained: true,
+        })
+      ).toEqual({
+        blacklist: "*.x.com\nkeep.example",
+        retained: true,
+      });
+      expect(mockSendTabMsg).not.toHaveBeenCalled();
     } finally {
       view.cleanup();
     }
@@ -1490,6 +1535,62 @@ describe("PopupCont capability parity", () => {
       42
     );
     view.cleanup();
+  });
+
+  test("closing the popup while it still says translating does not send another toggle", async () => {
+    const documentInfo = { token: "translating-document", frameId: 0 };
+    let finishToggle;
+    mockSendTabMsg.mockImplementation((action) => {
+      if (action === MSG_TRANS_TOGGLE) {
+        return new Promise((resolve) => {
+          finishToggle = resolve;
+        });
+      }
+      if (action === MSG_TRANS_GETRULE) {
+        return {
+          rule: { transOpen: "true" },
+          setting: {},
+          document: documentInfo,
+        };
+      }
+      return {};
+    });
+    const view = renderPopupCont(
+      {
+        rule: { transOpen: "false" },
+        targetTab: { id: 42, url: "https://example.com/page" },
+        documentInfo,
+      },
+      { statefulRule: true }
+    );
+    let unmounted = false;
+    try {
+      await flushEffects();
+      await act(async () => {
+        view.container
+          .querySelector('input[aria-label="popup_translate_page"]')
+          .click();
+      });
+      expect(view.container.textContent).toContain("popup_translating");
+      const toggles = () =>
+        mockSendTabMsg.mock.calls.filter(
+          (call) => call[0] === MSG_TRANS_TOGGLE
+        );
+      expect(toggles()).toHaveLength(1);
+      expect(toggles()[0][1]).toEqual({ enabled: true });
+      view.cleanup();
+      unmounted = true;
+      await act(async () => {
+        finishToggle({
+          rule: { transOpen: "true" },
+          setting: {},
+          document: documentInfo,
+        });
+      });
+      expect(toggles()).toHaveLength(1);
+    } finally {
+      if (!unmounted) view.cleanup();
+    }
   });
 
   test("reports a routed execution error even if the runtime flag was changed", async () => {

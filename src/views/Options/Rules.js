@@ -47,10 +47,21 @@ import { useConfirm } from "../../hooks/Confirm";
 import { useAllTextStyles } from "../../hooks/CustomStyles";
 
 // 计算规则的初始表单值
+// 存储里的个人规则可以是稀疏的（popup / FAB 只写 pattern + transOpen），
+// 编辑器只在这里用整份默认结构补齐缺的字段，字段组件不再各自判空。
 const calculateInitialValues = (rule) => {
   // REVIEW: GLOBLA_RULE 存在拼写错误，疑似应为 GLOBAL_RULE。此处为兼容底层导出的拼写而继续使用。
   const base = rule?.pattern === "*" ? GLOBLA_RULE : DEFAULT_RULE;
   return { ...base, ...(rule || {}) };
+};
+
+// 编辑保存只写用户改过的字段：和存储规则补齐后的样子逐项比较，
+// 没动过的补齐默认值不写回去，稀疏规则保持稀疏。
+const ruleEditPatch = (storedRule, values) => {
+  const before = calculateInitialValues(storedRule);
+  return Object.fromEntries(
+    Object.entries(values).filter(([key, value]) => before[key] !== value)
+  );
 };
 
 // 规则编辑/添加表单字段组件
@@ -220,7 +231,8 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     if (editMode) {
       // 编辑保存现有规则
       setDisabled(true);
-      rules.put(rule.pattern, formValues);
+      const patch = ruleEditPatch(rule, formValues);
+      if (Object.keys(patch).length > 0) rules.put(rule.pattern, patch);
     } else {
       // 提交添加新规则
       rules.add(formValues);

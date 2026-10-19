@@ -19,9 +19,25 @@ test("reads the matching personal rule and falls back to follow-global", () => {
   expect(readSiteTransOpen(href, [{ pattern: "*", transOpen: "true" }])).toBe(
     GLOBAL_KEY
   );
-  expect(readSiteTransOpen(href, [{ pattern: "news.example.com" }])).toBe(
-    GLOBAL_KEY
-  );
+  expect(
+    readSiteTransOpen(href, [{ pattern: "news.example.com", transOpen: "*" }])
+  ).toBe(GLOBAL_KEY);
+  expect(
+    readSiteTransOpen(href, [
+      { pattern: "news.example.com", transOpen: "false" },
+    ])
+  ).toBe("false");
+  expect(
+    readSiteTransOpen(href, [{ pattern: "news.example.com", selector: "p" }])
+  ).toBe(GLOBAL_KEY);
+  expect(() =>
+    readSiteTransOpen(href, [
+      { pattern: "news.example.com", transOpen: "bogus" },
+    ])
+  ).toThrow(TypeError);
+  expect(() =>
+    readSiteTransOpen(href, [{ pattern: "news.example.com", transOpen: false }])
+  ).toThrow(TypeError);
   expect(siteRulePattern("https://example.com/post", [])).toBe("example.com");
   expect(siteRulePattern("chrome://extensions", [])).toBe("");
 });

@@ -14,6 +14,7 @@ import {
   updateSyncState,
 } from "../libs/storage";
 import { syncSettingAndRules, trySyncRules } from "../libs/sync";
+import { checkRules } from "../libs/rules";
 import {
   STOKEY_RULES,
   STOKEY_SETTING,
@@ -81,25 +82,24 @@ jest.mock("../libs/syncCrypto", () => ({
 const EMPTY_STORED_OBJECT = {};
 let saveStored = async () => {};
 
-function toggleStored(word) {
-  const createdAt = Date.now();
-  const pending = saveStored((prev = {}) => {
-    if (!prev[word]) {
-      return { ...prev, [word]: { createdAt } };
-    }
-    const next = { ...prev };
-    delete next[word];
-    return next;
+const asRules = (patterns) =>
+  checkRules(patterns.map((pattern) => ({ pattern })));
+
+function toggleStored(pattern) {
+  const pending = saveStored((prev = []) => {
+    const patterns = Array.isArray(prev)
+      ? prev.map((rule) => rule.pattern)
+      : [];
+    const next = patterns.includes(pattern)
+      ? patterns.filter((item) => item !== pattern)
+      : [...patterns, pattern];
+    return asRules(next);
   });
   pending.catch(() => {});
 }
 
-const INITIAL_WORDS = { initial: { createdAt: 1 } };
-const LATEST_WORDS = {
-  initial: { createdAt: 1 },
-  first: { createdAt: 100000 },
-  second: { createdAt: 103000 },
-};
+const INITIAL_WORDS = asRules(["initial"]);
+const LATEST_WORDS = asRules(["initial", "first", "second"]);
 const SECOND_EDIT_TIME = 103000;
 
 function deferred() {
@@ -168,11 +168,7 @@ describe("F10 acceptance with real sync metadata and WebDAV comparison", () => {
         await getSettingWithDefault(),
         90000
       ),
-      [KV_RULES_KEY]: makePacket(
-        KV_RULES_KEY,
-        { remote: { createdAt: 100500 } },
-        100500
-      ),
+      [KV_RULES_KEY]: makePacket(KV_RULES_KEY, asRules(["remote"]), 100500),
     };
     blockedReply = deferred();
     wordReads = 0;
@@ -335,13 +331,10 @@ describe("F10 acceptance with real sync metadata and WebDAV comparison", () => {
   test("a current upload acknowledges success even when isNew is false", async () => {
     remotePackets[KV_RULES_KEY] = makePacket(
       KV_RULES_KEY,
-      { remote: { createdAt: 99000 } },
+      asRules(["remote"]),
       99000
     );
-    const expectedLocalWords = {
-      initial: { createdAt: 1 },
-      first: { createdAt: 100000 },
-    };
+    const expectedLocalWords = asRules(["initial", "first"]);
     await act(async () => {
       toggleStored("first");
     });
@@ -464,7 +457,11 @@ describe("F10 acceptance with real sync metadata and WebDAV comparison", () => {
     const set = jest
       .spyOn(browser.storage.local, "set")
       .mockImplementation(async (entries) => {
-        if (JSON.parse(entries[STOKEY_RULES] || "null")?.remote)
+        const parsed = JSON.parse(entries[STOKEY_RULES] || "null");
+        if (
+          Array.isArray(parsed) &&
+          parsed.some((rule) => rule.pattern === "remote")
+        )
           await remoteWrite.promise;
         return originalSet(entries);
       });
@@ -488,10 +485,10 @@ describe("F10 acceptance with real sync metadata and WebDAV comparison", () => {
         .updateAt;
       // The remote transaction acquired the lock before the second edit. Its
       // accepted value is the base; the queued updater must retain that value.
-      const expectedWords = {
-        ...remoteWords,
-        second: { createdAt: SECOND_EDIT_TIME },
-      };
+      const expectedWords = asRules([
+        ...remoteWords.map((rule) => rule.pattern),
+        "second",
+      ]);
       expect(await storage.getObj(STOKEY_RULES)).toEqual(expectedWords);
       expect(await storage.getObj(STOKEY_RULES)).toEqual(expectedWords);
       expect(latestDirtyTime).toBeGreaterThan(

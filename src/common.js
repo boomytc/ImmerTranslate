@@ -5,7 +5,9 @@ import { readRedditEmbeddingHref } from "./libs/redditFrame";
 import { genEventName } from "./libs/utils";
 import { handlePing, injectScript } from "./libs/gm";
 import { matchRule } from "./libs/rules";
-import { isInBlacklist } from "./libs/blacklist";
+import { matchingBlacklistEntries } from "./libs/blacklist";
+import { withFeatureBlacklists } from "./libs/featureBlacklists";
+import { startPageRuntime } from "./libs/pageRuntime";
 import { runSubtitle } from "./subtitle/subtitle";
 import { logger } from "./libs/log";
 import { injectInlineJs } from "./libs/injector";
@@ -230,42 +232,59 @@ export async function run(isUserscript = false) {
       return;
     }
 
-    // 5. 网页黑名单校验，命中时彻底不启动翻译
-    if (isInBlacklist(href, setting.blacklist)) {
-      return;
-    }
-
     // 5.1. iframe 空内容拦截：默认允许 iframe 翻译，但空 iframe 不继续挂载后续脚本
     if (isIframe && !(await waitForIframeTranslatableText())) {
       return;
     }
 
-    // 6. 细粒度划词/输入框/鼠标悬停组件的专属黑名单拦截，若命中则单独禁用该交互组件
-    if (isInBlacklist(href, setting.tranboxSetting?.blacklist)) {
-      setting.tranboxSetting.transOpen = false;
+    let sideEffectsStarted = false;
+    const startSideEffects = ({
+      href: pageHref,
+      setting: pageSetting,
+      rule: pageRule,
+    }) => {
+      if (sideEffectsStarted || isIframe || isPdfDocument) return;
+      sideEffectsStarted = true;
+      runSubtitle({
+        href: pageHref,
+        setting: pageSetting,
+        rule: pageRule,
+        isUserscript,
+      });
+    };
+
+    const runtimeOptions = {
+      setting,
+      fabConfig: null,
+      isIframe,
+      isUserscript,
+      transboxOnly: isPdfDocument,
+      onActivate: startSideEffects,
+    };
+
+    // 5. 命中翻译黑名单时仍留下轻量入口：不挂翻译 DOM，订阅存储和地址变化。
+    if (matchingBlacklistEntries(setting.blacklist, href).length) {
+      runtimeOptions.fabConfig = normalizeFabConfig(await getFabWithDefault());
+      await startPageRuntime(runtimeOptions);
+      return;
     }
 
-    if (isInBlacklist(href, setting.inputRule?.blacklist)) {
-      setting.inputRule.transOpen = false;
-    }
-
-    if (isInBlacklist(href, setting.mouseHoverSetting?.blacklist)) {
-      setting.mouseHoverSetting.useMouseHover = false;
-    }
+    // 6. 划词、输入、悬停按当前网址另算一份。存储原值留给 PageRuntime，不在这里改。
+    const pageSetting = withFeatureBlacklists(setting, href);
 
     // 7. 匹配当前网页专用的规则 (三级规则合并：个人 > 订阅 > 内置全局)
     // www/new/sh 的子 frame（GIS iframe、about:blank）自己的 href 匹配不到站点规则，
     // 会退回全局 autoScan，把 frame 里的按钮文案译掉。改用外层页面 URL 选同一条规则。
     // 顶层帖文 document 仍用自己的 href。黑名单继续看子 frame 自己的地址。
     const ruleHref = readRedditEmbeddingHref(window, isIframe) || href;
-    const rule = await matchRule(ruleHref, setting);
+    const rule = await matchRule(ruleHref, pageSetting);
     // 读出的配置已经是 hiddenSites / shownSites。页面是否显示由 isFabVisible
     // 按当前网址计算，这里不再改写 isHide。
     const fabConfig = normalizeFabConfig(await getFabWithDefault());
 
     // 8. 创建翻译调度器管理器并启动
     const translatorManager = new TranslatorManager({
-      setting,
+      setting: pageSetting,
       rule,
       fabConfig,
       isIframe,
@@ -273,14 +292,14 @@ export async function run(isUserscript = false) {
       transboxOnly: isPdfDocument,
     });
     translatorManager.start();
-
-    // 9. 若当前页面是嵌套的 iframe，不进行视频字幕翻译，避免多个 iframe 里重复跑字幕服务造成冲突
-    if (isIframe || isPdfDocument) {
-      return;
-    }
-
-    // 10. 启动视频字幕翻译子模块 (仅在顶级 frame 下运行)
-    runSubtitle({ href, setting, rule, isUserscript });
+    startSideEffects({ href, setting: pageSetting, rule });
+    await startPageRuntime({
+      ...runtimeOptions,
+      manager: translatorManager,
+      setting,
+      rule,
+      fabConfig,
+    });
   } catch (err) {
     console.error("[ImmerTranslate]", err);
     showErr(err.message); // 向前台页面绘制报错 Banner，便于用户感知与排查问题

@@ -18,7 +18,7 @@ const mockPopupInstances = [];
 const mockFabInstances = [];
 const mockPopupDocumentIdentity = jest.fn();
 const activeManagers = [];
-const mockFabStorage = { listeners: [] };
+const mockFabStorage = { listeners: [], save: jest.fn() };
 
 jest.mock("./storageState", () => ({
   getStorageState: () => ({
@@ -30,6 +30,7 @@ jest.mock("./storageState", () => ({
         );
       };
     },
+    save: (...args) => mockFabStorage.save(...args),
   }),
 }));
 
@@ -97,6 +98,9 @@ jest.mock("./translator", () => ({
       toggle: jest.fn(),
       enable: jest.fn(),
       disable: jest.fn(),
+      pausePage: jest.fn(),
+      continuePage: jest.fn(),
+      resumePage: jest.fn(),
       toggleTransOnly: jest.fn(),
       toggleStyle: jest.fn(),
       updateRule: jest.fn(),
@@ -112,6 +116,9 @@ jest.mock("./translator", () => ({
         this.setting.inputRule.transOpen = !this.setting.inputRule.transOpen;
       }),
       toggleHoverNode: jest.fn(),
+      updateSetting: jest.fn(function updateSetting(setting) {
+        this.setting = setting;
+      }),
     };
     mockTranslatorInstances.push(instance);
     return instance;
@@ -134,6 +141,16 @@ jest.mock("./tranbox", () => ({
         enabled = !enabled;
       }),
     };
+    instance.update = jest.fn((props) => {
+      if (!props?.tranboxSetting || !("transOpen" in props.tranboxSetting)) {
+        return;
+      }
+      if (!props.tranboxSetting.transOpen) {
+        instance.disable();
+        return;
+      }
+      if (!enabled) instance.enable();
+    });
     mockTransboxInstances.push(instance);
     return instance;
   }),
@@ -146,6 +163,7 @@ jest.mock("./inputTranslate", () => ({
       disable: jest.fn(),
       toggle: jest.fn(),
       handleTranslate: jest.fn(),
+      updateConfig: jest.fn(),
     };
     mockInputTranslatorInstances.push(instance);
     return instance;
@@ -187,29 +205,11 @@ jest.mock("./touch", () => ({
 
 jest.mock("./iframe", () => ({
   sendIframeMsg: jest.fn(),
+  installFrameRuntimeBridge: jest.fn(() => jest.fn()),
 }));
 
 jest.mock("./pageRuleSync", () => ({
-  pickSharedRulePatch: (values) => {
-    const patch = {};
-    if (!values || typeof values !== "object") return patch;
-    for (const key of [
-      "apiSlug",
-      "transOnly",
-      "fromLang",
-      "toLang",
-      "textStyle",
-      "transOpen",
-    ]) {
-      if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
-      const value = values[key];
-      if (value == null || value === "") continue;
-      patch[key] = value === true ? "true" : value === false ? "false" : value;
-    }
-    return patch;
-  },
   publishPageRule: jest.fn(),
-  persistSharedSiteRule: jest.fn(),
 }));
 
 jest.mock("./log", () => ({
@@ -219,6 +219,9 @@ jest.mock("./log", () => ({
   },
 }));
 
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
 const { browser } = require("./browser");
 const { Translator } = require("./translator");
 const { TransboxManager } = require("./tranbox");
@@ -226,7 +229,8 @@ const { InputTranslator } = require("./inputTranslate");
 const { PopupManager } = require("./popupManager");
 const { FabManager } = require("./fabManager");
 const { sendIframeMsg } = require("./iframe");
-const { publishPageRule, persistSharedSiteRule } = require("./pageRuleSync");
+const { shortcutRegister } = require("./shortcut");
+const { publishPageRule } = require("./pageRuleSync");
 const TranslatorManager = require("./translatorManager").default;
 
 function setupMockConstructors() {
@@ -243,6 +247,9 @@ function setupMockConstructors() {
       toggle: jest.fn(),
       enable: jest.fn(),
       disable: jest.fn(),
+      pausePage: jest.fn(),
+      continuePage: jest.fn(),
+      resumePage: jest.fn(),
       toggleTransOnly: jest.fn(),
       toggleStyle: jest.fn(),
       updateRule: jest.fn(),
@@ -258,6 +265,9 @@ function setupMockConstructors() {
         this.setting.inputRule.transOpen = !this.setting.inputRule.transOpen;
       }),
       toggleHoverNode: jest.fn(),
+      updateSetting: jest.fn(function updateSetting(setting) {
+        this.setting = setting;
+      }),
     };
     mockTranslatorInstances.push(instance);
     return instance;
@@ -278,6 +288,16 @@ function setupMockConstructors() {
         enabled = !enabled;
       }),
     };
+    instance.update = jest.fn((props) => {
+      if (!props?.tranboxSetting || !("transOpen" in props.tranboxSetting)) {
+        return;
+      }
+      if (!props.tranboxSetting.transOpen) {
+        instance.disable();
+        return;
+      }
+      if (!enabled) instance.enable();
+    });
     mockTransboxInstances.push(instance);
     return instance;
   });
@@ -288,6 +308,7 @@ function setupMockConstructors() {
       disable: jest.fn(),
       toggle: jest.fn(),
       handleTranslate: jest.fn(),
+      updateConfig: jest.fn(),
     };
     mockInputTranslatorInstances.push(instance);
     return instance;
@@ -352,6 +373,72 @@ async function flushMutationObserver() {
   await Promise.resolve();
 }
 
+function storedSetting({
+  tranbox = true,
+  input = true,
+  hover = false,
+  uiLang = "en",
+} = {}) {
+  return {
+    uiLang,
+    tranboxSetting: { transOpen: tranbox },
+    inputRule: { transOpen: input },
+    mouseHoverSetting: { useMouseHover: hover },
+  };
+}
+
+function applyStoredSetting(manager, { next, transOpen = "true" }) {
+  const target = {
+    state: transOpen === "true" ? "on" : "off",
+    rule: { selector: "article", transOpen },
+    setting: next,
+  };
+  manager.applyTarget(target);
+  return target;
+}
+
+function loadContextMenuClick() {
+  const source = fs.readFileSync(
+    path.join(__dirname, "../background.js"),
+    "utf8"
+  );
+  const start = source.indexOf(
+    "browser?.contextMenus?.onClicked?.addListener?.("
+  );
+  const end = source.indexOf("async function handleStreamFetch");
+  if (start < 0 || end < start) {
+    throw new Error("context menu listener was not found");
+  }
+  const real = jest.requireActual("../config/msg");
+  const sendTabMsg = jest.fn();
+  const sandbox = {
+    sendTabMsg,
+    broadcastTranslateToggle: jest.fn(),
+    openOptionsPage: jest.fn(),
+    CMD_TOGGLE_TRANSLATE: real.CMD_TOGGLE_TRANSLATE,
+    CMD_TOGGLE_TRANSLATE_ONLY: real.CMD_TOGGLE_TRANSLATE_ONLY,
+    CMD_TOGGLE_STYLE: real.CMD_TOGGLE_STYLE,
+    CMD_OPEN_TRANBOX: real.CMD_OPEN_TRANBOX,
+    CMD_TOGGLE_TRANBOX: real.CMD_TOGGLE_TRANBOX,
+    CMD_OPEN_OPTIONS: real.CMD_OPEN_OPTIONS,
+    MSG_TRANS_TOGGLE_ONLY: real.MSG_TRANS_TOGGLE_ONLY,
+    MSG_TRANS_TOGGLE_STYLE: real.MSG_TRANS_TOGGLE_STYLE,
+    MSG_OPEN_TRANBOX: real.MSG_OPEN_TRANBOX,
+    MSG_TRANSBOX_TOGGLE: real.MSG_TRANSBOX_TOGGLE,
+  };
+  sandbox.browser = {
+    contextMenus: {
+      onClicked: {
+        addListener(listener) {
+          sandbox.click = listener;
+        },
+      },
+    },
+  };
+  vm.runInContext(source.slice(start, end), vm.createContext(sandbox));
+  return { sendTabMsg, click: sandbox.click, real };
+}
+
 function sendRuntimeMessage(message) {
   const runtimeHandler = browser.runtime.onMessage.addListener.mock.calls[0][0];
   const sendResponse = jest.fn();
@@ -373,6 +460,7 @@ describe("TranslatorManager SPA lifecycle", () => {
     jest.useFakeTimers();
     document.documentElement.innerHTML = "<head></head><body></body>";
     jest.clearAllMocks();
+    shortcutRegister.mockImplementation(() => () => {});
     browser.runtime.sendMessage.mockReset().mockResolvedValue(12);
     mockPopupDocumentIdentity.mockReset();
     mockPopupDocumentIdentity.mockReturnValue({
@@ -1354,7 +1442,7 @@ describe("TranslatorManager SPA lifecycle", () => {
     ]);
   });
 
-  test("publishes shared rule edits and persists them from the top frame only", () => {
+  test("applies a this-page rule edit without writing storage", () => {
     createManager().start();
     sendRuntimeMessage({
       action: "trans-putrule",
@@ -1371,30 +1459,103 @@ describe("TranslatorManager SPA lifecycle", () => {
         document: expect.objectContaining({ token: "current-document" }),
       })
     );
-    expect(persistSharedSiteRule).toHaveBeenCalledWith({
-      apiSlug: "deepl",
-      toLang: "fr",
-    });
-
-    publishPageRule.mockClear();
-    persistSharedSiteRule.mockClear();
-    sendRuntimeMessage({
-      action: "trans-toggle",
-      args: { enabled: false, persistSite: false },
-    });
-    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
-    expect(publishPageRule).toHaveBeenCalledTimes(1);
-    expect(persistSharedSiteRule).not.toHaveBeenCalled();
   });
 
-  test("mirrors a shared rule into an iframe without writing the site rule again", () => {
-    createManager({ isIframe: true }).start();
-    sendRuntimeMessage({
-      action: "trans-putrule",
-      args: { transOnly: "true" },
+  test("applyTarget turns translation off and back on with the matched rule", () => {
+    const manager = createManager({ rule: { transOpen: "true" } });
+    manager.start();
+    manager.applyTarget({
+      state: "off",
+      rule: { apiSlug: "deepl", transOpen: "false" },
     });
-    expect(publishPageRule).toHaveBeenCalled();
-    expect(persistSharedSiteRule).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({ transOpen: "false", apiSlug: "deepl" })
+    );
+    mockTranslatorInstances[0].rule.transOpen = "false";
+    manager.applyTarget({
+      state: "on",
+      rule: { apiSlug: "deepl", transOpen: "true" },
+    });
+    expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].pausePage).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].continuePage).not.toHaveBeenCalled();
+  });
+
+  test("blacklist pause and resume do not disable or rescan the page translator", () => {
+    const manager = createManager({ rule: { transOpen: "true" } });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    translator.rule.transOpen = "true";
+    manager.applyTarget({
+      state: "paused",
+      rule: { apiSlug: "deepl", transOpen: "false" },
+    });
+    expect(translator.pausePage).toHaveBeenCalledTimes(1);
+    expect(translator.disable).not.toHaveBeenCalled();
+    expect(translator.rescan).not.toHaveBeenCalled();
+    expect(translator.enable).not.toHaveBeenCalled();
+    translator.rule.transOpen = "false";
+    manager.applyTarget({
+      state: "on",
+      rule: { apiSlug: "deepl", transOpen: "true" },
+    });
+    expect(translator.continuePage).toHaveBeenCalledTimes(1);
+    expect(translator.resumePage).not.toHaveBeenCalled();
+    expect(translator.enable).not.toHaveBeenCalled();
+    expect(translator.disable).not.toHaveBeenCalled();
+    expect(translator.rescan).not.toHaveBeenCalled();
+    manager.applyTarget({
+      state: "paused",
+      rule: { apiSlug: "deepl", transOpen: "false" },
+    });
+    translator.pausePage.mockClear();
+    translator.continuePage.mockClear();
+    manager.applyTarget({
+      state: "off",
+      rule: { apiSlug: "deepl", transOpen: "false" },
+    });
+    expect(translator.resumePage).toHaveBeenCalledTimes(1);
+    expect(translator.continuePage).not.toHaveBeenCalled();
+    expect(translator.enable).not.toHaveBeenCalled();
+    expect(translator.disable).not.toHaveBeenCalled();
+    expect(translator.rescan).not.toHaveBeenCalled();
+  });
+
+  test("applyTarget keeps translation on when the target says on", () => {
+    const manager = createManager({
+      rule: { transOpen: "true", selector: "p" },
+    });
+    manager.start();
+    mockTranslatorInstances[0].rule.transOpen = "true";
+    manager.applyTarget({
+      state: "on",
+      rule: { selector: "article", apiSlug: "deepl", transOpen: "true" },
+    });
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selector: "article",
+        apiSlug: "deepl",
+        transOpen: "true",
+      })
+    );
+  });
+
+  test("a stored tranbox switch change turns selection translation off", () => {
+    const manager = createManager();
+    manager.start();
+    const transbox = mockTransboxInstances[0];
+    const translator = mockTranslatorInstances[0];
+    expect(transbox.isEnabled()).toBe(true);
+
+    applyStoredSetting(manager, {
+      next: storedSetting({ tranbox: false, uiLang: "zh" }),
+    });
+    expect(transbox.isEnabled()).toBe(false);
+    expect(translator.setting.tranboxSetting.transOpen).toBe(false);
+    expect(translator.setting.uiLang).toBe("zh");
   });
 
   test("continues checking queued controls after a verification rejects", async () => {

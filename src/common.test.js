@@ -27,6 +27,7 @@ jest.mock("./libs/rules", () => ({
 
 jest.mock("./libs/blacklist", () => ({
   isInBlacklist: jest.fn(() => false),
+  matchingBlacklistEntries: jest.fn(() => []),
 }));
 
 jest.mock("./subtitle/subtitle", () => ({
@@ -44,6 +45,11 @@ jest.mock("./libs/injector", () => ({
   injectInlineJs: jest.fn(),
 }));
 
+const mockStartPageRuntime = jest.fn(async () => ({}));
+jest.mock("./libs/pageRuntime", () => ({
+  startPageRuntime: (...args) => mockStartPageRuntime(...args),
+}));
+
 jest.mock("./libs/translatorManager", () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
@@ -54,7 +60,7 @@ jest.mock("./libs/translatorManager", () => ({
 const { getSettingWithDefault, getFabWithDefault } = require("./libs/storage");
 const { matchRule } = require("./libs/rules");
 const { readRedditEmbeddingHref } = require("./libs/redditFrame");
-const { isInBlacklist } = require("./libs/blacklist");
+const { isInBlacklist, matchingBlacklistEntries } = require("./libs/blacklist");
 const { runSubtitle } = require("./subtitle/subtitle");
 const { injectInlineJs } = require("./libs/injector");
 const TranslatorManager = require("./libs/translatorManager").default;
@@ -99,6 +105,8 @@ describe("common iframe startup", () => {
     jest.clearAllMocks();
     readRedditEmbeddingHref.mockReturnValue("");
     isInBlacklist.mockImplementation(() => false);
+    matchingBlacklistEntries.mockImplementation(() => []);
+    mockStartPageRuntime.mockClear();
 
     TranslatorManager.mockImplementation(() => ({
       start: mockTranslatorManagerStart,
@@ -214,6 +222,41 @@ describe("common iframe startup", () => {
     expect(runSubtitle).toHaveBeenCalledTimes(1);
   });
 
+  test("folds feature blacklists into a new setting and keeps the stored values", async () => {
+    const stored = {
+      blacklist: "",
+      tranboxSetting: { blacklist: "feature-off", transOpen: true },
+      inputRule: { blacklist: "feature-off", transOpen: true },
+      mouseHoverSetting: { blacklist: "feature-off", useMouseHover: true },
+      logLevel: 1,
+    };
+    const freeze = (value) => {
+      if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+        return value;
+      }
+      Object.values(value).forEach(freeze);
+      return Object.freeze(value);
+    };
+    freeze(stored);
+    getSettingWithDefault.mockResolvedValue(stored);
+    isInBlacklist.mockImplementation(
+      (_href, blacklist) => blacklist === "feature-off"
+    );
+
+    await run();
+
+    const managerSetting = TranslatorManager.mock.calls[0][0].setting;
+    expect(managerSetting).not.toBe(stored);
+    expect(managerSetting.tranboxSetting.transOpen).toBe(false);
+    expect(managerSetting.inputRule.transOpen).toBe(false);
+    expect(managerSetting.mouseHoverSetting.useMouseHover).toBe(false);
+    const runtimeSetting = mockStartPageRuntime.mock.calls.at(-1)[0].setting;
+    expect(runtimeSetting).toBe(stored);
+    expect(stored.tranboxSetting.transOpen).toBe(true);
+    expect(stored.inputRule.transOpen).toBe(true);
+    expect(stored.mouseHoverSetting.useMouseHover).toBe(true);
+  });
+
   test("passes a normalized FAB config through when hiddenSites lists the page", async () => {
     getFabWithDefault.mockResolvedValue({
       isHide: false,
@@ -271,6 +314,21 @@ describe("common iframe startup", () => {
     expect(TranslatorManager.mock.calls[0][0].fabConfig.isHide).toBe(false);
     expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
     expect(runSubtitle).not.toHaveBeenCalled();
+  });
+
+  test("keeps a parked runtime when the page blacklist matches", async () => {
+    matchingBlacklistEntries.mockReturnValue(["localhost"]);
+
+    await run();
+
+    expect(TranslatorManager).not.toHaveBeenCalled();
+    expect(mockTranslatorManagerStart).not.toHaveBeenCalled();
+    expect(runSubtitle).not.toHaveBeenCalled();
+    expect(matchRule).not.toHaveBeenCalled();
+    expect(mockStartPageRuntime).toHaveBeenCalledTimes(1);
+    const parkedOptions = mockStartPageRuntime.mock.calls[0][0];
+    expect(parkedOptions.manager).toBeUndefined();
+    expect(parkedOptions.isIframe).toBe(false);
   });
 
   test("skips non-PDF media documents before rule matching and manager startup", async () => {

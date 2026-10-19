@@ -40,7 +40,7 @@ describe("tab messaging targets", () => {
 
     expect(mockSendMessage).toHaveBeenCalledWith(
       17,
-      { action: "get-rule", args: undefined },
+      { action: "get-rule", args: undefined, targetTopFrame: true },
       { frameId: 0 }
     );
   });
@@ -61,7 +61,7 @@ describe("tab messaging targets", () => {
     expect(mockQuery).not.toHaveBeenCalled();
     expect(mockSendMessage).toHaveBeenCalledWith(
       0,
-      { action: "get-rule", args: undefined },
+      { action: "get-rule", args: undefined, targetTopFrame: true },
       { frameId: 0 }
     );
   });
@@ -74,6 +74,7 @@ describe("tab messaging targets", () => {
         action: "edit",
         args: undefined,
         expectedDocumentToken: "captured-document",
+        targetTopFrame: true,
       },
       { frameId: 0 }
     );
@@ -165,7 +166,7 @@ describe("tab messaging targets", () => {
     expect(mockSendMessage).toHaveBeenNthCalledWith(
       1,
       29,
-      { action: MSG_TRANS_TOGGLE, args: undefined },
+      { action: MSG_TRANS_TOGGLE, args: undefined, targetTopFrame: true },
       { frameId: 0 }
     );
     expect(mockSendMessage).toHaveBeenNthCalledWith(2, 29, {

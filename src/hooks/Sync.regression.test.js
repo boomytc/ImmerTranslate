@@ -12,6 +12,7 @@ import {
   updateSyncState,
 } from "../libs/storage";
 import { syncSettingAndRules, trySyncRules } from "../libs/sync";
+import { checkRules } from "../libs/rules";
 import { findStorageState } from "../libs/storageState";
 import {
   STOKEY_SETTING,
@@ -344,7 +345,9 @@ describe("synchronization regression scenarios", () => {
     expect(await storage.getObj(STOKEY_RULES)).toEqual(INITIAL_RULES);
 
     await act(async () => trySyncRules());
-    expect(await storage.getObj(STOKEY_RULES)).toEqual(alternateRules);
+    expect(await storage.getObj(STOKEY_RULES)).toEqual(
+      checkRules(alternateRules)
+    );
     expect(packetValue(alternatePackets[KV_RULES_KEY])).toEqual(alternateRules);
     expect(alternateRemote.putFileContents).not.toHaveBeenCalled();
   });

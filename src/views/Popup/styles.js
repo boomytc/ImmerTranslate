@@ -255,6 +255,10 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-site__badge--blocked { background: var(--kt-errc); color: var(--kt-onerrc); }
 .kt-popup-site__actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-top: 4px; }
 .kt-popup-site__actions .MuiButton-root { min-width: 0; min-height: 34px; padding: 5px 8px; font-size: 11.5px; line-height: 1.35; overflow-wrap: anywhere; white-space: normal; }
+.kt-popup-blacklist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.kt-popup-blacklist li { display: flex; align-items: center; gap: 6px; }
+.kt-popup-blacklist__entry { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: 12px; }
+.kt-popup-blacklist .MuiButton-root { flex: 0 0 auto; min-height: 28px; padding: 3px 8px; font-size: 11px; }
 
 .kt-popup-site-policy { padding: 10px 2px 8px; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); }
 .kt-popup-policy-modes { display: flex; gap: 6px; }

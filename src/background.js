@@ -15,6 +15,7 @@ import {
   MSG_CONTEXT_MENUS,
   MSG_COMMAND_SHORTCUTS,
   MSG_INJECT_JS,
+  MSG_INSTALL_LOCATION_HOOK,
   MSG_INJECT_CSS,
   MSG_UPDATE_CSP,
   MSG_BUILTINAI_DETECT,
@@ -46,13 +47,14 @@ import { fetchHandle, fetchStreamNative } from "./libs/fetch";
 import { handleRequestPort } from "./libs/requestPort";
 import { tryClearCaches, getHttpCache, putHttpCache } from "./libs/cache";
 import { sendTabMsg, broadcastTranslateToggle } from "./libs/msg";
-import { saveRule } from "./libs/rules";
+import { saveRuleMessage } from "./libs/rules";
 import { getCurTabId } from "./libs/msg";
 import { injectInlineJsBg, injectInternalCss } from "./libs/injector";
 import { kissLog, logger } from "./libs/log";
 import { chromeDetect, chromeTranslate } from "./libs/builtinAI";
 import { installStorageCoordinator } from "./libs/storageCoordination";
 import { isCurrentPopupDocument } from "./libs/popupDocument";
+import { locationHookInjection } from "./libs/locationHook";
 import { optionsApisHash } from "./libs/optionsEntry";
 import { APP_CONTEXT_KEY } from "./libs/browser";
 
@@ -863,9 +865,14 @@ const messageHandlers = {
   [MSG_GET_HTTPCACHE]: (args) => getHttpCache(args), // 读取翻译 HTTP 缓存
   [MSG_PUT_HTTPCACHE]: (args) => putHttpCache(args), // 存入翻译 HTTP 缓存
   [MSG_OPEN_OPTIONS]: (args) => openOptionsPage(args), // 打开设置选项页
-  [MSG_SAVE_RULE]: (args) => saveRule(args), // 写入/保存规则
+  [MSG_SAVE_RULE]: (args) => saveRuleMessage(args), // 写入/保存规则
   [MSG_EDIT_RULE]: (args) => writeSiteRule(args),
   [MSG_INJECT_JS]: (args) => injectToCurrentTab(injectInlineJsBg, args), // 注入 JS 代码到前台
+  [MSG_INSTALL_LOCATION_HOOK]: (_args, sender) => {
+    const injection = locationHookInjection(sender);
+    if (!injection) return;
+    return browser.scripting.executeScript(injection);
+  },
   [MSG_INJECT_CSS]: (args) => injectToCurrentTab(injectInternalCss, args), // 注入 CSS 样式到前台
   [MSG_UPDATE_CSP]: (args) => updateCspRules(args), // 触发 CSP 重写规则变更
   [MSG_CONTEXT_MENUS]: (args) => addContextMenus(args), // 切换右键菜单样式

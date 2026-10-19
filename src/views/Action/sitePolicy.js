@@ -1,26 +1,42 @@
-import { GLOBAL_KEY } from "../../config";
-import { findMatchingRule } from "../../libs/rules";
+import { GLOBAL_KEY, MSG_SAVE_RULE } from "../../config";
+import { isExt } from "../../libs/client";
+import { sendBgMsg } from "../../libs/msg";
+import { findMatchingRule, saveRule } from "../../libs/rules";
+import { SITE_TRANS_OPEN, siteTransOpenValue } from "../../libs/siteTransOpen";
 import { getDomainOptions } from "../../libs/url";
 
-const SITE_TRANS_OPEN = new Set([GLOBAL_KEY, "true", "false"]);
+export { SITE_TRANS_OPEN };
 
 /** Values shown by the current-site control, in menu order. */
 export const SITE_TRANS_OPEN_OPTIONS = [
-  { value: GLOBAL_KEY, labelKey: "site_trans_follow" },
-  { value: "true", labelKey: "site_trans_on" },
-  { value: "false", labelKey: "site_trans_off" },
+  { value: SITE_TRANS_OPEN.FOLLOW_GLOBAL, labelKey: "site_trans_follow" },
+  { value: SITE_TRANS_OPEN.AUTO_TRANSLATE, labelKey: "site_trans_on" },
+  { value: SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE, labelKey: "site_trans_off" },
 ];
 
 /**
- * Personal-rule transOpen for this page.
- * `*` follows the global rule; missing or unknown values do the same.
+ * 本页个人规则的 transOpen。
+ * 没有匹配的个人规则，或匹配规则没有 transOpen 键，都是跟随全局 `*`
+ * （与规则合并里空值继续继承一致）。
+ * 有 transOpen 键但值不是 `*` / `"true"` / `"false"` 时抛错，不能读成跟随。
  */
-export function readSiteTransOpen(href, rules) {
-  const value =
-    typeof findMatchingRule === "function"
-      ? findMatchingRule(rules || [], href)?.transOpen
+export function readSiteTransOpen(href, rules, pattern) {
+  const list = Array.isArray(rules) ? rules : [];
+  const matched = pattern
+    ? list.find(
+        (rule) =>
+          rule?.pattern === pattern &&
+          rule.pattern !== GLOBAL_KEY &&
+          rule?.enabled !== false
+      )
+    : typeof findMatchingRule === "function"
+      ? findMatchingRule(list, href)
       : undefined;
-  return SITE_TRANS_OPEN.has(value) ? value : GLOBAL_KEY;
+  if (!matched) return SITE_TRANS_OPEN.FOLLOW_GLOBAL;
+  if (!Object.prototype.hasOwnProperty.call(matched, "transOpen")) {
+    return SITE_TRANS_OPEN.FOLLOW_GLOBAL;
+  }
+  return siteTransOpenValue(matched.transOpen);
 }
 
 /**
@@ -33,4 +49,26 @@ export function siteRulePattern(href, rules) {
       ? findMatchingRule(rules || [], href)?.pattern
       : undefined;
   return matched || getDomainOptions(href)[0] || "";
+}
+
+/**
+ * 本站开关只写这一条记录：已有个人规则就改它，否则用当前主机名新建一条。
+ * 不另选下拉框里的宽模式，避免同一次切换再落一条规则。
+ */
+export function sitePolicyRecord(href, rules, transOpen, pattern) {
+  const resolved = pattern || siteRulePattern(href, rules);
+  if (!resolved || resolved === GLOBAL_KEY) return null;
+  return { pattern: resolved, transOpen: siteTransOpenValue(transOpen) };
+}
+
+export async function writeSiteTransOpen(
+  href,
+  transOpen,
+  rules,
+  { throughBackground = isExt, pattern } = {}
+) {
+  const record = sitePolicyRecord(href, rules, transOpen, pattern);
+  if (!record) return null;
+  if (throughBackground) return sendBgMsg(MSG_SAVE_RULE, record);
+  return saveRule(record);
 }

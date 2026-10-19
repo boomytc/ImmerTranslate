@@ -28,6 +28,7 @@ import { createClient, getPatcher } from "webdav";
 import { fetchPatcher } from "./fetch";
 import { kissLog } from "./log";
 import { encryptSyncValue, decryptSyncValue } from "./syncCrypto";
+import { checkRules } from "./rules";
 import {
   enqueueStorageSync,
   enqueueStorageWrite,
@@ -538,7 +539,11 @@ function syncStoredValue(key, storageKey, options = {}) {
       const committed = await result.commit({
         applyValue: async (transaction) => {
           if (result.isNew && options.applyRemote !== false) {
-            await transaction.setObj(storageKey, result.value);
+            const storedValue =
+              storageKey === STOKEY_RULES
+                ? checkRules(result.value)
+                : result.value;
+            await transaction.setObj(storageKey, storedValue);
           }
         },
         isCurrent,
@@ -551,9 +556,13 @@ function syncStoredValue(key, storageKey, options = {}) {
       });
       const currentState = findStorageState(storageKey);
       if (committed && currentState && isCurrent()) {
-        if (result.isNew && options.applyRemote !== false)
-          currentState.acceptValue(result.value);
-        else currentState.markSynced(currentState.revision);
+        if (result.isNew && options.applyRemote !== false) {
+          currentState.acceptValue(
+            storageKey === STOKEY_RULES
+              ? checkRules(result.value)
+              : result.value
+          );
+        } else currentState.markSynced(currentState.revision);
       }
       return committed;
     });
@@ -631,7 +640,7 @@ export const changeSyncEncryptKey = async ({
 
   // 远端设置和规则都通过旧口令校验后，才把较新的版本写入本地并开始重加密。
   if (synced.setting?.isNew) await setSetting(synced.setting.value);
-  if (synced.rules?.isNew) await setRules(synced.rules.value);
+  if (synced.rules?.isNew) await setRules(checkRules(synced.rules.value));
 
   await forceSyncDataWithEncryptKey(
     KV_SETTING_KEY,
