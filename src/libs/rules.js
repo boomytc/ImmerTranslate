@@ -127,20 +127,7 @@ export const findMatchingRule = (rules, href) => {
  * @param {Object} overrideRule 覆盖高优先级规则
  * @returns {Object} 合并后的最终规则
  */
-const DROPPED_RULE_KEYS = [
-  "injectJs",
-  "transStartHook",
-  "transEndHook",
-  "scriptFieldOrigins",
-];
-
-const copyRule = (rule) => {
-  const merged = { ...rule };
-  DROPPED_RULE_KEYS.forEach((key) => {
-    delete merged[key];
-  });
-  return merged;
-};
+const copyRule = (rule) => ({ ...rule });
 
 export const mergeRules = (baseRule, overrideRule) => {
   if (!overrideRule) return copyRule(baseRule);
@@ -215,9 +202,6 @@ export const mergeRules = (baseRule, overrideRule) => {
     merged.pattern = overrideRule.pattern;
   }
 
-  DROPPED_RULE_KEYS.forEach((key) => {
-    delete merged[key];
-  });
   return merged;
 };
 
