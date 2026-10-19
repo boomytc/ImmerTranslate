@@ -12,11 +12,6 @@ import { redditEmbeddingHref } from "./redditFrame";
 jest.mock("./storage", () => ({
   getRulesWithDefault: jest.fn(),
   saveEdit: jest.fn(),
-  getDisabledSubRules: jest.fn(),
-}));
-
-jest.mock("./subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
 }));
 
 jest.mock("./sync", () => ({
@@ -678,15 +673,14 @@ describe("reddit rules after the v2 subscription sync", () => {
     );
   });
 
-  test("does not fall back when injection is off or the subscription already covers the host", () => {
+  test("uses the builtin reddit rule even when no subscription list is present", () => {
     const off = deriveRuleContext("https://www.reddit.com/", {
       personalRules: [],
-      subRules: [],
     });
-    expect(off.effective.pattern).toBe("*");
-    expect(off.effective.autoScan).toBe("true");
+    expect(off.effective.pattern).toBe("www.reddit.com");
+    expect(off.effective.autoScan).toBe("false");
 
-    const disabled = deriveRuleContext("https://www.reddit.com/", {
+    const ignoredSubscription = deriveRuleContext("https://www.reddit.com/", {
       personalRules: [],
       subRules: [
         {
@@ -695,60 +689,37 @@ describe("reddit rules after the v2 subscription sync", () => {
           autoScan: "true",
         },
       ],
-      disabledPatterns: ["www.reddit.com"],
     });
-    expect(disabled.subscription).toBeNull();
-    expect(disabled.effective.pattern).toBe("*");
-    expect(disabled.effective.autoScan).toBe("true");
-
-    const turnedOff = deriveRuleContext("https://new.reddit.com/", {
-      personalRules: [],
-      subRules: [
-        {
-          pattern: "new.reddit.com",
-          enabled: false,
-          selector: ".from-subscription",
-          autoScan: "true",
-        },
-        { pattern: "old.reddit.com", selector: ".usertext" },
-      ],
-    });
-    expect(turnedOff.effective.pattern).toBe("*");
-    expect(turnedOff.effective.autoScan).toBe("true");
+    expect(ignoredSubscription.effective.selector).not.toBe(
+      ".from-subscription"
+    );
+    expect(ignoredSubscription.effective.pattern).toBe("www.reddit.com");
+    expect(ignoredSubscription.effective.autoScan).toBe("false");
   });
 
-  test("keeps a personal reddit rule and a subscribed github rule ahead of builtins", () => {
+  test("keeps a personal reddit rule ahead of the builtin rule", () => {
     const personal = deriveRuleContext("https://www.reddit.com/r/test/", {
       personalRules: [{ pattern: "www.reddit.com", selector: ".personal" }],
-      subRules: [{ pattern: "old.reddit.com", selector: ".usertext" }],
     });
     expect(personal.effective.selector).toBe(".personal");
     expect(personal.effective.pattern).toBe("www.reddit.com");
 
     const github = deriveRuleContext(
       "https://github.com/boomytc/ImmerTranslate",
-      {
-        personalRules: [],
-        subRules: [
-          {
-            pattern: "github.com",
-            selector: ".from-subscription",
-            autoScan: "false",
-          },
-          { pattern: "old.reddit.com", selector: ".usertext" },
-        ],
-      }
+      { personalRules: [] }
     );
-    expect(github.subscription.pattern).toBe("github.com");
-    expect(github.effective.selector).toBe(".from-subscription");
+    const builtinGithub = BUILTIN_RULES.find(
+      (rule) => rule.pattern === "github.com"
+    );
     expect(github.effective.pattern).toBe("github.com");
+    expect(github.effective.selector).toBe(
+      mergeRules(GLOBLA_RULE, builtinGithub).selector
+    );
 
     const wiki = deriveRuleContext("https://en.wikipedia.org/wiki/Reddit", {
       personalRules: [],
-      subRules: [{ pattern: "old.reddit.com", selector: ".usertext" }],
     });
-    expect(wiki.effective.pattern).toBe("*");
-    expect(wiki.effective.autoScan).toBe("true");
+    expect(wiki.effective.pattern).toBe("en.wikipedia.org");
   });
 
   test("leaves a top-document Google label alone without a GIS class ignore", () => {
@@ -970,7 +941,12 @@ describe("reddit child frames", () => {
         subRules: V2_SUB_RULES,
       }
     );
-    expect(github.subscription.pattern).toBe("github.com");
-    expect(github.effective.selector).toBe(".from-subscription");
+    const builtinGithub = BUILTIN_RULES.find(
+      (rule) => rule.pattern === "github.com"
+    );
+    expect(github.effective.pattern).toBe("github.com");
+    expect(github.effective.selector).toBe(
+      mergeRules(GLOBLA_RULE, builtinGithub).selector
+    );
   });
 });

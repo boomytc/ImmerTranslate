@@ -10,7 +10,6 @@ import { readRedditEmbeddingHref } from "./libs/redditFrame";
 import { genEventName } from "./libs/utils";
 import { handlePing, injectScript } from "./libs/gm";
 import { matchRule } from "./libs/rules";
-import { trySyncAllSubRules } from "./libs/subRules";
 import { isInBlacklist } from "./libs/blacklist";
 import { runSubtitle } from "./subtitle/subtitle";
 import { logger } from "./libs/log";
@@ -309,11 +308,6 @@ export async function run(isUserscript = false) {
 
     // 10. 启动视频字幕翻译子模块 (仅在顶级 frame 下运行)
     runSubtitle({ href, setting, rule, isUserscript });
-
-    // 11. 在油猴环境下，每次进入顶级页面时尝试触发一次订阅规则的自动同步检查 (每日一次)
-    if (isUserscript) {
-      trySyncAllSubRules(setting);
-    }
   } catch (err) {
     console.error("[ImmerTranslate]", err);
     showErr(err.message); // 向前台页面绘制报错 Banner，便于用户感知与排查问题

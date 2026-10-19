@@ -6,11 +6,6 @@ import { visitTranslationTargets } from "./translationTargets";
 jest.mock("./storage", () => ({
   getRulesWithDefault: jest.fn(),
   saveEdit: jest.fn(),
-  getDisabledSubRules: jest.fn(),
-}));
-
-jest.mock("./subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
 }));
 
 jest.mock("./sync", () => ({

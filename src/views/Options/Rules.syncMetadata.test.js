@@ -13,7 +13,7 @@ import {
   STOKEY_RULES,
   KV_RULES_KEY,
 } from "../../config";
-import { setSubRules, storage } from "../../libs/storage";
+import { storage } from "../../libs/storage";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../../apis", () => ({ apiFetch: jest.fn() }));
@@ -43,13 +43,9 @@ jest.mock("../../hooks/CustomStyles", () => ({
 const SOURCE_URL = "https://rules.example/main.json";
 const NEW_URL = "https://rules.example/new.json";
 
-test("preserves edited rule metadata when a subscription is added later", async () => {
+test("preserves edited rule metadata when a personal rule is toggled", async () => {
   localStorage.clear();
-  await storage.setObj(STOKEY_SETTING, {
-    ...DEFAULT_SETTING,
-    injectRules: false,
-    subrulesList: [{ url: SOURCE_URL, selected: true }],
-  });
+  await storage.setObj(STOKEY_SETTING, DEFAULT_SETTING);
   await storage.setObj(STOKEY_SYNC, {
     ...DEFAULT_SYNC,
     dataCaches: { [SOURCE_URL]: 123 },
@@ -58,7 +54,6 @@ test("preserves edited rule metadata when a subscription is added later", async 
   await storage.setObj(STOKEY_RULES, [
     { pattern: "personal.example", enabled: true },
   ]);
-  await setSubRules(SOURCE_URL, [{ pattern: "existing.example" }]);
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -96,29 +91,9 @@ test("preserves edited rule metadata when a subscription is added later", async 
       KV_RULES_KEY
     ];
     expect(expectedMeta.updateAt).toBeGreaterThan(101);
-
-    await clickText('[role="tab"]', "subscribe_rules");
-    apiFetch.mockResolvedValueOnce([{ pattern: "new.example" }]);
-    await clickText("button", "add");
-    const input = container.querySelector('input[type="text"]');
-    act(() => {
-      Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value"
-      ).set.call(input, NEW_URL);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await clickText("button", "save");
-    await waitForMetadata();
-
-    expect(apiFetch).toHaveBeenCalledWith(NEW_URL);
-    expect((await storage.getObj(STOKEY_SETTING)).subrulesList).toContainEqual({
-      url: NEW_URL,
-      selected: false,
-    });
-    const savedSync = await storage.getObj(STOKEY_SYNC);
-    expect(savedSync.syncMeta[KV_RULES_KEY]).toEqual(expectedMeta);
-    expect(savedSync.dataCaches[NEW_URL]).toEqual(expect.any(Number));
+    expect((await storage.getObj(STOKEY_SYNC)).dataCaches[SOURCE_URL]).toBe(
+      123
+    );
   } finally {
     act(() => root.unmount());
     container.remove();
