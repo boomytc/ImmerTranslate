@@ -5,6 +5,7 @@ import { createClient } from "webdav";
 import { browser } from "../libs/browser";
 import { storage, getSyncWithDefault } from "../libs/storage";
 import { trySyncRules } from "../libs/sync";
+import { checkRules } from "../libs/rules";
 import {
   STOKEY_RULES,
   STOKEY_SYNC,
@@ -52,9 +53,11 @@ jest.mock("../libs/syncCrypto", () => ({
   }),
 }));
 
-const LOCAL_WORDS = { local: { createdAt: 100 } };
-const REMOTE_A_WORDS = { remoteA: { createdAt: 200 } };
-const REMOTE_B_WORDS = { remoteB: { createdAt: 300 } };
+const asRules = (patterns) =>
+  checkRules(patterns.map((pattern) => ({ pattern })));
+const LOCAL_WORDS = asRules(["local"]);
+const REMOTE_A_WORDS = asRules(["remoteA"]);
+const REMOTE_B_WORDS = asRules(["remoteB"]);
 
 function deferred() {
   let resolve;
@@ -133,9 +136,16 @@ describe("manual sync compensation serialization", () => {
         // Successful writes are applied immediately and never reordered.
         values.set(key, value);
         if (key === STOKEY_RULES) {
-          const words = JSON.parse(value);
+          const rules = JSON.parse(value);
+          const patterns = Array.isArray(rules)
+            ? rules.map((rule) => rule.pattern)
+            : [];
           events.push(
-            words.remoteB ? "write RB" : words.remoteA ? "write RA" : "write L"
+            patterns.includes("remoteB")
+              ? "write RB"
+              : patterns.includes("remoteA")
+                ? "write RA"
+                : "write L"
           );
         }
       }

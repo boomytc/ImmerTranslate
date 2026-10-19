@@ -16,6 +16,7 @@ import {
 } from "../config";
 import { getSyncWithDefault, putSync, storage } from "./storage";
 import { trySyncRules } from "./sync";
+import { checkRules } from "./rules";
 import { decryptSyncValue, encryptSyncValue } from "./syncCrypto";
 import { findStorageState } from "./storageState";
 
@@ -67,8 +68,8 @@ jest.mock("./syncCrypto", () => {
 
 const CORRECT_KEY = "correct-review-passphrase";
 const WRONG_KEY = "incorrect-review-passphrase";
-const CLOUD_WORDS = { irreplaceable: { createdAt: 1 } };
-const LOCAL_WORDS = { "new-local-word": { createdAt: 100000 } };
+const CLOUD_WORDS = checkRules([{ pattern: "irreplaceable" }]);
+const LOCAL_WORDS = checkRules([{ pattern: "new-local-word" }]);
 const GIST_FILENAME = `sync-rules_${KV_RULES_KEY}`;
 const PROVIDERS = [
   ["WebDAV", OPT_SYNCTYPE_WEBDAV],
@@ -84,7 +85,7 @@ function deferred() {
 }
 
 async function seedConfiguration(syncType, syncEncryptKey = CORRECT_KEY) {
-  await storage.setObj(STOKEY_RULES, {});
+  await storage.setObj(STOKEY_RULES, []);
   await storage.setObj(STOKEY_SYNC, {
     syncType,
     syncUrl:
@@ -325,10 +326,11 @@ test("a local edit preserves the backup on manual sync after a wrong-passphrase 
     await act(async () => {
       await storage.saveEdit(
         STOKEY_RULES,
-        (current) => ({
-          ...current,
-          "new-local-word": { createdAt: Date.now() },
-        }),
+        (current) =>
+          checkRules([
+            ...(Array.isArray(current) ? current : []),
+            { pattern: "new-local-word" },
+          ]),
         KV_RULES_KEY
       );
     });

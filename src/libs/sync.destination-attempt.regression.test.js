@@ -2,6 +2,7 @@ import { createClient } from "webdav";
 import { storage, putSync, getSync } from "./storage";
 import { getStorageState } from "./storageState";
 import { trySyncRules } from "./sync";
+import { checkRules } from "./rules";
 import {
   STOKEY_RULES,
   STOKEY_SYNC,
@@ -29,11 +30,14 @@ jest.mock("./syncCrypto", () => ({
   }),
 }));
 
+const rules = (...patterns) =>
+  checkRules(patterns.map((pattern) => ({ pattern })));
+
 test("a previous destination's attempt cannot change the new destination's first-sync policy", async () => {
   localStorage.clear();
   jest.useFakeTimers();
   jest.setSystemTime(100);
-  await storage.setObj(STOKEY_RULES, { initial: {} });
+  await storage.setObj(STOKEY_RULES, rules("initial"));
   await storage.setObj(STOKEY_SYNC, {
     syncType: OPT_SYNCTYPE_WEBDAV,
     syncUrl: "https://first.example.invalid",
@@ -60,10 +64,11 @@ test("a previous destination's attempt cannot change the new destination's first
     expect((await getSync()).syncMeta[KV_RULES_KEY].firstAttemptAt).toBe(100);
     await putSync({ syncUrl: "https://second.example.invalid" });
     expect((await getSync()).syncMeta).toEqual({});
-    await state.save({ newEdit: {} });
+    await state.save(rules("newEdit"));
+    const cloudRules = rules("cloud");
     let remote = {
       key: KV_RULES_KEY,
-      value: `cipher:${JSON.stringify({ cloud: {} })}`,
+      value: `cipher:${JSON.stringify(cloudRules)}`,
       updateAt: 50,
     };
     const client = {
@@ -76,7 +81,48 @@ test("a previous destination's attempt cannot change the new destination's first
     createClient.mockReturnValue(client);
     await trySyncRules();
     expect(client.putFileContents).not.toHaveBeenCalled();
-    expect(await storage.getObj(STOKEY_RULES)).toEqual({ cloud: {} });
+    expect(await storage.getObj(STOKEY_RULES)).toEqual(cloudRules);
+  } finally {
+    state.cancelSync();
+    unsubscribe();
+    jest.useRealTimers();
+  }
+});
+
+test("a non-array remote rules value is not written to storage", async () => {
+  localStorage.clear();
+  jest.useFakeTimers();
+  jest.setSystemTime(100);
+  const localRules = rules("local");
+  const remoteObject = { not: "rules" };
+  await storage.setObj(STOKEY_RULES, localRules);
+  await storage.setObj(STOKEY_SYNC, {
+    syncType: OPT_SYNCTYPE_WEBDAV,
+    syncUrl: "https://sync.example.invalid",
+    syncUser: "review-user",
+    syncKey: "review-token",
+    syncEncryptKey: "review-passphrase",
+    syncMeta: { [KV_RULES_KEY]: { updateAt: 10, syncAt: 0 } },
+  });
+  const state = getStorageState(STOKEY_RULES, []);
+  state.configureSync(KV_RULES_KEY);
+  const unsubscribe = state.subscribe(() => {});
+  try {
+    await state.ensureLoaded();
+    createClient.mockReturnValue({
+      exists: jest.fn(async () => true),
+      getFileContents: jest.fn(async () =>
+        JSON.stringify({
+          key: KV_RULES_KEY,
+          value: `cipher:${JSON.stringify(remoteObject)}`,
+          updateAt: 50,
+        })
+      ),
+      putFileContents: jest.fn(),
+    });
+    await trySyncRules();
+    expect(await storage.getObj(STOKEY_RULES)).toEqual(localRules);
+    expect(await storage.getObj(STOKEY_RULES)).not.toEqual(remoteObject);
   } finally {
     state.cancelSync();
     unsubscribe();
