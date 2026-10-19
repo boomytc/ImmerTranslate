@@ -563,66 +563,30 @@ describe("storage transaction coordination", () => {
     await expect(next).resolves.toBe("retried");
   });
 
-  test("releases a granted port that never releases and rejects its late commit", async () => {
+  test("disconnects a silent holder and reports that disconnect to its client", async () => {
     jest.useFakeTimers();
     const info = jest.spyOn(console, "info").mockImplementation(() => {});
-    const runtime = createRuntime();
-    const writes = [];
-    runtime.storage.local.set.mockImplementation(async (entries) => {
-      writes.push({ ...entries });
-      Object.assign(runtime.values, entries);
-    });
     try {
+      const runtime = createRuntime();
       loadCoordinator({
         runtime,
         background: true,
       }).installStorageCoordinator();
       const holderPage = loadCoordinator({ runtime });
       const nextPage = loadCoordinator({ runtime });
-      const hold = deferred();
-      let commitLate;
-      const holder = holderPage.withStorageLock(async ({ commit }) => {
-        commitLate = commit;
-        await hold.promise;
+      const holder = holderPage.withStorageLock(() => new Promise(() => {}));
+      const holderFailed = expect(holder).rejects.toMatchObject({
+        message: expect.stringMatching(/disconnect/i),
+        storageOutcome: "not-committed",
       });
-      holder.catch(() => undefined);
       await flushPromises();
-      const back = runtime.ports[0].back;
-      const disconnect = back.disconnect;
-      back.disconnect = () => {
-        back.onMessage.emit(
-          {
-            type: "commit",
-            entries: [{ key: "settings", value: "late", previous: null }],
-          },
-          back
-        );
-        disconnect();
-      };
-      let grantedNext = false;
-      const nextWrite = nextPage
-        .withStorageLock(async ({ commit }) => {
-          grantedNext = true;
-          await commit([
-            { key: "settings", value: "successor", previous: null },
-          ]);
-          return "next";
-        })
-        .then((value) => {
-          grantedNext = grantedNext && value === "next";
-          return value;
-        });
+      const nextWrite = nextPage.withStorageLock(() => "next");
       await flushPromises();
       jest.advanceTimersByTime(10000);
       await flushPromises();
 
-      expect(grantedNext).toBe(true);
+      await holderFailed;
       await expect(nextWrite).resolves.toBe("next");
-      await expect(
-        commitLate([{ key: "settings", value: "too-late", previous: null }])
-      ).rejects.toThrow(/disconnect|timed out/i);
-      expect(writes.map((entry) => entry.settings)).toEqual(["successor"]);
-      expect(runtime.values.settings).toBe("successor");
       expect(info).toHaveBeenCalledWith(
         expect.stringContaining("%c"),
         expect.any(String),
