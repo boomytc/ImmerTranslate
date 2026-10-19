@@ -30,7 +30,7 @@ export class TransboxManager {
   #cleanupHostMount = null;
 
   constructor(initialProps = {}) {
-    this.#props = resolvePromptProps(structuredClone(initialProps));
+    this.#props = resolvePromptProps(initialProps);
 
     const { tranboxSetting = DEFAULT_TRANBOX_SETTING } = this.#props;
     if (tranboxSetting?.transOpen) {
@@ -119,9 +119,7 @@ export class TransboxManager {
    * @param {Object} newProps - 新的属性配置
    */
   update(newProps) {
-    const ownedProps =
-      newProps === undefined ? undefined : structuredClone(newProps);
-    this.#props = resolvePromptProps({ ...this.#props, ...ownedProps });
+    this.#props = resolvePromptProps({ ...this.#props, ...newProps });
     if (!this.#props.tranboxSetting?.transOpen) {
       this.disable();
       return;

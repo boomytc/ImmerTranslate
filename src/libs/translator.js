@@ -1114,15 +1114,8 @@ export class Translator {
   }
 
   constructor({ rule = {}, setting = {}, favWords = [] }) {
-    // 合并默认值后再深拷贝。嵌套字段的写入只落在实例自己的副本上。
-    this.#setting = structuredClone({
-      ...Translator.DEFAULT_OPTIONS,
-      ...setting,
-    });
-    this.#rule = structuredClone({
-      ...Translator.DEFAULT_RULE,
-      ...rule,
-    });
+    this.#setting = { ...Translator.DEFAULT_OPTIONS, ...setting };
+    this.#rule = { ...Translator.DEFAULT_RULE, ...rule };
     if (this.#rule.textStyle && this.#rule.textStyle !== OPT_STYLE_NONE) {
       this.#lastActiveTextStyle = this.#rule.textStyle;
     }
@@ -5359,9 +5352,7 @@ overflow-wrap: anywhere !important;`;
 
   // 更新规则
   updateRule(newRule) {
-    const ownedRule = structuredClone(newRule);
     if (Object.prototype.hasOwnProperty.call(newRule, "scriptFieldOrigins")) {
-      // 先写入原引用，让后面的 !== 判断与改动前一致；循环结束后再换成深拷贝。
       this.#rule.scriptFieldOrigins = newRule.scriptFieldOrigins;
     }
     if (newRule.textStyle && newRule.textStyle !== OPT_STYLE_NONE) {
@@ -5376,7 +5367,7 @@ overflow-wrap: anywhere !important;`;
         Object.prototype.hasOwnProperty.call(this.#rule, key) &&
         this.#rule[key] !== newRule[key]
       ) {
-        this.#rule[key] = ownedRule[key];
+        this.#rule[key] = newRule[key];
         if (
           key === "autoScan" ||
           key === "selector" ||
@@ -5393,13 +5384,6 @@ overflow-wrap: anywhere !important;`;
           hasChanged = true;
         }
       }
-    }
-
-    if (
-      Object.prototype.hasOwnProperty.call(newRule, "scriptFieldOrigins") &&
-      this.#rule.scriptFieldOrigins === newRule.scriptFieldOrigins
-    ) {
-      this.#rule.scriptFieldOrigins = ownedRule.scriptFieldOrigins;
     }
 
     // 配置变更时清空正则缓存
