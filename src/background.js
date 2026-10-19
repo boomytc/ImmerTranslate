@@ -36,7 +36,6 @@ import {
   STOKEY_SEPARATE_WINDOW,
   PORT_STREAM_FETCH,
   MSG_UPDATE_ICON,
-  MSG_SHA256,
   MSG_GET_FRAME_ID,
   MSG_VALIDATE_DOCUMENT,
   MSG_TRANS_CURRULE,
@@ -52,7 +51,6 @@ import { getCurTabId } from "./libs/msg";
 import { injectInlineJsBg, injectInternalCss } from "./libs/injector";
 import { kissLog, logger } from "./libs/log";
 import { chromeDetect, chromeTranslate } from "./libs/builtinAI";
-import { sha256 } from "./libs/utils";
 import { installStorageCoordinator } from "./libs/storageCoordination";
 import { isCurrentPopupDocument } from "./libs/popupDocument";
 import { optionsApisHash } from "./libs/optionsEntry";
@@ -864,7 +862,6 @@ const messageHandlers = {
   [MSG_FETCH]: (args) => fetchHandle(args), // 跨域请求代理
   [MSG_GET_HTTPCACHE]: (args) => getHttpCache(args), // 读取翻译 HTTP 缓存
   [MSG_PUT_HTTPCACHE]: (args) => putHttpCache(args), // 存入翻译 HTTP 缓存
-  [MSG_SHA256]: ({ text = "", salt = "" } = {}) => sha256(text, salt), // 代算缓存签名
   [MSG_OPEN_OPTIONS]: (args) => openOptionsPage(args), // 打开设置选项页
   [MSG_SAVE_RULE]: (args) => saveRule(args), // 写入/保存规则
   [MSG_EDIT_RULE]: (args) => writeSiteRule(args),

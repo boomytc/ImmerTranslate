@@ -78,6 +78,15 @@ describe("ordinary extension request port lifecycle", () => {
     }
   };
 
+  test("routes fetch without a caller signal through the port", async () => {
+    await expect(request(undefined)).resolves.toEqual({ translated: "OK" });
+    expect(browser.runtime.connect).toHaveBeenCalledWith({
+      name: "immertranslate_request_fetch",
+    });
+    expect(sendBgMsg).not.toHaveBeenCalled();
+    expectClean();
+  });
+
   test("uses the cancellable port and preserves ordinary response data", async () => {
     const controller = new AbortController();
     await expect(request(controller.signal)).resolves.toEqual({

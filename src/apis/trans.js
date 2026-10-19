@@ -2484,7 +2484,6 @@ export async function* handleTranslate(
     );
 
   const fetchOpts = {
-    useCache: false,
     usePool,
     fetchInterval,
     fetchLimit,
@@ -2736,7 +2735,6 @@ async function* handleTranslateStreamInternal(
 
   try {
     for await (const rawData of fetchStream(input, init, {
-      useCache: false,
       usePool,
       fetchInterval,
       fetchLimit,
@@ -2950,7 +2948,6 @@ export const handleSubtitle = async ({
   }
 
   const res = await fetchData(input, init, {
-    useCache: false,
     usePool: true,
     fetchInterval,
     fetchLimit,
@@ -3018,7 +3015,6 @@ export const handleSubtitle = async ({
           docInfo,
         });
         const retryRes = await fetchData(retryInput, retryInit, {
-          useCache: false,
           usePool: true,
           fetchInterval,
           fetchLimit,
@@ -3093,7 +3089,6 @@ async function handleSubtitleStreamInternal(
   };
 
   for await (const rawData of fetchStream(input, init, {
-    useCache: false,
     usePool: true,
     fetchInterval,
     fetchLimit,
@@ -3174,7 +3169,6 @@ export const handleSummarize = async ({
   });
 
   const res = await fetchData(input, init, {
-    useCache: false,
     usePool: true,
     fetchInterval,
     fetchLimit,
