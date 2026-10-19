@@ -12,21 +12,23 @@ import {
   OPT_LANGDETECTOR_MAP,
 } from "../config";
 import { browser } from "./browser";
-import {
-  apiGoogleLangdetect,
-  apiBaiduLangdetect,
-  apiTencentLangdetect,
-  apiBuiltinAIDetect,
-} from "../apis";
 import { kissLog } from "./log";
 import { normalizeLanguageCode } from "./language";
 
-// 各个平台的语言检测函数映射表
-const langdetectFns = {
-  [OPT_TRANS_GOOGLE]: apiGoogleLangdetect,
-  [OPT_TRANS_BAIDU]: apiBaiduLangdetect,
-  [OPT_TRANS_TENCENT]: apiTencentLangdetect,
-  [OPT_TRANS_BUILTINAI]: apiBuiltinAIDetect,
+// 延迟读取，避免 apis/index.js 复用本模块时形成初始化环。
+const langdetectFns = () => {
+  const {
+    apiGoogleLangdetect,
+    apiBaiduLangdetect,
+    apiTencentLangdetect,
+    apiBuiltinAIDetect,
+  } = require("../apis");
+  return {
+    [OPT_TRANS_GOOGLE]: apiGoogleLangdetect,
+    [OPT_TRANS_BAIDU]: apiBaiduLangdetect,
+    [OPT_TRANS_TENCENT]: apiTencentLangdetect,
+    [OPT_TRANS_BUILTINAI]: apiBuiltinAIDetect,
+  };
 };
 
 /**
@@ -46,7 +48,7 @@ export const tryDetectLang = async (text, langDetector = "-") => {
   // 1. 如果配置了特定的远程/内置 AI 语言检测服务，则首选该服务进行识别
   if (OPT_LANGDETECTOR_MAP.has(langDetector)) {
     try {
-      const lang = await langdetectFns[langDetector](text);
+      const lang = await langdetectFns()[langDetector](text);
       if (lang) {
         // 转换成翻译器统一的语言代码格式
         const mappedLang = OPT_LANGS_TO_CODE[langDetector].get(lang) || lang;

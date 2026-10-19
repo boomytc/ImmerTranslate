@@ -104,16 +104,12 @@ function createTranslator(rule = {}, setting = {}, favWords = []) {
 function createPlainTextTranslator(rule = {}, setting = {}) {
   const translator = createTranslator(
     {
-      transOpen: "false",
+      isPlainText: "true",
       ...rule,
     },
-    {
-      preInit: false,
-      ...setting,
-    }
+    setting
   );
 
-  translator.updateRule({ isPlainText: "true" });
   translator.enable();
 
   return translator;
@@ -1958,15 +1954,16 @@ describe("Translator rule styles", () => {
     };
     document.body.innerHTML = '<main id="root"><pre></pre></main>';
     const pre = document.querySelector("pre");
+    const longLine = `${"segment ".repeat(500)}tail`;
     pre.textContent = [
       "First line with indentation",
       "  second line with leading spaces",
       "",
-      "A very long plain text line that needs to be split into smaller chunks without changing the global max length filter.",
+      longLine,
       "Literal <tag> should stay text.",
     ].join("\n");
 
-    createPlainTextTranslator({}, { maxLength: 45, minLength: 0 });
+    createPlainTextTranslator();
     await flushAsync();
 
     const chunks = Array.from(pre.querySelectorAll(":scope > span"));
@@ -1974,9 +1971,12 @@ describe("Translator rule styles", () => {
       (child) => child.tagName === "BR"
     );
 
+    expect(longLine.length).toBeGreaterThan(3000);
     expect(chunks.length).toBeGreaterThan(1);
     expect(blankLines).toHaveLength(1);
-    expect(chunks.every((chunk) => chunk.textContent.length < 45)).toBe(true);
+    expect(chunks.every((chunk) => chunk.textContent.length <= 3000)).toBe(
+      true
+    );
     expect(chunks[0].style.display).toBe("block");
     expect(chunks[0].style.whiteSpace).toBe("pre-wrap");
     expect(pre.querySelector("tag")).toBeNull();

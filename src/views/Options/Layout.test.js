@@ -12,7 +12,6 @@ beforeEach(() => {
 
 test("uses the wide content rail for dense workspace pages", () => {
   expect(isWideOptionsPage("/apis")).toBe(true);
-  expect(isWideOptionsPage("/playground")).toBe(true);
   expect(isWideOptionsPage("/prompts")).toBe(true);
   expect(isWideOptionsPage("/apis/")).toBe(true);
   expect(isWideOptionsPage("/prompts///")).toBe(true);
@@ -72,7 +71,6 @@ jest.mock("./Navigator", () => {
 test.each([
   ["/apis/", "options_translation_services", true],
   ["/prompts///", "prompt_management", true],
-  ["/playground/", "playground", true],
   ["/rules/", "options_web_translation", false],
 ])("uses the matching page metadata at %s", (pathname, title, wide) => {
   mockPathname = pathname;

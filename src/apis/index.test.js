@@ -20,9 +20,13 @@ jest.mock("../libs/docInfo", () => ({
   getDocInfo: () => ({ title: "Doc", description: "Desc", summary: "Summary" }),
 }));
 
-jest.mock("../libs/batchQueue", () => ({
-  getBatchQueue: jest.fn(),
-}));
+jest.mock("../libs/batchQueue", () => {
+  const actual = jest.requireActual("../libs/batchQueue");
+  return {
+    ...actual,
+    getBatchQueue: jest.fn(),
+  };
+});
 
 jest.mock("../libs/pool", () => ({
   getFetchPool: jest.fn(() => ({
@@ -35,12 +39,7 @@ jest.mock("../libs/storage", () => ({
 }));
 
 jest.mock("../libs/request", () => ({
-  normalizeHttpTimeout: (timeout) => {
-    const normalizedTimeout = timeout || 30;
-    return normalizedTimeout > 600
-      ? normalizedTimeout
-      : normalizedTimeout * 1000;
-  },
+  resolveHttpTimeout: (opts = {}) => (opts.httpTimeout || 30) * 1000,
   // 该测试用的任务池直接调用 fn(args)，没有第二参 signal。
   attachPoolSignal: (args, signal) => (signal ? { ...args, signal } : args),
 }));
@@ -250,20 +249,6 @@ describe("apiTranslate BuiltinAI timeout", () => {
       fromLang: "en",
       toLang: "zh-CN",
       apiSetting: getBuiltinAiApiSetting(30),
-      useCache: false,
-    });
-
-    expect(withTimeout.mock.calls[0][1]).toBe(30000);
-  });
-
-  test("keeps legacy millisecond timeout before calling withTimeout", async () => {
-    fnPolyfill.mockResolvedValueOnce(["translated text", "en", ""]);
-
-    await apiTranslate({
-      text: "hello",
-      fromLang: "en",
-      toLang: "zh-CN",
-      apiSetting: getBuiltinAiApiSetting(30000),
       useCache: false,
     });
 

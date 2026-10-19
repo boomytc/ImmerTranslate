@@ -17,15 +17,10 @@ import {
   URL_CACHE_SUBTITLE,
   URL_CACHE_CONTEXT,
   OPT_LANGS_TO_CODE,
-  OPT_LANGDETECTOR_MAP,
-  OPT_TRANS_GOOGLE,
-  OPT_TRANS_BAIDU,
-  OPT_TRANS_TENCENT,
   defaultNobatchUserPrompt,
   defaultDictUserPrompt,
 } from "../config";
 import { getSetting } from "../libs/storage";
-import { kissLog } from "../libs/log";
 import { sha256, withTimeout } from "../libs/utils";
 import {
   isSameTranslationLanguage,
@@ -42,14 +37,30 @@ import {
   handleSummarize,
 } from "./trans";
 import { getHttpCachePolyfill, putHttpCachePolyfill } from "../libs/cache";
-import { getBatchQueue } from "../libs/batchQueue";
+import { getBatchQueue, normalizeBatchConcurrency } from "../libs/batchQueue";
 import { isBuiltinAIAvailable } from "../libs/browser";
 import { chromeDetect, chromeTranslate } from "../libs/builtinAI";
 import { fnPolyfill } from "../libs/fetch";
-import { attachPoolSignal, normalizeHttpTimeout } from "../libs/request";
+import { attachPoolSignal, resolveHttpTimeout } from "../libs/request";
+import { tryDetectLang } from "../libs/detect";
 import { getFetchPool } from "../libs/pool";
 import { trustedTypesHelper } from "../libs/trustedTypes";
 import { getDocInfo } from "../libs/docInfo";
+
+const withCache = async (key, fn) => {
+  const cached = await getHttpCachePolyfill(key);
+  if (cached != null) return cached;
+  const value = await fn();
+  if (
+    value == null ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  ) {
+    return value;
+  }
+  await putHttpCachePolyfill(key, null, value);
+  return value;
+};
 
 const PROMPT_CACHE_SALT = "prompt-cache";
 const PROMPT_CACHE_SCOPE_BATCH = "batch";
@@ -271,123 +282,114 @@ export const apiMicrosoftDict = async (text) => {
   const cacheOpts = { text };
   const cacheInput = `${URL_CACHE_BINGDICT}?${queryString.stringify(cacheOpts)}`;
 
-  // 1. 读取词典缓存，避免高频划词重复爬取 Bing 网站
-  const cache = await getHttpCachePolyfill(cacheInput);
-  if (cache) {
-    return cache;
-  }
+  return withCache(cacheInput, async () => {
+    const host = "https://www.bing.com";
+    const url = `${host}/dict/search?q=${text}&FORM=BDVSP6&cc=cn`;
+    const str = await fetchData(
+      url,
+      { credentials: "include" } // 携带 credentials 以免遭到网站人机拦截限制
+    );
+    if (!str) {
+      return null;
+    }
 
-  const host = "https://www.bing.com";
-  const url = `${host}/dict/search?q=${text}&FORM=BDVSP6&cc=cn`;
-  const str = await fetchData(
-    url,
-    { credentials: "include" }, // 携带 credentials 以免遭到网站人机拦截限制
-    { useCache: false }
-  );
-  if (!str) {
-    return null;
-  }
+    // 2. 利用客户端 DOMParser 提取 HTML 中高度复杂的页面数据
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(
+      trustedTypesHelper.createHTML(str),
+      "text/html"
+    );
 
-  // 2. 利用客户端 DOMParser 提取 HTML 中高度复杂的页面数据
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(
-    trustedTypesHelper.createHTML(str),
-    "text/html"
-  );
+    const word = doc.querySelector("#headword > h1")?.textContent.trim();
+    if (!word) {
+      return null;
+    }
 
-  const word = doc.querySelector("#headword > h1")?.textContent.trim();
-  if (!word) {
-    return null;
-  }
-
-  // 3. 提取基本释义列表 (trs)
-  const trs = [];
-  doc.querySelectorAll("div.qdef > ul > li").forEach(($li) => {
-    const pos = $li.querySelector(".pos")?.textContent?.trim();
-    const def = $li.querySelector(".def")?.textContent?.trim();
-    trs.push({ pos, def });
-  });
-
-  // 4. 提取单词的时态变形 (presents)
-  const presents = [];
-  doc.querySelectorAll("div.hd_div1>.hd_if>.p1-5").forEach(($li) => {
-    const present = $li.textContent?.trim();
-    presents.push(present);
-  });
-
-  // 5. 提取英汉双解详细释义 (ecs)
-  const ecs = [];
-  doc.querySelectorAll(".each_seg>.li_pos").forEach(($li) => {
-    const pos = $li.querySelector(".pos_lin>.pos")?.textContent?.trim();
-    const lis = [];
-    $li.querySelectorAll(".de_seg>.se_lis").forEach(($l) => {
-      lis.push($l.querySelector(".de_co")?.textContent?.trim());
+    // 3. 提取基本释义列表 (trs)
+    const trs = [];
+    doc.querySelectorAll("div.qdef > ul > li").forEach(($li) => {
+      const pos = $li.querySelector(".pos")?.textContent?.trim();
+      const def = $li.querySelector(".def")?.textContent?.trim();
+      trs.push({ pos, def });
     });
-    ecs.push({ pos, lis });
-  });
 
-  // 6. 提取双语例句信息 (sentences)
-  const sentences = [];
-  doc.querySelectorAll("#sentenceSeg .se_li").forEach(($li) => {
-    const eng = $li.querySelector(".sen_en")?.textContent?.trim();
-    const chs = $li.querySelector(".sen_cn")?.textContent?.trim();
-    if (eng && chs) {
-      sentences.push({ eng, chs });
+    // 4. 提取单词的时态变形 (presents)
+    const presents = [];
+    doc.querySelectorAll("div.hd_div1>.hd_if>.p1-5").forEach(($li) => {
+      const present = $li.textContent?.trim();
+      presents.push(present);
+    });
+
+    // 5. 提取英汉双解详细释义 (ecs)
+    const ecs = [];
+    doc.querySelectorAll(".each_seg>.li_pos").forEach(($li) => {
+      const pos = $li.querySelector(".pos_lin>.pos")?.textContent?.trim();
+      const lis = [];
+      $li.querySelectorAll(".de_seg>.se_lis").forEach(($l) => {
+        lis.push($l.querySelector(".de_co")?.textContent?.trim());
+      });
+      ecs.push({ pos, lis });
+    });
+
+    // 6. 提取双语例句信息 (sentences)
+    const sentences = [];
+    doc.querySelectorAll("#sentenceSeg .se_li").forEach(($li) => {
+      const eng = $li.querySelector(".sen_en")?.textContent?.trim();
+      const chs = $li.querySelector(".sen_cn")?.textContent?.trim();
+      if (eng && chs) {
+        sentences.push({ eng, chs });
+      }
+    });
+
+    // 7. 提取英汉真人发音音频和国际音标 (aus)
+    const aus = [];
+    const $audioUK = doc.querySelector("#bigaud_uk");
+    const $audioUS = doc.querySelector("#bigaud_us");
+
+    // 提取英国音标与发音 mp3 路径
+    if ($audioUK) {
+      const audioUK = host + $audioUK?.dataset?.mp3link;
+      const $phoneticUK = $audioUK.parentElement?.previousElementSibling;
+      const phoneticUK = $phoneticUK?.textContent
+        ?.trim()
+        ?.match(/\[(.*?)\]/)?.[1];
+      aus.push({ key: "英", audio: audioUK, phonetic: phoneticUK });
     }
-  });
 
-  // 7. 提取英汉真人发音音频和国际音标 (aus)
-  const aus = [];
-  const $audioUK = doc.querySelector("#bigaud_uk");
-  const $audioUS = doc.querySelector("#bigaud_us");
+    // 提取美国音标与发音 mp3 路径
+    if ($audioUS) {
+      const audioUS = host + $audioUS?.dataset?.mp3link;
+      const $phoneticUS = $audioUS.parentElement?.previousElementSibling;
+      const phoneticUS = $phoneticUS?.textContent
+        ?.trim()
+        ?.match(/\[(.*?)\]/)?.[1];
+      aus.push({ key: "美", audio: audioUS, phonetic: phoneticUS });
+    }
 
-  // 提取英国音标与发音 mp3 路径
-  if ($audioUK) {
-    const audioUK = host + $audioUK?.dataset?.mp3link;
-    const $phoneticUK = $audioUK.parentElement?.previousElementSibling;
-    const phoneticUK = $phoneticUK?.textContent
-      ?.trim()
-      ?.match(/\[(.*?)\]/)?.[1];
-    aus.push({ key: "英", audio: audioUK, phonetic: phoneticUK });
-  }
+    // 若上述选择器失效，尝试用备选选择器提取纯文本音标
+    if (aus.length === 0) {
+      const $pronInfo = doc.querySelector(".hd_pr");
+      const $pronInfoUS = doc.querySelector(".hd_prUS");
 
-  // 提取美国音标与发音 mp3 路径
-  if ($audioUS) {
-    const audioUS = host + $audioUS?.dataset?.mp3link;
-    const $phoneticUS = $audioUS.parentElement?.previousElementSibling;
-    const phoneticUS = $phoneticUS?.textContent
-      ?.trim()
-      ?.match(/\[(.*?)\]/)?.[1];
-    aus.push({ key: "美", audio: audioUS, phonetic: phoneticUS });
-  }
+      if ($pronInfo) {
+        const phoneticText = $pronInfo.textContent?.trim();
+        const phoneticMatch = phoneticText?.match(/\[([^\]]+)\]/);
+        if (phoneticMatch) {
+          aus.push({ key: "英", phonetic: phoneticMatch[1] });
+        }
+      }
 
-  // 若上述选择器失效，尝试用备选选择器提取纯文本音标
-  if (aus.length === 0) {
-    const $pronInfo = doc.querySelector(".hd_pr");
-    const $pronInfoUS = doc.querySelector(".hd_prUS");
-
-    if ($pronInfo) {
-      const phoneticText = $pronInfo.textContent?.trim();
-      const phoneticMatch = phoneticText?.match(/\[([^\]]+)\]/);
-      if (phoneticMatch) {
-        aus.push({ key: "英", phonetic: phoneticMatch[1] });
+      if ($pronInfoUS) {
+        const phoneticText = $pronInfoUS.textContent?.trim();
+        const phoneticMatch = phoneticText?.match(/\[([^\]]+)\]/);
+        if (phoneticMatch) {
+          aus.push({ key: "美", phonetic: phoneticMatch[1] });
+        }
       }
     }
 
-    if ($pronInfoUS) {
-      const phoneticText = $pronInfoUS.textContent?.trim();
-      const phoneticMatch = phoneticText?.match(/\[([^\]]+)\]/);
-      if (phoneticMatch) {
-        aus.push({ key: "美", phonetic: phoneticMatch[1] });
-      }
-    }
-  }
-
-  const res = { word, trs, aus, ecs, sentences, presents };
-  // 存入词典本地缓存
-  putHttpCachePolyfill(cacheInput, null, res);
-
-  return res;
+    return { word, trs, aus, ecs, sentences, presents };
+  });
 };
 
 /**
@@ -571,40 +573,11 @@ export const apiBuiltinAIDetect = async (text) => {
   return "";
 };
 
-// 远程语言检测服务映射 (与 libs/detect.js 的 langdetectFns 保持一致，
-// 供 BuiltinAI 的自动检测回退使用；此处单独维护以避免与 detect.js 循环依赖)
-const LANGDETECT_FNS = {
-  [OPT_TRANS_GOOGLE]: apiGoogleLangdetect,
-  [OPT_TRANS_BAIDU]: apiBaiduLangdetect,
-  [OPT_TRANS_TENCENT]: apiTencentLangdetect,
-};
-
-/**
- * BuiltinAI 自动检测源语言失败后的回退解析。
- * 浏览器内置 LanguageDetector 不可用时，改用用户配置的远程语言检测服务
- * 解析出具体源语言；全部失败时返回空串并保留原始错误。
- * @param {string} text 待检测文本
- * @returns {Promise<string>} 解析出的语言代码，失败返回 ""
- */
 const resolveBuiltinAISourceLang = async (text) => {
-  try {
-    const setting = (await getSetting()) || {};
-    const { langDetector } = setting;
-    if (OPT_LANGDETECTOR_MAP.has(langDetector)) {
-      const detectFn = LANGDETECT_FNS[langDetector];
-      // BuiltinAI 检测器刚刚失败过，不再重复尝试
-      if (detectFn) {
-        const lang = await detectFn(text);
-        if (lang) {
-          const mappedLang = OPT_LANGS_TO_CODE[langDetector].get(lang) || lang;
-          return normalizeLanguageCode(mappedLang);
-        }
-      }
-    }
-  } catch (err) {
-    kissLog("detect lang fallback", err);
-  }
-  return "";
+  const setting = (await getSetting()) || {};
+  const langDetector =
+    setting.langDetector === OPT_TRANS_BUILTINAI ? "-" : setting.langDetector;
+  return tryDetectLang(text, langDetector || "-");
 };
 
 /**
@@ -617,23 +590,23 @@ const apiBuiltinAITranslate = async ({ text, from, to, apiSetting }) => {
   }
 
   const { fetchInterval, fetchLimit, httpTimeout } = apiSetting;
-  // 1. 获取限制并发的频率控制池，保障不频繁打爆本地 AI 进程
   const fetchPool = getFetchPool(fetchInterval, fetchLimit);
+  const translateOnce = (sourceLang) =>
+    withTimeout(
+      fetchPool.push(
+        (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
+        {
+          fn: chromeTranslate,
+          msg: MSG_BUILTINAI_TRANSLATE,
+          text,
+          from: sourceLang,
+          to,
+        }
+      ),
+      resolveHttpTimeout({ httpTimeout })
+    );
 
-  // 2. 执行带有超时机制 (withTimeout) 的本地 AI 翻译
-  const result = await withTimeout(
-    fetchPool.push(
-      (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
-      {
-        fn: chromeTranslate,
-        msg: MSG_BUILTINAI_TRANSLATE,
-        text,
-        from,
-        to,
-      }
-    ),
-    normalizeHttpTimeout(httpTimeout)
-  );
+  const result = await translateOnce(from);
 
   if (!result) {
     throw new Error("apiBuiltinAITranslate got null reault");
@@ -650,19 +623,7 @@ const apiBuiltinAITranslate = async ({ text, from, to, apiSetting }) => {
       if (deLang) {
         const mappedFrom =
           OPT_LANGS_FROM_SPEC[OPT_TRANS_BUILTINAI].get(deLang) || deLang;
-        const retry = await withTimeout(
-          fetchPool.push(
-            (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
-            {
-              fn: chromeTranslate,
-              msg: MSG_BUILTINAI_TRANSLATE,
-              text,
-              from: mappedFrom,
-              to,
-            }
-          ),
-          normalizeHttpTimeout(httpTimeout)
-        );
+        const retry = await translateOnce(mappedFrom);
         if (!retry) {
           throw new Error("apiBuiltinAITranslate retry got null result");
         }
@@ -754,172 +715,155 @@ export const apiTranslate = async ({
   };
   const cacheInput = `${URL_CACHE_TRAN}?${queryString.stringify(cacheOpts)}`;
 
-  // 1. 查询本地 HTTP/CacheStorage 缓存
-  if (useCache) {
-    const cache = await getHttpCachePolyfill(cacheInput);
-    if (cache?.trText) {
-      return {
-        ...cache,
-        isSame: getTranslationLanguageMatch({
-          fromLang,
-          toLang,
-          to,
-          srLang: cache.srLang,
-          srCode: cache.srCode,
-          translateVariants,
-        }),
-      };
+  const loadTranslation = async () => {
+    if (signal?.aborted) {
+      throw new DOMException("The operation was aborted.", "AbortError");
     }
-  }
-  if (signal?.aborted) {
-    throw new DOMException("The operation was aborted.", "AbortError");
-  }
 
-  // 2. 缓存未命中，分发执行翻译请求
-  let translation = [];
-  if (apiType === OPT_TRANS_BUILTINAI) {
-    // 2.1 浏览器本地 AI 翻译路径
-    translation = await apiBuiltinAITranslate({
-      text,
-      from,
-      to,
-      apiSetting,
-    });
-  } else if (useBatchFetch && API_SPE_TYPES.batch.has(apiType)) {
-    // 2.2 支持批量翻译的传统接口 (如 Google/Microsoft/DeepL 等)
-    // 使用 BatchQueue 进行零散文本大合并，节省网络交互次数，大幅提升网页整页翻译的载入速度
-    const {
-      apiSlug,
-      batchInterval,
-      batchSize,
-      batchLength,
-      batchConcurrency,
-      useStream,
-      useContext,
-    } = apiSetting;
-    const enableStream = useStream && API_SPE_TYPES.stream.has(apiType);
-    const configuredBatchConcurrency = Number(batchConcurrency);
-    const effectiveBatchConcurrency =
-      useContext && API_SPE_TYPES.context.has(apiType)
-        ? 1
-        : Number.isFinite(configuredBatchConcurrency) &&
-            configuredBatchConcurrency >= 1
-          ? Math.floor(configuredBatchConcurrency)
-          : 1;
-    const key = [
-      apiSlug,
-      fromLang,
-      toLang,
-      textFormat,
-      enableStream ? "stream" : "batch",
-      promptSig,
-      reqSig,
-      batchInterval,
-      batchSize,
-      batchLength,
-      effectiveBatchConcurrency,
-    ].join("_");
-    const queue = getBatchQueue(key, handleTranslate, {
-      batchInterval,
-      batchSize,
-      batchLength,
-      batchConcurrency: effectiveBatchConcurrency,
-    });
+    let translation = [];
+    if (apiType === OPT_TRANS_BUILTINAI) {
+      // 2.1 浏览器本地 AI 翻译路径
+      translation = await apiBuiltinAITranslate({
+        text,
+        from,
+        to,
+        apiSetting,
+      });
+    } else if (useBatchFetch && API_SPE_TYPES.batch.has(apiType)) {
+      // 2.2 支持批量翻译的传统接口 (如 Google/Microsoft/DeepL 等)
+      // 使用 BatchQueue 进行零散文本大合并，节省网络交互次数，大幅提升网页整页翻译的载入速度
+      const {
+        apiSlug,
+        batchInterval,
+        batchSize,
+        batchLength,
+        batchConcurrency,
+        useStream,
+        useContext,
+      } = apiSetting;
+      const enableStream = useStream && API_SPE_TYPES.stream.has(apiType);
+      const effectiveBatchConcurrency =
+        useContext && API_SPE_TYPES.context.has(apiType)
+          ? 1
+          : normalizeBatchConcurrency(batchConcurrency);
+      const key = [
+        apiSlug,
+        fromLang,
+        toLang,
+        textFormat,
+        enableStream ? "stream" : "batch",
+        promptSig,
+        reqSig,
+        batchInterval,
+        batchSize,
+        batchLength,
+        effectiveBatchConcurrency,
+      ].join("_");
+      const queue = getBatchQueue(key, handleTranslate, {
+        batchInterval,
+        batchSize,
+        batchLength,
+        batchConcurrency: effectiveBatchConcurrency,
+      });
 
-    translation = await queue.addTask(text, {
-      from,
-      to,
-      fromLang,
-      toLang,
-      langMap,
-      glossary,
-      textFormat,
-      apiSetting,
-      usePool,
-      onStreamChunk,
-      docInfo,
-      signal,
-      capture,
-    });
-  } else {
-    // 2.3 不支持批量翻译、需要单个请求执行的 API (如某些流式大模型 API)
-    const generator = handleTranslate([text], {
-      from,
-      to,
-      fromLang,
-      toLang,
-      langMap,
-      glossary,
-      textFormat,
-      apiSetting,
-      usePool,
-      docInfo,
-      onStreamChunk,
-      signal,
-      capture,
-    });
+      translation = await queue.addTask(text, {
+        from,
+        to,
+        fromLang,
+        toLang,
+        langMap,
+        glossary,
+        textFormat,
+        apiSetting,
+        usePool,
+        onStreamChunk,
+        docInfo,
+        signal,
+        capture,
+      });
+    } else {
+      // 2.3 不支持批量翻译、需要单个请求执行的 API (如某些流式大模型 API)
+      const generator = handleTranslate([text], {
+        from,
+        to,
+        fromLang,
+        toLang,
+        langMap,
+        glossary,
+        textFormat,
+        apiSetting,
+        usePool,
+        docInfo,
+        onStreamChunk,
+        signal,
+        capture,
+      });
 
-    for await (const item of generator) {
-      if (item.id !== 0) {
-        continue;
-      }
+      for await (const item of generator) {
+        if (item.id !== 0) {
+          continue;
+        }
 
-      const isComplete = item.isComplete !== false;
-      if (!isComplete) {
+        const isComplete = item.isComplete !== false;
+        if (!isComplete) {
+          if (onStreamChunk) {
+            onStreamChunk({
+              id: item.id,
+              text: item.partialText,
+              isComplete: false,
+            });
+          }
+          continue;
+        }
+
         if (onStreamChunk) {
           onStreamChunk({
             id: item.id,
-            text: item.partialText,
-            isComplete: false,
+            text: item.result,
+            isComplete: true,
           });
         }
-        continue;
+        translation = item.result;
       }
+    }
 
-      if (onStreamChunk) {
-        onStreamChunk({
-          id: item.id,
-          text: item.result,
-          isComplete: true,
-        });
+    // 3. 对翻译引擎返回的数据格式进行规范化处理
+    let trText = "";
+    let srLang = "";
+    let srCode = "";
+    if (Array.isArray(translation)) {
+      [trText, srLang = ""] = translation;
+      if (srLang) {
+        srCode = OPT_LANGS_TO_CODE[apiType].get(srLang) || "";
       }
-      translation = item.result;
+    } else if (typeof translation === "string") {
+      trText = translation;
     }
-  }
 
-  // 3. 对翻译引擎返回的数据格式进行规范化处理
-  let trText = "";
-  let srLang = "";
-  let srCode = "";
-  if (Array.isArray(translation)) {
-    [trText, srLang = ""] = translation;
-    if (srLang) {
-      srCode = OPT_LANGS_TO_CODE[apiType].get(srLang) || "";
+    if (!trText) {
+      throw new Error("translate api got empty trtext");
     }
-  } else if (typeof translation === "string") {
-    trText = translation;
-  }
 
-  if (!trText) {
-    throw new Error("translate api got empty trtext");
-  }
+    return { trText, srLang, srCode };
+  };
 
-  // 判断是否发生了“源语言与目标语言相同”的无效翻译情况 (如英文网页翻译为英文)
-  const isSame = getTranslationLanguageMatch({
-    fromLang,
-    toLang,
-    to,
-    srLang,
-    srCode,
-    translateVariants,
-  });
+  const payload = useCache
+    ? await withCache(cacheInput, loadTranslation)
+    : await loadTranslation();
 
-  // 4. 将成功的结果写入本地网络缓存中
-  if (useCache) {
-    putHttpCachePolyfill(cacheInput, null, { trText, isSame, srLang, srCode });
-  }
-
-  return { trText, srLang, srCode, isSame };
+  return {
+    trText: payload.trText,
+    srLang: payload.srLang,
+    srCode: payload.srCode,
+    isSame: getTranslationLanguageMatch({
+      fromLang,
+      toLang,
+      to,
+      srLang: payload.srLang,
+      srCode: payload.srCode,
+      translateVariants,
+    }),
+  };
 };
 
 /**
@@ -1093,28 +1037,19 @@ export const apiSubtitle = async ({
   };
   const cacheInput = `${URL_CACHE_SUBTITLE}?${queryString.stringify(cacheOpts)}`;
 
-  // 1. 读取视频字幕缓存
-  const cache = await getHttpCachePolyfill(cacheInput);
-  if (cache) {
-    return cache;
-  }
+  const subtitles = await withCache(cacheInput, () =>
+    handleSubtitle({
+      events,
+      from: fromLang,
+      to: toLang,
+      apiSetting,
+      docInfo,
+      onSubtitleChunk,
+      signal,
+    })
+  );
 
-  // 2. 发起使用视频级系统上下文的字幕断句与翻译请求。
-  const subtitles = await handleSubtitle({
-    events,
-    from: fromLang,
-    to: toLang,
-    apiSetting,
-    docInfo,
-    onSubtitleChunk,
-    signal,
-  });
-  if (subtitles?.length) {
-    putHttpCachePolyfill(cacheInput, null, subtitles);
-    return subtitles;
-  }
-
-  return [];
+  return subtitles?.length ? subtitles : [];
 };
 
 /**
@@ -1135,24 +1070,14 @@ export const apiSummarizeContext = async ({
   };
   const cacheInput = `${URL_CACHE_CONTEXT}?${queryString.stringify(cacheOpts)}`;
 
-  // 1. 读取总结摘要缓存，避免每次打开同一视频重复对长文本请求总结
-  const cache = await getHttpCachePolyfill(cacheInput);
-  if (cache) {
-    return cache;
-  }
-
-  // 2. 调用大模型/特定接口生成视频提炼大纲
-  const summary = await handleSummarize({
-    title,
-    description,
-    transcript,
-    apiSetting,
-  });
-
-  if (summary) {
-    putHttpCachePolyfill(cacheInput, null, summary);
-    return summary;
-  }
-
-  return "";
+  return (
+    (await withCache(cacheInput, () =>
+      handleSummarize({
+        title,
+        description,
+        transcript,
+        apiSetting,
+      })
+    )) || ""
+  );
 };

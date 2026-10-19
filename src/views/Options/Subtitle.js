@@ -462,7 +462,6 @@ export default function SubtitleSetting() {
     apiSlug,
     segSlug,
     forceSubtitleRetranslate = false,
-    useAlgorithmBreaker = "rule",
     chunkLength,
     longSentenceThreshold = 120,
     preTrans = 90,
@@ -943,25 +942,6 @@ export default function SubtitleSetting() {
               >
                 <MenuItem value={true}>{i18n("enable")}</MenuItem>
                 <MenuItem value={false}>{i18n("disable")}</MenuItem>
-              </TextField>
-            </Grid>
-            {/* 系统内置的轻量断句算法类型 (基于固定句尾符号断句，或统计学概率断句) */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                name="useAlgorithmBreaker"
-                value={useAlgorithmBreaker}
-                label={i18n("builtin_sentence_break")}
-                onChange={handleChange}
-              >
-                <MenuItem value={"rule"}>
-                  {i18n("rule_sentence_break")}
-                </MenuItem>
-                <MenuItem value={"statistical"}>
-                  {i18n("statistical_sentence_break")}
-                </MenuItem>
               </TextField>
             </Grid>
             {/* 字幕翻译是否使用 AI 增强上下文，并指定提供服务的 AI 引擎 */}

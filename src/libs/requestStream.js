@@ -11,8 +11,8 @@ import { PORT_STREAM_FETCH } from "../config";
 import { createSSEParser, createAsyncQueue } from "./stream";
 import {
   createTimeoutSignal,
+  DEFAULT_HTTP_TIMEOUT_MS,
   mergeAbortSignals,
-  normalizeHttpTimeout,
   resolveHttpTimeout,
 } from "./request";
 import { createHttpError } from "./response";
@@ -230,7 +230,7 @@ async function* fetchStreamGM(
  */
 export async function* fetchStreamNative(input, init = {}, opts = {}) {
   const options = opts || {};
-  const timeout = normalizeHttpTimeout(options.httpTimeout);
+  const timeout = options.httpTimeout || DEFAULT_HTTP_TIMEOUT_MS;
   const signal = mergeAbortSignals([
     init.signal,
     options.signal,
@@ -350,7 +350,7 @@ async function* fetchStreamViaPort(input, init, opts) {
  * @returns {AsyncGenerator<string>} 逐条产出 SSE data 字段。
  */
 export async function* requestStream(input, init, opts = {}) {
-  const httpTimeout = await resolveHttpTimeout(opts);
+  const httpTimeout = resolveHttpTimeout(opts);
   opts = {
     ...opts,
     httpTimeout,

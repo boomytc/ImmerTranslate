@@ -7,7 +7,6 @@ import { LogLevel } from "../libs/log";
 import {
   OPT_DICT_BING,
   OPT_SUG_YOUDAO,
-  DEFAULT_HTTP_TIMEOUT,
   OPT_TRANS_MICROSOFT,
   DEFAULT_API_LIST,
   OPT_LANGS_TO,
@@ -178,7 +177,6 @@ export const DEFAULT_SUBTITLE_SETTING = {
   forceSubtitleRetranslate: false, // AI 断句服务与翻译服务不同时，是否强制使用翻译服务重翻译文
   chunkLength: 1000, // 新配置默认使用更短 AI 分块；已保存的用户值仍由存储配置优先覆盖
   longSentenceThreshold: 100, // 启用基于标点规则拆分的长句判定字符长度限制
-  useAlgorithmBreaker: "rule", // 字幕断句断行处理器类型 ("rule" 规则断行，"statistical" 基于时间统计特征断行)
   preTrans: 90, // 字幕翻译提前发送的时长 (毫秒)，防止接口网络延迟导致字幕不同步
   throttleTrans: 30, // 节流延迟：两次翻译请求的最小时间间隔 (毫秒)
   // fromLang: "en",
@@ -260,10 +258,6 @@ export const DEFAULT_SETTING = {
   version: CURRENT_SETTINGS_VERSION,
   darkMode: "auto", // 主题外观模式 ("light" 浅色, "dark" 深色, "auto" 跟随浏览器系统)
   uiLang: "en", // 插件设置面板界面的显示语言
-  minLength: TRANS_MIN_LENGTH, // 整页翻译的段落最小有效长度限制
-  maxLength: TRANS_MAX_LENGTH, // 整页翻译的段落最大有效长度限制
-  newlineLength: TRANS_NEWLINE_LENGTH,
-  httpTimeout: DEFAULT_HTTP_TIMEOUT, // 接口请求超时时间
   clearCache: false, // 每次浏览器重启时，是否自动清空翻译结果的本地网络缓存
   autoTranslateClipboard: false, // 打开文本翻译面板或重新聚焦独立窗口时，是否自动翻译剪贴板文本
   popupDefaultView: OPT_POPUP_DEFAULT_VIEW_PAGE, // 工具栏弹窗打开时默认显示的界面
@@ -283,10 +277,8 @@ export const DEFAULT_SETTING = {
   skipLangs: [], // 忽略翻译的语种代码列表 (即如果网页检测到是这些语言，则不触发自动整页翻译)
   translateVariants: true, // 是否继续翻译同一语言的不同变体（如简体中文与繁体中文）
   parseLatex: false, // 是否将译文中的行内 LaTeX 公式转换为可读的 Unicode 文本
-  transInterval: 100, // 两次段落翻译执行之间的等待延迟
   langDetector: "-", // 主动检测源语言的外部 API 服务选择 ("-" 表示由翻译 API 本身自动判定)
   mouseHoverSetting: DEFAULT_MOUSE_HOVER_SETTING, // 鼠标悬浮段落翻译的详细配置
-  preInit: true, // 是否在 DOMContentLoaded 之前预先加载核心拦截脚本以加快翻译响应
   subtitleSetting: DEFAULT_SUBTITLE_SETTING, // 字幕翻译模块的具体参数设置
   logLevel: LogLevel.INFO.value, // 扩展运行时的全局调试日志级别
   customStyles: DEFAULT_CUSTOM_STYLES, // 用于个性化译文表现的自定义 CSS 样式规则列表

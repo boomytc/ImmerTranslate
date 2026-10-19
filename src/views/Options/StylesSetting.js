@@ -105,10 +105,7 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
   // 动态生成一句预览文字
   const quote = useMemo(() => {
     const q = getRandomQuote();
-    if (uiLang === "en") {
-      return [q.zh, q.en];
-    }
-    return [q.en, q[uiLang]];
+    return uiLang === "zh" ? [q.en, q.zh] : [q.zh, q.en];
   }, [uiLang]);
 
   return (
