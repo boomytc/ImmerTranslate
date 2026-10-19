@@ -147,11 +147,18 @@ const subscriptionCoversPage = (subRules, href) =>
  * @param {Object} overrideRule 覆盖高优先级规则
  * @returns {Object} 合并后的最终规则
  */
+const DROPPED_RULE_KEYS = [
+  "injectJs",
+  "transStartHook",
+  "transEndHook",
+  "scriptFieldOrigins",
+];
+
 const copyRule = (rule) => {
   const merged = { ...rule };
-  if (merged.scriptFieldOrigins) {
-    merged.scriptFieldOrigins = { ...merged.scriptFieldOrigins };
-  }
+  DROPPED_RULE_KEYS.forEach((key) => {
+    delete merged[key];
+  });
   return merged;
 };
 
@@ -228,6 +235,9 @@ export const mergeRules = (baseRule, overrideRule) => {
     merged.pattern = overrideRule.pattern;
   }
 
+  DROPPED_RULE_KEYS.forEach((key) => {
+    delete merged[key];
+  });
   return merged;
 };
 
@@ -385,7 +395,6 @@ export const checkRules = (rules) => {
         selectStyle,
         parentStyle,
         grandStyle,
-        injectJs,
         injectCss,
         apiSlug,
         fromLang,
@@ -405,8 +414,6 @@ export const checkRules = (rules) => {
         isPlainText,
         transTag,
         transTitle,
-        transStartHook,
-        transEndHook,
         splitParagraph,
         splitLength,
         highlightWords,
@@ -427,7 +434,6 @@ export const checkRules = (rules) => {
         selectStyle: type(selectStyle) === "string" ? selectStyle : "",
         parentStyle: type(parentStyle) === "string" ? parentStyle : "",
         grandStyle: type(grandStyle) === "string" ? grandStyle : "",
-        injectJs: type(injectJs) === "string" ? injectJs : "",
         injectCss: type(injectCss) === "string" ? injectCss : "",
         apiSlug:
           type(apiSlug) === "string" && apiSlug.trim() !== ""
@@ -476,8 +482,6 @@ export const checkRules = (rules) => {
         isPlainText: matchValue([GLOBAL_KEY, "true", "false"], isPlainText),
         transTag: matchValue([GLOBAL_KEY, "span", "font"], transTag),
         transTitle: matchValue([GLOBAL_KEY, "true", "false"], transTitle),
-        transStartHook: type(transStartHook) === "string" ? transStartHook : "",
-        transEndHook: type(transEndHook) === "string" ? transEndHook : "",
         splitParagraph: matchValue(
           [GLOBAL_KEY, ...OPT_SPLIT_PARAGRAPH_ALL],
           splitParagraph

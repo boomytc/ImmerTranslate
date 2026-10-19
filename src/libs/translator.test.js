@@ -330,7 +330,6 @@ describe("Translator rule styles", () => {
         {
           transOpen,
           injectCss: "#root { color: red; }",
-          injectJs: "KT.apiDectect('rule initialization');",
         },
         { preInit: true }
       );
@@ -349,7 +348,6 @@ describe("Translator rule styles", () => {
       await flushAsync();
       expect(document.querySelector(selector)).toBe(style);
       expect(document.querySelectorAll(selector)).toHaveLength(1);
-      expect(tryDetectLang).not.toHaveBeenCalledWith("rule initialization");
 
       translator.stop();
       expect(document.querySelector(selector)).toBeNull();
