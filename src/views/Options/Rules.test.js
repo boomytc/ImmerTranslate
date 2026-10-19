@@ -773,6 +773,51 @@ describe("Options Rules global tab", () => {
 
     view.unmount();
   });
+
+  test("edits transOnlyRevertDelay as a number on the global rule", async () => {
+    const view = renderRules();
+    const input = view.container.querySelector(
+      'input[name="transOnlyRevertDelay"]'
+    );
+
+    expect(input).not.toBeNull();
+    expect(input.type).toBe("number");
+    expect(input.value).toBe("0.5");
+
+    await act(async () => {
+      getButtonByText(view.container, "edit").dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    await flushEffects();
+
+    const editable = view.container.querySelector(
+      'input[name="transOnlyRevertDelay"]'
+    );
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      ).set;
+      setValue.call(editable, "1.2");
+      editable.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await flushEffects();
+
+    await act(async () => {
+      getButtonByText(view.container, "save").dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    await flushEffects();
+
+    expect(mockPutRule).toHaveBeenCalledWith(
+      "*",
+      expect.objectContaining({ transOnlyRevertDelay: "1.2" })
+    );
+
+    view.unmount();
+  });
 });
 
 describe("Options Rules personal tab", () => {
@@ -794,6 +839,42 @@ describe("Options Rules personal tab", () => {
       reloadSync: mockReloadSync,
     });
     Object.values(mockAlert).forEach((alertMethod) => alertMethod.mockClear());
+  });
+
+  test("does not put transOnlyRevertDelay into a number input", async () => {
+    const view = renderRules();
+    await openPersonalTab(view);
+
+    await act(async () => {
+      getButtonByText(view.container, "add").dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    await flushEffects();
+
+    expect(
+      view.container.querySelector('input[name="transOnlyRevertDelay"]')
+    ).toBeNull();
+
+    const ruleSummary = Array.from(
+      view.container.querySelectorAll('[role="button"]')
+    ).find((item) => item.textContent.includes("example.com"));
+    await act(async () => {
+      ruleSummary.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushEffects();
+
+    const delayInputs = view.container.querySelectorAll(
+      'input[name="transOnlyRevertDelay"]'
+    );
+    expect(delayInputs).toHaveLength(0);
+    expect(
+      Array.from(view.container.querySelectorAll('input[type="number"]')).some(
+        (input) => input.value === "*"
+      )
+    ).toBe(false);
+
+    view.unmount();
   });
 
   test("renders a switch for personal rules but not the global rule", async () => {
