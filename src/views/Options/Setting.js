@@ -20,7 +20,6 @@ import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 
 import {
-  TRANS_NEWLINE_LENGTH,
   OPT_LANGDETECTOR_ALL,
   OPT_SHORTCUT_TRANSLATE,
   OPT_SHORTCUT_TRANSONLY,
@@ -35,7 +34,6 @@ import {
   OPT_POPUP_DEFAULT_VIEW_ALL,
   MSG_CONTEXT_MENUS,
   MSG_UPDATE_CSP,
-  DEFAULT_HTTP_TIMEOUT,
   CURRENT_SETTINGS_VERSION,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
   APP_LCNAME,
@@ -49,7 +47,6 @@ import { tryClearCaches } from "../../libs/cache";
 import { kissLog, LogLevel } from "../../libs/log";
 import UploadButton from "./UploadButton";
 import DownloadButton from "./DownloadButton";
-import ValidationInput from "../../hooks/ValidationInput";
 import OverviewHero from "./OverviewHero";
 import FabAppearanceSetting from "./FabAppearanceSetting";
 
@@ -270,20 +267,14 @@ export default function Settings() {
 
   // 解构当前基础查词偏好设置
   const {
-    minLength,
-    maxLength,
     clearCache,
-    newlineLength = TRANS_NEWLINE_LENGTH,
-    httpTimeout = DEFAULT_HTTP_TIMEOUT,
     contextMenuType = 1,
     touchModes = [2],
     blacklist = DEFAULT_BLACKLIST.join(",\n"),
     csplist = DEFAULT_CSPLIST.join(",\n"),
     orilist = DEFAULT_ORILIST.join(",\n"),
-    transInterval = 100,
     langDetector = "-",
     logLevel = 1,
-    preInit = true,
     skipLangs = [],
     translateVariants = true,
     parseLatex = false,
@@ -351,21 +342,6 @@ export default function Settings() {
                 </TextField>
               </Grid>
             )}
-            {/* 页面打开时是否预先初始化运行环境 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                name="preInit"
-                value={preInit}
-                label={i18n("if_pre_init")}
-                onChange={handleChange}
-              >
-                <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                <MenuItem value={false}>{i18n("disable")}</MenuItem>
-              </TextField>
-            </Grid>
             {isAutoTranslateClipboardSupported && (
               <AutoTranslateClipboardSetting
                 value={autoTranslateClipboard}
@@ -388,76 +364,6 @@ export default function Settings() {
                 <MenuItem value={0}>{i18n("fab_click_menu")}</MenuItem>
                 <MenuItem value={1}>{i18n("fab_click_translate")}</MenuItem>
               </TextField>
-            </Grid>
-            {/* 单个 DOM 文本块触发网页翻译的最小有效文本长度 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("min_translate_length")}
-                type="number"
-                name="minLength"
-                value={minLength}
-                onChange={handleChange}
-                min={1}
-                max={100}
-              />
-            </Grid>
-            {/* 允许发起单次网页段落翻译的最长文本限制 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("max_translate_length")}
-                type="number"
-                name="maxLength"
-                value={maxLength}
-                onChange={handleChange}
-                min={100}
-                max={100000}
-              />
-            </Grid>
-            {/* 网页中单个纯文本换行符被当作真换行截断句子的数量 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("num_of_newline_characters")}
-                type="number"
-                name="newlineLength"
-                value={newlineLength}
-                onChange={handleChange}
-                min={1}
-                max={1000}
-              />
-            </Grid>
-            {/* DOM 段落网页翻译扫描定时查询轮询间隔时间 (ms) */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("translate_interval")}
-                type="number"
-                name="transInterval"
-                value={transInterval}
-                onChange={handleChange}
-                min={1}
-                max={2000}
-              />
-            </Grid>
-            {/* 全局接口 HTTP 网络请求超时阈值 (s) */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("http_timeout")}
-                type="number"
-                name="httpTimeout"
-                value={httpTimeout}
-                onChange={handleChange}
-                min={1}
-                max={600}
-              />
             </Grid>
             {/* 移动端/触屏端特定的触摸手势快捷翻译触发方式 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>

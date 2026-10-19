@@ -164,10 +164,6 @@ export const I18N = {
     zh: `每次请求间隔时间 (0-5000ms)`,
     en: `Time Between Requests (0-5000ms)`,
   },
-  translate_interval: {
-    zh: `翻译间隔时间 (1-2000ms)`,
-    en: `Translation Interval (1-2000ms)`,
-  },
   http_timeout: {
     zh: `请求超时时间 (1-600s)`,
     en: `Request Timeout Time (1-600s)`,
@@ -203,18 +199,6 @@ export const I18N = {
   gemini_2_url_help: {
     zh: `Google AI Studio 的 OpenAI 兼容接口（/v1beta/openai/chat/completions），适用于中转或代理`,
     en: `Google AI Studio OpenAI-compatible API (/v1beta/openai/chat/completions), suitable for proxies/relays`,
-  },
-  min_translate_length: {
-    zh: `最小翻译字符数 (1-100)`,
-    en: `Minimum number Of Translated Characters (1-100)`,
-  },
-  max_translate_length: {
-    zh: `最大翻译字符数 (100-100000)`,
-    en: `Maximum number Of Translated Characters (100-100000)`,
-  },
-  num_of_newline_characters: {
-    zh: `换行字符数 (1-1000)`,
-    en: `Number of Newline Characters (1-1000)`,
   },
   translate_service: {
     zh: `翻译服务`,
@@ -2073,10 +2057,6 @@ export const I18N = {
   placeholder: {
     zh: `占位符`,
     en: `Placeholder`,
-  },
-  if_pre_init: {
-    zh: `是否预初始化`,
-    en: `Whether to pre-initialize`,
   },
   favorite_words_helper: {
     zh: `导入词汇请使用txt文件，每一行一个单词。`,
