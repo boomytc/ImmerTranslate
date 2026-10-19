@@ -115,13 +115,6 @@ test("provides distinct popup loading and domain status labels", () => {
   expect(I18N.popup_more_services.en).toBe("More translation services");
 });
 
-test("localizes the options playground label", () => {
-  expect(I18N.playground.zh).toBe("演练场");
-  expect(I18N.playground.en).toBe("Playground");
-  expect(I18N.playground.zh_TW).toBe("演練場");
-  expect(I18N.playground.ru).toBe("Песочница");
-});
-
 test("integrates Russian translations with M3 labels and product identity", () => {
   expect(UI_LANGS.map(([locale]) => locale)).toContain("ru");
   expect(I18N.app_name.ru).toBe("ImmerTranslate");

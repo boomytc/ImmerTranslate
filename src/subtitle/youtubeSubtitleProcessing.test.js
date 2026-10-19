@@ -328,6 +328,74 @@ describe("youtubeSubtitleProcessing", () => {
     }
   );
 
+  test("covers every subtitle sample without duplicate text or overlapping cues", () => {
+    const root = path.join(process.cwd(), "testdata/subtitle-samples");
+    const catalog = JSON.parse(
+      fs.readFileSync(path.join(root, "index.json"), "utf8")
+    );
+    const noSpaceLanguages = ["zh", "ja", "ko", "th", "lo", "km", "my"];
+    const tokenize = (text, isNoSpace) => {
+      const normalized = String(text || "").toLowerCase();
+      if (isNoSpace) return Array.from(normalized.replace(/\s+/g, ""));
+      return normalized.match(/[\p{L}\p{N}]+|[^\s\p{L}\p{N}]/gu) || [];
+    };
+    const tokenCounts = (texts, isNoSpace) => {
+      const counts = new Map();
+      for (const token of tokenize(texts.join(" "), isNoSpace)) {
+        counts.set(token, (counts.get(token) || 0) + 1);
+      }
+      return counts;
+    };
+
+    for (const sample of catalog.samples) {
+      const source = JSON.parse(
+        fs.readFileSync(path.join(root, sample.path), "utf8")
+      );
+      const rawEvents = Array.isArray(source) ? source : source.events;
+      const fromLang = source.lang || sample.language || "auto";
+      const prepared = prepareTimedTextEvents(rawEvents, fromLang);
+      const isNoSpace = noSpaceLanguages.some((lang) =>
+        String(fromLang).startsWith(lang)
+      );
+
+      for (const mode of ["rule", "statistical"]) {
+        const cues = runBuiltinSegmentation({
+          ...prepared,
+          fromLang,
+          mode,
+          longSentenceThreshold: 100,
+        });
+        const sourceCounts = tokenCounts(
+          prepared.flatEvents.map((event) => event.text),
+          isNoSpace
+        );
+        const resultCounts = tokenCounts(
+          cues.map((cue) => cue.text),
+          isNoSpace
+        );
+        let missing = 0;
+        let duplicated = 0;
+        for (const [token, count] of sourceCounts) {
+          missing += Math.max(0, count - (resultCounts.get(token) || 0));
+        }
+        for (const [token, count] of resultCounts) {
+          duplicated += Math.max(0, count - (sourceCounts.get(token) || 0));
+        }
+        expect({ sample: sample.id, mode, missing, duplicated }).toEqual({
+          sample: sample.id,
+          mode,
+          missing: 0,
+          duplicated: 0,
+        });
+        for (let index = 1; index < cues.length; index += 1) {
+          expect(Number(cues[index].start)).toBeGreaterThanOrEqual(
+            Number(cues[index - 1].end)
+          );
+        }
+      }
+    }
+  });
+
   test("splits no-space-language subtitles at a long pause without punctuation", () => {
     // 对无标点的自动字幕，超过一秒的静音仍应形成明确边界。
     expect(
