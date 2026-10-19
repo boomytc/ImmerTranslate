@@ -22,14 +22,6 @@ const NARROW_API_LAYOUT_STYLES = String.raw`
   .kt-api-master-detail { grid-template-columns: minmax(0, 1fr); }
 `;
 
-const NARROW_PLAYGROUND_STYLES = String.raw`
-  .kt-playground-translator.MuiStack-root { grid-template-columns: minmax(0, 1fr); }
-  .kt-playground-translator__source,
-  .kt-playground-translator__results { grid-column: 1; }
-  .kt-playground-config__header { align-items: flex-start; flex-direction: column; gap: 10px; }
-  .kt-playground-config__normalize { max-width: 100%; }
-`;
-
 export const OPTIONS_STYLES = String.raw`
 .kt-options-shell { --kt-settings-font-size: ${SETTINGS_FONT_SIZE}px; --kt-settings-helper-font-size: ${SETTINGS_HELPER_FONT_SIZE}px; --kt-settings-control-width: 260px; min-height: 100vh; background: var(--kt-bg); color: var(--kt-on); }
 .kt-options-background { position: relative; z-index: 0; }
@@ -132,26 +124,6 @@ export const OPTIONS_STYLES = String.raw`
 .kt-about-markdown ol { max-width: 100%; margin-inline: 0; padding-inline-start: 24px; }
 .kt-about-markdown li { min-width: 0; overflow-wrap: anywhere; }
 .kt-options-page pre > code { min-width: 100%; display: block; overflow-wrap: normal; }
-.kt-playground { min-width: 0; container: playground / inline-size; }
-.kt-playground__tabs { margin-bottom: 18px; }
-.kt-playground-translator.MuiStack-root { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
-.kt-playground-config { min-width: 0; grid-column: 1 / -1; padding: 4px 0 16px; border: 0; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); border-radius: 0; background: transparent; }
-.kt-playground-config__header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
-.kt-playground-config__copy { min-width: 0; }
-.kt-playground-config__copy h2 { margin: 0; color: var(--kt-on); font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
-.kt-playground-config__copy p { margin: 4px 0 0; color: var(--kt-onv); font-size: var(--kt-settings-helper-font-size); line-height: 1.45; }
-.kt-playground-config__normalize { width: fit-content; flex: none; }
-.kt-playground-config__grid.MuiGrid-container { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0; }
-.kt-playground-config__grid.MuiGrid-container > .MuiGrid-item { width: auto; max-width: none; flex-basis: auto; padding: 0 !important; }
-.kt-playground-config__grid .MuiSelect-select { text-overflow: ellipsis; }
-.kt-playground-config__grid input[readonly] { color: var(--kt-onv); -webkit-text-fill-color: var(--kt-onv); }
-.kt-playground-translator__source { min-width: 0; grid-column: 1; }
-.kt-playground-translator__results { min-width: 0; grid-column: 2; }
-.kt-playground-translator__result { min-width: 0; }
-.kt-playground-translator__empty { min-height: 128px; display: grid; place-items: center; padding: 20px; border: 1px dashed var(--kt-border-strong, var(--kt-linev)); border-radius: var(--kt-radius-lg, 16px); background: transparent; color: var(--kt-onv); font-size: 12px; line-height: 1.5; text-align: center; }
-.kt-playground-translator__auxiliary { min-width: 0; grid-column: 1 / -1; }
-.kt-playground-translator__source .MuiFormControl-root,
-.kt-playground-translator__result .MuiFormControl-root { width: 100%; }
 .kt-options-section-title { margin: 0 0 10px !important; color: var(--kt-onv); font-size: 11px !important; font-weight: 700 !important; letter-spacing: .08em !important; text-transform: uppercase; }
 .kt-settings-section { margin-top: 26px; }
 .kt-settings-section:first-child { margin-top: 0; }
@@ -347,21 +319,14 @@ ${NARROW_OPTIONS_MAIN_STYLES}
 ${NARROW_API_LAYOUT_STYLES}
 }
 
-@container playground (max-width: 760px) {
-${NARROW_PLAYGROUND_STYLES}
-}
-
 @supports not (container-type: inline-size) {
   /* Add the mobile main's 36px horizontal padding to each content breakpoint.
-     The desktop layout starts with 792px of content, above all three cutoffs. */
+     The desktop layout starts with 792px of content, above both cutoffs. */
   @media (max-width: 656px) {
 ${NARROW_OPTIONS_MAIN_STYLES}
   }
   @media (max-width: 756px) {
 ${NARROW_API_LAYOUT_STYLES}
-  }
-  @media (max-width: 796px) {
-${NARROW_PLAYGROUND_STYLES}
   }
 }
 `;

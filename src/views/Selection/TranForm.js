@@ -78,7 +78,7 @@ const resolveActiveApiSlugs = (apiSlugs, optApis) => {
  */
 
 // ─── 接口多选本地持久化（可选）───────────────────────────────────────────────
-// 仅当宿主显式传入 apiSlugsStorageKey 时启用（Playground 等），普通 Selection/TranForm
+// 仅当宿主显式传入 apiSlugsStorageKey 时启用。普通 Selection/TranForm
 // 不传 key 时行为完全不变。读取/写入全程异常降级：localStorage 不可用、脏 JSON、
 // 非数组、非字符串元素都视为"无可恢复值"，回落既有默认逻辑。
 // 有效存储的 [] 表示用户显式未选择接口（合法状态）；过滤后没有任何有效 slug 且非
@@ -127,11 +127,9 @@ export default function TranForm({
   aiDictPromptSlug = PROMPT_MODE_FOLLOW_API,
   prompts = [],
   selectionContext = "",
-  isPlaygound = false,
   autoFocusInput = true,
   syncExternalTextWhileEditing = false,
   apiSlugsStorageKey = undefined,
-  playgroundConfigHeader = null,
   configActions = null,
   initialSettingsReady = true,
 }) {
@@ -211,7 +209,7 @@ export default function TranForm({
   const deLoading =
     Boolean(text.trim()) && (!hasCurrentDetection || detection.loading);
 
-  // The locked Playground can show local defaults before startup sync finishes.
+  // The locked form can show local defaults before startup sync finishes.
   // Adopt the complete initial settings before the unlocked form paints.
   // Subsequent settings changes must preserve the user's choices.
   useLayoutEffect(() => {
@@ -356,8 +354,8 @@ export default function TranForm({
   }, [transApis]);
 
   const isWord = useMemo(() => isValidWord(text), [text]);
-  const xs = useMemo(() => (isPlaygound ? 6 : 4), [isPlaygound]);
-  const md = useMemo(() => (isPlaygound ? 3 : 4), [isPlaygound]);
+  const xs = 4;
+  const md = 4;
 
   const activeApiSlugs = useMemo(
     () => resolveActiveApiSlugs(apiSlugs, optApis),
@@ -369,7 +367,7 @@ export default function TranForm({
   // 异步 transApis 尚未就绪（optApis 为空）时保持 pending，待其到达后重新过滤恢复。
   useEffect(() => {
     const pending = pendingApiSlugsRestoreRef.current;
-    if (!pending) return; // 无 key / 非 Playground 宿主：保持既有行为
+    if (!pending) return; // 无 key：保持既有行为
     if (pending.status === "none") {
       pendingApiSlugsRestoreRef.current = null; // 无可恢复值：回落默认逻辑
       return;
@@ -521,7 +519,6 @@ export default function TranForm({
       simpleStyle={simpleStyle}
       apiSlug={slug}
       transApis={transApis}
-      isPlayground={isPlaygound}
       translateVariants={translateVariants}
       parseLatex={parseLatex}
       detectedLang={deLang}
@@ -533,9 +530,7 @@ export default function TranForm({
   return (
     <Stack
       ref={formRef}
-      className={isPlaygound ? "kt-playground-translator" : undefined}
       spacing={simpleStyle ? 1 : 2}
-      useFlexGap={isPlaygound}
       onFocusCapture={(event) => {
         const control = event.target.closest?.(
           ".kt-translation-source, .kt-translation-result"
@@ -567,34 +562,23 @@ export default function TranForm({
           className={
             simpleStyle
               ? "kt-translation-config-actions"
-              : isPlaygound
-                ? "kt-playground-config"
-                : configActions
-                  ? "kt-translation-config-row"
-                  : undefined
+              : configActions
+                ? "kt-translation-config-row"
+                : undefined
           }
         >
           {!simpleStyle && (
             <>
-              {isPlaygound && playgroundConfigHeader}
               {/* Service and language settings grid. */}
               <Grid
-                className={
-                  isPlaygound
-                    ? "kt-playground-config__grid"
-                    : "kt-translation-config"
-                }
+                className="kt-translation-config"
                 container
                 spacing={2}
                 columns={12}
               >
                 {/* Select multiple translation engines to compare their results. */}
                 <Grid
-                  className={
-                    isPlaygound
-                      ? "kt-playground-config__service"
-                      : "kt-translation-config__service"
-                  }
+                  className="kt-translation-config__service"
                   item
                   xs={xs}
                   md={md}
@@ -631,9 +615,7 @@ export default function TranForm({
                 </Grid>
                 {/* Source language. */}
                 <Grid
-                  className={
-                    isPlaygound ? undefined : "kt-translation-config__language"
-                  }
+                  className="kt-translation-config__language"
                   item
                   xs={xs}
                   md={md}
@@ -659,9 +641,7 @@ export default function TranForm({
                 </Grid>
                 {/* Target language. */}
                 <Grid
-                  className={
-                    isPlaygound ? undefined : "kt-translation-config__language"
-                  }
+                  className="kt-translation-config__language"
                   item
                   xs={xs}
                   md={md}
@@ -685,135 +665,6 @@ export default function TranForm({
                     ))}
                   </TextField>
                 </Grid>
-
-                {/* Show additional configuration controls in the Playground. */}
-                {isPlaygound && (
-                  <>
-                    {/* Secondary target language. */}
-                    <Grid item xs={xs} md={md}>
-                      <TextField
-                        select
-                        SelectProps={{ MenuProps: selectMenuProps }}
-                        fullWidth
-                        size="small"
-                        name="toLang2"
-                        value={toLang2}
-                        label={i18n("to_lang2")}
-                        onChange={(e) => {
-                          setToLang2(e.target.value);
-                        }}
-                      >
-                        {OPT_LANGS_TO.map(([lang, name]) => (
-                          <MenuItem key={lang} value={lang}>
-                            {formatLanguageOptionName(name)}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </Grid>
-                    {/* English dictionary service. */}
-                    <Grid item xs={xs} md={md}>
-                      <TextField
-                        select
-                        SelectProps={{ MenuProps: selectMenuProps }}
-                        fullWidth
-                        size="small"
-                        name="enDict"
-                        value={enDict}
-                        label={i18n("english_dict")}
-                        onChange={(e) => {
-                          setEnDict(e.target.value);
-                        }}
-                      >
-                        <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
-                        {OPT_DICT_ALL.map((item) => (
-                          <MenuItem value={item} key={item}>
-                            {item}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </Grid>
-                    {/* Input suggestion service. */}
-                    <Grid item xs={xs} md={md}>
-                      <TextField
-                        select
-                        SelectProps={{ MenuProps: selectMenuProps }}
-                        fullWidth
-                        size="small"
-                        name="enSug"
-                        value={enSug}
-                        label={i18n("english_suggest")}
-                        onChange={(e) => {
-                          setEnSug(e.target.value);
-                        }}
-                      >
-                        <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
-                        {OPT_SUG_ALL.map((item) => (
-                          <MenuItem value={item} key={item}>
-                            {item}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </Grid>
-                    {/* Language detection engine. */}
-                    <Grid item xs={xs} md={md}>
-                      <TextField
-                        select
-                        SelectProps={{ MenuProps: selectMenuProps }}
-                        fullWidth
-                        size="small"
-                        name="langDetector"
-                        value={langDetector}
-                        label={i18n("detected_lang")}
-                        onChange={(e) => {
-                          setLangDetector(e.target.value);
-                        }}
-                      >
-                        <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
-                        {OPT_LANGDETECTOR_ALL.map((item) => (
-                          <MenuItem value={item} key={item}>
-                            {item}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </Grid>
-                    {/* Read-only language detection result. */}
-                    <Grid item xs={xs} md={md}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        name="deLang"
-                        value={
-                          deLang &&
-                          formatLanguageOptionName(OPT_LANGS_MAP.get(deLang))
-                        }
-                        label={i18n("detected_result")}
-                        placeholder="—"
-                        InputLabelProps={{ shrink: true }}
-                        inputProps={{ "aria-busy": deLoading }}
-                        InputProps={{
-                          readOnly: true,
-                          startAdornment: (
-                            <Box
-                              sx={{
-                                width: 16,
-                                height: 16,
-                                display: "grid",
-                                placeItems: "center",
-                              }}
-                            >
-                              {deLoading && (
-                                <CircularProgress
-                                  size={16}
-                                  aria-label={i18n("detected_lang")}
-                                />
-                              )}
-                            </Box>
-                          ),
-                        }}
-                      />
-                    </Grid>
-                  </>
-                )}
               </Grid>
             </>
           )}
@@ -824,32 +675,22 @@ export default function TranForm({
       {!simpleStyle && (
         <>
           {/* Source text input. */}
-          <Box
-            className={
-              isPlaygound ? "kt-playground-translator__source" : undefined
-            }
-          >
+          <Box>
             <TextField
-              className={`kt-translation-source ${
-                isPlaygound
-                  ? "kt-resizable-text-field kt-translation-text-field kt-translation-text-field--source"
-                  : "kt-resizable-text-field"
-              }`}
+              className="kt-translation-source kt-resizable-text-field"
               size="small"
               label={i18n("original_text")}
-              InputLabelProps={isPlaygound ? { shrink: true } : undefined}
               fullWidth
               multiline
               inputRef={setInputRef}
-              minRows={isPlaygound ? 4 : 1}
+              minRows={1}
               maxRows={10}
               inputProps={{
                 className: "kt-resizable-textarea",
                 style: {
                   resize: "vertical",
-                  ...(isPlaygound
-                    ? {}
-                    : { boxSizing: "border-box", paddingInlineEnd: 16 }),
+                  boxSizing: "border-box",
+                  paddingInlineEnd: 16,
                 },
               }}
               sx={{
@@ -877,21 +718,12 @@ export default function TranForm({
               InputProps={{
                 endAdornment: (
                   <Stack
-                    className={
-                      isPlaygound
-                        ? "kt-translation-text-field__actions"
-                        : undefined
-                    }
                     direction="row"
-                    sx={
-                      isPlaygound
-                        ? undefined
-                        : {
-                            position: "absolute",
-                            right: 0,
-                            top: 0,
-                          }
-                    }
+                    sx={{
+                      position: "absolute",
+                      right: 0,
+                      top: 0,
+                    }}
                   >
                     {editMode && editText !== text ? (
                       /* Show the submit checkmark while editing. */
@@ -942,34 +774,11 @@ export default function TranForm({
 
       {/* Translation and definition panels. */}
       {/* 1. Render a TranCont result for each selected translation service. */}
-      {isPlaygound ? (
-        <Stack
-          className="kt-playground-translator__results"
-          spacing={2}
-          useFlexGap
-        >
-          {translationResults.length > 0 ? (
-            translationResults
-          ) : (
-            <Box className="kt-playground-translator__empty" role="status">
-              {i18n(
-                "playground_translation_select_service",
-                "请先选择至少一个可用的翻译服务"
-              )}
-            </Box>
-          )}
-        </Stack>
-      ) : (
-        translationResults
-      )}
+      {translationResults}
 
       {/* 2. Show the default and AI dictionaries according to availability. */}
       {(defaultDictAvailable || aiDictAvailable) && (
-        <Box
-          className={
-            isPlaygound ? "kt-playground-translator__auxiliary" : undefined
-          }
-        >
+        <Box>
           {aiDictAvailable ? (
             <>
               <Tabs
@@ -1046,15 +855,9 @@ export default function TranForm({
       )}
 
       {/* 3. Show enabled input suggestions for valid English words. */}
-      {isWord &&
-        OPT_SUG_MAP.has(enSug) &&
-        (isPlaygound ? (
-          <Box className="kt-playground-translator__auxiliary">
-            <SugCont text={text} enSug={enSug} />
-          </Box>
-        ) : (
-          <SugCont text={text} enSug={enSug} />
-        ))}
+      {isWord && OPT_SUG_MAP.has(enSug) && (
+        <SugCont text={text} enSug={enSug} />
+      )}
     </Stack>
   );
 }

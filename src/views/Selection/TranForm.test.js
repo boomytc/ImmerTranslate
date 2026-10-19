@@ -52,11 +52,20 @@ jest.mock("./TranCont", () => {
 jest.mock("./DictCont", () => {
   const React = require("react");
 
-  return () => React.createElement("div", { "data-testid": "default-dict" });
+  return ({ enDict }) =>
+    React.createElement("div", {
+      "data-testid": "default-dict",
+      "data-dict": enDict,
+    });
 });
 
 jest.mock("./Zdic", () => () => null);
-jest.mock("./SugCont", () => () => null);
+jest.mock("./SugCont", () => {
+  const React = require("react");
+
+  return ({ enSug }) =>
+    React.createElement("div", { "data-testid": "sug", "data-sug": enSug });
+});
 
 jest.mock("./AudioBtn", () => {
   const React = require("react");
@@ -140,28 +149,30 @@ function renderTranForm(
 
 describe("TranForm startup settings", () => {
   const remoteDefaults = {
-    fromLang: "fr",
+    fromLang: "auto",
     toLang: "de",
     toLang2: "it",
     langDetector: "Google",
     enDict: "Youdao",
     enSug: "Baidu",
   };
-  const readDefaults = (container) =>
-    Object.fromEntries(
-      Object.keys(remoteDefaults).map((name) => [
-        name,
-        container.querySelector(`input[name="${name}"]`).value,
-      ])
-    );
+  const readAppliedSettings = (container) => ({
+    fromLang: container.querySelector('input[name="fromLang"]').value,
+    toLang: container.querySelector('input[name="toLang"]').value,
+    toLang2: container.querySelector('[data-testid="tran-cont"]')?.dataset
+      .toLang,
+    enDict: container.querySelector('[data-testid="default-dict"]')?.dataset
+      .dict,
+    enSug: container.querySelector('[data-testid="sug"]')?.dataset.sug,
+  });
   let view;
 
   const renderPendingForm = () =>
     renderTranForm({
-      text: "",
+      text: "library",
       simpleStyle: false,
-      isPlaygound: true,
       autoFocusInput: false,
+      apiSlugs: ["openai"],
       initialSettingsReady: false,
     });
 
@@ -170,22 +181,33 @@ describe("TranForm startup settings", () => {
     view.host.remove();
   });
 
-  test("adopts synchronized defaults when startup finishes without remounting the form", () => {
+  test("adopts synchronized defaults when startup finishes without remounting the form", async () => {
+    tryDetectLang.mockResolvedValue("de");
     view = renderPendingForm();
     const textarea = view.container.querySelector("textarea");
-    expect(readDefaults(view.container).toLang).toBe("zh-CN");
+    expect(readAppliedSettings(view.container).toLang).toBe("zh-CN");
     view.rerender(remoteDefaults);
-    expect(readDefaults(view.container).toLang).toBe("zh-CN");
+    expect(readAppliedSettings(view.container).toLang).toBe("zh-CN");
 
     view.rerender({ ...remoteDefaults, initialSettingsReady: true });
+    await flushEffects();
 
-    expect(readDefaults(view.container)).toEqual(remoteDefaults);
+    expect(readAppliedSettings(view.container)).toEqual({
+      fromLang: remoteDefaults.fromLang,
+      toLang: remoteDefaults.toLang,
+      toLang2: remoteDefaults.toLang2,
+      enDict: remoteDefaults.enDict,
+      enSug: remoteDefaults.enSug,
+    });
+    expect(tryDetectLang).toHaveBeenLastCalledWith("library", "Google");
     expect(view.container.querySelector("textarea")).toBe(textarea);
   });
 
-  test("preserves user choices and draft text after startup when defaults change again", () => {
+  test("preserves user choices and draft text after startup when defaults change again", async () => {
+    tryDetectLang.mockResolvedValue("de");
     view = renderPendingForm();
     view.rerender({ ...remoteDefaults, initialSettingsReady: true });
+    await flushEffects();
     const textarea = view.container.querySelector("textarea");
     act(() => {
       Simulate.change(view.container.querySelector('input[name="toLang"]'), {
@@ -194,11 +216,13 @@ describe("TranForm startup settings", () => {
       Simulate.focus(textarea);
       Simulate.change(textarea, { target: { value: "Unsubmitted draft" } });
     });
-    expect(readDefaults(view.container).toLang).toBe("ja");
+    expect(readAppliedSettings(view.container).toLang).toBe("ja");
 
+    tryDetectLang.mockResolvedValue("ja");
     view.rerender({
       ...remoteDefaults,
       initialSettingsReady: true,
+      text: "libraries",
       fromLang: "es",
       toLang: "ko",
       toLang2: "ru",
@@ -206,11 +230,16 @@ describe("TranForm startup settings", () => {
       enDict: "Bing",
       enSug: "Youdao",
     });
+    await flushEffects();
 
-    expect(readDefaults(view.container)).toEqual({
-      ...remoteDefaults,
+    expect(readAppliedSettings(view.container)).toEqual({
+      fromLang: remoteDefaults.fromLang,
       toLang: "ja",
+      toLang2: remoteDefaults.toLang2,
+      enDict: remoteDefaults.enDict,
+      enSug: remoteDefaults.enSug,
     });
+    expect(tryDetectLang).toHaveBeenLastCalledWith("libraries", "Google");
     expect(textarea.value).toBe("Unsubmitted draft");
   });
 });
@@ -399,7 +428,7 @@ describe.each([false, true, "fullscreen"])(
   }
 );
 
-describe("TranForm Playground presentation", () => {
+describe("TranForm full layout", () => {
   beforeEach(() => {
     apiDict.mockReset();
     document.body.innerHTML = "";
@@ -414,37 +443,6 @@ describe("TranForm Playground presentation", () => {
     expect(formatLanguageOptionName(label)).toBe(expected);
   });
 
-  test("uses a responsive config grid and a read-only detection result", async () => {
-    const { container, root } = renderTranForm({
-      simpleStyle: false,
-      isPlaygound: true,
-      fromLang: "auto",
-      toLang: "en",
-      toLang2: "en",
-      playgroundConfigHeader: <div data-testid="config-header" />,
-    });
-    await flushEffects();
-
-    expect(
-      container.querySelector(".kt-playground-config__grid")
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="config-header"]')
-    ).not.toBeNull();
-    expect(
-      container.querySelector(".kt-playground-translator__source")
-    ).not.toBeNull();
-    expect(
-      container.querySelector(".kt-playground-translator__empty").textContent
-    ).toContain("请先选择至少一个");
-
-    const detectionResult = container.querySelector('input[name="deLang"]');
-    expect(detectionResult.readOnly).toBe(true);
-    expect(detectionResult.disabled).toBe(false);
-
-    act(() => root.unmount());
-  });
-
   test("ignores stale language detection and keeps the newest request busy", async () => {
     const first = createDeferred();
     const second = createDeferred();
@@ -455,7 +453,6 @@ describe("TranForm Playground presentation", () => {
     const view = renderTranForm({
       text: "first",
       simpleStyle: false,
-      isPlaygound: true,
       apiSlugs: ["openai"],
       fromLang: "auto",
       toLang: "en",
@@ -466,27 +463,24 @@ describe("TranForm Playground presentation", () => {
 
     view.rerender({ text: "second" });
     await flushEffects();
-    const detectionResult = view.container.querySelector(
-      'input[name="deLang"]'
-    );
-    expect(detectionResult.getAttribute("aria-busy")).toBe("true");
+    const result = () =>
+      view.container.querySelector('[data-testid="tran-cont"]');
+    expect(result().dataset.sourceDetectionPending).toBe("true");
 
     await act(async () => {
       first.resolve("de");
       await first.promise;
     });
-    expect(detectionResult.value).toBe("");
-    expect(detectionResult.getAttribute("aria-busy")).toBe("true");
+    expect(result().dataset.detectedLang).toBe("");
+    expect(result().dataset.sourceDetectionPending).toBe("true");
 
     await act(async () => {
       second.resolve("en");
       await second.promise;
     });
-    expect(detectionResult.value).toBe("English");
-    expect(detectionResult.getAttribute("aria-busy")).toBe("false");
-    expect(
-      view.container.querySelector('[data-testid="tran-cont"]').dataset.toLang
-    ).toBe("fr");
+    expect(result().dataset.detectedLang).toBe("en");
+    expect(result().dataset.sourceDetectionPending).toBe("false");
+    expect(result().dataset.toLang).toBe("fr");
 
     act(() => view.root.unmount());
     tryDetectLang.mockResolvedValue("en");
@@ -495,7 +489,6 @@ describe("TranForm Playground presentation", () => {
   test("shows the service empty state when configured services are unavailable", async () => {
     const { container, root } = renderTranForm({
       simpleStyle: false,
-      isPlaygound: true,
       apiSlugs: ["disabled"],
       transApis: [
         {
@@ -509,9 +502,6 @@ describe("TranForm Playground presentation", () => {
     });
     await flushEffects();
 
-    expect(
-      container.querySelector(".kt-playground-translator__empty").textContent
-    ).toContain("请先选择至少一个");
     expect(container.querySelector('[data-testid="tran-cont"]')).toBeNull();
 
     act(() => root.unmount());
@@ -539,14 +529,13 @@ describe("TranForm Playground presentation", () => {
           text: "before",
           setText,
           simpleStyle: false,
-          isPlaygound: true,
         },
         { shadow, component: EditableTranForm }
       );
       try {
         await flushEffects();
         const textarea = container.querySelector(
-          ".kt-playground-translator__source textarea:not([aria-hidden='true'])"
+          ".kt-translation-source textarea:not([aria-hidden='true'])"
         );
         const focusRoot = textarea.getRootNode();
         expect(textarea.classList).toContain("kt-resizable-textarea");
@@ -596,7 +585,6 @@ describe("TranForm Playground presentation", () => {
   test("keeps multiple translation results together and spans auxiliary content", async () => {
     const { container, root } = renderTranForm({
       simpleStyle: false,
-      isPlaygound: true,
       apiSlugs: ["google", "openai"],
       transApis: [
         { apiSlug: "google", apiName: "Google", apiType: "Google" },
@@ -606,16 +594,11 @@ describe("TranForm Playground presentation", () => {
     });
     await flushEffects();
 
-    const results = container.querySelector(
-      ".kt-playground-translator__results"
-    );
-    expect(results.querySelectorAll('[data-testid="tran-cont"]')).toHaveLength(
-      2
-    );
     expect(
-      container
-        .querySelector('[data-testid="default-dict"]')
-        .closest(".kt-playground-translator__auxiliary")
+      container.querySelectorAll('[data-testid="tran-cont"]')
+    ).toHaveLength(2);
+    expect(
+      container.querySelector('[data-testid="default-dict"]')
     ).not.toBeNull();
 
     act(() => root.unmount());

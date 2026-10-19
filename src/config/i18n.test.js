@@ -100,11 +100,6 @@ test("provides distinct popup loading and domain status labels", () => {
   expect(I18N.popup_more_services.en).toBe("More translation services");
 });
 
-test("localizes the options playground label", () => {
-  expect(I18N.playground.zh).toBe("演练场");
-  expect(I18N.playground.en).toBe("Playground");
-});
-
 test("keeps the interface language list to Chinese and English", () => {
   expect(UI_LANGS.map(([locale]) => locale)).toEqual(["en", "zh"]);
 });
