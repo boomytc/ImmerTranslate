@@ -482,20 +482,10 @@ export default class TranslatorManager {
 
   /**
    * 克隆配置对象，隔离 manager 快照和子模块运行期可变状态。
-   *
-   * 优先使用 structuredClone 以保留更多数据类型；如果宿主不支持或克隆
-   * 失败，则回退到 JSON clone。本项目当前配置主要是普通 JSON 数据。
    */
   #cloneConfig(value) {
     if (value == null) return value;
-    if (typeof globalThis.structuredClone === "function") {
-      try {
-        return globalThis.structuredClone(value);
-      } catch (err) {
-        logger.debug("structuredClone failed, using JSON clone.", err);
-      }
-    }
-    return JSON.parse(JSON.stringify(value));
+    return structuredClone(value);
   }
 
   /**
