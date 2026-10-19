@@ -1,7 +1,7 @@
 /**
  * 套用到运行中页面的一次更新。
  * fields 是选择器等规则字段，policy 只在本站 transOpen 真的变化时出现，
- * setting 是按当前网址折过功能黑名单的设置，内容没变则为 null。
+ * setting 是设置字段和三个功能开关的变化；内容没变则为 null。
  */
 export function ruleApplication({ previousTransOpen, rule, setting = null }) {
   const fields = { ...(rule || {}) };
@@ -37,4 +37,26 @@ export function applyRuleUpdate({
     enable?.();
   }
   return nextRule;
+}
+
+/**
+ * 把折过功能黑名单的设置拆成字段和开关变化。
+ * switches 只包含相对上次已套用设置真正变化的划词、输入、悬停开关。
+ * 没变化的开关不出现，调用方保留页面上的运行时状态。
+ */
+export function settingApplication({ previous, setting }) {
+  const tranbox = Boolean(setting?.tranboxSetting?.transOpen);
+  const input = Boolean(setting?.inputRule?.transOpen);
+  const hover = Boolean(setting?.mouseHoverSetting?.useMouseHover);
+  const switches = {};
+  if (tranbox !== Boolean(previous?.tranboxSetting?.transOpen)) {
+    switches.tranbox = tranbox;
+  }
+  if (input !== Boolean(previous?.inputRule?.transOpen)) {
+    switches.input = input;
+  }
+  if (hover !== Boolean(previous?.mouseHoverSetting?.useMouseHover)) {
+    switches.hover = hover;
+  }
+  return { fields: setting, switches };
 }

@@ -18,7 +18,7 @@ import { acceptsFrameMessage, sendBgMsg } from "./msg";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
-import { ruleApplication } from "./runtimeUpdate";
+import { ruleApplication, settingApplication } from "./runtimeUpdate";
 import { isSameStorageValue } from "./storageEquality";
 import { getStorageState } from "./storageState";
 import TranslatorManager from "./translatorManager";
@@ -299,15 +299,18 @@ export class PageRuntime {
       : this.options.favWords || [];
     if (generation !== this.#generation) return;
     const previousTransOpen = this.#rule?.transOpen;
+    const previousSetting = this.#appliedSetting;
     this.#rule = rule;
-    const settingChanged = !isSameStorageValue(this.#appliedSetting, setting);
+    const settingChanged = !isSameStorageValue(previousSetting, setting);
     this.#appliedSetting = setting;
     if (this.#manager) {
       this.#manager.applyLocationRule?.(
         ruleApplication({
           previousTransOpen,
           rule,
-          setting: settingChanged ? setting : null,
+          setting: settingChanged
+            ? settingApplication({ previous: previousSetting, setting })
+            : null,
         })
       );
       return;

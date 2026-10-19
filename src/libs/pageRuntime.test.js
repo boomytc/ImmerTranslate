@@ -401,12 +401,19 @@ describe("PageRuntime", () => {
       expect.objectContaining({
         fields: { selector: "p" },
         policy: null,
-        setting: expect.objectContaining({
-          tranboxSetting: expect.objectContaining({
-            blacklist: "index.html",
-            transOpen: false,
+        setting: {
+          fields: expect.objectContaining({
+            tranboxSetting: expect.objectContaining({
+              blacklist: "index.html",
+              transOpen: false,
+            }),
+            inputRule: expect.objectContaining({ transOpen: true }),
+            mouseHoverSetting: expect.objectContaining({
+              useMouseHover: true,
+            }),
           }),
-        }),
+          switches: { tranbox: false },
+        },
       })
     );
   });

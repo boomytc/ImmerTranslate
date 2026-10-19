@@ -113,6 +113,9 @@ jest.mock("./translator", () => ({
         this.setting.inputRule.transOpen = !this.setting.inputRule.transOpen;
       }),
       toggleHoverNode: jest.fn(),
+      updateSetting: jest.fn(function updateSetting(setting) {
+        this.setting = setting;
+      }),
     };
     mockTranslatorInstances.push(instance);
     return instance;
@@ -135,6 +138,16 @@ jest.mock("./tranbox", () => ({
         enabled = !enabled;
       }),
     };
+    instance.update = jest.fn((props) => {
+      if (!props?.tranboxSetting || !("transOpen" in props.tranboxSetting)) {
+        return;
+      }
+      if (!props.tranboxSetting.transOpen) {
+        instance.disable();
+        return;
+      }
+      if (!enabled) instance.enable();
+    });
     mockTransboxInstances.push(instance);
     return instance;
   }),
@@ -147,6 +160,7 @@ jest.mock("./inputTranslate", () => ({
       disable: jest.fn(),
       toggle: jest.fn(),
       handleTranslate: jest.fn(),
+      updateConfig: jest.fn(),
     };
     mockInputTranslatorInstances.push(instance);
     return instance;
@@ -221,8 +235,12 @@ jest.mock("./log", () => ({
   },
 }));
 
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
 const { browser } = require("./browser");
 const { Translator } = require("./translator");
+const { settingApplication } = require("./runtimeUpdate");
 const { TransboxManager } = require("./tranbox");
 const { InputTranslator } = require("./inputTranslate");
 const { PopupManager } = require("./popupManager");
@@ -261,6 +279,9 @@ function setupMockConstructors() {
         this.setting.inputRule.transOpen = !this.setting.inputRule.transOpen;
       }),
       toggleHoverNode: jest.fn(),
+      updateSetting: jest.fn(function updateSetting(setting) {
+        this.setting = setting;
+      }),
     };
     mockTranslatorInstances.push(instance);
     return instance;
@@ -281,6 +302,16 @@ function setupMockConstructors() {
         enabled = !enabled;
       }),
     };
+    instance.update = jest.fn((props) => {
+      if (!props?.tranboxSetting || !("transOpen" in props.tranboxSetting)) {
+        return;
+      }
+      if (!props.tranboxSetting.transOpen) {
+        instance.disable();
+        return;
+      }
+      if (!enabled) instance.enable();
+    });
     mockTransboxInstances.push(instance);
     return instance;
   });
@@ -291,6 +322,7 @@ function setupMockConstructors() {
       disable: jest.fn(),
       toggle: jest.fn(),
       handleTranslate: jest.fn(),
+      updateConfig: jest.fn(),
     };
     mockInputTranslatorInstances.push(instance);
     return instance;
@@ -354,6 +386,72 @@ function replaceBody() {
 async function flushMutationObserver() {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function storedSetting({
+  tranbox = true,
+  input = true,
+  hover = false,
+  uiLang = "en",
+} = {}) {
+  return {
+    uiLang,
+    tranboxSetting: { transOpen: tranbox },
+    inputRule: { transOpen: input },
+    mouseHoverSetting: { useMouseHover: hover },
+  };
+}
+
+function applyStoredSetting(manager, { previous, next }) {
+  const update = {
+    fields: { selector: "article" },
+    policy: null,
+    setting: settingApplication({ previous, setting: next }),
+  };
+  manager.applyLocationRule(update);
+  return update;
+}
+
+function loadContextMenuClick() {
+  const source = fs.readFileSync(
+    path.join(__dirname, "../background.js"),
+    "utf8"
+  );
+  const start = source.indexOf(
+    "browser?.contextMenus?.onClicked?.addListener?.("
+  );
+  const end = source.indexOf("async function handleStreamFetch");
+  if (start < 0 || end < start) {
+    throw new Error("context menu listener was not found");
+  }
+  const real = jest.requireActual("../config/msg");
+  const sendTabMsg = jest.fn();
+  const sandbox = {
+    sendTabMsg,
+    broadcastTranslateToggle: jest.fn(),
+    openOptionsPage: jest.fn(),
+    CMD_TOGGLE_TRANSLATE: real.CMD_TOGGLE_TRANSLATE,
+    CMD_TOGGLE_TRANSLATE_ONLY: real.CMD_TOGGLE_TRANSLATE_ONLY,
+    CMD_TOGGLE_STYLE: real.CMD_TOGGLE_STYLE,
+    CMD_OPEN_TRANBOX: real.CMD_OPEN_TRANBOX,
+    CMD_TOGGLE_TRANBOX: real.CMD_TOGGLE_TRANBOX,
+    CMD_OPEN_OPTIONS: real.CMD_OPEN_OPTIONS,
+    MSG_TRANS_TOGGLE_ONLY: real.MSG_TRANS_TOGGLE_ONLY,
+    MSG_TRANS_TOGGLE_STYLE: real.MSG_TRANS_TOGGLE_STYLE,
+    MSG_OPEN_TRANBOX: real.MSG_OPEN_TRANBOX,
+    MSG_TRANSBOX_TOGGLE: real.MSG_TRANSBOX_TOGGLE,
+  };
+  sandbox.browser = {
+    contextMenus: {
+      onClicked: {
+        addListener(listener) {
+          sandbox.click = listener;
+        },
+      },
+    },
+  };
+  vm.runInContext(source.slice(start, end), vm.createContext(sandbox));
+  return { sendTabMsg, click: sandbox.click, real };
 }
 
 function sendRuntimeMessage(message) {
@@ -1454,6 +1552,128 @@ describe("TranslatorManager SPA lifecycle", () => {
         transOpen: "true",
       })
     );
+  });
+
+  test("a shortcut tranbox toggle stays off when an unrelated setting changes", () => {
+    const manager = createManager();
+    manager.start();
+    const transbox = mockTransboxInstances[0];
+    const translator = mockTranslatorInstances[0];
+    sendRuntimeMessage({ action: "transbox-toggle" });
+    expect(transbox.isEnabled()).toBe(false);
+    transbox.enable.mockClear();
+
+    const previous = storedSetting();
+    const next = storedSetting({ uiLang: "zh" });
+    const update = applyStoredSetting(manager, { previous, next });
+    expect(update.setting.switches).toEqual({});
+    expect(update.setting.fields.tranboxSetting.transOpen).toBe(true);
+    expect(transbox.isEnabled()).toBe(false);
+    expect(transbox.enable).not.toHaveBeenCalled();
+    expect(translator.setting.uiLang).toBe("zh");
+    expect(translator.setting.tranboxSetting.transOpen).toBe(false);
+
+    applyStoredSetting(manager, {
+      previous: next,
+      next: storedSetting({ uiLang: "ja" }),
+    });
+    expect(transbox.isEnabled()).toBe(false);
+    expect(transbox.enable).not.toHaveBeenCalled();
+    expect(translator.setting.tranboxSetting.transOpen).toBe(false);
+  });
+
+  test("a context menu tranbox toggle stays off when an unrelated setting changes", () => {
+    const manager = createManager();
+    manager.start();
+    const transbox = mockTransboxInstances[0];
+    const translator = mockTranslatorInstances[0];
+    const { sendTabMsg, click, real } = loadContextMenuClick();
+    // 本文件把内容脚本的动作名桩成 transbox-toggle；后台发出的是生产常量。
+    sendTabMsg.mockImplementation((action, args) => {
+      expect(action).toBe(real.MSG_TRANSBOX_TOGGLE);
+      sendRuntimeMessage({ action: "transbox-toggle", args });
+    });
+
+    click({ menuItemId: real.CMD_TOGGLE_TRANBOX, selectionText: "hello" });
+    expect(sendTabMsg).toHaveBeenCalledTimes(1);
+    expect(sendTabMsg).toHaveBeenCalledWith("toggle_transbox");
+    expect(transbox.isEnabled()).toBe(false);
+    transbox.enable.mockClear();
+
+    const previous = storedSetting();
+    const next = storedSetting({ uiLang: "zh" });
+    const update = applyStoredSetting(manager, { previous, next });
+    expect(update.setting.switches).toEqual({});
+    expect(update.setting.fields.tranboxSetting.transOpen).toBe(true);
+    expect(transbox.isEnabled()).toBe(false);
+    expect(transbox.enable).not.toHaveBeenCalled();
+    expect(translator.setting.tranboxSetting.transOpen).toBe(false);
+    expect(translator.setting.uiLang).toBe("zh");
+  });
+
+  test("an input toggle stays off when an unrelated setting changes", () => {
+    const manager = createManager();
+    manager.start();
+    const input = mockInputTranslatorInstances[0];
+    const translator = mockTranslatorInstances[0];
+    sendRuntimeMessage({ action: "transinput-toggle" });
+    expect(translator.setting.inputRule.transOpen).toBe(false);
+    input.enable.mockClear();
+    input.disable.mockClear();
+
+    const update = applyStoredSetting(manager, {
+      previous: storedSetting(),
+      next: storedSetting({ uiLang: "zh" }),
+    });
+    expect(update.setting.switches).toEqual({});
+    expect(input.enable).not.toHaveBeenCalled();
+    expect(input.disable).not.toHaveBeenCalled();
+    expect(input.updateConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uiLang: "zh",
+        inputRule: expect.objectContaining({ transOpen: false }),
+      })
+    );
+    expect(translator.setting.inputRule.transOpen).toBe(false);
+    expect(translator.setting.uiLang).toBe("zh");
+  });
+
+  test("a hover toggle stays off when an unrelated setting changes", () => {
+    const manager = createManager({
+      setting: { mouseHoverSetting: { useMouseHover: true } },
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(true);
+    sendRuntimeMessage({ action: "mousehover-toggle" });
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(false);
+
+    const update = applyStoredSetting(manager, {
+      previous: storedSetting({ hover: true }),
+      next: storedSetting({ hover: true, uiLang: "zh" }),
+    });
+    expect(update.setting.switches).toEqual({});
+    expect(translator.updateSetting).toHaveBeenCalled();
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(false);
+    expect(translator.setting.uiLang).toBe("zh");
+  });
+
+  test("a stored tranbox switch change turns selection translation off", () => {
+    const manager = createManager();
+    manager.start();
+    const transbox = mockTransboxInstances[0];
+    const translator = mockTranslatorInstances[0];
+    expect(transbox.isEnabled()).toBe(true);
+
+    const update = applyStoredSetting(manager, {
+      previous: storedSetting(),
+      next: storedSetting({ tranbox: false, uiLang: "zh" }),
+    });
+    expect(update.setting.switches).toEqual({ tranbox: false });
+    expect(transbox.isEnabled()).toBe(false);
+    expect(transbox.enable).not.toHaveBeenCalled();
+    expect(translator.setting.tranboxSetting.transOpen).toBe(false);
+    expect(translator.setting.uiLang).toBe("zh");
   });
 
   test("continues checking queued controls after a verification rejects", async () => {

@@ -320,28 +320,56 @@ export default class TranslatorManager {
     publishPageRule(this.#getRuntimeResponse());
   }
 
-  #applyRuntimeSetting(setting) {
-    const next = this.#cloneConfig(setting);
-    this.#setting = next;
+  #applyRuntimeSetting(update) {
+    if (!update?.fields) return;
+    const switches = update.switches || {};
+    // 基线保留折后的存储值。运行时副本只改这次真的变化的划词、输入、悬停开关。
+    const stored = this.#cloneConfig(update.fields);
+    this.#setting = stored;
+    const runtime = this.#cloneConfig(stored);
+    const liveTranbox =
+      typeof this._transboxManager?.isEnabled === "function"
+        ? Boolean(this._transboxManager.isEnabled())
+        : Boolean(runtime.tranboxSetting?.transOpen);
+    const liveInput = Boolean(this._translator?.setting?.inputRule?.transOpen);
+    const liveHover = Boolean(
+      this._translator?.setting?.mouseHoverSetting?.useMouseHover
+    );
+    runtime.tranboxSetting = {
+      ...(runtime.tranboxSetting || {}),
+      transOpen: "tranbox" in switches ? switches.tranbox : liveTranbox,
+    };
+    runtime.inputRule = {
+      ...(runtime.inputRule || {}),
+      transOpen: "input" in switches ? switches.input : liveInput,
+    };
+    runtime.mouseHoverSetting = {
+      ...(runtime.mouseHoverSetting || {}),
+      useMouseHover: "hover" in switches ? switches.hover : liveHover,
+    };
     if (typeof this._translator?.updateSetting === "function") {
-      this._translator.updateSetting(this.#cloneConfig(next));
+      this._translator.updateSetting(this.#cloneConfig(runtime));
     }
     if (typeof this._transboxManager?.update === "function") {
       this._transboxManager.update({
-        tranboxSetting: this.#cloneConfig(next.tranboxSetting),
+        tranboxSetting: this.#cloneConfig(runtime.tranboxSetting),
       });
+    } else if ("tranbox" in switches && this._transboxManager) {
+      if (switches.tranbox) this._transboxManager.enable();
+      else this._transboxManager.disable();
     }
     if (!this._inputTranslator) return;
     if (typeof this._inputTranslator.updateConfig === "function") {
       this._inputTranslator.updateConfig({
-        inputRule: this.#cloneConfig(next.inputRule),
-        transApis: next.transApis,
-        prompts: next.prompts,
-        subtitleSetting: next.subtitleSetting,
-        uiLang: next.uiLang,
+        inputRule: this.#cloneConfig(runtime.inputRule),
+        transApis: runtime.transApis,
+        prompts: runtime.prompts,
+        subtitleSetting: runtime.subtitleSetting,
+        uiLang: runtime.uiLang,
       });
     }
-    if (next.inputRule?.transOpen) this._inputTranslator.enable();
+    if (!("input" in switches)) return;
+    if (switches.input) this._inputTranslator.enable();
     else this._inputTranslator.disable();
   }
 
