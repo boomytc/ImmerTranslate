@@ -140,6 +140,9 @@ export class PageRuntime {
   #rule;
   #appliedSetting;
   #manager;
+  // The live switch captured when this document was parked. It applies only
+  // when the same URL leaves the blacklist; a later URL uses its own rule.
+  #pausedTransOpen;
   #closeParked = null;
   #unwatch = () => {};
   #unsubscribeSetting = () => {};
@@ -237,6 +240,12 @@ export class PageRuntime {
 
   #park() {
     if (this.#manager) {
+      // stop() clears the translator, and Translator.stop() forces transOpen
+      // to false. Read the live switch first.
+      const live = this.#manager.readLiveTransOpen?.();
+      if ((live === "true" || live === "false") && this.#href) {
+        this.#pausedTransOpen = { href: this.#href, transOpen: live };
+      }
       this.#manager.stop();
       this.#manager = null;
     }
@@ -292,6 +301,7 @@ export class PageRuntime {
     const settingChanged = !isSameStorageValue(previousSetting, setting);
     this.#appliedSetting = setting;
     if (this.#manager) {
+      this.#pausedTransOpen = undefined;
       this.#manager.applyLocationRule?.(
         ruleApplication({
           previousTransOpen,
@@ -307,11 +317,15 @@ export class PageRuntime {
       ? await this.options.getFabConfig()
       : this.options.fabConfig;
     if (generation !== this.#generation) return;
+    const paused = this.#pausedTransOpen;
+    this.#pausedTransOpen = undefined;
+    const startRule =
+      paused?.href === href ? { ...rule, transOpen: paused.transOpen } : rule;
     const create =
       this.options.createManager || ((config) => new TranslatorManager(config));
     this.#manager = create({
       setting,
-      rule,
+      rule: startRule,
       fabConfig,
       favWords,
       isIframe: Boolean(this.options.isIframe),
@@ -319,7 +333,10 @@ export class PageRuntime {
       transboxOnly: Boolean(this.options.transboxOnly),
     });
     this.#manager.start();
-    this.options.onActivate?.({ href, setting, rule });
+    // A page that was blocked at load only had { transOpen: "false" } to give
+    // the popup. Publish the matched rule once the manager exists.
+    this.#manager.publishRuntimeRule?.();
+    this.options.onActivate?.({ href, setting, rule: startRule });
   }
 }
 

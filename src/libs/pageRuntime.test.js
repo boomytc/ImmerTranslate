@@ -88,10 +88,23 @@ describe("PageRuntime", () => {
       }),
       createManager: (config) => {
         created.push(config);
+        let liveTransOpen = config.rule?.transOpen;
         const manager = {
           start: jest.fn(),
           stop: jest.fn(),
-          applyLocationRule: jest.fn(),
+          publishRuntimeRule: jest.fn(),
+          applyLocationRule: jest.fn((update) => {
+            if (
+              update?.policy?.transOpen === "true" ||
+              update?.policy?.transOpen === "false"
+            ) {
+              liveTransOpen = update.policy.transOpen;
+            }
+          }),
+          readLiveTransOpen: () => liveTransOpen,
+          setLiveTransOpen: (value) => {
+            liveTransOpen = value;
+          },
         };
         managers.push(manager);
         return manager;
@@ -207,6 +220,105 @@ describe("PageRuntime", () => {
     expect(window.location.href).toContain("/page-blocked");
     expect(managers[0].stop).toHaveBeenCalledTimes(1);
     expect(listeners).toHaveLength(1);
+  });
+
+  function pageSetting(blacklist) {
+    return {
+      data: {
+        blacklist,
+        tranboxSetting: {},
+        inputRule: {},
+        mouseHoverSetting: {},
+      },
+    };
+  }
+
+  test("a manually enabled page stays on after a blacklist entry temporarily matches", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.managers[0].setLiveTransOpen("true");
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].stop).toHaveBeenCalledTimes(1);
+    expect(harness.created).toHaveLength(2);
+    expect(harness.created[1].rule.transOpen).toBe("true");
+    expect(harness.managers[1].readLiveTransOpen()).toBe("true");
+  });
+
+  test("a manually enabled page stays on when an unrelated blacklist entry is saved", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.managers[0].setLiveTransOpen("true");
+    harness.onSetting(pageSetting("example.com"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].stop).not.toHaveBeenCalled();
+    expect(harness.created).toHaveLength(1);
+    expect(harness.managers[0].readLiveTransOpen()).toBe("true");
+  });
+
+  test("a manually disabled page stays off after a blacklist entry temporarily matches", async () => {
+    window.history.pushState({}, "", "/auto-translate");
+    const harness = boot();
+    await harness.runtime.start();
+    expect(harness.created[0].rule.transOpen).toBe("true");
+    harness.managers[0].setLiveTransOpen("false");
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
+    await harness.runtime.whenIdle();
+    expect(harness.created).toHaveLength(2);
+    expect(harness.created[1].rule.transOpen).toBe("false");
+    expect(harness.managers[1].readLiveTransOpen()).toBe("false");
+  });
+
+  test("does not keep a parked switch after the page moves to another url", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.managers[0].setLiveTransOpen("true");
+    harness.onSetting(pageSetting("spa2.html/plain"));
+    await harness.runtime.whenIdle();
+    goViaPage("/other-clear");
+    await harness.runtime.whenIdle();
+    expect(harness.created[1].rule.transOpen).toBe("false");
+  });
+
+  test("publishes the matched rule when a blocked page leaves the blacklist", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot({
+      setting: {
+        blacklist: "localhost",
+        tranboxSetting: {},
+        inputRule: {},
+        mouseHoverSetting: {},
+      },
+      matchRule: async (href) => ({
+        transOpen: "false",
+        fromLang: "en",
+        toLang: "zh-CN",
+        apiSlug: "deepl",
+        pattern: href,
+      }),
+    });
+    await harness.runtime.start();
+    expect(harness.created).toHaveLength(0);
+    expect(harness.listeners[0]({ action: MSG_TRANS_GETRULE }).rule).toEqual({
+      transOpen: "false",
+    });
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.created[0].rule).toEqual(
+      expect.objectContaining({
+        fromLang: "en",
+        toLang: "zh-CN",
+        apiSlug: "deepl",
+      })
+    );
+    expect(harness.managers[0].publishRuntimeRule).toHaveBeenCalledTimes(1);
   });
 
   test("a blacklist edit stops translation, and removing it does not auto-start unless the rule says so", async () => {

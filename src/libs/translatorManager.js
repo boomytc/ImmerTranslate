@@ -267,6 +267,18 @@ export default class TranslatorManager {
     logger.info("TranslatorManager stopped.");
   }
 
+  /** Live page switch, read before stop() clears the translator. */
+  readLiveTransOpen() {
+    const value = this._translator?.rule?.transOpen ?? this.#rule?.transOpen;
+    return value === "true" || value === "false" ? value : undefined;
+  }
+
+  /** Push the current rule to an already open popup or FAB. */
+  publishRuntimeRule() {
+    if (!this.#isActive) return;
+    publishPageRule(this.#getRuntimeResponse());
+  }
+
   #subscribeFabStorage() {
     if (this.#isIframe || this.#transboxOnly || this.#unsubscribeFabStorage) {
       return;
