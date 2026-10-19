@@ -7,14 +7,6 @@ import {
 const expectedStoreLocales = {
   en: { chromium: "en", firefox: "en-US" },
   zh_CN: { chromium: "zh-CN", firefox: "zh-CN" },
-  zh_TW: { chromium: "zh-TW", firefox: "zh-TW" },
-  ja: { chromium: "ja", firefox: "ja" },
-  ko: { chromium: "ko", firefox: "ko" },
-  fr: { chromium: "fr", firefox: "fr" },
-  de: { chromium: "de", firefox: "de" },
-  es: { chromium: "es", firefox: "es" },
-  vi: { chromium: "vi", firefox: "vi" },
-  ru: { chromium: "ru", firefox: "ru" },
 };
 
 const removedContentKeys = [
@@ -30,27 +22,11 @@ const removedContentKeys = [
 const expectedLicenseAttribution = {
   en: "Based on a GPL-3.0 open-source project",
   zh_CN: "基于 GPL-3.0 开源项目二次开发",
-  zh_TW: "基於 GPL-3.0 開源專案二次開發",
-  ja: "GPL-3.0 のオープンソースプロジェクトを基に二次開発",
-  ko: "GPL-3.0 오픈소스 프로젝트를 기반으로 이차 개발",
-  fr: "Développement dérivé d'un projet open source GPL-3.0",
-  de: "Weiterentwicklung eines Open-Source-Projekts unter GPL-3.0",
-  es: "Desarrollo derivado de un proyecto de código abierto GPL-3.0",
-  vi: "Phát triển dựa trên dự án mã nguồn mở GPL-3.0",
-  ru: "Вторичная разработка на основе проекта с открытым кодом под GPL-3.0",
 };
 
 const expectedOpenOptions = {
   en: "Open Script Settings",
   zh_CN: "打开脚本设置",
-  zh_TW: "開啟腳本設定",
-  ja: "スクリプト設定を開く",
-  ko: "스크립트 설정 열기",
-  fr: "Ouvrir les paramètres du script",
-  de: "Skripteinstellungen öffnen",
-  es: "Abrir configuración del script",
-  vi: "Mở cài đặt tập lệnh",
-  ru: "Открыть настройки скрипта",
 };
 
 describe("homepage content", () => {

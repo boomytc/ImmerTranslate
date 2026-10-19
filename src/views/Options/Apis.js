@@ -75,7 +75,6 @@ import {
   DEFAULT_BATCH_CONCURRENCY,
   DEFAULT_CONTEXT_SIZE,
   OPT_ALL_TRANS_TYPES,
-  OPT_LANGS_LIST,
   API_SPE_TYPES,
   BUILTIN_STONES,
   BUILTIN_PLACEHOLDERS,
@@ -200,7 +199,7 @@ function describeConnectionResult(result, i18n) {
 function TestButton({ api }) {
   const i18n = useI18n();
   const alert = useAlert();
-  const { setting: { prompts, subtitleSetting, uiLang } = {} } = useSetting();
+  const { setting: { prompts, subtitleSetting } = {} } = useSetting();
   const [loading, setLoading] = useState(false);
   const handleApiTest = async () => {
     try {
@@ -213,13 +212,9 @@ function TestButton({ api }) {
         subtitleSetting
       );
 
-      // 测试译文目标语言跟随界面语言；界面语言为英文（与原文相同）时回退到简体中文
+      // 样句是英文，连通测试固定译成简体中文。
       const fromLang = "en";
-      const UI_LANG_TO_TRANS = { zh: "zh-CN", zh_TW: "zh-TW" };
-      let toLang = UI_LANG_TO_TRANS[uiLang] || uiLang;
-      if (!OPT_LANGS_LIST.includes(toLang) || toLang === fromLang) {
-        toLang = "zh-CN";
-      }
+      const toLang = "zh-CN";
 
       const { trText } = await apiTranslate({
         text,

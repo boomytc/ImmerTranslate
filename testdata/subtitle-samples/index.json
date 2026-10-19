@@ -10,8 +10,7 @@
       "size": 89277,
       "sha256": "eea691ee23be8b433eae101e038085793bc5c6bbaae23d8a568483777c5b0833",
       "goldenBoundaries": {
-        "rule": "cb331e4a774d5f62",
-        "statistical": "ab45d8625b8f0349"
+        "rule": "cb331e4a774d5f62"
       },
       "tags": [
         "asr",
@@ -29,8 +28,7 @@
       "size": 434,
       "sha256": "946d907e44c665ffb9f9d2829048098a38413673b328d5cb3a04a58cb43b9903",
       "goldenBoundaries": {
-        "rule": "a47333ac0bdd4f8f",
-        "statistical": "b1c2d032eb844e22"
+        "rule": "a47333ac0bdd4f8f"
       },
       "tags": [
         "manual",
@@ -46,8 +44,7 @@
       "size": 1020,
       "sha256": "65549ad1879e72294128b12bdf38b80354e18e99a00c0f3562cba1d2b5c8dae9",
       "goldenBoundaries": {
-        "rule": "80b10bfa8003f401",
-        "statistical": "55a5e65db22fb0e8"
+        "rule": "80b10bfa8003f401"
       },
       "tags": [
         "asr",
@@ -64,8 +61,7 @@
       "size": 175962,
       "sha256": "551a62dd1f8ff95270a49f6b04e22e3fc9021c73ac4a50d08123d5e4c8b93718",
       "goldenBoundaries": {
-        "rule": "fda495d3a735cc34",
-        "statistical": "0ea3bf447e58e92f"
+        "rule": "fda495d3a735cc34"
       },
       "tags": [
         "asr",
@@ -83,8 +79,7 @@
       "size": 548,
       "sha256": "46c65235e75d3ce5672cea42be11e1cb0062439633392e0b4fd2af2dc519b809",
       "goldenBoundaries": {
-        "rule": "e05fbcc97e0eae2d",
-        "statistical": "fed325b859f98a8c"
+        "rule": "e05fbcc97e0eae2d"
       },
       "tags": [
         "asr",
@@ -101,8 +96,7 @@
       "size": 500,
       "sha256": "1aed3a2b88319948236edd90ca0e2a8d48f5b963b78cc294d4871825e3a88510",
       "goldenBoundaries": {
-        "rule": "2ba3a608cab2ca24",
-        "statistical": "4273b177527bb8ae"
+        "rule": "2ba3a608cab2ca24"
       },
       "tags": [
         "asr",
@@ -119,8 +113,7 @@
       "size": 559,
       "sha256": "60448ba8c1bc07da476726102620c74e384cd5b5bdffdad39b15b9b9c45366bf",
       "goldenBoundaries": {
-        "rule": "aae164b6a59fcfff",
-        "statistical": "aae164b6a59fcfff"
+        "rule": "aae164b6a59fcfff"
       },
       "tags": [
         "technical",
@@ -137,8 +130,7 @@
       "size": 777,
       "sha256": "cc0d696396a5f273f52660a855e526ed4e1d384f962e9fb7d8572606ade91d92",
       "goldenBoundaries": {
-        "rule": "a5da3c9788edca6e",
-        "statistical": "082980b36903aecd"
+        "rule": "a5da3c9788edca6e"
       },
       "tags": [
         "dirty",
@@ -156,8 +148,7 @@
       "size": 3038,
       "sha256": "4f4cbb8ab41d759ea57d566b4cf0748ff08c8ae50cae6ad64c747915d470561c",
       "goldenBoundaries": {
-        "rule": "8b6c5e02101b91bc",
-        "statistical": "8b6c5e02101b91bc"
+        "rule": "8b6c5e02101b91bc"
       },
       "tags": [
         "long-duration",

@@ -19,24 +19,8 @@ test("tells users there is no usable translation service in the FAB empty state"
   expect(copy.en).toBe(
     "No translation service is available. Enable one in API settings, or add an API key."
   );
-  expect(copy.zh_TW).toBe(
-    "沒有可用的翻譯服務。請到介面設定啟用服務，或填寫金鑰。"
-  );
-  expect(copy.ja).toBe(
-    "利用できる翻訳サービスがありません。API設定でサービスを有効にするか、キーを入力してください。"
-  );
-  expect(copy.ko).toBe(
-    "사용할 수 있는 번역 서비스가 없습니다. API 설정에서 서비스를 사용 설정하거나 키를 입력하세요."
-  );
-  expect(copy.tr).toBe(
-    "Kullanılabilir bir çeviri hizmeti yok. API ayarlarından bir hizmeti etkinleştirin veya bir API anahtarı ekleyin."
-  );
-  expect(copy.vi).toBe(
-    "Không có dịch vụ dịch nào dùng được. Hãy bật một dịch vụ trong cài đặt API, hoặc nhập khóa API."
-  );
   expect(copy.zh).not.toContain("已填写密钥");
   expect(copy.en).not.toContain("has an API key yet");
-  expect(copy.ru).toBe(copy.en);
 });
 
 test("tells users to refresh after a missing connection setup", () => {
@@ -111,24 +95,18 @@ test("provides distinct popup loading and domain status labels", () => {
   expect(I18N.popup_loading.en).toBe("Loading…");
   expect(I18N.popup_loading.en).not.toBe(I18N.popup_translating.en);
   expect(I18N.popup_domain_allowed.en).toBe("Not blocked");
-  expect(I18N.popup_domain_allowed.en).not.toBe(I18N.popup_domain_active.en);
+  expect(I18N.popup_domain_blocked.en).toBe("Blocked");
+  expect(I18N.popup_domain_allowed.en).not.toBe(I18N.popup_domain_blocked.en);
   expect(I18N.popup_more_services.en).toBe("More translation services");
 });
 
-test("localizes the options playground label", () => {
-  expect(I18N.playground.zh).toBe("演练场");
-  expect(I18N.playground.en).toBe("Playground");
-  expect(I18N.playground.zh_TW).toBe("演練場");
-  expect(I18N.playground.ru).toBe("Песочница");
+test("keeps the interface language list to Chinese and English", () => {
+  expect(UI_LANGS.map(([locale]) => locale)).toEqual(["en", "zh"]);
 });
 
-test("integrates Russian translations with M3 labels and product identity", () => {
-  expect(UI_LANGS.map(([locale]) => locale)).toContain("ru");
-  expect(I18N.app_name.ru).toBe("ImmerTranslate");
-  expect(I18N.translate.ru).toBe("Перевести");
-  expect(I18N.discard_api_changes_confirm.ru).toBe(
-    I18N.discard_api_changes_confirm.en
-  );
+test("uses Chinese for Chinese locale tags and English otherwise", () => {
+  expect(newI18n("zh-TW")("app_name")).toBe(I18N.app_name.zh);
+  expect(newI18n("ja")("app_name")).toBe(I18N.app_name.en);
 });
 
 test("provides default text when key is not found", () => {

@@ -145,7 +145,6 @@ const translateBuiltinText = async (
  * @param {string} props.apiSlug Selected translation API identifier.
  * @param {Array<Object>} props.transApis Available translation API settings.
  * @param {boolean} [props.simpleStyle=false] Whether to use the simple text layout.
- * @param {boolean} [props.isPlayground=false] Whether to render the full Playground result surface.
  * @param {number} [props.requestRevision=0] Explicit submission revision for retrying unchanged input.
  * @param {Function} [props.onActionPointerDown] Host focus policy for result actions.
  * @returns {JSX.Element|null} Result view for one translation provider.
@@ -161,7 +160,6 @@ export default function TranCont({
   detectedLang = "",
   sourceDetectionPending = false,
   simpleStyle = false,
-  isPlayground = false,
   requestRevision = 0,
   onActionPointerDown,
 }) {
@@ -174,8 +172,7 @@ export default function TranCont({
 
   // Resolve the translation API settings for this instance's slug.
   const apiSetting = useMemo(
-    () =>
-      transApis.find((api) => api.apiSlug === apiSlug),
+    () => transApis.find((api) => api.apiSlug === apiSlug),
     [transApis, apiSlug]
   );
   const coordinatesBuiltinSource =
@@ -353,43 +350,24 @@ export default function TranCont({
   const resultLabel = `${i18n("translated_text")} - ${displayName}`;
 
   return (
-    <Box
-      className={`kt-translation-result ${
-        isPlayground ? "kt-playground-translator__result" : ""
-      }`}
-    >
+    <Box className="kt-translation-result">
       <TextField
-        className={
-          isPlayground
-            ? "kt-resizable-text-field kt-translation-text-field kt-translation-text-field--result"
-            : "kt-resizable-text-field"
-        }
+        className="kt-resizable-text-field"
         size="small"
         label={resultLabel}
-        InputLabelProps={isPlayground ? { shrink: true } : undefined}
         fullWidth
         multiline
-        minRows={isPlayground ? 4 : undefined}
         maxRows={10}
         inputProps={{
           className: "kt-resizable-textarea",
           style: {
             resize: "vertical",
-            ...(isPlayground
-              ? {}
-              : { boxSizing: "border-box", paddingInlineEnd: 16 }),
+            boxSizing: "border-box",
+            paddingInlineEnd: 16,
           },
           "aria-busy": loading,
           "aria-label": resultLabel,
         }}
-        placeholder={
-          isPlayground && !text
-            ? i18n(
-                "playground_translation_empty_result",
-                "输入原文后，译文将在这里显示"
-              )
-            : undefined
-        }
         sx={{
           "& .MuiInputBase-root": {
             overflow: "visible",
@@ -422,19 +400,12 @@ export default function TranCont({
           endAdornment: (
             <Stack
               onPointerDown={onActionPointerDown}
-              className={
-                isPlayground ? "kt-translation-text-field__actions" : undefined
-              }
               direction="row"
-              sx={
-                isPlayground
-                  ? undefined
-                  : {
-                      position: "absolute",
-                      right: 0,
-                      top: 0,
-                    }
-              }
+              sx={{
+                position: "absolute",
+                right: 0,
+                top: 0,
+              }}
             >
               {/* Copy the current translation, including partial text during streaming. */}
               {trText && (

@@ -435,7 +435,6 @@ export const checkRules = (rules) => {
         transTitle,
         transStartHook,
         transEndHook,
-        // transRemoveHook,
         splitParagraph,
         splitLength,
         highlightWords,

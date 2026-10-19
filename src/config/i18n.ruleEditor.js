@@ -145,10 +145,13 @@ const messages = {
   ],
 };
 
-// Newly introduced messages fall back to English until localized.
+// Rule editor copy is Chinese and English.
 export const RULE_EDITOR_I18N = Object.fromEntries(
   Object.entries(messages).map(([key, [zh, en]]) => [
     `rule_editor_${key}`,
-    { zh, en, zh_TW: en, ja: en, ko: en, tr: en, vi: en, ru: en },
+    {
+      zh,
+      en,
+    },
   ])
 );
