@@ -188,29 +188,20 @@ describe("rule script sources", () => {
     expect(effective.injectJs).toBe(SUB_INJECT);
     expect(effective.transStartHook).toBe(SUB_START);
     expect(effective.transEndHook).toBe(SUB_END);
-    expect(effective.transRemoveHook).toBe(SUB_REMOVE);
-    expect(effective.reqHook).toBe(SUB_REQ);
-    expect(effective.resHook).toBe(SUB_RES);
-    expect(effective.fixerFunc).toBe(SUB_FIX);
+    expect(effective.transRemoveHook).toBeUndefined();
+    expect(effective.reqHook).toBeUndefined();
+    expect(effective.resHook).toBeUndefined();
+    expect(effective.fixerFunc).toBeUndefined();
     expect(effective.scriptFieldOrigins).toEqual({
       injectJs: "subscription",
       transStartHook: "subscription",
       transEndHook: "subscription",
-      transRemoveHook: "subscription",
-      reqHook: "subscription",
-      resHook: "subscription",
-      fixerFunc: "subscription",
     });
-    [
-      "injectJs",
-      "transStartHook",
-      "transEndHook",
-      "transRemoveHook",
-      "reqHook",
-      "resHook",
-      "fixerFunc",
-    ].forEach((field) => {
+    ["injectJs", "transStartHook", "transEndHook"].forEach((field) => {
       expect(shouldRunRuleScript(effective, field)).toBe(false);
+    });
+    ["transRemoveHook", "reqHook", "resHook", "fixerFunc"].forEach((field) => {
+      expect(shouldRunRuleScript(subscriptionRule(), field)).toBe(false);
     });
   });
 
@@ -232,11 +223,11 @@ describe("rule script sources", () => {
     expect(effective.injectJs).toBe(PERSONAL_INJECT);
     expect(effective.transStartHook).toBe(PERSONAL_START);
     expect(effective.transEndHook).toBe(SUB_END);
-    expect(effective.reqHook).toBe(SUB_REQ);
+    expect(effective.reqHook).toBeUndefined();
     expect(effective.scriptFieldOrigins.injectJs).toBe("personal");
     expect(effective.scriptFieldOrigins.transStartHook).toBe("personal");
     expect(effective.scriptFieldOrigins.transEndHook).toBe("subscription");
-    expect(effective.scriptFieldOrigins.reqHook).toBe("subscription");
+    expect(effective.scriptFieldOrigins.reqHook).toBeUndefined();
     expect(shouldRunRuleScript(effective, "injectJs")).toBe(true);
     expect(shouldRunRuleScript(effective, "transStartHook")).toBe(true);
     expect(shouldRunRuleScript(effective, "transEndHook")).toBe(false);

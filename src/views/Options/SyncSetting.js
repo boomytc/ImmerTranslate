@@ -258,6 +258,13 @@ export default function SyncSetting() {
       alert.success(i18n("sync_success"));
     } catch (err) {
       kissLog("save sync encrypt key", err);
+      if (
+        encryptKeyDialogMode === "change" &&
+        err?.code === "SYNC_DECRYPT_FAILED"
+      ) {
+        setEncryptKeyError(i18n("old_sync_encrypt_key_invalid"));
+        return;
+      }
       setEncryptKeyError(
         getSyncErrorMessage(
           err,

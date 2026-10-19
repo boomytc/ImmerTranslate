@@ -190,13 +190,8 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     isPlainText = "false", // 是否启用 <pre> 纯文本翻译
     transTag = DEFAULT_TRANS_TAG, // 翻译结果容器标签 (span / font)
     transTitle = "false", // 是否翻译网页标题
-    // detectRemote = "true",
-    // skipLangs = [],
-    // fixerSelector = "",
-    // fixerFunc = "-",
     transStartHook = "", // 翻译开始前的钩子函数
     transEndHook = "", // 翻译结束后的钩子函数
-    // transRemoveHook = "",
     splitParagraph = OPT_SPLIT_PARAGRAPH_DISABLE, // 段落切分策略
     splitLength = 0, // 段落切分最大长度
     highlightWords = OPT_HIGHLIGHT_WORDS_DISABLE, // 单词高亮策略
