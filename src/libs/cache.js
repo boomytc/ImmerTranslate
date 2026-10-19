@@ -123,19 +123,12 @@ export const putHttpCache = async ({
 export const getHttpCachePolyfill = (input, init) => {
   // 插件前端：发送消息查询
   if (isExt && !isBg()) {
-    return sendBgMsg(msgGetCacheName(), { input, init });
+    return sendBgMsg(MSG_GET_HTTPCACHE, { input, init });
   }
 
   // 油猴/网页/后台端点：直接本地查询
   return getHttpCache({ input, init });
 };
-
-/**
- * 辅助获取消息键名函数，防止常量导入死锁
- */
-function msgGetCacheName() {
-  return MSG_GET_HTTPCACHE;
-}
 
 /**
  * putHttpCache 的跨环境包装层，若是 Content Script 会交由 Background 写入

@@ -53,8 +53,6 @@ export const MSG_UPDATE_SEPARATE_WINDOW_BOUNDS =
 export const PORT_STREAM_FETCH = "immertranslate_stream_fetch"; // 双向长连接端口名称：用于大模型翻译时的流式输出通道
 export const PORT_REQUEST_FETCH = "immertranslate_request_fetch"; // 普通请求的取消通道
 export const MSG_UPDATE_ICON = "update_icon"; // 通知后台脚本更新扩展的工具栏图标状态 (激活/灰色状态)
-export const MSG_SHA256 = "sha256"; // 请求后台脚本代算 SHA-256 签名
-
 // --- 用于 Window.postMessage 与自定义事件通信的事件名称 ---
 export const EVENT_KISS_INNER = "immertranslate_inner"; // 插件沙箱/内容脚本内部事件
 export const EVENT_KISS_TRANSLATOR = "immertranslate"; // 暴露给网页环境的外部交互事件

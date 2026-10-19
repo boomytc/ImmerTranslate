@@ -1,7 +1,3 @@
-jest.mock("./storage", () => ({
-  getSettingWithDefault: jest.fn(() => Promise.resolve({ httpTimeout: 1000 })),
-}));
-
 jest.mock("../config", () => ({
   CLIENT_EXTS: [],
   CLIENT_FIREFOX: "firefox",
@@ -15,16 +11,11 @@ jest.mock("./log", () => ({
   kissLog: jest.fn(),
 }));
 
-import { fetchGM, fetchPatcher, normalizeHttpTimeout } from "./request";
+import { fetchGM, fetchPatcher, resolveHttpTimeout } from "./request";
 
 const loadRequestWithClient = (clientMock) => {
   jest.resetModules();
   jest.doMock("./client", () => clientMock);
-  jest.doMock("./storage", () => ({
-    getSettingWithDefault: jest.fn(() =>
-      Promise.resolve({ httpTimeout: 1000 })
-    ),
-  }));
   jest.doMock("../config", () => ({
     CLIENT_EXTS: [],
     CLIENT_FIREFOX: "firefox",
@@ -46,19 +37,15 @@ const waitFor = async (condition) => {
   expect(condition()).toBe(true);
 };
 
-describe("normalizeHttpTimeout", () => {
+describe("resolveHttpTimeout", () => {
   test("converts second-based timeout values to milliseconds", () => {
-    expect(normalizeHttpTimeout(30)).toBe(30000);
-    expect(normalizeHttpTimeout(600)).toBe(600000);
-  });
-
-  test("keeps legacy millisecond timeout values unchanged", () => {
-    expect(normalizeHttpTimeout(1000)).toBe(1000);
+    expect(resolveHttpTimeout({ httpTimeout: 30 })).toBe(30000);
+    expect(resolveHttpTimeout({ httpTimeout: 600 })).toBe(600000);
   });
 
   test("falls back to the default timeout in seconds", () => {
-    expect(normalizeHttpTimeout()).toBe(30000);
-    expect(normalizeHttpTimeout(0)).toBe(30000);
+    expect(resolveHttpTimeout()).toBe(30000);
+    expect(resolveHttpTimeout({ httpTimeout: 0 })).toBe(30000);
   });
 });
 
@@ -133,7 +120,7 @@ describe("fetchPatcher", () => {
       headers: { "content-type": "application/json" },
       data: '{"ok":true}',
       anonymous: true,
-      timeout: 1000,
+      timeout: 30000,
     });
     expect(requestDetails.signal).toBeUndefined();
 
