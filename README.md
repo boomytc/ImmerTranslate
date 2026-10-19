@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="README.en.md">English</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
+  <a href="README.en.md">English</a>
 </p>
 
 ## 为什么用它
@@ -37,7 +37,7 @@
 | 规则与术语 | 按网站保存翻译规则，可订阅规则列表，支持术语表。         |
 | 同步       | 设置可加密后经 WebDAV 等方式同步。                       |
 
-界面语言：English、简体中文、繁體中文、日本語、한국어、Türkçe、Tiếng Việt、Русский。
+界面语言：English、简体中文。
 
 ## 翻译服务
 

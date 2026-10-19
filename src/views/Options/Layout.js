@@ -7,7 +7,7 @@ import { useMediaQueryMatch } from "../../hooks/MediaQuery";
 import { OPTIONS_STYLES } from "./styles";
 import { normalizeOptionsPath } from "./paths";
 
-const WIDE_PAGE_PATHS = new Set(["/apis", "/playground", "/prompts"]);
+const WIDE_PAGE_PATHS = new Set(["/apis", "/prompts"]);
 
 export const isWideOptionsPage = (pathname) =>
   WIDE_PAGE_PATHS.has(normalizeOptionsPath(pathname));
@@ -153,7 +153,6 @@ export default function Layout() {
       ],
       "/sync": [i18n("options_data_sync"), i18n("options_sync_description")],
       "/words": [i18n("favorite_words"), i18n("options_words_description")],
-      "/playground": [i18n("playground"), ""],
       "/about": [i18n("about"), ""],
     };
     return pages[pathname] || pages["/"];

@@ -137,7 +137,6 @@ describe("settings layout boundaries", () => {
   test.each([
     ["options-main", 620, 656],
     ["options-main", 720, 756],
-    ["playground", 760, 796],
   ])(
     "preserves the %s %ipx layout without container support at a %ipx viewport",
     (container, contentWidth, viewportWidth) => {
@@ -177,28 +176,7 @@ describe("settings layout boundaries", () => {
     );
   });
 
-  test("lays out the Playground by its own available width", () => {
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-playground\s*\{[^}]*container:\s*playground \/ inline-size;/
-    );
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-playground-config__grid\.MuiGrid-container\s*\{[^}]*repeat\(auto-fit, minmax\(230px, 1fr\)\)/
-    );
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-playground-translator\.MuiStack-root\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
-    );
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-playground-translator__results\s*\{[^}]*grid-column:\s*2;/
-    );
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-playground-translator__auxiliary\s*\{[^}]*grid-column:\s*1 \/ -1;/
-    );
-    expect(OPTIONS_STYLES).toContain(
-      "@container playground (max-width: 760px)"
-    );
-  });
-
-  test("keeps resizable Playground fields outside the rounded clip", () => {
+  test("keeps resizable text fields outside the rounded clip", () => {
     const textFieldRule = OPTIONS_STYLES.match(
       /\.kt-options-page \.kt-translation-text-field \.MuiInputBase-root\s*\{([^}]*)\}/
     )?.[1];
@@ -244,9 +222,6 @@ describe("settings layout boundaries", () => {
     );
     expect(OPTIONS_STYLES).toMatch(
       /\.kt-settings-row\s*\{[^}]*border-bottom:\s*1px solid var\(--kt-border, var\(--kt-linev\)\);/
-    );
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-playground-config\s*\{[^}]*border-bottom:\s*1px solid var\(--kt-border, var\(--kt-linev\)\);/
     );
     expect(OPTIONS_STYLES).toMatch(
       /\.kt-options-shell\s*\{[^}]*background:\s*var\(--kt-bg\);/

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import ApiRoundedIcon from "@mui/icons-material/ApiRounded";
 import BookmarksRoundedIcon from "@mui/icons-material/BookmarksRounded";
-import BugReportRoundedIcon from "@mui/icons-material/BugReportRounded";
 import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
@@ -99,15 +98,7 @@ export default function Navigator({ open, isMobile = false, onClose }) {
       },
       {
         label: "",
-        items: [
-          [
-            "playground",
-            i18n("playground"),
-            "/playground",
-            BugReportRoundedIcon,
-          ],
-          ["about", i18n("about"), "/about", InfoRoundedIcon],
-        ],
+        items: [["about", i18n("about"), "/about", InfoRoundedIcon]],
       },
     ],
     [i18n]

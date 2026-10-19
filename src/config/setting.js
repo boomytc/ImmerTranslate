@@ -177,7 +177,6 @@ export const DEFAULT_SUBTITLE_SETTING = {
   forceSubtitleRetranslate: false, // AI 断句服务与翻译服务不同时，是否强制使用翻译服务重翻译文
   chunkLength: 1000, // 新配置默认使用更短 AI 分块；已保存的用户值仍由存储配置优先覆盖
   longSentenceThreshold: 100, // 启用基于标点规则拆分的长句判定字符长度限制
-  useAlgorithmBreaker: "rule", // 字幕断句断行处理器类型 ("rule" 规则断行，"statistical" 基于时间统计特征断行)
   preTrans: 90, // 字幕翻译提前发送的时长 (毫秒)，防止接口网络延迟导致字幕不同步
   throttleTrans: 30, // 节流延迟：两次翻译请求的最小时间间隔 (毫秒)
   // fromLang: "en",

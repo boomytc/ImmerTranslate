@@ -783,22 +783,13 @@ async function registerMsgDisplayScript() {
 }
 
 /**
- * 适配并转换当前浏览器的 UI 显示语言，映射为本项目支持的语言键名。
- * @returns {Promise<string>} 本项目识别的语言简写 (zh_TW / zh / ja / ko / en)
+ * 把浏览器界面语言收成项目支持的两种界面语言。
+ * @returns {Promise<"zh" | "en">}
  */
 async function getUiLanguage() {
   try {
     const lang = await browser.i18n.getUILanguage();
-
-    if (lang === "zh-TW") {
-      return "zh_TW";
-    } else if (lang.startsWith("zh")) {
-      return "zh";
-    } else if (["ja", "ko", "ru"].includes(lang.substring(0, 2))) {
-      return lang.substring(0, 2);
-    } else {
-      return "en";
-    }
+    return lang.startsWith("zh") ? "zh" : "en";
   } catch (err) {
     kissLog("get UI language error", err);
     return "en";

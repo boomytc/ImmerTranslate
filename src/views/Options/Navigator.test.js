@@ -68,28 +68,6 @@ describe("settings navigator semantics", () => {
     }
   );
 
-  test("uses the localized playground label in navigation", () => {
-    mockLabels = { playground: "演练场" };
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    act(() =>
-      root.render(
-        <MemoryRouter>
-          <Navigator open />
-        </MemoryRouter>
-      )
-    );
-
-    expect(container.querySelector('a[href="/playground"]').textContent).toBe(
-      "演练场"
-    );
-
-    act(() => root.unmount());
-    container.remove();
-  });
-
   test("exposes dialog semantics only for the open mobile navigator", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
