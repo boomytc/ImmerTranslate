@@ -484,7 +484,13 @@ export default function PopupCont({
 
   const handleTransToggle = useCallback(
     async (enabled) => {
-      if (!canTranslatePage || translationTogglePendingRef.current) return;
+      if (
+        !canTranslatePage ||
+        translationTogglePendingRef.current ||
+        pageSwitch === PAGE_SWITCH.PAUSED
+      ) {
+        return;
+      }
       translationTogglePendingRef.current = true;
       setTranslationTogglePending(true);
       const previousPageSwitch = pageSwitch;
@@ -1063,9 +1069,13 @@ export default function PopupCont({
         } ${heroBusy ? "kt-popup-hero--busy" : ""}`}
         data-page-switch={pageSwitch || ""}
         aria-busy={translationTogglePending || heroBusy}
-        aria-disabled={!canTranslatePage}
+        aria-disabled={!canTranslatePage || pageSwitch === PAGE_SWITCH.PAUSED}
         onClick={() => {
-          if (canTranslatePage && !translationTogglePending) {
+          if (
+            canTranslatePage &&
+            !translationTogglePending &&
+            pageSwitch !== PAGE_SWITCH.PAUSED
+          ) {
             void handleTransToggle(!translationEnabled);
           }
         }}
@@ -1092,7 +1102,11 @@ export default function PopupCont({
         <Switch
           className="kt-popup-main-switch"
           checked={translationEnabled}
-          disabled={!canTranslatePage || translationTogglePending}
+          disabled={
+            !canTranslatePage ||
+            translationTogglePending ||
+            pageSwitch === PAGE_SWITCH.PAUSED
+          }
           onChange={(_event, checked) => void handleTransToggle(checked)}
           onClick={(event) => event.stopPropagation()}
           inputProps={{

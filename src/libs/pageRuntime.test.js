@@ -44,6 +44,7 @@ jest.mock("./rules", () => {
           rule?.enabled !== false &&
           matchesRulePattern(href, rule.pattern)
       ),
+    saveRule: jest.fn(async () => ({})),
   };
 });
 const {
@@ -269,23 +270,57 @@ describe("PageRuntime", () => {
     };
   }
 
-  test("a bare toggle while paused flips the saved choice and stays paused", async () => {
+  test("a bare toggle flips the current policy when the page is not paused", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();
     await harness.runtime.start();
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "true" }],
+    });
+    await harness.runtime.whenIdle();
+    harness.runtime.setManualSwitch();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
+    harness.runtime.setManualSwitch();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+  });
+
+  test("a toggle during pause changes nothing and leaves the policy", async () => {
+    const { saveRule } = require("./rules");
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "true" }],
+    });
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "on" })
+    );
+
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
+    const callsWhilePaused = harness.managers[0].applyTarget.mock.calls.length;
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({ state: "paused" })
     );
 
+    harness.runtime.setManualSwitch(true);
+    harness.runtime.setManualSwitch(false);
     harness.runtime.setManualSwitch();
-    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        state: "paused",
-        rule: expect.objectContaining({ transOpen: "false" }),
-      })
+    expect(harness.managers[0].applyTarget).toHaveBeenCalledTimes(
+      callsWhilePaused
     );
+    expect(saveRule).not.toHaveBeenCalled();
 
     harness.onSetting(pageSetting(""));
     await harness.runtime.whenIdle();
@@ -295,18 +330,7 @@ describe("PageRuntime", () => {
         rule: expect.objectContaining({ transOpen: "true" }),
       })
     );
-
-    harness.onSetting(pageSetting("localhost"));
-    await harness.runtime.whenIdle();
-    harness.runtime.setManualSwitch();
-    harness.onSetting(pageSetting(""));
-    await harness.runtime.whenIdle();
-    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        state: "off",
-        rule: expect.objectContaining({ transOpen: "false" }),
-      })
-    );
+    expect(saveRule).not.toHaveBeenCalled();
   });
 
   test("a manually enabled page stays on after a blacklist entry temporarily matches", async () => {

@@ -1603,6 +1603,25 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(translator.toggleMouseHover).toHaveBeenCalledTimes(1);
   });
 
+  test("FAB and context-menu toggles do nothing while the page is paused", () => {
+    const onManualSwitch = jest.fn();
+    const manager = createManager({
+      onManualSwitch,
+      pageSwitch: "paused",
+      rule: { transOpen: "false" },
+    });
+    manager.start();
+    sendRuntimeMessage({ action: "trans-toggle" });
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: true } });
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: false } });
+    expect(onManualSwitch).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(sendRuntimeMessage({ action: "trans-getrule" }).pageSwitch).toBe(
+      "paused"
+    );
+  });
+
   test("a bare toggle asks the page runtime instead of the folded transOpen", () => {
     const onManualSwitch = jest.fn();
     const manager = createManager({

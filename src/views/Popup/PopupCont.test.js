@@ -976,33 +976,35 @@ describe("PopupCont capability parity", () => {
     pausedView.cleanup();
   });
 
-  test("keeps the switch paused when the page confirms the blacklist", async () => {
+  test("a paused page switch is off, disabled, and does not write", async () => {
     const processActions = jest.fn(() => ({
       rule: { transOpen: "true" },
-      pageSwitch: "paused",
+      pageSwitch: "on",
     }));
     const setRule = jest.fn();
     const view = renderPopupCont({
       processActions,
       setRule,
       pageSwitch: "paused",
-      rule: { transOpen: "false" },
+      rule: { transOpen: "true" },
     });
     await flushEffects();
     const mainSwitch = view.container.querySelector(
       'input[aria-label="popup_translate_page"]'
     );
+    expect(mainSwitch.checked).toBe(false);
+    expect(mainSwitch.disabled).toBe(true);
     await act(async () => {
       mainSwitch.click();
+      view.container.querySelector(".kt-popup-hero").click();
       await Promise.resolve();
     });
 
-    expect(processActions).toHaveBeenCalledWith({
-      action: MSG_TRANS_TOGGLE,
-      args: { enabled: true },
-    });
+    expect(processActions).not.toHaveBeenCalled();
+    expect(saveRule).not.toHaveBeenCalled();
     expect(setRule).not.toHaveBeenCalled();
     expect(mainSwitch.checked).toBe(false);
+    expect(mainSwitch.disabled).toBe(true);
     expect(
       view.container.querySelector(".kt-popup-hero").dataset.pageSwitch
     ).toBe("paused");

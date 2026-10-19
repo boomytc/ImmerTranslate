@@ -1131,16 +1131,14 @@ export default class TranslatorManager {
     let publishRule = false;
     switch (action) {
       case MSG_TRANS_TOGGLE: {
+        if (this.#pageSwitch === PAGE_SWITCH.PAUSED) break;
         const explicit = typeof args?.enabled === "boolean";
         let enabled = explicit ? args.enabled : null;
         if (this.#onManualSwitch) {
-          // 不传布尔时由页面运行时按 pageSwitchState 翻转，不用折叠后的 transOpen。
           this.#onManualSwitch(explicit ? args.enabled : undefined);
           if (this.#pageSwitch === PAGE_SWITCH.ON) enabled = true;
           else if (this.#pageSwitch === PAGE_SWITCH.OFF) enabled = false;
           else enabled = null;
-        } else if (this.#pageSwitch === PAGE_SWITCH.PAUSED) {
-          enabled = null;
         } else {
           const currentlyOn =
             this.#pageSwitch === PAGE_SWITCH.ON ||
