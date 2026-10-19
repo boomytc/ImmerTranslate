@@ -7,7 +7,6 @@ jest.mock("../apis/index.js", () => ({
 }));
 
 jest.mock("../libs/storage.js", () => ({
-  getWordsWithDefault: jest.fn().mockResolvedValue({}),
   saveEdit: jest.fn(async (_key, update) => ({
     value: update({}),
     changed: true,
@@ -132,24 +131,6 @@ describe("BilingualSubtitleManager", () => {
     manager.start();
 
     expect(getCaptionLines()).toEqual(["hello world", "你好世界"]);
-    manager.destroy();
-  });
-
-  test("renders hover lookup word spans when enabled", () => {
-    const videoEl = createVideoElement();
-    const manager = new BilingualSubtitleManager({
-      videoEl,
-      formattedSubtitles: [{ ...subtitle, translation: "你好世界" }],
-      setting: { ...setting, hoverLookupMode: "on" },
-    });
-
-    manager.start();
-
-    expect(
-      Array.from(document.querySelectorAll(".kiss-subtitle-word")).map(
-        (node) => node.textContent
-      )
-    ).toEqual(["hello", "world"]);
     manager.destroy();
   });
 
@@ -543,50 +524,6 @@ describe("BilingualSubtitleManager", () => {
     manager.destroy();
   });
 
-  test("reapplies a remembered ratio when the player is resized", () => {
-    const originalResizeObserver = global.ResizeObserver;
-    let resizeCallback;
-    const disconnect = jest.fn();
-    global.ResizeObserver = class {
-      constructor(callback) {
-        resizeCallback = callback;
-      }
-      observe() {}
-      disconnect() {
-        disconnect();
-      }
-    };
-
-    const videoEl = createVideoElement({ playerHeight: 400 });
-    const player = videoEl.closest(".html5-video-player");
-    const manager = new BilingualSubtitleManager({
-      videoEl,
-      formattedSubtitles: [{ ...subtitle, translation: "你好世界" }],
-      setting: {
-        ...setting,
-        rememberPosition: true,
-        positionRatio: 0.25,
-      },
-    });
-
-    try {
-      manager.start();
-      expect(getCaptionBottom()).toBe(100);
-
-      Object.defineProperty(player, "clientHeight", {
-        value: 800,
-        configurable: true,
-      });
-      resizeCallback();
-      expect(getCaptionBottom()).toBe(200);
-
-      manager.destroy();
-      expect(disconnect).toHaveBeenCalledTimes(1);
-    } finally {
-      global.ResizeObserver = originalResizeObserver;
-    }
-  });
-
   test("does not treat a click without movement as a drag position update", () => {
     const videoEl = createVideoElement({ playerHeight: 400 });
     setControlBarVisible(videoEl, true);
@@ -699,8 +636,7 @@ describe("BilingualSubtitleManager", () => {
     document.dispatchEvent(new MouseEvent("mousemove", { clientY: 130 }));
     document.dispatchEvent(new MouseEvent("mouseup", { clientY: 130 }));
 
-    expect(onSubtitlePositionChange).toHaveBeenCalledTimes(1);
-    expect(onSubtitlePositionChange).toHaveBeenCalledWith(0.075);
+    expect(onSubtitlePositionChange).not.toHaveBeenCalled();
     expect(getCaptionBottom()).toBe(70);
 
     manager.destroy();

@@ -31,7 +31,7 @@ test("preserves metadata updates from independent pages sharing storage", async 
   try {
     const first = newPageStorage();
     const second = newPageStorage();
-    const { STOKEY_SYNC, KV_SETTING_KEY, KV_WORDS_KEY } = require("../config");
+    const { STOKEY_SYNC, KV_SETTING_KEY, KV_RULES_KEY } = require("../config");
     localStorage.clear();
     await first.storage.setObj(STOKEY_SYNC, { syncMeta: {} });
 
@@ -41,13 +41,13 @@ test("preserves metadata updates from independent pages sharing storage", async 
         syncMeta: { [KV_SETTING_KEY]: { updateAt: 1 } },
       }),
       second.putSync({
-        syncMeta: { [KV_WORDS_KEY]: { updateAt: 2 } },
+        syncMeta: { [KV_RULES_KEY]: { updateAt: 2 } },
       }),
     ]);
 
     expect(
       Object.keys((await first.getSyncWithDefault()).syncMeta).sort()
-    ).toEqual([KV_SETTING_KEY, KV_WORDS_KEY].sort());
+    ).toEqual([KV_SETTING_KEY, KV_RULES_KEY].sort());
   } finally {
     if (originalLocks) Object.defineProperty(navigator, "locks", originalLocks);
     else delete navigator.locks;

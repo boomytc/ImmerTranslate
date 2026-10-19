@@ -355,7 +355,6 @@ function createManager({
     },
     rule,
     fabConfig: { isHide: false },
-    favWords: [],
     isIframe,
     isUserscript,
     transboxOnly,

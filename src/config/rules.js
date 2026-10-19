@@ -1,6 +1,6 @@
 /**
  * @file rules.js
- * @description 网页翻译规则相关的配置参数。定义匹配选择器、翻译时机、段落切分、生词高亮策略以及兜底和内置的定制网站翻译规则。
+ * @description 网页翻译规则相关的配置参数。定义匹配选择器、翻译时机、段落切分以及兜底和内置的定制网站翻译规则。
  */
 
 import { OPT_TRANS_MICROSOFT } from "./api";
@@ -23,16 +23,6 @@ export const OPT_SPLIT_PARAGRAPH_ALL = [
   OPT_SPLIT_PARAGRAPH_DISABLE,
   OPT_SPLIT_PARAGRAPH_PUNCTUATION,
   OPT_SPLIT_PARAGRAPH_TEXTLENGTH,
-];
-
-// --- 生词本生词高亮高频词的高亮策略 ---
-export const OPT_HIGHLIGHT_WORDS_DISABLE = "highlight_disable"; // 不对生词进行高亮
-export const OPT_HIGHLIGHT_WORDS_BEFORETRANS = "highlight_beforetrans"; // 在翻译前（即原文中）高亮生词
-export const OPT_HIGHLIGHT_WORDS_AFTERTRANS = "highlight_aftertrans"; // 在翻译后（即译文中）高亮生词
-export const OPT_HIGHLIGHT_WORDS_ALL = [
-  OPT_HIGHLIGHT_WORDS_DISABLE,
-  OPT_HIGHLIGHT_WORDS_BEFORETRANS,
-  OPT_HIGHLIGHT_WORDS_AFTERTRANS,
 ];
 
 // 默认的待翻译元素选择器：包含主要的标题、列表、段落及引用块
@@ -81,7 +71,6 @@ export const DEFAULT_RULE = {
   ignoreSelector: "", // 额外指定不进行翻译的 CSS 屏蔽选择器
   splitParagraph: GLOBAL_KEY, // 拆分长段落的策略
   splitLength: 0, // 段落切分触发字符长度阈值
-  highlightWords: GLOBAL_KEY, // 生词高亮的触发时机
 };
 
 // 全局兜底规则：当网页没有匹配的特定规则时，采用此默认规则
@@ -121,7 +110,6 @@ export const GLOBLA_RULE = {
   ignoreSelector: DEFAULT_IGNORE_SELECTOR,
   splitParagraph: OPT_SPLIT_PARAGRAPH_DISABLE,
   splitLength: 100,
-  highlightWords: OPT_HIGHLIGHT_WORDS_DISABLE,
   transOrder: "original-first", // 文本顺序：原文在上 ("original-first") 或 译文在上 ("translation-first")
 };
 

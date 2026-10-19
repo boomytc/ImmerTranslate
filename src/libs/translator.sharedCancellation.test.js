@@ -429,7 +429,6 @@ describe("translator cancellation leaves other callers running", () => {
         transTitle: "false",
       },
       fabConfig: { isHide: true },
-      favWords: [],
       isIframe: true,
       isUserscript: false,
     });

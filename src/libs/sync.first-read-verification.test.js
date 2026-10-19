@@ -8,16 +8,15 @@ import {
   apiUpdateGistFile,
 } from "../apis";
 import {
-  KV_WORDS_KEY,
+  KV_RULES_KEY,
   OPT_SYNCTYPE_GIST,
   OPT_SYNCTYPE_WEBDAV,
   STOKEY_SYNC,
-  STOKEY_WORDS,
+  STOKEY_RULES,
 } from "../config";
 import { getSyncWithDefault, putSync, storage } from "./storage";
-import { trySyncWords } from "./sync";
+import { trySyncRules } from "./sync";
 import { decryptSyncValue, encryptSyncValue } from "./syncCrypto";
-import { useFavWords } from "../hooks/FavWords";
 import { findStorageState } from "./storageState";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -70,7 +69,7 @@ const CORRECT_KEY = "correct-review-passphrase";
 const WRONG_KEY = "incorrect-review-passphrase";
 const CLOUD_WORDS = { irreplaceable: { createdAt: 1 } };
 const LOCAL_WORDS = { "new-local-word": { createdAt: 100000 } };
-const GIST_FILENAME = `sync-words_${KV_WORDS_KEY}`;
+const GIST_FILENAME = `sync-rules_${KV_RULES_KEY}`;
 const PROVIDERS = [
   ["WebDAV", OPT_SYNCTYPE_WEBDAV],
   ["Gist", OPT_SYNCTYPE_GIST],
@@ -85,7 +84,7 @@ function deferred() {
 }
 
 async function seedConfiguration(syncType, syncEncryptKey = CORRECT_KEY) {
-  await storage.setObj(STOKEY_WORDS, {});
+  await storage.setObj(STOKEY_RULES, {});
   await storage.setObj(STOKEY_SYNC, {
     syncType,
     syncUrl:
@@ -101,7 +100,7 @@ async function seedConfiguration(syncType, syncEncryptKey = CORRECT_KEY) {
 
 async function createRemote() {
   let remote = {
-    key: KV_WORDS_KEY,
+    key: KV_RULES_KEY,
     value: await encryptSyncValue(JSON.stringify(CLOUD_WORDS), CORRECT_KEY),
     updateAt: 50000,
   };
@@ -149,10 +148,10 @@ async function retainEditAfterOfflineAttempt(remote) {
   remote.beforeRead(() => {
     throw new Error("The first remote request is offline");
   });
-  await trySyncWords();
+  await trySyncRules();
   remote.beforeRead(undefined);
-  await storage.saveEdit(STOKEY_WORDS, LOCAL_WORDS, KV_WORDS_KEY);
-  expect((await getSyncWithDefault()).syncMeta[KV_WORDS_KEY]).toMatchObject({
+  await storage.saveEdit(STOKEY_RULES, LOCAL_WORDS, KV_RULES_KEY);
+  expect((await getSyncWithDefault()).syncMeta[KV_RULES_KEY]).toMatchObject({
     pendingUpload: true,
     updateAt: 100000,
   });
@@ -176,16 +175,16 @@ describe.each(PROVIDERS)(
       await seedConfiguration(type, WRONG_KEY);
       const remote = await createRemote();
       const originalPacket = remote.packet;
-      await trySyncWords();
+      await trySyncRules();
       expect(remote.writes).toHaveLength(0);
-      await storage.saveEdit(STOKEY_WORDS, LOCAL_WORDS, KV_WORDS_KEY);
+      await storage.saveEdit(STOKEY_RULES, LOCAL_WORDS, KV_RULES_KEY);
       for (let retry = 0; retry < 3; retry += 1) {
-        await trySyncWords();
+        await trySyncRules();
         expect(remote.writes).toHaveLength(0);
         expect(remote.packet).toEqual(originalPacket);
       }
-      expect(await storage.getObj(STOKEY_WORDS)).toEqual(LOCAL_WORDS);
-      expect((await getSyncWithDefault()).syncMeta[KV_WORDS_KEY]).toMatchObject(
+      expect(await storage.getObj(STOKEY_RULES)).toEqual(LOCAL_WORDS);
+      expect((await getSyncWithDefault()).syncMeta[KV_RULES_KEY]).toMatchObject(
         {
           pendingUpload: true,
           updateAt: 100000,
@@ -200,14 +199,14 @@ describe.each(PROVIDERS)(
       await seedConfiguration(type);
       const remote = await createRemote();
       await retainEditAfterOfflineAttempt(remote);
-      await trySyncWords();
+      await trySyncRules();
       expect(remote.writes).toHaveLength(1);
       await expect(
         decryptSyncValue(remote.packet.value, CORRECT_KEY)
       ).resolves.toMatchObject({ value: JSON.stringify(LOCAL_WORDS) });
-      const metadata = (await getSyncWithDefault()).syncMeta[KV_WORDS_KEY];
+      const metadata = (await getSyncWithDefault()).syncMeta[KV_RULES_KEY];
       expect(metadata).toEqual({ updateAt: 100000, syncAt: 100000 });
-      expect(await storage.getObj(STOKEY_WORDS)).toEqual(LOCAL_WORDS);
+      expect(await storage.getObj(STOKEY_RULES)).toEqual(LOCAL_WORDS);
     });
 
     test.each(["authenticated ciphertext", "invalid legacy JSON"])(
@@ -225,10 +224,10 @@ describe.each(PROVIDERS)(
           remote.setValue("{incomplete JSON");
         }
         const originalPacket = remote.packet;
-        await trySyncWords();
+        await trySyncRules();
         expect(remote.writes).toHaveLength(0);
         expect(remote.packet).toEqual(originalPacket);
-        expect(await storage.getObj(STOKEY_WORDS)).toEqual(LOCAL_WORDS);
+        expect(await storage.getObj(STOKEY_RULES)).toEqual(LOCAL_WORDS);
       }
     );
 
@@ -245,7 +244,7 @@ describe.each(PROVIDERS)(
           started.resolve();
           await resume.promise;
         });
-        const pending = trySyncWords();
+        const pending = trySyncRules();
         try {
           await started.promise;
           if (change === "destination") {
@@ -266,7 +265,7 @@ describe.each(PROVIDERS)(
           await pending;
           expect(remote.writes).toHaveLength(0);
           expect(remote.packet).toEqual(originalPacket);
-          expect(await storage.getObj(STOKEY_WORDS)).toEqual(LOCAL_WORDS);
+          expect(await storage.getObj(STOKEY_RULES)).toEqual(LOCAL_WORDS);
           expect((await getSyncWithDefault()).syncMeta).toEqual(
             metadataAfterChange
           );
@@ -284,14 +283,14 @@ test("a pending first upload reuses the Gist created by verification", async () 
   await putSync({ syncUrl: "" });
   await putSync({
     syncMeta: {
-      [KV_WORDS_KEY]: {
+      [KV_RULES_KEY]: {
         updateAt: 100000,
         firstAttemptAt: 90000,
         pendingUpload: true,
       },
     },
   });
-  await storage.setObj(STOKEY_WORDS, LOCAL_WORDS);
+  await storage.setObj(STOKEY_RULES, LOCAL_WORDS);
   let createdPacket;
   // A new Gist may not yet appear in the eventually updated listing response.
   apiListGists.mockResolvedValue([]);
@@ -305,7 +304,7 @@ test("a pending first upload reuses the Gist created by verification", async () 
   apiUpdateGistFile.mockImplementation(async (_id, _token, _file, content) => {
     createdPacket = JSON.parse(content);
   });
-  await trySyncWords();
+  await trySyncRules();
   expect(apiCreateGist).toHaveBeenCalledTimes(1);
   expect((await getSyncWithDefault()).syncUrl).toBe("newly-created-gist");
   expect(createdPacket.updateAt).toBe(100000);
@@ -314,60 +313,40 @@ test("a pending first upload reuses the Gist created by verification", async () 
   ).resolves.toMatchObject({ value: JSON.stringify(LOCAL_WORDS) });
 });
 
-test.each(["manual", "automatic"])(
-  "the vocabulary hook preserves the backup on %s sync after a wrong-passphrase failure",
-  async (mode) => {
-    await seedConfiguration(OPT_SYNCTYPE_WEBDAV, WRONG_KEY);
-    const remote = await createRemote();
-    const originalPacket = remote.packet;
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    let hook;
-    function Host() {
-      hook = useFavWords();
-      return null;
-    }
-    try {
-      await act(async () => {
-        root.render(<Host />);
-      });
-      await act(async () => {
-        for (let step = 0; step < 100; step += 1) await Promise.resolve();
-      });
-      await act(async () => {
-        await trySyncWords();
-      });
-      expect(remote.writes).toHaveLength(0);
-      await act(async () => {
-        hook.toggleFav("new-local-word");
-      });
-      await act(async () => {
-        jest.advanceTimersByTime(350);
-        for (let step = 0; step < 100; step += 1) await Promise.resolve();
-      });
-      expect(hook.favWords).toEqual(LOCAL_WORDS);
-      await act(async () => {
-        if (mode === "manual") {
-          await trySyncWords();
-        } else {
-          jest.advanceTimersByTime(3000);
-          await findStorageState(STOKEY_WORDS).enqueueSync(async () => {});
-        }
-      });
-      expect(remote.writes).toHaveLength(0);
-      expect(remote.packet).toEqual(originalPacket);
-      expect(hook.favWords).toEqual(LOCAL_WORDS);
-      expect(await storage.getObj(STOKEY_WORDS)).toEqual(LOCAL_WORDS);
-      await expect(
-        decryptSyncValue(remote.packet.value, CORRECT_KEY)
-      ).resolves.toMatchObject({ value: JSON.stringify(CLOUD_WORDS) });
-    } finally {
-      const state = findStorageState(STOKEY_WORDS);
-      state?.markSynced(state.revision);
-      act(() => root.unmount());
-      container.remove();
-      jest.clearAllTimers();
-    }
+test("a local edit preserves the backup on manual sync after a wrong-passphrase failure", async () => {
+  await seedConfiguration(OPT_SYNCTYPE_WEBDAV, WRONG_KEY);
+  const remote = await createRemote();
+  const originalPacket = remote.packet;
+  try {
+    await act(async () => {
+      await trySyncRules();
+    });
+    expect(remote.writes).toHaveLength(0);
+    await act(async () => {
+      await storage.saveEdit(
+        STOKEY_RULES,
+        (current) => ({
+          ...current,
+          "new-local-word": { createdAt: Date.now() },
+        }),
+        KV_RULES_KEY
+      );
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(350);
+      for (let step = 0; step < 100; step += 1) await Promise.resolve();
+    });
+    await act(async () => {
+      await trySyncRules();
+    });
+    expect(remote.writes).toHaveLength(0);
+    expect(remote.packet).toEqual(originalPacket);
+    await expect(
+      decryptSyncValue(remote.packet.value, CORRECT_KEY)
+    ).resolves.toMatchObject({ value: JSON.stringify(CLOUD_WORDS) });
+  } finally {
+    const state = findStorageState(STOKEY_RULES);
+    state?.markSynced(state.revision);
+    jest.clearAllTimers();
   }
-);
+});

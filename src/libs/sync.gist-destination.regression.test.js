@@ -1,7 +1,7 @@
 import { apiListGists, apiGetGist } from "../apis";
 import { storage, putSync, getSync } from "./storage";
 import { syncData } from "./sync";
-import { STOKEY_SYNC, KV_WORDS_KEY, OPT_SYNCTYPE_GIST } from "../config";
+import { STOKEY_SYNC, KV_RULES_KEY, OPT_SYNCTYPE_GIST } from "../config";
 
 jest.mock("./client", () => ({ isExt: false, isGm: false }));
 jest.mock("./browser", () => ({ isOptions: () => true }));
@@ -42,7 +42,7 @@ test("an old Gist lookup cannot replace a destination edited during its request"
     syncUrl: "",
     syncKey: "review-token",
     syncEncryptKey: "review-passphrase",
-    syncMeta: { [KV_WORDS_KEY]: { updateAt: 20, syncAt: 21 } },
+    syncMeta: { [KV_RULES_KEY]: { updateAt: 20, syncAt: 21 } },
   });
   const started = deferred();
   const resume = deferred();
@@ -55,16 +55,16 @@ test("an old Gist lookup cannot replace a destination edited during its request"
   });
   apiGetGist.mockResolvedValue({
     files: {
-      [KV_WORDS_KEY]: {
+      [KV_RULES_KEY]: {
         content: JSON.stringify({
-          key: KV_WORDS_KEY,
+          key: KV_RULES_KEY,
           value: 'cipher:{"original":{}}',
           updateAt: 50,
         }),
       },
     },
   });
-  const request = syncData(KV_WORDS_KEY, { original: {} }).catch((error) => {
+  const request = syncData(KV_RULES_KEY, { original: {} }).catch((error) => {
     expect(error.message).toMatch(/destination changed/i);
   });
   try {

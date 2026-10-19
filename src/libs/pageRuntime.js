@@ -111,7 +111,6 @@ export class PageRuntime {
         ),
         globalTransOpen: SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE,
         setting: withFeatureBlacklists(this.#setting, this.#href),
-        favWords: options.favWords || [],
       };
     }
     const blocked = matchingBlacklistEntries(
@@ -213,10 +212,6 @@ export class PageRuntime {
         );
       }
     }
-    const favWords = this.options.getFavWords
-      ? await this.options.getFavWords(rule)
-      : this.options.favWords || [];
-    if (generation !== this.#generation) return;
     const context = {
       rule: { ...(rule || {}) },
       policy,
@@ -224,7 +219,6 @@ export class PageRuntime {
       blacklistHit,
       globalTransOpen: globalTransOpenOf(this.#rules),
       setting,
-      favWords,
     };
     this.#rule = context.rule;
     this.#apply(context);
@@ -241,7 +235,6 @@ export class PageRuntime {
         setting: target.setting,
         rule: target.rule,
         fabConfig: this.options.fabConfig,
-        favWords: context.favWords,
         isIframe: Boolean(this.options.isIframe),
         isUserscript: Boolean(this.options.isUserscript),
         transboxOnly: Boolean(this.options.transboxOnly),

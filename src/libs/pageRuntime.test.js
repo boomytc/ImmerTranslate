@@ -138,7 +138,6 @@ describe("PageRuntime", () => {
           if (index >= 0) listeners.splice(index, 1);
         };
       },
-      getFavWords: async () => [],
       ...options,
     });
     runtimes.push(runtime);

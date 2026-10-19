@@ -4,7 +4,6 @@ import { createClient } from "webdav";
 import { SettingProvider, useSetting } from "./Setting";
 import { useDarkMode } from "./ColorMode";
 import { useSync } from "./Sync";
-import { useFavWords } from "./FavWords";
 import { useRules } from "./Rules";
 import {
   storage,
@@ -12,16 +11,14 @@ import {
   getSyncWithDefault,
   updateSyncState,
 } from "../libs/storage";
-import { syncSettingAndRules, trySyncWords } from "../libs/sync";
+import { syncSettingAndRules, trySyncRules } from "../libs/sync";
 import { findStorageState } from "../libs/storageState";
 import {
   STOKEY_SETTING,
   STOKEY_RULES,
-  STOKEY_WORDS,
   STOKEY_SYNC,
   KV_SETTING_KEY,
   KV_RULES_KEY,
-  KV_WORDS_KEY,
   OPT_SYNCTYPE_WEBDAV,
 } from "../config";
 
@@ -50,7 +47,6 @@ jest.mock("../libs/syncCrypto", () => ({
   }),
 }));
 
-const INITIAL_WORDS = { initial: { createdAt: 1 } };
 const INITIAL_RULES = [
   { pattern: "example.com", enabled: true },
   { pattern: "*" },
@@ -106,39 +102,28 @@ describe("synchronization regression scenarios", () => {
   let settingHook;
   let colorHook;
   let syncHook;
-  let wordsHook;
   let rulesHook;
   let initialSetting;
   let packets;
   let remote;
-
-  function WordsRoute() {
-    wordsHook = useFavWords();
-    return null;
-  }
 
   function RulesRoute() {
     rulesHook = useRules();
     return null;
   }
 
-  function Host({ showWords = true }) {
+  function Host({ showRules = true }) {
     settingHook = useSetting();
     colorHook = useDarkMode();
     syncHook = useSync();
-    return (
-      <>
-        {showWords && <WordsRoute />}
-        <RulesRoute />
-      </>
-    );
+    return showRules ? <RulesRoute /> : null;
   }
 
-  async function render(showWords = true) {
+  async function render(showRules = true) {
     await act(async () => {
       root.render(
         <SettingProvider context="options">
-          <Host showWords={showWords} />
+          <Host showRules={showRules} />
         </SettingProvider>
       );
     });
@@ -157,7 +142,6 @@ describe("synchronization regression scenarios", () => {
     };
     await storage.setObj(STOKEY_SETTING, initialSetting);
     await storage.setObj(STOKEY_RULES, INITIAL_RULES);
-    await storage.setObj(STOKEY_WORDS, INITIAL_WORDS);
     await storage.setObj(STOKEY_SYNC, {
       syncType: OPT_SYNCTYPE_WEBDAV,
       syncUrl: "https://sync.example.invalid",
@@ -165,7 +149,7 @@ describe("synchronization regression scenarios", () => {
       syncKey: "test-token",
       syncEncryptKey: "test-passphrase",
       syncMeta: Object.fromEntries(
-        [KV_SETTING_KEY, KV_RULES_KEY, KV_WORDS_KEY].map((key) => [
+        [KV_SETTING_KEY, KV_RULES_KEY].map((key) => [
           key,
           { updateAt: 90000, syncAt: 90001 },
         ])
@@ -174,7 +158,6 @@ describe("synchronization regression scenarios", () => {
     packets = {
       [KV_SETTING_KEY]: packet(KV_SETTING_KEY, initialSetting),
       [KV_RULES_KEY]: packet(KV_RULES_KEY, INITIAL_RULES),
-      [KV_WORDS_KEY]: packet(KV_WORDS_KEY, INITIAL_WORDS),
     };
     remote = makeRemote(packets);
     createClient.mockReturnValue(remote);
@@ -188,12 +171,7 @@ describe("synchronization regression scenarios", () => {
     jest.restoreAllMocks();
     act(() => root.unmount());
     await flush();
-    for (const key of [
-      STOKEY_WORDS,
-      STOKEY_RULES,
-      STOKEY_SETTING,
-      STOKEY_SYNC,
-    ]) {
+    for (const key of [STOKEY_RULES, STOKEY_SETTING, STOKEY_SYNC]) {
       await findStorageState(key)?.remove();
     }
     await flush();
@@ -201,17 +179,19 @@ describe("synchronization regression scenarios", () => {
     jest.useRealTimers();
   });
 
-  test("uploads a saved word after leaving and returning to its route", async () => {
-    await act(async () => wordsHook.toggleFav("saved"));
+  test("uploads a saved rule after leaving and returning to its route", async () => {
+    await act(async () =>
+      rulesHook.add({ pattern: "saved.example", enabled: false })
+    );
     await flush();
-    const expected = await storage.getObj(STOKEY_WORDS);
+    const expected = await storage.getObj(STOKEY_RULES);
     await render(false);
     await advance(6000);
     await render(true);
     await advance(6000);
 
-    expect(wordsHook.favWords).toEqual(expected);
-    expect(packetValue(packets[KV_WORDS_KEY])).toEqual(expected);
+    expect(rulesHook.list).toEqual(expected);
+    expect(packetValue(packets[KV_RULES_KEY])).toEqual(expected);
   });
 
   test("uploads a theme edit when manual sync immediately follows it", async () => {
@@ -279,28 +259,33 @@ describe("synchronization regression scenarios", () => {
         ...current,
         syncMeta: {
           ...current.syncMeta,
-          [KV_WORDS_KEY]: { updateAt: 90000, syncAt: 0 },
+          [KV_RULES_KEY]: { updateAt: 90000, syncAt: 0 },
         },
       }));
     });
-    packets[KV_WORDS_KEY] = packet(
-      KV_WORDS_KEY,
-      { remote: { createdAt: 100500 } },
+    packets[KV_RULES_KEY] = packet(
+      KV_RULES_KEY,
+      [{ pattern: "remote.example", enabled: true }],
       100500
     );
     const blocked = deferred();
     remote.getFileContents.mockImplementationOnce(() => blocked.promise);
-    await act(async () => wordsHook.toggleFav("first"));
+    await act(async () =>
+      rulesHook.add({ pattern: "first.example", enabled: true })
+    );
     await advance(300);
     await advance(2700);
     expect(remote.getFileContents).toHaveBeenCalledTimes(1);
-    await act(async () => wordsHook.toggleFav("second"));
+    await act(async () =>
+      rulesHook.add({ pattern: "second.example", enabled: true })
+    );
     await advance(300);
-    const expected = await storage.getObj(STOKEY_WORDS);
-    expect(Object.keys(expected).sort()).toEqual([
-      "first",
-      "initial",
-      "second",
+    const expected = await storage.getObj(STOKEY_RULES);
+    expect(expected.map((rule) => rule.pattern)).toEqual([
+      "second.example",
+      "first.example",
+      "example.com",
+      "*",
     ]);
 
     await act(async () =>
@@ -310,9 +295,9 @@ describe("synchronization regression scenarios", () => {
     await advance(3000);
     await advance(3000);
 
-    expect(await storage.getObj(STOKEY_WORDS)).toEqual(expected);
-    expect(wordsHook.favWords).toEqual(expected);
-    expect(packetValue(packets[KV_WORDS_KEY])).toEqual(expected);
+    expect(await storage.getObj(STOKEY_RULES)).toEqual(expected);
+    expect(rulesHook.list).toEqual(expected);
+    expect(packetValue(packets[KV_RULES_KEY])).toEqual(expected);
   });
 
   test.each([90000, 95000])(
@@ -335,35 +320,32 @@ describe("synchronization regression scenarios", () => {
   );
 
   test("discards a reply from a destination that the user has replaced", async () => {
-    packets[KV_WORDS_KEY] = packet(
-      KV_WORDS_KEY,
-      { obsolete: { createdAt: 100500 } },
-      100500
-    );
+    const obsoleteRules = [{ pattern: "obsolete.example" }];
+    packets[KV_RULES_KEY] = packet(KV_RULES_KEY, obsoleteRules, 100500);
     const blocked = deferred();
     remote.getFileContents.mockImplementationOnce(() => blocked.promise);
     const alternateUrl = "https://alternate-sync.example.invalid";
-    const alternateWords = { alternate: { createdAt: 100400 } };
+    const alternateRules = [{ pattern: "alternate.example" }];
     const alternatePackets = {
-      [KV_WORDS_KEY]: packet(KV_WORDS_KEY, alternateWords, 100400),
+      [KV_RULES_KEY]: packet(KV_RULES_KEY, alternateRules, 100400),
     };
     const alternateRemote = makeRemote(alternatePackets);
     createClient.mockImplementation((url) =>
       url === alternateUrl ? alternateRemote : remote
     );
-    const first = trySyncWords();
+    const first = trySyncRules();
     await flush();
     expect(remote.getFileContents).toHaveBeenCalledTimes(1);
     await act(async () => syncHook.updateSync({ syncUrl: alternateUrl }));
     await act(async () => {
-      blocked.resolve(JSON.stringify(packets[KV_WORDS_KEY]));
+      blocked.resolve(JSON.stringify(packets[KV_RULES_KEY]));
       await first;
     });
-    expect(await storage.getObj(STOKEY_WORDS)).toEqual(INITIAL_WORDS);
+    expect(await storage.getObj(STOKEY_RULES)).toEqual(INITIAL_RULES);
 
-    await act(async () => trySyncWords());
-    expect(await storage.getObj(STOKEY_WORDS)).toEqual(alternateWords);
-    expect(packetValue(alternatePackets[KV_WORDS_KEY])).toEqual(alternateWords);
+    await act(async () => trySyncRules());
+    expect(await storage.getObj(STOKEY_RULES)).toEqual(alternateRules);
+    expect(packetValue(alternatePackets[KV_RULES_KEY])).toEqual(alternateRules);
     expect(alternateRemote.putFileContents).not.toHaveBeenCalled();
   });
 });

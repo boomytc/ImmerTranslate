@@ -3,11 +3,9 @@ import { createRoot } from "react-dom/client";
 import {
   KV_RULES_KEY,
   KV_SETTING_KEY,
-  KV_WORDS_KEY,
   OPT_SYNCTYPE_GIST,
   STOKEY_RULES,
   STOKEY_SETTING,
-  STOKEY_WORDS,
 } from "../config";
 import FabQuickOptions from "../views/Action/FabQuickOptions";
 import PopupCont from "../views/Popup/PopupCont";
@@ -18,10 +16,8 @@ import {
   getRulesWithDefault,
   getSettingWithDefault,
   getSyncWithDefault,
-  getWordsWithDefault,
   setRules,
   setSetting,
-  setWords,
   storage,
   updateSyncState,
 } from "./storage";
@@ -37,13 +33,10 @@ jest.mock("./storage", () => ({
   updateSyncState: jest.fn(),
   getSettingWithDefault: jest.fn(),
   getRulesWithDefault: jest.fn(),
-  getWordsWithDefault: jest.fn(),
   getSetting: jest.fn(),
   getRules: jest.fn(),
-  getWords: jest.fn(),
   setSetting: jest.fn(),
   setRules: jest.fn(),
-  setWords: jest.fn(),
   storage: { withTransaction: jest.fn(), readSyncSnapshot: jest.fn() },
 }));
 
@@ -160,7 +153,6 @@ describe("ordinary sync lands rules that popup and FAB can read", () => {
         ({
           [STOKEY_SETTING]: setSetting,
           [STOKEY_RULES]: setRules,
-          [STOKEY_WORDS]: setWords,
         })[key](value),
     };
     storage.withTransaction.mockImplementation((operation) =>
@@ -170,7 +162,6 @@ describe("ordinary sync lands rules that popup and FAB can read", () => {
       value: await {
         [STOKEY_SETTING]: getSettingWithDefault,
         [STOKEY_RULES]: getRulesWithDefault,
-        [STOKEY_WORDS]: getWordsWithDefault,
       }[key](),
       syncConfig: await getSyncWithDefault(),
     }));
@@ -194,14 +185,12 @@ describe("ordinary sync lands rules that popup and FAB can read", () => {
       syncMeta: {
         [KV_SETTING_KEY]: { updateAt: 10, syncAt: 1 },
         [KV_RULES_KEY]: { updateAt: 10, syncAt: 1 },
-        [KV_WORDS_KEY]: { updateAt: 10, syncAt: 1 },
       },
     });
     getSettingWithDefault.mockResolvedValue({ setting: true });
     getRulesWithDefault.mockResolvedValue([
       { pattern: "local.example", transOpen: "true" },
     ]);
-    getWordsWithDefault.mockResolvedValue({ hello: true });
     apiGetGist.mockResolvedValue({
       files: {
         [KV_SETTING_KEY]: {
@@ -209,9 +198,6 @@ describe("ordinary sync lands rules that popup and FAB can read", () => {
         },
         [KV_RULES_KEY]: {
           content: encryptedGistFileContent(remoteRules, 50),
-        },
-        [KV_WORDS_KEY]: {
-          content: encryptedGistFileContent({ hello: true }, 50),
         },
       },
     });

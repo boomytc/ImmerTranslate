@@ -152,7 +152,6 @@ export default function Layout() {
         i18n("options_prompts_description"),
       ],
       "/sync": [i18n("options_data_sync"), i18n("options_sync_description")],
-      "/words": [i18n("favorite_words"), i18n("options_words_description")],
       "/about": [i18n("about"), ""],
     };
     return pages[pathname] || pages["/"];

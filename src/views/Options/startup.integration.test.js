@@ -8,17 +8,11 @@ import {
   STOKEY_RULES,
   STOKEY_SETTING,
   STOKEY_SYNC,
-  STOKEY_WORDS,
 } from "../../config";
 import { adaptScript } from "../../libs/gm";
 import { browser } from "../../libs/browser";
 import { storage } from "../../libs/storage";
-import {
-  syncData,
-  trySyncRules,
-  trySyncSetting,
-  trySyncWords,
-} from "../../libs/sync";
+import { syncData, trySyncRules, trySyncSetting } from "../../libs/sync";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -80,7 +74,6 @@ jest.mock("../../libs/sync", () => ({
   syncData: jest.fn(),
   trySyncSetting: jest.fn(),
   trySyncRules: jest.fn(),
-  trySyncWords: jest.fn(),
 }));
 
 jest.mock("./OptionsTheme", () => {
@@ -179,7 +172,6 @@ jest.mock("./SyncSetting", () => mockEmptyPage);
 jest.mock("./Prompts", () => mockEmptyPage);
 jest.mock("./InputSetting", () => mockEmptyPage);
 jest.mock("./Tranbox", () => mockEmptyPage);
-jest.mock("./FavWords", () => mockEmptyPage);
 jest.mock("./MouseHover", () => mockEmptyPage);
 jest.mock("./Subtitle", () => mockEmptyPage);
 jest.mock("./StylesSetting", () => mockEmptyPage);
@@ -274,7 +266,6 @@ describe("Options startup with real storage hooks", () => {
         },
       ],
       [STOKEY_RULES, [{ pattern: "*", marker: "local-rules" }]],
-      [STOKEY_WORDS, {}],
       [STOKEY_SYNC, copy(DEFAULT_SYNC)],
     ]);
     browser.storage.local.get.mockImplementation(async (keys) =>
@@ -297,7 +288,6 @@ describe("Options startup with real storage hooks", () => {
     syncData.mockResolvedValue(undefined);
     trySyncSetting.mockResolvedValue(undefined);
     trySyncRules.mockResolvedValue(undefined);
-    trySyncWords.mockResolvedValue(undefined);
   });
 
   afterEach(async () => {

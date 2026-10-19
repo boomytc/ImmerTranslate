@@ -82,7 +82,6 @@ describe("M11 manual override race", () => {
         onRules = listener;
         return () => {};
       },
-      getFavWords: async () => [],
       ...options,
     });
     runtimes.push(runtime);
