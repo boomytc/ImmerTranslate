@@ -18,6 +18,8 @@ import { acceptsFrameMessage, sendBgMsg } from "./msg";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
+import { ruleApplication } from "./runtimeUpdate";
+import { isSameStorageValue } from "./storageEquality";
 import { getStorageState } from "./storageState";
 import TranslatorManager from "./translatorManager";
 
@@ -152,6 +154,7 @@ export class PageRuntime {
   #href = "";
   #setting;
   #rule;
+  #appliedSetting;
   #manager;
   #closeParked = null;
   #unwatch = () => {};
@@ -160,6 +163,7 @@ export class PageRuntime {
 
   constructor(options = {}) {
     this.#setting = options.setting || {};
+    this.#appliedSetting = this.#setting;
     this.#rule = options.rule || null;
     this.#manager = options.manager || null;
     this.#href = options.href || "";
@@ -180,13 +184,11 @@ export class PageRuntime {
       this.#href
     ).length;
     const ready =
-      blocked || !this.#manager
-        ? this.requestReconcile("start")
-        : Promise.resolve();
+      blocked || !this.#manager ? this.requestReconcile() : Promise.resolve();
     ensureLocationHook();
     const watch = options.watchLocation || watchPageLocation;
     this.#unwatch = watch(() => {
-      void this.requestReconcile("location");
+      void this.requestReconcile();
     });
     const subscribeSetting =
       options.subscribeSetting ||
@@ -197,10 +199,10 @@ export class PageRuntime {
     this.#unsubscribeSetting = subscribeSetting((snapshot) => {
       if (!snapshot?.data || typeof snapshot.data !== "object") return;
       this.#setting = snapshot.data;
-      void this.requestReconcile("setting");
+      void this.requestReconcile();
     });
     this.#unsubscribeRules = subscribeRules(() => {
-      void this.requestReconcile("rules");
+      void this.requestReconcile();
     });
     return ready;
   }
@@ -222,31 +224,26 @@ export class PageRuntime {
     this.#started = false;
   }
 
-  requestReconcile(reason) {
+  requestReconcile() {
     const generation = ++this.#generation;
     this.#queue = this.#queue
-      .then(() => this.#reconcile(generation, reason))
+      .then(() => this.#reconcile(generation))
       .catch((error) => {
-        logger.info("page runtime", reason, error);
+        logger.info("page runtime", error);
       });
     return this.#queue;
   }
 
-  async #reconcile(generation, reason) {
+  async #reconcile(generation) {
     if (generation !== this.#generation) return;
     const href = this.options.getHref
       ? this.options.getHref()
       : window.location.href;
-    const hrefChanged = href !== this.#href;
     this.#href = href;
     if (matchingBlacklistEntries(this.#setting?.blacklist, href).length) {
       this.#park();
       return;
     }
-    // focus / pageshow 会把规则存储重读一遍，子 frame 的地址变化也可能
-    // 误触本 frame 的 location 回调。地址没变时保留运行中的翻译开关。
-    // 显式的 parent 重算仍按 K 继承父页面运行态。
-    if (this.#manager && !hrefChanged && reason !== "parent") return;
     await this.#activate(generation);
   }
 
@@ -301,9 +298,18 @@ export class PageRuntime {
       ? await this.options.getFavWords(rule)
       : this.options.favWords || [];
     if (generation !== this.#generation) return;
+    const previousTransOpen = this.#rule?.transOpen;
     this.#rule = rule;
+    const settingChanged = !isSameStorageValue(this.#appliedSetting, setting);
+    this.#appliedSetting = setting;
     if (this.#manager) {
-      this.#manager.applyLocationRule?.(rule);
+      this.#manager.applyLocationRule?.(
+        ruleApplication({
+          previousTransOpen,
+          rule,
+          setting: settingChanged ? setting : null,
+        })
+      );
       return;
     }
     const fabConfig = this.options.getFabConfig

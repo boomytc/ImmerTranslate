@@ -1416,14 +1416,44 @@ describe("TranslatorManager SPA lifecycle", () => {
   test("applyLocationRule turns translation off and back on with the matched rule", () => {
     const manager = createManager({ rule: { transOpen: "true" } });
     manager.start();
-    manager.applyLocationRule({ transOpen: "false", apiSlug: "deepl" });
+    manager.applyLocationRule({
+      fields: { apiSlug: "deepl" },
+      policy: { transOpen: "false" },
+      setting: null,
+    });
     expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
     expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledWith(
       expect.objectContaining({ transOpen: "false", apiSlug: "deepl" })
     );
     mockTranslatorInstances[0].rule.transOpen = "false";
-    manager.applyLocationRule({ transOpen: "true", apiSlug: "deepl" });
+    manager.applyLocationRule({
+      fields: { apiSlug: "deepl" },
+      policy: { transOpen: "true" },
+      setting: null,
+    });
     expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(1);
+  });
+
+  test("applyLocationRule keeps the live switch when only rule fields change", () => {
+    const manager = createManager({
+      rule: { transOpen: "true", selector: "p" },
+    });
+    manager.start();
+    mockTranslatorInstances[0].rule.transOpen = "true";
+    manager.applyLocationRule({
+      fields: { selector: "article", apiSlug: "deepl" },
+      policy: null,
+      setting: null,
+    });
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selector: "article",
+        apiSlug: "deepl",
+        transOpen: "true",
+      })
+    );
   });
 
   test("continues checking queued controls after a verification rejects", async () => {

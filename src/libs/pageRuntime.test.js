@@ -157,12 +157,18 @@ describe("PageRuntime", () => {
     goViaPage("/auto-translate");
     await runtime.whenIdle();
     expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
-      expect.objectContaining({ transOpen: "true" })
+      expect.objectContaining({
+        policy: { transOpen: "true" },
+        setting: null,
+      })
     );
     goViaPage("/plain-page");
     await runtime.whenIdle();
     expect(managers[0].applyLocationRule).toHaveBeenLastCalledWith(
-      expect.objectContaining({ transOpen: "false" })
+      expect.objectContaining({
+        policy: { transOpen: "false" },
+        setting: null,
+      })
     );
   });
 
@@ -219,7 +225,10 @@ describe("PageRuntime", () => {
     goViaPage("/auto-translate");
     await harness.runtime.whenIdle();
     expect(harness.managers[1].applyLocationRule).toHaveBeenCalledWith(
-      expect.objectContaining({ transOpen: "true" })
+      expect.objectContaining({
+        policy: { transOpen: "true" },
+        setting: null,
+      })
     );
   });
 
@@ -243,7 +252,10 @@ describe("PageRuntime", () => {
     window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
     await runtime.whenIdle();
     expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
-      expect.objectContaining({ transOpen: "true" })
+      expect.objectContaining({
+        policy: { transOpen: "true" },
+        setting: null,
+      })
     );
 
     runtime.stop();
@@ -256,24 +268,105 @@ describe("PageRuntime", () => {
   test("an inserted iframe follows the top frame and is told to restore when it turns off", async () => {
     window.history.pushState({}, "", "/child-embed");
     let parent = { transOpen: true, fabVisible: false };
-    const { runtime, created, managers } = boot({
+    const harness = boot({
       isIframe: true,
       queryParent: async () => parent,
       matchRule: async () => ({ transOpen: "false", apiSlug: "stored" }),
     });
-    await runtime.start();
-    expect(created[0].rule).toMatchObject({
+    await harness.runtime.start();
+    expect(harness.created[0].rule).toMatchObject({
       transOpen: "true",
       apiSlug: "stored",
     });
     parent = { transOpen: false, fabVisible: true };
-    await runtime.requestReconcile("parent");
-    expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
-      expect.objectContaining({ transOpen: "false" })
+    harness.onRules({ data: [{ pattern: "*", transOpen: "false" }] });
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyLocationRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: expect.objectContaining({ apiSlug: "stored" }),
+        policy: { transOpen: "false" },
+      })
     );
   });
 
-  test("a rules refresh does not turn a live translation back off", async () => {
+  test("a selector edit reaches the running page without changing the translation switch", async () => {
+    window.history.pushState({}, "", "/index.html");
+    let matched = { transOpen: "false", selector: "p", pattern: "stored" };
+    const manager = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      applyLocationRule: jest.fn(),
+      rule: { transOpen: "true" },
+    };
+    const harness = boot({
+      manager,
+      rule: { transOpen: "false", selector: "p", pattern: "stored" },
+      matchRule: async () => matched,
+    });
+    await harness.runtime.start();
+    matched = { transOpen: "false", selector: "article", pattern: "stored" };
+    harness.onRules({
+      data: [{ pattern: "localhost", selector: "article", transOpen: "false" }],
+    });
+    await harness.runtime.whenIdle();
+    expect(manager.stop).not.toHaveBeenCalled();
+    expect(manager.applyLocationRule).toHaveBeenCalledWith({
+      fields: { selector: "article", pattern: "stored" },
+      policy: null,
+      setting: null,
+    });
+    expect(manager.rule.transOpen).toBe("true");
+  });
+
+  test("changing the site policy to false stops a running translation", async () => {
+    window.history.pushState({}, "", "/index.html");
+    const { applyRuleUpdate } = require("./runtimeUpdate");
+    const translator = {
+      rule: { transOpen: "true" },
+      disable: jest.fn(),
+      enable: jest.fn(),
+      updateRule: jest.fn(),
+    };
+    const manager = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      rule: { transOpen: "true" },
+      applyLocationRule(update) {
+        const nextRule = applyRuleUpdate({
+          liveTransOpen: translator.rule.transOpen,
+          fields: update.fields,
+          policy: update.policy,
+          disable: () => translator.disable(),
+          updateRule: (rule) => {
+            translator.updateRule(rule);
+            translator.rule = { ...translator.rule, ...rule };
+          },
+          enable: () => translator.enable(),
+        });
+        this.rule = { ...this.rule, ...nextRule };
+      },
+    };
+    let matched = { transOpen: "true", selector: "p", pattern: "stored" };
+    const harness = boot({
+      manager,
+      rule: { transOpen: "true", selector: "p", pattern: "stored" },
+      matchRule: async () => matched,
+    });
+    await harness.runtime.start();
+    matched = { transOpen: "false", selector: "p", pattern: "stored" };
+    harness.onRules({
+      data: [{ pattern: "localhost", selector: "p", transOpen: "false" }],
+    });
+    await harness.runtime.whenIdle();
+    expect(translator.disable).toHaveBeenCalledTimes(1);
+    expect(translator.enable).not.toHaveBeenCalled();
+    expect(manager.rule.transOpen).toBe("false");
+    expect(translator.updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({ selector: "p", transOpen: "false" })
+    );
+  });
+
+  test("a feature blacklist edit is applied without changing the translation switch", async () => {
     window.history.pushState({}, "", "/index.html");
     const manager = {
       start: jest.fn(),
@@ -283,18 +376,44 @@ describe("PageRuntime", () => {
     };
     const harness = boot({
       manager,
-      matchRule: async () => ({ transOpen: "false", pattern: "stored" }),
+      rule: { transOpen: "false", selector: "p" },
+      setting: {
+        blacklist: "",
+        tranboxSetting: { transOpen: true, blacklist: "" },
+        inputRule: { transOpen: true, blacklist: "" },
+        mouseHoverSetting: { useMouseHover: true, blacklist: "" },
+      },
+      matchRule: async () => ({ transOpen: "false", selector: "p" }),
     });
     await harness.runtime.start();
-    harness.onRules({ data: [{ pattern: "*", transOpen: "false" }] });
+    harness.onSetting({
+      data: {
+        blacklist: "",
+        tranboxSetting: { transOpen: true, blacklist: "index.html" },
+        inputRule: { transOpen: true, blacklist: "" },
+        mouseHoverSetting: { useMouseHover: true, blacklist: "" },
+      },
+    });
     await harness.runtime.whenIdle();
     expect(manager.stop).not.toHaveBeenCalled();
-    expect(manager.applyLocationRule).not.toHaveBeenCalled();
     expect(manager.rule.transOpen).toBe("true");
+    expect(manager.applyLocationRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: { selector: "p" },
+        policy: null,
+        setting: expect.objectContaining({
+          tranboxSetting: expect.objectContaining({
+            blacklist: "index.html",
+            transOpen: false,
+          }),
+        }),
+      })
+    );
   });
 
   test("a child frame parking on its own url leaves the top frame and its popup snapshot", async () => {
-    const notify = [];
+    const topNotify = [];
+    const childNotify = [];
     const parked = [];
     let topHref = "http://localhost:8765/spa-frame.html";
     let childHref = "http://localhost:8765/spa2.html";
@@ -304,8 +423,8 @@ describe("PageRuntime", () => {
       inputRule: {},
       mouseHoverSetting: {},
     };
-    const watchLocation = (onChange) => {
-      notify.push(onChange);
+    const watchLocation = (bucket) => (onChange) => {
+      bucket.push(onChange);
       return () => {};
     };
     const listen = (handler, info) => {
@@ -326,7 +445,7 @@ describe("PageRuntime", () => {
       manager: topManager,
       setting,
       getHref: () => topHref,
-      watchLocation,
+      watchLocation: watchLocation(topNotify),
       listen,
       matchRule: async () => ({ transOpen: "false" }),
     });
@@ -334,7 +453,7 @@ describe("PageRuntime", () => {
       isIframe: true,
       setting,
       getHref: () => childHref,
-      watchLocation,
+      watchLocation: watchLocation(childNotify),
       listen,
       matchRule: async () => ({ transOpen: "false", apiSlug: "child" }),
       queryParent: async () => ({ transOpen: true, fabVisible: true }),
@@ -345,7 +464,8 @@ describe("PageRuntime", () => {
     expect(child.created[0].rule.transOpen).toBe("true");
 
     childHref = "http://localhost:8765/spa2.html/blocked";
-    notify.forEach((onChange) => onChange());
+    childNotify.forEach((onChange) => onChange());
+    expect(topNotify.length).toBeGreaterThan(0);
     await Promise.all([top.runtime.whenIdle(), child.runtime.whenIdle()]);
 
     expect(childManager.stop).toHaveBeenCalledTimes(1);
@@ -363,7 +483,8 @@ describe("PageRuntime", () => {
   });
 
   test("a blacklisted top frame does not park a child that misses the blacklist", async () => {
-    const notify = [];
+    const topNotify = [];
+    const childNotify = [];
     let topHref = "http://localhost:8765/spa-frame.html";
     const childHref = "http://localhost:8765/spa2.html";
     const setting = {
@@ -372,8 +493,8 @@ describe("PageRuntime", () => {
       inputRule: {},
       mouseHoverSetting: {},
     };
-    const watchLocation = (onChange) => {
-      notify.push(onChange);
+    const watchLocation = (bucket) => (onChange) => {
+      bucket.push(onChange);
       return () => {};
     };
     const topManager = {
@@ -386,14 +507,14 @@ describe("PageRuntime", () => {
       manager: topManager,
       setting,
       getHref: () => topHref,
-      watchLocation,
+      watchLocation: watchLocation(topNotify),
       matchRule: async () => ({ transOpen: "false" }),
     });
     const child = boot({
       isIframe: true,
       setting,
       getHref: () => childHref,
-      watchLocation,
+      watchLocation: watchLocation(childNotify),
       matchRule: async () => ({ transOpen: "false" }),
       queryParent: async () => ({ transOpen: true, fabVisible: false }),
     });
@@ -402,7 +523,8 @@ describe("PageRuntime", () => {
     const childManager = child.managers[0];
 
     topHref = "http://localhost:8765/spa-frame.html/blocked";
-    notify.forEach((onChange) => onChange());
+    topNotify.forEach((onChange) => onChange());
+    expect(childNotify.length).toBeGreaterThan(0);
     await Promise.all([top.runtime.whenIdle(), child.runtime.whenIdle()]);
 
     expect(topManager.stop).toHaveBeenCalledTimes(1);

@@ -8,6 +8,7 @@ import {
 } from "../config";
 import { browser } from "./browser";
 import { acceptsFrameMessage } from "./msg";
+import { applyRuleUpdate } from "./runtimeUpdate";
 import { Translator } from "./translator";
 import { InputTranslator } from "./inputTranslate";
 import { TransboxManager } from "./tranbox";
@@ -294,16 +295,54 @@ export default class TranslatorManager {
     };
   }
 
-  applyLocationRule(rule) {
-    if (!this.#isActive || !rule) return;
-    const wasOn = this._translator?.rule?.transOpen === "true";
-    const nextOn = rule.transOpen === "true";
-    this.#rule = this.#cloneConfig(rule);
-    if (!this._translator) return;
-    if (wasOn && !nextOn) this._translator.disable();
-    this._translator.updateRule(rule);
-    if (!wasOn && nextOn) this._translator.enable();
+  applyLocationRule(update) {
+    if (!this.#isActive || !update?.fields) return;
+    if (update.setting) this.#applyRuntimeSetting(update.setting);
+    if (!this._translator) {
+      const nextTransOpen = update.policy
+        ? update.policy.transOpen
+        : this.#rule?.transOpen;
+      this.#rule = this.#cloneConfig({
+        ...update.fields,
+        transOpen: nextTransOpen,
+      });
+      return;
+    }
+    const nextRule = applyRuleUpdate({
+      liveTransOpen: this._translator.rule?.transOpen,
+      fields: update.fields,
+      policy: update.policy,
+      disable: () => this._translator.disable(),
+      updateRule: (rule) => this._translator.updateRule(rule),
+      enable: () => this._translator.enable(),
+    });
+    this.#rule = this.#cloneConfig(nextRule);
     publishPageRule(this.#getRuntimeResponse());
+  }
+
+  #applyRuntimeSetting(setting) {
+    const next = this.#cloneConfig(setting);
+    this.#setting = next;
+    if (typeof this._translator?.updateSetting === "function") {
+      this._translator.updateSetting(this.#cloneConfig(next));
+    }
+    if (typeof this._transboxManager?.update === "function") {
+      this._transboxManager.update({
+        tranboxSetting: this.#cloneConfig(next.tranboxSetting),
+      });
+    }
+    if (!this._inputTranslator) return;
+    if (typeof this._inputTranslator.updateConfig === "function") {
+      this._inputTranslator.updateConfig({
+        inputRule: this.#cloneConfig(next.inputRule),
+        transApis: next.transApis,
+        prompts: next.prompts,
+        subtitleSetting: next.subtitleSetting,
+        uiLang: next.uiLang,
+      });
+    }
+    if (next.inputRule?.transOpen) this._inputTranslator.enable();
+    else this._inputTranslator.disable();
   }
 
   #clearRestoreHandle() {

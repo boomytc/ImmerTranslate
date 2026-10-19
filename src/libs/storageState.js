@@ -87,13 +87,26 @@ export function getStorageState(key, defaultValue) {
       // The authoritative reducer will reject and reconcile this edit.
       lastError = error;
     }
-    snapshot = {
+    const next = {
       data,
       isLoading: !initialized,
       isSaving: pending.length > 0,
       isRecovering: recovering,
       error: lastError,
     };
+    // focus / pageshow 会把存储重读一遍。内容和状态都没变时不通知订阅者，
+    // 否则页面会把同一份规则再套一次。
+    if (
+      initialized &&
+      snapshot.isLoading === next.isLoading &&
+      Boolean(snapshot.isSaving) === next.isSaving &&
+      Boolean(snapshot.isRecovering) === next.isRecovering &&
+      (snapshot.error ?? null) === (next.error ?? null) &&
+      isSameStorageValue(snapshot.data, next.data)
+    ) {
+      return;
+    }
+    snapshot = next;
     listeners.forEach((listener) => listener(snapshot));
   };
   const disposeIfIdle = () => {

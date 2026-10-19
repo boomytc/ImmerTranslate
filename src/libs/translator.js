@@ -5352,6 +5352,20 @@ overflow-wrap: anywhere !important;`;
     this.#isInitialized = false;
   }
 
+  updateSetting(setting) {
+    this.#setting = { ...Translator.DEFAULT_OPTIONS, ...setting };
+    if (!this.#setting.mouseHoverSetting) {
+      this.#setting.mouseHoverSetting = {
+        ...(Translator.DEFAULT_OPTIONS.mouseHoverSetting || {}),
+      };
+    }
+    if (this.#setting.mouseHoverSetting.useMouseHover) {
+      this.#enableMouseHover();
+    } else {
+      this.#disableMouseHover();
+    }
+  }
+
   // 更新规则
   updateRule(newRule) {
     if (Object.prototype.hasOwnProperty.call(newRule, "scriptFieldOrigins")) {
