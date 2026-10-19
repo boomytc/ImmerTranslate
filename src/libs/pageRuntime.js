@@ -103,7 +103,6 @@ export class PageRuntime {
     this.#started = true;
     const options = this.options;
     this.#href = options.getHref ? options.getHref() : window.location.href;
-    this.#bindManualSwitch(this.#manager);
     if (this.#manager) {
       // 个人规则还没到。先跟随全局，不用折叠后的 matchRule.transOpen。
       const policy = sitePolicy(SITE_TRANS_OPEN.FOLLOW_GLOBAL);
@@ -252,7 +251,6 @@ export class PageRuntime {
         transboxOnly: Boolean(this.options.transboxOnly),
         onManualSwitch: (enabled) => this.setManualSwitch(enabled),
       });
-      this.#bindManualSwitch(this.#manager);
       this.#manager.start();
       this.options.onActivate?.({
         href: context.href,
@@ -264,12 +262,6 @@ export class PageRuntime {
     }
     if (target.state === "paused") this.#manager.pause?.();
     else this.#manager.resume?.();
-  }
-
-  #bindManualSwitch(manager) {
-    manager?.setManualSwitchHandler?.((enabled) =>
-      this.setManualSwitch(enabled)
-    );
   }
 }
 

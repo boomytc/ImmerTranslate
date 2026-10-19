@@ -236,10 +236,6 @@ export default class TranslatorManager {
     logger.info("TranslatorManager stopped.");
   }
 
-  setManualSwitchHandler(handler) {
-    this.#onManualSwitch = handler;
-  }
-
   /** 黑名单只暂停本页网页翻译，管理器和完整规则都留着。 */
   pause() {
     if (this.#paused) return;
@@ -254,10 +250,11 @@ export default class TranslatorManager {
 
   /**
    * 应用纯函数算出的目标。开或关看 #pageSwitch。
-   * 翻译器自己的 rule.transOpen 只表示它现在是否已经开着。
+   * 未知的旧开关（第一次应用前是 null）算关。
    */
   applyTarget(target) {
     if (!this.#isActive || !target?.rule) return;
+    const wasOn = this.#pageSwitch === PAGE_SWITCH.ON;
     if (target.state) this.#pageSwitch = target.state;
     const setting = this.#foldHover(target.setting, this.#pageSwitch);
     if (setting) this.#applyFoldedSetting(setting);
@@ -283,7 +280,6 @@ export default class TranslatorManager {
       publishPageRule(this.#getRuntimeResponse());
       return;
     }
-    const wasOn = this._translator.rule?.transOpen === "true";
     const nextOn = this.#pageSwitch === PAGE_SWITCH.ON;
     if (wasOn && !nextOn) this._translator.disable();
     this._translator.updateRule(nextRule);

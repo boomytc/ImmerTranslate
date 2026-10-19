@@ -1484,7 +1484,10 @@ describe("TranslatorManager SPA lifecycle", () => {
   });
 
   test("applyTarget turns translation off and back on with the matched rule", () => {
-    const manager = createManager({ rule: { transOpen: "true" } });
+    const manager = createManager({
+      rule: { transOpen: "false" },
+      pageSwitch: "on",
+    });
     manager.start();
     manager.applyTarget({
       state: "off",
@@ -1675,9 +1678,42 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(translator.disable).not.toHaveBeenCalled();
   });
 
+  test("the first target treats an unknown page switch as off", () => {
+    const manager = createManager({
+      rule: { transOpen: "true" },
+      pageSwitch: null,
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    translator.rule.transOpen = "true";
+    manager.applyTarget({
+      state: "on",
+      rule: { transOpen: "false" },
+    });
+    expect(translator.enable).toHaveBeenCalledTimes(1);
+    expect(translator.disable).not.toHaveBeenCalled();
+  });
+
+  test("a later target follows the previous page switch, not rule.transOpen", () => {
+    const manager = createManager({
+      rule: { transOpen: "false" },
+      pageSwitch: "on",
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    translator.rule.transOpen = "false";
+    manager.applyTarget({
+      state: "off",
+      rule: { transOpen: "true" },
+    });
+    expect(translator.disable).toHaveBeenCalledTimes(1);
+    expect(translator.enable).not.toHaveBeenCalled();
+  });
+
   test("applyTarget keeps translation on when the target says on", () => {
     const manager = createManager({
-      rule: { transOpen: "true", selector: "p" },
+      rule: { transOpen: "false", selector: "p" },
+      pageSwitch: "on",
     });
     manager.start();
     mockTranslatorInstances[0].rule.transOpen = "true";

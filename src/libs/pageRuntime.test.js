@@ -24,6 +24,9 @@ jest.mock("./translatorManager", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
+jest.mock("./redditFrame", () => ({
+  readRedditEmbeddingHref: jest.fn(() => ""),
+}));
 jest.mock("./rules", () => {
   const { isMatch } = jest.requireActual("./utils");
   const { GLOBAL_KEY } = jest.requireActual("../config");
@@ -61,6 +64,7 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 const { LOCATION_CHANGE_EVENT } = require("./locationHook");
+const { readRedditEmbeddingHref } = require("./redditFrame");
 
 const nativePushState = History.prototype.pushState;
 
@@ -968,6 +972,23 @@ describe("PageRuntime", () => {
         }),
       })
     );
+  });
+
+  test("a child frame matches rules on the embedding page", async () => {
+    const embedding =
+      "https://www.reddit.com/r/announcements/comments/pg006s/post/";
+    readRedditEmbeddingHref.mockReturnValueOnce(embedding);
+    const seen = [];
+    const harness = boot({
+      isIframe: true,
+      matchRule: async (href) => {
+        seen.push(href);
+        return { transOpen: "false", pattern: href };
+      },
+    });
+    await harness.runtime.start();
+    expect(readRedditEmbeddingHref).toHaveBeenCalledWith(window, true);
+    expect(seen[0]).toBe(embedding);
   });
 
   test("a child frame pauses on its own url and leaves the top frame running", async () => {
