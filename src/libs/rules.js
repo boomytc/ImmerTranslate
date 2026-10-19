@@ -1,6 +1,6 @@
 /**
  * @file rules.js
- * @description 翻译规则引擎。提供选择器的继承与差分算法（如支持加减号追加/剔除选择器）、三级优先级规则合并（个人规则 > 订阅规则 > 全局规则）以及规则数据的健全性清洗校验与保存。
+ * @description 翻译规则引擎。提供选择器的继承与差分算法（如支持加减号追加/剔除选择器）、内置规则与个人规则合并（个人规则覆盖内置规则，内置规则覆盖全局规则）以及规则数据的健全性清洗校验与保存。
  */
 
 import { matchValue, type, isMatch } from "./utils";
@@ -15,16 +15,14 @@ import {
   OPT_SPLIT_PARAGRAPH_ALL,
   OPT_HIGHLIGHT_WORDS_ALL,
 } from "../config";
-import { loadOrFetchSubRules } from "./subRules";
 import {
   SCRIPT_SOURCE_BUILTIN,
   SCRIPT_SOURCE_PERSONAL,
-  SCRIPT_SOURCE_SUBSCRIPTION,
   assignScriptSources,
   mergeRuleScriptFields,
   withScriptSources,
 } from "./ruleScript";
-import { getRulesWithDefault, saveEdit, getDisabledSubRules } from "./storage";
+import { getRulesWithDefault, saveEdit } from "./storage";
 import { trySyncRules } from "./sync";
 import { kissLog } from "./log";
 import { splitSelectorList } from "./selectorList";
@@ -129,25 +127,6 @@ export const findMatchingRule = (rules, href) => {
   );
 };
 
-// 默认订阅规则只有 old.reddit.com，也没有 medium.com 和 stackoverflow.com。
-// www/new/sh、medium.com 和 stackoverflow.com 被同步覆盖后若没有回落，会一直用全局 autoScan。
-// 只回落这几台，github 等已有订阅规则保持原样。
-const BUILTIN_FALLBACK_PATTERNS = new Set([
-  "www.reddit.com",
-  "new.reddit.com",
-  "sh.reddit.com",
-  "medium.com",
-  "hostname:stackoverflow.com",
-]);
-
-const subscriptionCoversPage = (subRules, href) =>
-  subRules.some(
-    (rule) =>
-      rule?.pattern &&
-      rule.pattern !== GLOBAL_KEY &&
-      matchesRulePattern(href, rule.pattern)
-  );
-
 /**
  * 合并两条规则，高优先级（overrideRule）覆盖基准低优先级规则（baseRule）
  * 对于选择器字段（selector, keepSelector 等），会调用 mergeSelectors 进行智能继承/差分合并；
@@ -245,11 +224,7 @@ export const mergeRules = (baseRule, overrideRule) => {
 };
 
 /** Resolve rule precedence without storage access or network requests. */
-export const deriveRuleContext = (
-  href,
-  { personalRules, subRules = [], disabledPatterns = [] },
-  sitePattern
-) => {
+export const deriveRuleContext = (href, { personalRules }, sitePattern) => {
   // Derive inheritance from one caller-owned storage snapshot.
   const globalRule = {
     ...GLOBLA_RULE,
@@ -273,36 +248,15 @@ export const deriveRuleContext = (
       ? requestedPersonalRule
       : activePersonalRule;
 
-  const candidate = findMatchingRule(subRules, href);
-  const matchedSubRule =
-    candidate && !disabledPatterns.includes(candidate.pattern)
-      ? candidate
-      : null;
-  // 订阅命中（含 enabled:false 或已停用）时不回落，否则停用会失效。
-  // 订阅列表为空表示用户关闭了规则注入，此时不套内置站点规则。
-  // 未覆盖时若退回全局 autoScan，左侧注册卡、页脚 legal-links、
-  // 锁定/归档提示和 Sort by 这些不在 button/nav/footer 里的文案会被译掉。
-  const builtinCandidate =
-    !subscriptionCoversPage(subRules, href) &&
-    subRules.some((rule) => rule?.pattern && rule.pattern !== GLOBAL_KEY)
-      ? findMatchingRule(BUILTIN_RULES, href)
-      : null;
-  const matchedBuiltinRule =
-    builtinCandidate &&
-    BUILTIN_FALLBACK_PATTERNS.has(builtinCandidate.pattern) &&
-    !disabledPatterns.includes(builtinCandidate.pattern)
-      ? builtinCandidate
-      : null;
+  const matchedBuiltinRule = findMatchingRule(BUILTIN_RULES, href) || null;
 
-  // 来源只打在合并用的副本上。返回的 personal / global / subscription
+  // 来源只打在合并用的副本上。返回的 personal / global
   // 仍是存储里的原对象，避免编辑器把来源标记当成规则冲突。
   const inherited = mergeRules(
     withScriptSources(globalRule, SCRIPT_SOURCE_PERSONAL),
-    matchedSubRule
-      ? withScriptSources(matchedSubRule, SCRIPT_SOURCE_SUBSCRIPTION)
-      : matchedBuiltinRule
-        ? withScriptSources(matchedBuiltinRule, SCRIPT_SOURCE_BUILTIN)
-        : null
+    matchedBuiltinRule
+      ? withScriptSources(matchedBuiltinRule, SCRIPT_SOURCE_BUILTIN)
+      : null
   );
   const finalRule = mergeRules(
     inherited,
@@ -325,41 +279,14 @@ export const deriveRuleContext = (
           )
         : null,
     personal: matchedPersonalRule || null,
-    subscription: matchedSubRule,
     global: globalRule,
     site: matchedPersonalRule || null,
   };
 };
 
-export const resolveRuleContext = async (
-  href,
-  { injectRules, subrulesList = [] } = {},
-  sitePattern
-) => {
+export const resolveRuleContext = async (href, _setting, sitePattern) => {
   const personalRules = await getRulesWithDefault();
-  let subRules = [];
-  let disabledPatterns = [];
-  if (injectRules) {
-    try {
-      const selectedSub = subrulesList.find((item) => item.selected);
-      if (selectedSub?.url) {
-        subRules = (await loadOrFetchSubRules(selectedSub.url)) || [];
-        try {
-          disabledPatterns = (await getDisabledSubRules(selectedSub.url)) || [];
-        } catch (err) {
-          kissLog("getDisabledSubRules", err);
-        }
-      }
-    } catch (err) {
-      kissLog("load injectRules", err);
-    }
-  }
-
-  return deriveRuleContext(
-    href,
-    { personalRules, subRules, disabledPatterns },
-    sitePattern
-  );
+  return deriveRuleContext(href, { personalRules }, sitePattern);
 };
 
 export const matchRule = async (href, setting) =>

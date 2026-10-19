@@ -30,10 +30,6 @@ jest.mock("./libs/rules", () => ({
   matchRule: jest.fn(),
 }));
 
-jest.mock("./libs/subRules", () => ({
-  trySyncAllSubRules: jest.fn(),
-}));
-
 jest.mock("./libs/blacklist", () => ({
   isInBlacklist: jest.fn(() => false),
   matchingBlacklistEntries: jest.fn(() => []),

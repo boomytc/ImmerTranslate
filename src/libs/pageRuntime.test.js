@@ -46,10 +46,6 @@ jest.mock("./rules", () => {
       ),
   };
 });
-jest.mock("./subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
-}));
-
 const {
   PageRuntime,
   watchPageLocation,

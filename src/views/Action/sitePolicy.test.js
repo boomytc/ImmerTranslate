@@ -2,9 +2,6 @@ import { GLOBAL_KEY } from "../../config";
 import { readSiteTransOpen, siteRulePattern } from "./sitePolicy";
 
 // rules.js imports these modules; keep this unit test off that graph.
-jest.mock("../../libs/subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
-}));
 jest.mock("../../libs/sync", () => ({
   trySyncRules: jest.fn(),
 }));

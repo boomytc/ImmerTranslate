@@ -10,11 +10,6 @@ import { visitTranslationTargets } from "./translationTargets";
 jest.mock("./storage", () => ({
   getRulesWithDefault: jest.fn(),
   saveEdit: jest.fn(),
-  getDisabledSubRules: jest.fn(),
-}));
-
-jest.mock("./subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
 }));
 
 jest.mock("./sync", () => ({
@@ -385,13 +380,12 @@ describe("stackoverflow.com after the v2 subscription sync", () => {
     );
   });
 
-  test("does not fall back when injection is off, the host is covered, or the page is another site", () => {
+  test("uses builtin site rules, keeps a personal override, and ignores subscription selectors", () => {
     const off = deriveRuleContext("https://stackoverflow.com/questions/1", {
       personalRules: [],
-      subRules: [],
     });
-    expect(off.effective.pattern).toBe("*");
-    expect(off.effective.autoScan).toBe("true");
+    expect(off.effective.pattern).toBe(STACK_PATTERN);
+    expect(off.effective.autoScan).toBe("false");
 
     const covered = deriveRuleContext("https://stackoverflow.com/questions/1", {
       personalRules: [],
@@ -404,8 +398,8 @@ describe("stackoverflow.com after the v2 subscription sync", () => {
         },
       ],
     });
-    expect(covered.subscription.pattern).toBe("stackoverflow.com");
-    expect(covered.effective.selector).toBe(".from-subscription");
+    expect(covered.effective.pattern).toBe(STACK_PATTERN);
+    expect(covered.effective.selector).not.toBe(".from-subscription");
 
     const personal = deriveRuleContext(
       "https://stackoverflow.com/questions/1",
@@ -413,7 +407,6 @@ describe("stackoverflow.com after the v2 subscription sync", () => {
         personalRules: [
           { pattern: "hostname:stackoverflow.com", selector: ".personal" },
         ],
-        subRules: v2WithoutStack,
       }
     );
     expect(personal.effective.selector).toBe(".personal");
@@ -423,7 +416,6 @@ describe("stackoverflow.com after the v2 subscription sync", () => {
       "https://serverfault.com/questions/1",
       {
         personalRules: [],
-        subRules: v2WithoutStack,
       }
     );
     expect(serverfault.effective.pattern).toBe("*");
@@ -431,16 +423,15 @@ describe("stackoverflow.com after the v2 subscription sync", () => {
 
     const github = deriveRuleContext(
       "https://github.com/boomytc/ImmerTranslate",
-      { personalRules: [], subRules: v2WithoutStack }
+      { personalRules: [] }
     );
-    expect(github.subscription.pattern).toBe("github.com");
-    expect(github.effective.selector).toBe(".from-subscription");
+    expect(github.effective.pattern).toBe("github.com");
+    expect(github.effective.selector).not.toBe(".from-subscription");
 
     const medium = deriveRuleContext("https://medium.com/@user/story", {
       personalRules: [],
-      subRules: v2WithoutStack,
     });
-    expect(medium.subscription.pattern).toBe("medium.com");
-    expect(medium.effective.selector).toBe(".from-subscription");
+    expect(medium.effective.pattern).toBe("medium.com");
+    expect(medium.effective.selector).not.toBe(".from-subscription");
   });
 });

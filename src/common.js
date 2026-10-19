@@ -10,7 +10,6 @@ import { readRedditEmbeddingHref } from "./libs/redditFrame";
 import { genEventName } from "./libs/utils";
 import { handlePing, injectScript } from "./libs/gm";
 import { matchRule } from "./libs/rules";
-import { trySyncAllSubRules } from "./libs/subRules";
 import { matchingBlacklistEntries } from "./libs/blacklist";
 import { withFeatureBlacklists } from "./libs/featureBlacklists";
 import { startPageRuntime } from "./libs/pageRuntime";
@@ -277,9 +276,6 @@ export async function run(isUserscript = false) {
         rule: pageRule,
         isUserscript,
       });
-      if (isUserscript) {
-        trySyncAllSubRules(pageSetting);
-      }
     };
 
     const runtimeOptions = {

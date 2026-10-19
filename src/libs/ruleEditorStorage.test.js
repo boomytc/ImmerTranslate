@@ -14,7 +14,6 @@ import {
   withTransaction,
 } from "./storage";
 import { KV_RULES_KEY, STOKEY_SETTING } from "../config";
-import { loadOrFetchSubRules } from "./subRules";
 
 jest.mock("./storage", () => ({
   getRulesWithDefault: jest.fn(),
@@ -22,9 +21,7 @@ jest.mock("./storage", () => ({
   saveEdit: jest.fn(),
   withTransaction: jest.fn(),
   normalizeStoredSetting: (setting) => setting || {},
-  getDisabledSubRules: jest.fn(),
 }));
-jest.mock("./subRules", () => ({ loadOrFetchSubRules: jest.fn() }));
 jest.mock("./sync", () => ({ trySyncRules: jest.fn() }));
 jest.mock("./msg", () => ({ sendBgMsg: jest.fn() }));
 
@@ -179,41 +176,6 @@ test("checks expected fields after acquiring the shared storage transaction", as
   ).rejects.toThrow("rule-conflict");
   expect(rules[0].selector).toBe(".concurrent");
   expect(require("./sync").trySyncRules).not.toHaveBeenCalled();
-});
-
-test("prepares a changed subscription source outside the next transaction", async () => {
-  const firstSource = "https://rules.example/first";
-  const secondSource = "https://rules.example/second";
-  getSettingWithDefault.mockResolvedValue({
-    injectRules: true,
-    subrulesList: [{ url: firstSource, selected: true }],
-  });
-  loadOrFetchSubRules.mockResolvedValue([]);
-  const transaction = withTransaction.getMockImplementation();
-  withTransaction.mockImplementationOnce(async (operation) => {
-    getSettingWithDefault.mockResolvedValue({
-      injectRules: true,
-      subrulesList: [{ url: secondSource, selected: true }],
-    });
-    return transaction(operation);
-  });
-  await writeSiteRule({
-    href,
-    expected: structuredCopy(rules[0]),
-    patch: { selector: ".new" },
-  });
-  expect(loadOrFetchSubRules.mock.calls).toEqual([
-    [firstSource],
-    [secondSource],
-  ]);
-  expect(withTransaction).toHaveBeenCalledTimes(2);
-  expect(saveEdit).toHaveBeenCalledTimes(1);
-  expect(loadOrFetchSubRules.mock.invocationCallOrder[1]).toBeGreaterThan(
-    withTransaction.mock.invocationCallOrder[0]
-  );
-  expect(loadOrFetchSubRules.mock.invocationCallOrder[1]).toBeLessThan(
-    withTransaction.mock.invocationCallOrder[1]
-  );
 });
 
 test("persists the edit timestamp before starting cloud synchronization", async () => {

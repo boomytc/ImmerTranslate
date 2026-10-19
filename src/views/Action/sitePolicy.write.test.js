@@ -1,6 +1,3 @@
-jest.mock("../../libs/subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
-}));
 jest.mock("../../libs/sync", () => ({
   trySyncRules: jest.fn(),
 }));
@@ -23,7 +20,6 @@ jest.mock("../../libs/storage", () => ({
     storedRef.rules = update(storedRef.rules);
     return { value: storedRef.rules, changed: true };
   }),
-  getDisabledSubRules: jest.fn(async () => []),
 }));
 
 const { saveRule } = require("../../libs/rules");

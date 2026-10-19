@@ -6,6 +6,7 @@ jest.mock("./client", () => ({ isExt: true }));
 jest.mock("./browser", () => ({
   browser: { runtime: { sendMessage: jest.fn(() => Promise.resolve()) } },
 }));
+jest.mock("./sync", () => ({ trySyncRules: jest.fn() }));
 
 describe("page rule sync", () => {
   beforeEach(() => {
