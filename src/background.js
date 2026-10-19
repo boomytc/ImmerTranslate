@@ -49,7 +49,7 @@ import { handleRequestPort } from "./libs/requestPort";
 import { tryClearCaches, getHttpCache, putHttpCache } from "./libs/cache";
 import { sendTabMsg, broadcastTranslateToggle } from "./libs/msg";
 import { trySyncAllSubRules } from "./libs/subRules";
-import { saveRule } from "./libs/rules";
+import { saveRuleMessage } from "./libs/rules";
 import { getCurTabId } from "./libs/msg";
 import { injectInlineJsBg, injectInternalCss } from "./libs/injector";
 import { kissLog, logger } from "./libs/log";
@@ -878,7 +878,7 @@ const messageHandlers = {
   [MSG_PUT_HTTPCACHE]: (args) => putHttpCache(args), // 存入翻译 HTTP 缓存
   [MSG_SHA256]: ({ text = "", salt = "" } = {}) => sha256(text, salt), // 代算缓存签名
   [MSG_OPEN_OPTIONS]: (args) => openOptionsPage(args), // 打开设置选项页
-  [MSG_SAVE_RULE]: (args) => saveRule(args), // 写入/保存规则
+  [MSG_SAVE_RULE]: (args) => saveRuleMessage(args), // 写入/保存规则
   [MSG_EDIT_RULE]: (args) => writeSiteRule(args),
   [MSG_INJECT_JS]: (args) => injectToCurrentTab(injectInlineJsBg, args), // 注入 JS 代码到前台
   [MSG_INSTALL_LOCATION_HOOK]: (_args, sender) => {

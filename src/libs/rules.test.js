@@ -1,4 +1,4 @@
-import { checkRules, matchRule, saveRule } from "./rules";
+import { checkRules, matchRule, saveRule, saveRuleMessage } from "./rules";
 import { getDisabledSubRules, getRulesWithDefault, saveEdit } from "./storage";
 import { loadOrFetchSubRules } from "./subRules";
 import { GLOBLA_RULE } from "../config/rules";
@@ -281,6 +281,42 @@ describe("rules enabled state", () => {
         subrulesList: [],
       })
     ).resolves.toMatchObject({ transOpen: "true" });
+  });
+
+  test.each([false, "bogus"])(
+    "rejects illegal transOpen %s instead of storing follow",
+    async (transOpen) => {
+      getRulesWithDefault.mockResolvedValue([{ ...GLOBLA_RULE }]);
+
+      await expect(
+        saveRule({ pattern: "example.com", transOpen })
+      ).rejects.toThrow(/Unknown site translation policy/);
+      await expect(
+        saveRuleMessage({ pattern: "example.com", transOpen })
+      ).resolves.toEqual({
+        error: expect.stringMatching(/Unknown site translation policy/),
+      });
+
+      expect(saveEdit).not.toHaveBeenCalled();
+    }
+  );
+
+  test("stores follow when a saved rule has no transOpen key", async () => {
+    getRulesWithDefault.mockResolvedValue([
+      { ...GLOBLA_RULE, transOpen: "true" },
+    ]);
+
+    await saveRule({ pattern: "example.com", selector: "article" });
+
+    expect((await saveEdit.mock.results[0].value).value).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          pattern: "example.com",
+          selector: "article",
+          transOpen: "*",
+        }),
+      ])
+    );
   });
 
   test.each([

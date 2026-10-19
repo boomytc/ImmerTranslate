@@ -24,3 +24,22 @@ export function siteTransOpenValue(policy) {
   }
   return policy;
 }
+
+/**
+ * 写入一份规则前校验 transOpen。
+ * 缺键按跟随全局 `*` 补上；有键但不是枚举则抛错，不能洗成 `*`。
+ */
+export function rulesWithValidatedTransOpen(rules) {
+  if (!Array.isArray(rules)) {
+    throw new TypeError(
+      `Stored rules must be an array, received ${String(rules)}`
+    );
+  }
+  return rules.map((rule) => {
+    if (!rule || typeof rule !== "object") return rule;
+    if (!Object.prototype.hasOwnProperty.call(rule, "transOpen")) {
+      return { ...rule, transOpen: SITE_TRANS_OPEN.FOLLOW_GLOBAL };
+    }
+    return { ...rule, transOpen: siteTransOpenValue(rule.transOpen) };
+  });
+}

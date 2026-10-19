@@ -774,7 +774,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     test("an illegal stored transOpen is not shown as follow", async () => {
       const rulesState = {
         snapshot: {
-          data: [{ pattern: "example", transOpen: "bogus" }],
+          data: [{ pattern: "example.com", transOpen: "bogus" }],
           isLoading: false,
         },
         configureSync: jest.fn(),
@@ -794,9 +794,15 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         });
       let view;
       try {
-        expect(() => {
-          view = renderPopup();
-        }).toThrow(/Unknown site translation policy/);
+        view = renderPopup();
+        await flushEffects();
+        expect(
+          view.container.querySelector(".kt-popup-policy-mode--active")
+        ).toBeNull();
+        expect(
+          view.container.querySelector(".kt-popup-site-policy__error")
+            .textContent
+        ).toMatch(/Unknown site translation policy/);
       } finally {
         spy.mockRestore();
         view?.cleanup();

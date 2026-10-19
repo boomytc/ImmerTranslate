@@ -961,15 +961,15 @@ export default function PopupCont({
     () => selectedDomain || siteRulePattern(currentHref, rules),
     [currentHref, rules, selectedDomain]
   );
-  const storedSiteTransOpen = useMemo(() => {
-    if (selectedDomain) {
-      const exact = rules.find((r) => r.pattern === selectedDomain);
-      if (exact && exact.transOpen) {
-        return exact.transOpen;
-      }
+  const storedSitePolicy = useMemo(() => {
+    try {
+      return { transOpen: readSiteTransOpen(currentHref, rules), error: "" };
+    } catch (error) {
+      return { transOpen: null, error: error?.message || String(error) };
     }
-    return readSiteTransOpen(currentHref, rules);
-  }, [currentHref, rules, selectedDomain]);
+  }, [currentHref, rules]);
+  const storedSiteTransOpen = storedSitePolicy.transOpen;
+  const sitePolicyError = storedSitePolicy.error;
   const siteTransOpen = siteDraft ?? storedSiteTransOpen;
 
   useEffect(() => {
@@ -1281,6 +1281,11 @@ export default function PopupCont({
           <div className="kt-popup-section-label">
             {i18n("site_trans_policy")}
           </div>
+          {sitePolicyError && (
+            <p className="kt-popup-site-policy__error" role="alert">
+              {sitePolicyError}
+            </p>
+          )}
           <div
             className="kt-popup-policy-modes"
             role="group"

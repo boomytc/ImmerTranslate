@@ -1537,6 +1537,62 @@ describe("PopupCont capability parity", () => {
     view.cleanup();
   });
 
+  test("closing the popup while it still says translating does not send another toggle", async () => {
+    const documentInfo = { token: "translating-document", frameId: 0 };
+    let finishToggle;
+    mockSendTabMsg.mockImplementation((action) => {
+      if (action === MSG_TRANS_TOGGLE) {
+        return new Promise((resolve) => {
+          finishToggle = resolve;
+        });
+      }
+      if (action === MSG_TRANS_GETRULE) {
+        return {
+          rule: { transOpen: "true" },
+          setting: {},
+          document: documentInfo,
+        };
+      }
+      return {};
+    });
+    const view = renderPopupCont(
+      {
+        rule: { transOpen: "false" },
+        targetTab: { id: 42, url: "https://example.com/page" },
+        documentInfo,
+      },
+      { statefulRule: true }
+    );
+    let unmounted = false;
+    try {
+      await flushEffects();
+      await act(async () => {
+        view.container
+          .querySelector('input[aria-label="popup_translate_page"]')
+          .click();
+      });
+      expect(view.container.textContent).toContain("popup_translating");
+      const toggles = () =>
+        mockSendTabMsg.mock.calls.filter(
+          (call) => call[0] === MSG_TRANS_TOGGLE
+        );
+      expect(toggles()).toHaveLength(1);
+      expect(toggles()[0][1]).toEqual({ enabled: true });
+      view.cleanup();
+      unmounted = true;
+      await act(async () => {
+        finishToggle({
+          rule: { transOpen: "true" },
+          setting: {},
+          document: documentInfo,
+        });
+      });
+      expect(toggles()).toHaveLength(1);
+    } finally {
+      if (!unmounted) view.cleanup();
+    }
+  });
+
   test("reports a routed execution error even if the runtime flag was changed", async () => {
     const documentInfo = { token: "captured-document", frameId: 0 };
     mockSendTabMsg.mockImplementation(async (action) =>

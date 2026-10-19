@@ -28,7 +28,7 @@ import { getRulesWithDefault, saveEdit, getDisabledSubRules } from "./storage";
 import { trySyncRules } from "./sync";
 import { kissLog } from "./log";
 import { splitSelectorList } from "./selectorList";
-import { isSiteTransOpen } from "./siteTransOpen";
+import { isSiteTransOpen, siteTransOpenValue } from "./siteTransOpen";
 
 /**
  * 差分合并 CSS 选择器。
@@ -577,6 +577,18 @@ const applySavedRule = (rules, curRule) => {
 
 /** Persist the edit and its metadata before starting synchronization. */
 export const saveRule = async (curRule) => {
+  if (curRule && Object.prototype.hasOwnProperty.call(curRule, "transOpen")) {
+    siteTransOpenValue(curRule.transOpen);
+  }
   await saveEdit(STOKEY_RULES, (rules) => applySavedRule(rules, curRule));
   trySyncRules();
 };
+
+/** save_rule 的消息响应。非法 transOpen 放进 error，不能当成保存成功。 */
+export async function saveRuleMessage(curRule) {
+  try {
+    await saveRule(curRule);
+  } catch (error) {
+    return { error: error?.message || String(error) };
+  }
+}

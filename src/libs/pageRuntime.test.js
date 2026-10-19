@@ -534,6 +534,39 @@ describe("PageRuntime", () => {
     );
   });
 
+  test("M11 a new frame does not write its initial state back onto the parent", async () => {
+    window.history.pushState({}, "", "/index.html");
+    const parent = boot({
+      rule: { transOpen: "false", pattern: "stored" },
+      matchRule: async () => ({ transOpen: "false", pattern: "stored" }),
+    });
+    await parent.runtime.start();
+    parent.runtime.setManualSwitch(true);
+    expect(parent.managers[0].readLiveTransOpen()).toBe("true");
+    const parentApplies = parent.managers[0].applyTarget.mock.calls.length;
+
+    const child = boot({
+      isIframe: true,
+      queryParent: async () => ({
+        transOpen: parent.managers[0].readLiveTransOpen() === "true",
+        fabVisible: false,
+      }),
+      matchRule: async () => ({ transOpen: "false", pattern: "stored" }),
+    });
+    await child.runtime.start();
+
+    expect(child.created[0].rule).toMatchObject({ transOpen: "true" });
+    expect(parent.managers[0].applyTarget).toHaveBeenCalledTimes(parentApplies);
+    expect(parent.managers[0].readLiveTransOpen()).toBe("true");
+
+    child.onRules({
+      data: [{ pattern: "localhost", transOpen: "false" }],
+    });
+    await child.runtime.whenIdle();
+    expect(parent.managers[0].applyTarget).toHaveBeenCalledTimes(parentApplies);
+    expect(parent.managers[0].readLiveTransOpen()).toBe("true");
+  });
+
   test("S20 a selector edit keeps a manual on switch", async () => {
     window.history.pushState({}, "", "/index.html");
     let matched = { transOpen: "false", selector: "p", pattern: "stored" };

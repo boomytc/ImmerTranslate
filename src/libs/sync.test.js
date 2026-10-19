@@ -1,6 +1,7 @@
 jest.mock("../config", () => ({
   ...jest.requireActual("../config/client"),
   APP_LCNAME: "immertranslate",
+  GLOBAL_KEY: "*",
   KV_SETTING_KEY: "kiss-setting_v2.json",
   KV_RULES_KEY: "kiss-rules_v2.json",
   KV_WORDS_KEY: "kiss-words.json",
@@ -59,17 +60,6 @@ jest.mock("./log", () => ({
   kissLog: jest.fn(),
 }));
 
-jest.mock("./rules", () => ({
-  checkRules: jest.fn((rules) =>
-    rules.map((rule) => ({
-      ...rule,
-      transOpen: ["*", "true", "false"].includes(rule.transOpen)
-        ? rule.transOpen
-        : "*",
-    }))
-  ),
-}));
-
 jest.mock("./syncCrypto", () => ({
   encryptSyncValue: jest.fn(),
   decryptSyncValue: jest.fn(),
@@ -95,7 +85,6 @@ import {
   storage,
 } from "./storage";
 import { decryptSyncValue, encryptSyncValue } from "./syncCrypto";
-import { checkRules } from "./rules";
 import { createClient, getPatcher } from "webdav";
 
 const SYNC_DESCRIPTION = "kiss translator sync files";
@@ -616,50 +605,113 @@ describe("GitHub Gist sync", () => {
     );
   });
 
-  test("normalizes remote rules with checkRules before writing them locally", async () => {
-    const remoteRules = [
-      { pattern: "news.example.com", selector: "article" },
-      { pattern: "bad.example.com", transOpen: "bogus" },
-    ];
-    getSyncWithDefault.mockResolvedValue({
-      syncType: "GitHub Gist",
-      syncUrl: "existing-gist",
-      syncKey: SYNC_KEY,
-      syncEncryptKey: SYNC_ENCRYPT_KEY,
-      syncMeta: {
-        [SETTING_KEY]: { updateAt: 10, syncAt: 1 },
-        [RULES_KEY]: { updateAt: 10, syncAt: 1 },
-        [WORDS_KEY]: { updateAt: 10, syncAt: 1 },
-      },
-    });
-    getSettingWithDefault.mockResolvedValue({ setting: true });
-    getRulesWithDefault.mockResolvedValue([
-      { pattern: "local.example.com", transOpen: "true" },
-    ]);
-    getWordsWithDefault.mockResolvedValue({ hello: true });
-    apiGetGist.mockResolvedValue({
-      files: {
-        [SETTING_KEY]: {
-          content: encryptedGistFileContent({ setting: true }, 50),
+  test.each([
+    ["password change", changeSyncEncryptKey],
+    ["ordinary sync", syncSettingAndRules],
+  ])(
+    "writes a missing remote transOpen as follow during %s",
+    async (_label, sync) => {
+      const remoteRules = [
+        { pattern: "news.example.com", selector: "article" },
+        { pattern: "ok.example.com", transOpen: "true" },
+      ];
+      getSyncWithDefault.mockResolvedValue({
+        syncType: "GitHub Gist",
+        syncUrl: "existing-gist",
+        syncKey: SYNC_KEY,
+        syncEncryptKey: SYNC_ENCRYPT_KEY,
+        syncMeta: {
+          [SETTING_KEY]: { updateAt: 10, syncAt: 1 },
+          [RULES_KEY]: { updateAt: 10, syncAt: 1 },
+          [WORDS_KEY]: { updateAt: 10, syncAt: 1 },
         },
-        [RULES_KEY]: {
-          content: encryptedGistFileContent(remoteRules, 50),
+      });
+      getSettingWithDefault.mockResolvedValue({ setting: true });
+      getRulesWithDefault.mockResolvedValue([
+        { pattern: "local.example.com", transOpen: "true" },
+      ]);
+      getWordsWithDefault.mockResolvedValue({ hello: true });
+      apiGetGist.mockResolvedValue({
+        files: {
+          [SETTING_KEY]: {
+            content: encryptedGistFileContent({ setting: true }, 50),
+          },
+          [RULES_KEY]: {
+            content: encryptedGistFileContent(remoteRules, 50),
+          },
+          [WORDS_KEY]: {
+            content: encryptedGistFileContent({ hello: true }, 50),
+          },
         },
-        [WORDS_KEY]: {
-          content: encryptedGistFileContent({ hello: true }, 50),
-        },
-      },
-    });
+      });
 
-    await changeSyncEncryptKey({
-      oldEncryptKey: SYNC_ENCRYPT_KEY,
-      newEncryptKey: NEW_SYNC_ENCRYPT_KEY,
-    });
+      if (sync === changeSyncEncryptKey) {
+        await changeSyncEncryptKey({
+          oldEncryptKey: SYNC_ENCRYPT_KEY,
+          newEncryptKey: NEW_SYNC_ENCRYPT_KEY,
+        });
+      } else {
+        await syncSettingAndRules();
+      }
 
-    expect(checkRules).toHaveBeenCalledWith(remoteRules);
-    expect(setRules).toHaveBeenCalledWith(checkRules(remoteRules));
-    expect(setRules).not.toHaveBeenCalledWith(remoteRules);
-  });
+      expect(setRules).toHaveBeenCalledWith([
+        { pattern: "news.example.com", selector: "article", transOpen: "*" },
+        { pattern: "ok.example.com", transOpen: "true" },
+      ]);
+    }
+  );
+
+  test.each([
+    [false, "password change", changeSyncEncryptKey],
+    ["bogus", "password change", changeSyncEncryptKey],
+    [false, "ordinary sync", syncSettingAndRules],
+    ["bogus", "ordinary sync", syncSettingAndRules],
+  ])(
+    "rejects illegal remote transOpen %s during %s",
+    async (transOpen, _label, sync) => {
+      const remoteRules = [{ pattern: "bad.example.com", transOpen }];
+      getSyncWithDefault.mockResolvedValue({
+        syncType: "GitHub Gist",
+        syncUrl: "existing-gist",
+        syncKey: SYNC_KEY,
+        syncEncryptKey: SYNC_ENCRYPT_KEY,
+        syncMeta: {
+          [SETTING_KEY]: { updateAt: 10, syncAt: 1 },
+          [RULES_KEY]: { updateAt: 10, syncAt: 1 },
+          [WORDS_KEY]: { updateAt: 10, syncAt: 1 },
+        },
+      });
+      getSettingWithDefault.mockResolvedValue({ setting: true });
+      getRulesWithDefault.mockResolvedValue([
+        { pattern: "local.example.com", transOpen: "true" },
+      ]);
+      getWordsWithDefault.mockResolvedValue({ hello: true });
+      apiGetGist.mockResolvedValue({
+        files: {
+          [SETTING_KEY]: {
+            content: encryptedGistFileContent({ setting: true }, 50),
+          },
+          [RULES_KEY]: {
+            content: encryptedGistFileContent(remoteRules, 50),
+          },
+          [WORDS_KEY]: {
+            content: encryptedGistFileContent({ hello: true }, 50),
+          },
+        },
+      });
+
+      const run =
+        sync === changeSyncEncryptKey
+          ? changeSyncEncryptKey({
+              oldEncryptKey: SYNC_ENCRYPT_KEY,
+              newEncryptKey: NEW_SYNC_ENCRYPT_KEY,
+            })
+          : syncSettingAndRules();
+
+      await expect(run).rejects.toThrow(/Unknown site translation policy/);
+      expect(setRules).not.toHaveBeenCalled();
+    }
+  );
 
   test("keeps old encryption passphrase when re-encryption fails", async () => {
     getSyncWithDefault.mockResolvedValue({
