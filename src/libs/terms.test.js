@@ -8,7 +8,6 @@ import {
   formatDiagnosticMessage,
   isStrictLiteralPattern,
 } from "./terms";
-import { detectTermConflicts } from "./termTestUtils";
 
 // 术语替换纯函数测试（Task 1）
 // 覆盖：解析规格、排序、去重、非法正则、无单词边界匹配、冲突矩阵 4 类、空译文语义、旧引擎复现
@@ -238,6 +237,35 @@ describe("terms applyTermReplace", () => {
     const { output } = applyTermReplace("APIKey", terms, replacer);
     expect(output).toBe("APIKey");
   });
+
+  test("keeps the decoded original when an escaped literal has an empty translation", () => {
+    const parsed = parseTerms("C\\+\\+");
+    const { output, spans } = applyTermReplace(
+      "Use C++ today",
+      parsed,
+      replacer
+    );
+    expect(output).toBe("Use C++ today");
+    expect(spans).toEqual([
+      expect.objectContaining({
+        termKey: "C\\+\\+",
+        replacement: "C++",
+      }),
+    ]);
+  });
+
+  test.each([
+    ["C\\+;C\\+Builder", "C+Builder and C+", "C+Builder and C+"],
+    ["C\\+,加号;C\\+Builder,构建器", "C+Builder and C+", "构建器 and 加号"],
+    ["C\\+,加号;C\\+Builder", "C+Builder and C+", "C+Builder and 加号"],
+    ["C\\+;C\\+Builder,构建器", "C+Builder and C+", "构建器 and C+"],
+  ])(
+    "escaped C+ / C+Builder uses the longest match: %s",
+    (spec, input, expected) => {
+      const parsed = parseTerms(spec);
+      expect(applyTermReplace(input, parsed, replacer).output).toBe(expected);
+    }
+  );
 
   test("CJK keys match inside CJK strings (no word boundary)", () => {
     const { terms } = parseTerms("手机,phone");
@@ -1339,16 +1367,19 @@ describe("terms 冲突分析引擎加固（统一计划 20260829 Task 4）", () 
     }
   });
 
-  test("字面量子串对走 literalOverlap 路径：parseTerms 不报 conflicting-pattern，detectTermConflicts 检出", () => {
+  test("字面量子串对不报 conflicting-pattern，替换时取更长的词", () => {
     const parsed = parseTerms("abc,甲;abcde,乙");
     expect(
       parsed.diagnostics.some((d) => d.type === "conflicting-pattern")
     ).toBe(false);
     expect(parsed.terms).toHaveLength(2);
-    const conflicts = detectTermConflicts(parsed);
-    expect(conflicts).toHaveLength(1);
-    expect(conflicts[0].short.key).toBe("abc");
-    expect(conflicts[0].long.key).toBe("abcde");
+    expect(
+      applyTermReplace(
+        "abcde and abc",
+        parsed,
+        (term, fullMatch) => term.value || fullMatch
+      ).output
+    ).toBe("乙 and 甲");
   });
 });
 

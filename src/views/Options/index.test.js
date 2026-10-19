@@ -122,7 +122,6 @@ jest.mock("./About", () => mockComponent("about-page"));
 jest.mock("./Prompts", () => mockComponent("prompts-page"));
 jest.mock("./InputSetting", () => mockComponent("input-page"));
 jest.mock("./Tranbox", () => mockComponent("tranbox-page"));
-jest.mock("./Playground", () => mockComponent("playground-page"));
 jest.mock("./MouseHover", () => mockComponent("mousehover-page"));
 jest.mock("./Subtitle", () => mockComponent("subtitle-page"));
 

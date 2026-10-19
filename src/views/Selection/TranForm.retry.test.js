@@ -128,8 +128,6 @@ describe("Explicit translation submissions", () => {
   test.each([
     ["selection", {}, false],
     ["selection", {}, true],
-    ["playground", { isPlaygound: true }, false],
-    ["playground", { isPlaygound: true }, true],
   ])(
     "preserves LaTeX in %s results with layout %j (enabled: %s)",
     async (_surface, layout, parseLatex) => {
@@ -365,24 +363,19 @@ describe("Explicit translation submissions", () => {
     expect(apiTranslate).toHaveBeenCalledTimes(1);
   });
 
-  test.each([false, true])(
-    "commits changed text on blur without retrying unchanged input (Playground: %s)",
-    async (isPlaygound) => {
-      await renderPanel({ isPlaygound, toLang2: "en" });
-      act(() => input().focus());
-      act(() => input().blur());
-      await flushEffects();
-      expect(apiTranslate).toHaveBeenCalledTimes(1);
+  test("commits changed text on blur without retrying unchanged input", async () => {
+    await renderPanel({ toLang2: "en" });
+    act(() => input().focus());
+    act(() => input().blur());
+    await flushEffects();
+    expect(apiTranslate).toHaveBeenCalledTimes(1);
 
-      updateDraft("Updated full-form source");
-      act(() => input().blur());
-      await flushEffects();
-      expect(apiTranslate).toHaveBeenCalledTimes(2);
-      expect(apiTranslate.mock.calls[1][0].text).toBe(
-        "Updated full-form source"
-      );
-    }
-  );
+    updateDraft("Updated full-form source");
+    act(() => input().blur());
+    await flushEffects();
+    expect(apiTranslate).toHaveBeenCalledTimes(2);
+    expect(apiTranslate.mock.calls[1][0].text).toBe("Updated full-form source");
+  });
 
   test("keeps a draft during fullscreen reparenting and commits only a later blur", async () => {
     const host = document.createElement("div");
@@ -404,7 +397,7 @@ describe("Explicit translation submissions", () => {
     let appendChildSpy;
 
     try {
-      await renderPanel({ isPlaygound: true });
+      await renderPanel();
       act(() => input().focus());
       updateDraft("  Draft before fullscreen  ");
       const appendChild = section.appendChild;
