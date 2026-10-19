@@ -1,12 +1,5 @@
 jest.mock("./log", () => ({ kissLog: jest.fn() }));
 
-const gmGlobals = [
-  "GM",
-  "KISS_GM",
-  "GM_addValueChangeListener",
-  "GM_removeValueChangeListener",
-];
-
 const flushPromises = async () => {
   for (let step = 0; step < 6; step += 1) {
     await Promise.resolve();
@@ -22,13 +15,11 @@ const createChangeEvent = () => {
   };
 };
 
-const loadEvents = ({ extension = false, gm = false, browser } = {}) => {
+const loadEvents = ({ extension = false, browser } = {}) => {
   let events;
   jest.isolateModules(() => {
     jest.doMock("./client", () => ({
       isExt: extension,
-      isGm: gm,
-      isWeb: !extension && !gm,
     }));
     jest.doMock("./browser", () => ({ browser }));
     events = require("./storageEvents");
@@ -37,7 +28,6 @@ const loadEvents = ({ extension = false, gm = false, browser } = {}) => {
 };
 
 describe("external storage invalidation", () => {
-  let originalGlobals;
   let cleanups;
 
   const subscribe = (events, key, listener) => {
@@ -52,25 +42,11 @@ describe("external storage invalidation", () => {
 
   beforeEach(() => {
     cleanups = new Set();
-    originalGlobals = new Map(
-      gmGlobals.map((key) => [
-        key,
-        Object.getOwnPropertyDescriptor(globalThis, key),
-      ])
-    );
-    gmGlobals.forEach((key) => delete globalThis[key]);
   });
 
   afterEach(async () => {
     [...cleanups].forEach((cleanup) => cleanup());
     await flushPromises();
-    originalGlobals.forEach((descriptor, key) => {
-      if (descriptor) {
-        Object.defineProperty(globalThis, key, descriptor);
-      } else {
-        delete globalThis[key];
-      }
-    });
     jest.dontMock("./client");
     jest.dontMock("./browser");
     jest.restoreAllMocks();
@@ -155,148 +131,4 @@ describe("external storage invalidation", () => {
     expect(settings).toHaveBeenCalledTimes(2);
     expect(rules).toHaveBeenCalledTimes(1);
   });
-
-  test.each(["native", "bridge", "legacy"])(
-    "shares %s GM listeners by key and ignores same-page writes",
-    async (provider) => {
-      const callbacks = new Map();
-      const api = {
-        addValueChangeListener: jest.fn((key, callback) => {
-          callbacks.set(key, callback);
-          return `${key}-listener`;
-        }),
-        removeValueChangeListener: jest.fn(),
-      };
-      if (provider === "native") {
-        globalThis.GM = api;
-      } else if (provider === "bridge") {
-        window.KISS_GM = api;
-      } else {
-        globalThis.GM_addValueChangeListener = api.addValueChangeListener;
-        globalThis.GM_removeValueChangeListener = api.removeValueChangeListener;
-      }
-      const events = loadEvents({ gm: true });
-      const first = jest.fn();
-      const second = jest.fn();
-      const rules = jest.fn();
-      const stopFirst = subscribe(events, "settings", first);
-      const stopSecond = subscribe(events, "settings", second);
-      const stopRules = subscribe(events, "rules", rules);
-      await flushPromises();
-
-      expect(api.addValueChangeListener).toHaveBeenCalledTimes(2);
-      const changeSettings = callbacks.get("settings");
-      changeSettings("settings", "old", "new", false);
-      expect(first).not.toHaveBeenCalled();
-      expect(second).not.toHaveBeenCalled();
-      changeSettings("settings", "old", "new", true);
-      changeSettings("settings", "old", "new");
-      expect(first.mock.calls).toEqual([[], []]);
-      expect(second.mock.calls).toEqual([[], []]);
-      expect(rules).not.toHaveBeenCalled();
-
-      stopFirst();
-      await flushPromises();
-      expect(api.removeValueChangeListener).not.toHaveBeenCalled();
-      stopSecond();
-      await flushPromises();
-      expect(api.removeValueChangeListener.mock.calls).toEqual([
-        ["settings-listener"],
-      ]);
-      changeSettings("settings", "new", "later", true);
-      expect(first).toHaveBeenCalledTimes(2);
-      expect(second).toHaveBeenCalledTimes(2);
-      stopRules();
-      await flushPromises();
-      expect(api.removeValueChangeListener.mock.calls).toEqual([
-        ["settings-listener"],
-        ["rules-listener"],
-      ]);
-    }
-  );
-
-  test("removes a late GM registration without notifying a replacement subscription", async () => {
-    let resolveRegistration;
-    const pendingRegistration = new Promise((resolve) => {
-      resolveRegistration = resolve;
-    });
-    const callbacks = [];
-    const removeValueChangeListener = jest.fn();
-    globalThis.GM = {
-      addValueChangeListener: jest.fn((_key, callback) => {
-        callbacks.push(callback);
-        return callbacks.length === 1
-          ? pendingRegistration
-          : "current-listener";
-      }),
-      removeValueChangeListener,
-    };
-    const events = loadEvents({ gm: true });
-    const obsolete = jest.fn();
-    const current = jest.fn();
-    const stopObsolete = subscribe(events, "settings", obsolete);
-    await flushPromises();
-    stopObsolete();
-    const stopCurrent = subscribe(events, "settings", current);
-    await flushPromises();
-    stopObsolete();
-
-    callbacks[0]("settings", "old", "stale", true);
-    callbacks[1]("settings", "old", "current", true);
-    expect(obsolete).not.toHaveBeenCalled();
-    expect(current.mock.calls).toEqual([[]]);
-
-    resolveRegistration("obsolete-listener");
-    await flushPromises();
-    expect(removeValueChangeListener.mock.calls).toEqual([
-      ["obsolete-listener"],
-    ]);
-    stopCurrent();
-    await flushPromises();
-    expect(removeValueChangeListener.mock.calls).toEqual([
-      ["obsolete-listener"],
-      ["current-listener"],
-    ]);
-    callbacks[0]("settings", "old", "stale", true);
-    callbacks[1]("settings", "old", "stale", true);
-    expect(obsolete).not.toHaveBeenCalled();
-    expect(current).toHaveBeenCalledTimes(1);
-  });
-
-  test.each(["unavailable", "rejected"])(
-    "refreshes subscribed GM keys on focus and pageshow when registration is %s",
-    async (registration) => {
-      if (registration === "rejected") {
-        globalThis.GM = {
-          addValueChangeListener: jest.fn(async () => {
-            throw new Error("Registration failed");
-          }),
-          removeValueChangeListener: jest.fn(),
-        };
-      }
-      const events = loadEvents({ gm: true });
-      const settings = jest.fn();
-      const rules = jest.fn();
-      const stopSettings = subscribe(events, "settings", settings);
-      const stopRules = subscribe(events, "rules", rules);
-      await flushPromises();
-      settings.mockClear();
-      rules.mockClear();
-
-      window.dispatchEvent(new Event("focus"));
-      expect(settings.mock.calls).toEqual([[]]);
-      expect(rules.mock.calls).toEqual([[]]);
-      window.dispatchEvent(new Event("pageshow"));
-      expect(settings).toHaveBeenCalledTimes(2);
-      expect(rules).toHaveBeenCalledTimes(2);
-
-      stopSettings();
-      window.dispatchEvent(new Event("focus"));
-      expect(settings).toHaveBeenCalledTimes(2);
-      expect(rules).toHaveBeenCalledTimes(3);
-      stopRules();
-      window.dispatchEvent(new Event("pageshow"));
-      expect(rules).toHaveBeenCalledTimes(3);
-    }
-  );
 });

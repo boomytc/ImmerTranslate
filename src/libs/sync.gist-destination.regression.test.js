@@ -3,13 +3,13 @@ import { storage, putSync, getSync } from "./storage";
 import { syncData } from "./sync";
 import { STOKEY_SYNC, KV_RULES_KEY, OPT_SYNCTYPE_GIST } from "../config";
 
-jest.mock("./client", () => ({ isExt: false, isGm: false }));
+jest.mock("./client", () => ({ isExt: false }));
 jest.mock("./browser", () => ({ isOptions: () => true }));
 jest.mock("./log", () => ({
   ...jest.requireActual("./log"),
   kissLog: jest.fn(),
 }));
-jest.mock("./fetch", () => ({ fetchPatcher: jest.fn(), fetchGM: jest.fn() }));
+jest.mock("./fetch", () => ({ fetchPatcher: jest.fn() }));
 jest.mock("webdav", () => ({
   createClient: jest.fn(),
   getPatcher: () => ({ patch: jest.fn() }),

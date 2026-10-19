@@ -92,7 +92,6 @@ const loadCoordinator = ({
   runtime,
   background = false,
   extension = true,
-  gm = false,
   pageEvents,
 } = {}) => {
   let coordinator;
@@ -100,7 +99,7 @@ const loadCoordinator = ({
   if (pageEvents) globalThis.__IMMER_STORAGE_PAGE_EVENTS = pageEvents;
   try {
     jest.isolateModules(() => {
-      jest.doMock("./client", () => ({ isExt: extension, isGm: gm }));
+      jest.doMock("./client", () => ({ isExt: extension }));
       jest.doMock("./browser", () => ({
         browser: runtime ? { runtime, storage: runtime.storage } : undefined,
         isBg: () => background,
@@ -543,26 +542,6 @@ describe("storage transaction coordination", () => {
     expect(operation).not.toHaveBeenCalled();
     permitted.resolve();
     await expect(result).resolves.toBe("web complete");
-  });
-
-  test("does not use origin-scoped web locks for userscript storage", async () => {
-    const request = jest.fn();
-    Object.defineProperty(navigator, "locks", {
-      configurable: true,
-      value: { request },
-    });
-    const userscript = loadCoordinator({ extension: false, gm: true });
-    const firstCompletion = deferred();
-    const first = userscript.withStorageLock(() => firstCompletion.promise);
-    const secondOperation = jest.fn(() => "second complete");
-    const second = userscript.withStorageLock(secondOperation);
-    await flushPromises();
-
-    expect(request).not.toHaveBeenCalled();
-    expect(secondOperation).not.toHaveBeenCalled();
-    firstCompletion.resolve();
-    await first;
-    await expect(second).resolves.toBe("second complete");
   });
 
   test("keeps its fallback queue usable after an operation fails", async () => {

@@ -19,11 +19,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../../apis", () => ({ apiFetch: jest.fn() }));
 jest.mock("../../libs/client", () => ({
   isExt: false,
-  isGm: false,
-  isWeb: true,
 }));
 jest.mock("../../libs/browser", () => ({ isOptions: () => false }));
-jest.mock("../../libs/gm", () => ({ getGmMethod: jest.fn() }));
 jest.mock("../../libs/sync", () => ({
   syncData: jest.fn(),
 }));

@@ -236,7 +236,6 @@ export class PageRuntime {
         rule: target.rule,
         fabConfig: this.options.fabConfig,
         isIframe: Boolean(this.options.isIframe),
-        isUserscript: Boolean(this.options.isUserscript),
         transboxOnly: Boolean(this.options.transboxOnly),
         onManualSwitch: (enabled) => this.setManualSwitch(enabled),
       });

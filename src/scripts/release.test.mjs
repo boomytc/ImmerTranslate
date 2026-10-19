@@ -117,34 +117,15 @@ async function artifacts(t) {
   const build = path.join(root, "build");
   for (const client of RELEASE_CLIENTS) {
     await mkdir(path.join(build, client), { recursive: true });
-    if (client !== "userscript")
-      await writeFile(
-        path.join(build, client, "manifest.json"),
-        '{"version":"1.1.1"}'
-      );
+    await writeFile(
+      path.join(build, client, "manifest.json"),
+      '{"version":"1.1.1"}'
+    );
   }
-  await mkdir(path.join(build, "web"));
-  for (const name of [
-    "immer-translate.user.js",
-    "immer-translate-ios-safari.user.js",
-  ]) {
-    for (const client of ["userscript", "web"]) {
-      await writeFile(
-        path.join(build, client, name),
-        "// @version       1.1.1\nconsole.log('translation');\n"
-      );
-    }
-  }
-  await writeFile(path.join(build, "web/version.txt"), "1.1.1");
-  await writeFile(
-    path.join(build, "web/index.html"),
-    "<html>Translation</html>"
-  );
   for (const client of RELEASE_CLIENTS) {
-    const flat = ["firefox", "thunderbird"].includes(client);
     await bestzip({
-      cwd: flat ? path.join(build, client) : build,
-      source: flat ? "*" : client,
+      cwd: build,
+      source: client,
       destination: path.join(build, `${client}.zip`),
     });
   }
@@ -209,7 +190,7 @@ async function publishedFixture(t) {
 test("synchronizes all versions and can be repeated without writes", async (t) => {
   const root = await fixture(t);
   await writeFile(path.join(root, "package.json"), '{"version":"1.1.2"}\n');
-  assert.deepEqual(await syncVersion(root), { version: "1.1.2", updated: 4 });
+  assert.deepEqual(await syncVersion(root), { version: "1.1.2", updated: 2 });
   assert.deepEqual(await syncVersion(root), { version: "1.1.2", updated: 0 });
 });
 
@@ -311,7 +292,7 @@ for (const content of [
   });
 }
 
-test("verifies all five ZIPs, both userscripts and Pages provenance", async (t) => {
+test("verifies Chrome and Edge ZIPs and their provenance", async (t) => {
   const { root, manifest } = await artifacts(t);
   assert.deepEqual(await verifyArtifactManifest(root, tag, sha), manifest);
   await assert.rejects(
@@ -365,12 +346,6 @@ test("rejects changed ZIP bytes even if version metadata remains valid", async (
   await assert.rejects(verifyArtifactManifest(root, tag, sha), /checksums/);
 });
 
-test("rejects changed Pages content", async (t) => {
-  const { root } = await artifacts(t);
-  await writeFile(path.join(root, "build/web/index.html"), "changed website");
-  await assert.rejects(verifyArtifactManifest(root, tag, sha), /checksums/);
-});
-
 test("rejects incorrect built version before creating a manifest", async (t) => {
   const { root } = await artifacts(t);
   await writeFile(
@@ -387,7 +362,7 @@ test("first publication uploads provenance first and publishes only after every 
   assert.equal(client.mutations[0], "create");
   assert.equal(client.mutations[1], `upload:${manifestAssetName(tag)}`);
   assert.equal(client.mutations.at(-1), "publish");
-  assert.equal(client.value.assets.length, 6);
+  assert.equal(client.value.assets.length, 3);
 });
 
 test("draft API semantics work during creation, upload verification and repeat", async (t) => {
@@ -404,7 +379,7 @@ test("draft API semantics work during creation, upload verification and repeat",
   client.getRelease = async () => getGithubRelease("owner/repo", tag, gh);
   await publishRelease({ ...data, client, notes: "Security fix" });
   assert.equal(client.value.draft, false);
-  assert.equal(client.value.assets.length, 6);
+  assert.equal(client.value.assets.length, 3);
   client.mutations.length = 0;
   await publishRelease({ ...data, client, notes: "Security fix" });
   assert.deepEqual(client.mutations, []);
@@ -433,7 +408,7 @@ test("partial upload leaves a draft and resumes only missing original files", as
   client.upload = upload;
   client.mutations.length = 0;
   await publishRelease({ ...data, client, notes: "Security fix" });
-  assert.equal(client.mutations.length, 5);
+  assert.equal(client.mutations.length, 2);
   assert.equal(client.mutations.at(-1), "publish");
   assert.ok(
     !client.mutations.some(
@@ -638,7 +613,7 @@ test("artifact finder refuses to rebuild when a draft exists or state is unknown
   assert.equal(await readFile(output, "utf8"), "found=false\nrun_id=10\n");
 });
 
-test("archive script creates all five packages without invoking npx", async (t) => {
+test("archive script creates Chrome and Edge packages without invoking npx", async (t) => {
   const { root } = await artifacts(t);
   const fakeBin = path.join(root, "fake-bin");
   await mkdir(fakeBin);

@@ -12,11 +12,10 @@ import {
   KV_SETTING_KEY,
   KV_RULES_KEY,
 } from "../config";
-import { isExt, isGm } from "./client";
+import { isExt } from "./client";
 import { browser } from "./browser";
 import { kissLog } from "./log";
 import { debounce } from "./utils";
-import { getGmMethod } from "./gmMethods";
 import { publishStorageWrite } from "./storageEvents";
 import { withStorageLock } from "./storageCoordination";
 import { cloneStorageValue, isSameStorageValue } from "./storageEquality";
@@ -69,34 +68,13 @@ function preserveNewerSyncMeta(current, incoming) {
 }
 
 /**
- * 获取适用于当前环境的 GM (Greasemonkey) 存储引擎方法集合。
- * 返回的对象包含跨环境安全调用的 setValue, getValue, deleteValue 方法。
- * 查找优先级：
- * 1. window.KISS_GM：用于网页沙盒内通过 CustomEvent 与特权层通信的代理对象。
- * 2. 原生 GM Promise API (如 GM.setValue)。
- * 3. 旧版 GM_xxx 同步 API。
- * @returns {{setValue: Function, getValue: Function, deleteValue: Function}} 封装好的存储方法集合
- */
-function getGmStorage() {
-  return {
-    setValue: getGmMethod("setValue", "GM_setValue", [window.KISS_GM]),
-    getValue: getGmMethod("getValue", "GM_getValue", [window.KISS_GM]),
-    deleteValue: getGmMethod("deleteValue", "GM_deleteValue", [window.KISS_GM]),
-  };
-}
-
-/**
- * 跨平台存储底层写入操作。
- * 会自动适配 Chrome Extension (browser.storage.local)、Userscript 油猴环境 (GM.setValue)
- * 以及普通网页环境 (localStorage)。
+ * 扩展使用 browser.storage.local，测试和非扩展页面使用 localStorage。
  * @param {string} key 键名
  * @param {*} val 待写入的字符串数据
  */
 async function rawSet(key, val) {
   if (isExt) {
     await browser.storage.local.set({ [key]: val });
-  } else if (isGm) {
-    await getGmStorage().setValue(key, val);
   } else {
     window.localStorage.setItem(key, val);
   }
@@ -111,9 +89,6 @@ async function rawGet(key) {
   if (isExt) {
     const val = await browser.storage.local.get([key]);
     return val[key];
-  } else if (isGm) {
-    const val = await getGmStorage().getValue(key);
-    return val;
   }
   return window.localStorage.getItem(key);
 }
@@ -125,8 +100,6 @@ async function rawGet(key) {
 async function rawDel(key) {
   if (isExt) {
     await browser.storage.local.remove([key]);
-  } else if (isGm) {
-    await getGmStorage().deleteValue(key);
   } else {
     window.localStorage.removeItem(key);
   }
@@ -227,12 +200,6 @@ export function withTransaction(operation) {
         (key === STOKEY_SYNC && (options.syncStateUpdate || options.userEdit)
           ? DEFAULT_SYNC
           : null);
-      // Use the same defaults when comparing metadata-only changes.
-      const configurationBaseline = options.syncStateUpdate
-        ? writes.has(key)
-          ? writes.get(key).configurationBaseline
-          : current
-        : originals.get(key);
       if (key === STOKEY_SYNC && value && current) {
         const destinationChanged = DESTINATION_FIELDS.some(
           (field) => current[field] !== value[field]
@@ -253,7 +220,7 @@ export function withTransaction(operation) {
             : {}),
         };
       }
-      writes.set(key, { value, remove, configurationBaseline });
+      writes.set(key, { value, remove });
       return value;
     };
     const transaction = {
@@ -281,54 +248,7 @@ export function withTransaction(operation) {
         persisted.set(key, { previous: await rawGet(key), value });
       else persisted.get(key).value = value;
     };
-    for (const [key, { value, remove, configurationBaseline }] of writes) {
-      const configFields = (sync) => {
-        if (!sync) return sync;
-        const { syncMeta, ...configuration } = sync;
-        return configuration;
-      };
-      if (
-        isGm &&
-        key === STOKEY_SYNC &&
-        !remove &&
-        sameValue(configFields(configurationBaseline), configFields(value))
-      ) {
-        // Keep the original sync key and merge only metadata changed here.
-        // Re-read configuration so a delayed update cannot restore an old target.
-        const previous = configurationBaseline || DEFAULT_SYNC;
-        const current = (await getObj(key)) || DEFAULT_SYNC;
-        const changedDestination =
-          (current.destinationRevision || 0) !==
-            (previous.destinationRevision || 0) ||
-          DESTINATION_FIELDS.some(
-            (field) => current[field] !== previous[field]
-          );
-        if (changedDestination) {
-          writes.delete(key);
-          continue;
-        }
-        const changedMeta = Object.fromEntries(
-          Object.entries(value.syncMeta || {}).filter(
-            ([syncKey, meta]) => !sameValue(previous.syncMeta?.[syncKey], meta)
-          )
-        );
-        const syncMeta = preserveNewerSyncMeta(current.syncMeta, changedMeta);
-        Object.entries(changedMeta).forEach(([syncKey, meta]) => {
-          // An accepted remote version may be older than the local edit.
-          // Preserve newer metadata only if another origin changed this key.
-          if (
-            sameValue(current.syncMeta?.[syncKey], previous.syncMeta?.[syncKey])
-          )
-            syncMeta[syncKey] = meta;
-        });
-        const next = {
-          ...current,
-          syncMeta,
-        };
-        writes.get(key).value = next;
-        await stageRaw(key, JSON.stringify(next));
-        continue;
-      }
+    for (const [key, { value, remove }] of writes) {
       await stageRaw(key, remove ? null : JSON.stringify(value));
     }
     const attempted = [];

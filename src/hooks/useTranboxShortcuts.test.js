@@ -5,14 +5,6 @@ import { EVENT_KISS_INNER, MSG_OPEN_TRANBOX } from "../config";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-jest.mock("../libs/client", () => ({
-  isGm: false,
-}));
-
-jest.mock("../libs/log", () => ({
-  kissLog: jest.fn(),
-}));
-
 jest.mock("../config", () => ({
   EVENT_KISS_INNER: "immertranslate-inner",
   MSG_OPEN_TRANBOX: "open-tranbox",

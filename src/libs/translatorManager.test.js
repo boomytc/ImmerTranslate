@@ -339,7 +339,6 @@ function setupMockConstructors() {
 function createManager({
   rule = { transOpen: "true" },
   setting = {},
-  isUserscript = false,
   isIframe = false,
   transboxOnly = false,
 } = {}) {
@@ -356,7 +355,6 @@ function createManager({
     rule,
     fabConfig: { isHide: false },
     isIframe,
-    isUserscript,
     transboxOnly,
   });
   activeManagers.push(manager);

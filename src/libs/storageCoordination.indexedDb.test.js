@@ -1,4 +1,4 @@
-jest.mock("./client", () => ({ isExt: false, isGm: false }));
+jest.mock("./client", () => ({ isExt: false }));
 jest.mock("./browser", () => ({ browser: undefined, isBg: () => false }));
 
 const invalidState = () =>

@@ -20,8 +20,6 @@ jest.mock("../libs/storage", () => ({
   },
 }));
 
-jest.mock("../libs/gm", () => ({ getGmMethod: jest.fn() }));
-
 jest.mock("../libs/sync", () => ({ syncData: jest.fn() }));
 jest.mock("../libs/browser", () => ({ isOptions: () => false }));
 jest.mock("../libs/log", () => ({

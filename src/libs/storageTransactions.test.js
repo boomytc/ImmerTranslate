@@ -12,14 +12,10 @@ jest.mock("./log", () => ({
   ...jest.requireActual("./log"),
   kissLog: jest.fn(),
 }));
-jest.mock("./gm", () => ({
-  getGmMethod: (method) => globalThis.GM[method].bind(globalThis.GM),
-}));
-
-function loadPage(isGm = false) {
+function loadPage() {
   let page;
   jest.isolateModules(() => {
-    jest.doMock("./client", () => ({ isExt: false, isGm }));
+    jest.doMock("./client", () => ({ isExt: false }));
     page = {
       ...require("./storage"),
       ...require("./storageEvents"),
@@ -43,12 +39,10 @@ const initialSync = {
 
 beforeEach(() => {
   localStorage.clear();
-  delete globalThis.GM;
 });
 
 afterEach(() => {
   jest.restoreAllMocks();
-  delete globalThis.GM;
   jest.dontMock("./client");
 });
 
@@ -279,54 +273,42 @@ test("advances the destination revision when editing an uninitialized configurat
   expect(result.value).toMatchObject({ destinationRevision: 1, syncMeta: {} });
 });
 
-test.each([false, true])(
-  "compensates a failed metadata write without publishing a remote value (GM: %s)",
-  async (isGm) => {
-    if (isGm) installGmStorage();
-    const page = loadPage(isGm);
-    await page.storage.setObj(STOKEY_SYNC, initialSync);
-    await page.storage.setObj(STOKEY_SETTING, { darkMode: "light" });
-    const listener = jest.fn();
-    page.subscribeStorageWrite(STOKEY_SETTING, listener);
-    if (isGm) {
-      const setValue = globalThis.GM.setValue.getMockImplementation();
-      globalThis.GM.setValue.mockImplementation(async (key, value) => {
-        if (key === STOKEY_SYNC) throw new Error("metadata failed");
-        return setValue(key, value);
-      });
-    } else {
-      const setItem = Storage.prototype.setItem;
-      jest
-        .spyOn(Storage.prototype, "setItem")
-        .mockImplementation(function (key, value) {
-          if (key === STOKEY_SYNC) throw new Error("metadata failed");
-          setItem.call(this, key, value);
-        });
-    }
-    await expect(
-      page.updateSyncState(async (current, transaction) => {
-        await transaction.setObj(STOKEY_SETTING, { darkMode: "dark" });
-        return {
-          ...current,
-          syncMeta: {
-            ...current.syncMeta,
-            [KV_SETTING_KEY]: { updateAt: 200, syncAt: 201 },
-          },
-        };
-      })
-    ).rejects.toMatchObject({
-      message: "metadata failed",
-      storageOutcome: "not-committed",
+test("compensates a failed metadata write without publishing a remote value", async () => {
+  const page = loadPage();
+  await page.storage.setObj(STOKEY_SYNC, initialSync);
+  await page.storage.setObj(STOKEY_SETTING, { darkMode: "light" });
+  const listener = jest.fn();
+  page.subscribeStorageWrite(STOKEY_SETTING, listener);
+  const setItem = Storage.prototype.setItem;
+  jest
+    .spyOn(Storage.prototype, "setItem")
+    .mockImplementation(function (key, value) {
+      if (key === STOKEY_SYNC) throw new Error("metadata failed");
+      setItem.call(this, key, value);
     });
-    expect(await page.storage.getObj(STOKEY_SETTING)).toEqual({
-      darkMode: "light",
-    });
-    expect((await page.getSync()).syncMeta[KV_SETTING_KEY]).toEqual(
-      initialSync.syncMeta[KV_SETTING_KEY]
-    );
-    expect(listener).not.toHaveBeenCalled();
-  }
-);
+  await expect(
+    page.updateSyncState(async (current, transaction) => {
+      await transaction.setObj(STOKEY_SETTING, { darkMode: "dark" });
+      return {
+        ...current,
+        syncMeta: {
+          ...current.syncMeta,
+          [KV_SETTING_KEY]: { updateAt: 200, syncAt: 201 },
+        },
+      };
+    })
+  ).rejects.toMatchObject({
+    message: "metadata failed",
+    storageOutcome: "not-committed",
+  });
+  expect(await page.storage.getObj(STOKEY_SETTING)).toEqual({
+    darkMode: "light",
+  });
+  expect((await page.getSync()).syncMeta[KV_SETTING_KEY]).toEqual(
+    initialSync.syncMeta[KV_SETTING_KEY]
+  );
+  expect(listener).not.toHaveBeenCalled();
+});
 
 test("reports an unknown outcome when transaction compensation fails", async () => {
   const page = loadPage();
@@ -402,65 +384,37 @@ test("retains a durable first-attempt marker when saving a stale same-destinatio
   expect((await page.getSync()).syncMeta[KV_RULES_KEY].firstAttemptAt).toBe(50);
 });
 
-function installGmStorage() {
-  const values = new Map([
-    [STOKEY_SYNC, JSON.stringify(initialSync)],
-    [STOKEY_SETTING, JSON.stringify({ darkMode: "auto" })],
-    [STOKEY_FAB, JSON.stringify({ original: {} })],
-  ]);
-  globalThis.GM = {
-    getValue: jest.fn(async (key) => values.get(key)),
-    setValue: jest.fn(async (key, value) => values.set(key, value)),
-    deleteValue: jest.fn(async (key) => values.delete(key)),
+test("preserves a post-request edit after rebuilding the page state", async () => {
+  const seed = {
+    ...initialSync,
+    syncMeta: { [KV_RULES_KEY]: { updateAt: 10, syncAt: 0 } },
   };
-  return values;
-}
-
-test.each([false, true])(
-  "preserves a post-request edit after rebuilding the page state (GM: %s)",
-  async (isGm) => {
-    const seed = {
-      ...initialSync,
-      syncMeta: { [KV_RULES_KEY]: { updateAt: 10, syncAt: 0 } },
-    };
-    if (isGm) installGmStorage().set(STOKEY_SYNC, JSON.stringify(seed));
-    else localStorage.setItem(STOKEY_SYNC, JSON.stringify(seed));
-    const requestPage = loadPage(isGm);
-    await requestPage.updateSyncState((current) => ({
-      ...current,
-      syncMeta: {
-        ...current.syncMeta,
-        [KV_RULES_KEY]: {
-          ...current.syncMeta[KV_RULES_KEY],
-          firstAttemptAt: 50,
-        },
+  localStorage.setItem(STOKEY_SYNC, JSON.stringify(seed));
+  const requestPage = loadPage();
+  await requestPage.updateSyncState((current) => ({
+    ...current,
+    syncMeta: {
+      ...current.syncMeta,
+      [KV_RULES_KEY]: {
+        ...current.syncMeta[KV_RULES_KEY],
+        firstAttemptAt: 50,
       },
-    }));
+    },
+  }));
 
-    // No in-memory attempted-request set is inherited by this new registry.
-    const newPage = loadPage(isGm);
-    await newPage.saveEdit(STOKEY_FAB, { added: {} }, KV_RULES_KEY, {
-      timestamp: 100,
-    });
+  // No in-memory attempted-request set is inherited by this new registry.
+  const newPage = loadPage();
+  await newPage.saveEdit(STOKEY_FAB, { added: {} }, KV_RULES_KEY, {
+    timestamp: 100,
+  });
 
-    expect(await newPage.storage.getObj(STOKEY_FAB)).toEqual({ added: {} });
-    expect((await newPage.getSync()).syncMeta[KV_RULES_KEY]).toEqual({
-      updateAt: 100,
-      syncAt: 0,
-      firstAttemptAt: 50,
-      pendingUpload: true,
-    });
-  }
-);
-
-test("retains GM metadata when configuration changes without changing destination", async () => {
-  installGmStorage();
-  const page = loadPage(true);
-  await page.putSync({ dataCaches: { "https://rules.example": 123 } });
-  expect((await page.getSync()).syncMeta).toEqual(initialSync.syncMeta);
-  await page.putSync({ syncUrl: "https://sync.example/second" });
-  expect((await page.getSync()).syncMeta).toEqual({});
-  expect(await page.getSetting()).toEqual({ darkMode: "auto" });
+  expect(await newPage.storage.getObj(STOKEY_FAB)).toEqual({ added: {} });
+  expect((await newPage.getSync()).syncMeta[KV_RULES_KEY]).toEqual({
+    updateAt: 100,
+    syncAt: 0,
+    firstAttemptAt: 50,
+    pendingUpload: true,
+  });
 });
 
 test("discard removes only the staged business write after a stale guard", async () => {

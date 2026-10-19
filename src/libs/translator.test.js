@@ -26,7 +26,13 @@ jest.mock("../config/app", () => {
 
 const { apiTranslate } = require("../apis");
 const { tryDetectLang } = require("./detect");
-const { DEFAULT_API_SETTING, I18N, OPT_TRANS_MICROSOFT } = require("../config");
+const { sendBgMsg } = require("./msg");
+const {
+  DEFAULT_API_SETTING,
+  I18N,
+  MSG_OPEN_OPTIONS,
+  OPT_TRANS_MICROSOFT,
+} = require("../config");
 const { Translator } = require("./translator");
 
 const flushAsync = async () => {
@@ -6293,9 +6299,7 @@ describe("Translator rule styles", () => {
     };
 
     test("failed page translation shows a visible 打开设置 control", async () => {
-      const previousPage = process.env.REACT_APP_OPTIONSPAGE;
-      process.env.REACT_APP_OPTIONSPAGE = "https://example.test/options";
-      const open = jest.spyOn(window, "open").mockImplementation(() => null);
+      sendBgMsg.mockClear();
 
       const message = await failPage(new Error("invalid api key"));
 
@@ -6306,18 +6310,13 @@ describe("Translator rule styles", () => {
       expect(message.textContent).toBe(I18N.test_connection_invalid_key.zh);
       expect(message.hidden).toBe(false);
       button.click();
-      expect(open).toHaveBeenCalledWith(
-        "https://example.test/options#/apis",
-        "_blank",
-        "noopener,noreferrer"
-      );
+      expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS, {
+        hash: "/apis",
+      });
       expect(apiTranslate).toHaveBeenCalledTimes(1);
       expect(
         document.querySelector(`.${Translator.KISS_CLASS.retry}`)
       ).not.toBeNull();
-
-      open.mockRestore();
-      process.env.REACT_APP_OPTIONSPAGE = previousPage;
     });
 
     test("shows the connection-test network copy when the provider cannot be reached", async () => {

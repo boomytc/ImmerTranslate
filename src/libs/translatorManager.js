@@ -11,25 +11,18 @@ import { acceptsFrameMessage } from "./msg";
 import { Translator } from "./translator";
 import { InputTranslator } from "./inputTranslate";
 import { TransboxManager } from "./tranbox";
-import { shortcutRegister } from "./shortcut";
 import { installFrameRuntimeBridge, sendIframeMsg } from "./iframe";
 import {
   EVENT_KISS_INNER,
   EVENT_KISS_TRANSLATOR,
   MSG_HOVERNODE_TOGGLE,
   MSG_INPUT_TRANSLATE,
-  newI18n,
 } from "../config";
 import { touchTapListener } from "./touch";
 import { PopupManager } from "./popupManager";
 import { FabManager } from "./fabManager";
 import { RuleEditorManager } from "./ruleEditorManager";
 import {
-  OPT_SHORTCUT_TRANSLATE,
-  OPT_SHORTCUT_TRANSONLY,
-  OPT_SHORTCUT_STYLE,
-  OPT_SHORTCUT_POPUP,
-  OPT_SHORTCUT_SETTING,
   MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_ONLY,
   MSG_TRANS_TOGGLE_STYLE,
@@ -61,7 +54,7 @@ import { publishPageRule } from "./pageRuleSync";
  * 前台翻译业务的总生命周期管理器。
  *
  * 这个类负责把网页翻译核心、划词翻译、输入框翻译、弹出面板、
- * 悬浮球、快捷键、油猴菜单和跨 iframe 消息分发组织到同一个
+ * 悬浮球、快捷键和跨 iframe 消息分发组织到同一个
  * start/stop/restart 生命周期里。构造函数刻意不创建 DOM 相关子模块，
  * 因为 SPA 页面可能替换 body/html，运行期子模块必须能被销毁并重建。
  */
@@ -69,8 +62,6 @@ export default class TranslatorManager {
   // 全局注册项的清理句柄；这些只随 start/stop 注册，restart 时不重复注册。
   #touchMode = "off";
   #touchStatus = null;
-  #clearShortcuts = [];
-  #menuCommandIds = [];
   #clearTouchListeners = [];
   #isActive = false;
 
@@ -78,7 +69,6 @@ export default class TranslatorManager {
   #setting;
   #rule;
   #fabConfig;
-  #isUserscript;
   #isIframe;
   #transboxOnly;
   // Reply routing must work before a child receives its frame ID.
@@ -129,7 +119,6 @@ export default class TranslatorManager {
     rule,
     fabConfig,
     isIframe,
-    isUserscript,
     transboxOnly = false,
     onManualSwitch = null,
   }) {
@@ -137,7 +126,6 @@ export default class TranslatorManager {
     this.#rule = this.#cloneConfig(rule);
     this.#fabConfig = this.#cloneConfig(fabConfig);
     this.#isIframe = isIframe;
-    this.#isUserscript = isUserscript;
     this.#transboxOnly = transboxOnly;
     this.#onManualSwitch = onManualSwitch;
 
@@ -167,11 +155,6 @@ export default class TranslatorManager {
       this.#setupTouchOperations();
     }
 
-    if (!this.#transboxOnly && !this.#isIframe && this.#isUserscript) {
-      this.#registerShortcuts();
-      this.#registerMenus();
-    }
-
     if (!this.#transboxOnly) {
       this.#setupSpaListeners();
     }
@@ -186,7 +169,7 @@ export default class TranslatorManager {
   /**
    * 重启运行期子模块，用于 SPA 替换 body/html 后重新挂载。
    *
-   * restart 不会重新注册全局消息监听、快捷键、触屏手势或油猴菜单。
+   * restart 不会重新注册全局消息监听或触屏手势。
    * 它只快照当前运行期状态，销毁挂 DOM 的子模块，再用快照创建新实例。
    * 这能保留用户当前的翻译开关、划词翻译开关和输入框翻译开关。
    */
@@ -212,8 +195,8 @@ export default class TranslatorManager {
   /**
    * 停止前台翻译业务并释放所有注册项。
    *
-   * stop 会清理 SPA timer/observer、全局通信监听、快捷键、触屏手势、
-   * 油猴菜单和运行期子模块。stop 后 body/html 变化不应再触发 restart。
+   * stop 会清理 SPA timer/observer、全局通信监听、触屏手势和运行期子模块。
+   * stop 后 body/html 变化不应再触发 restart。
    */
   stop() {
     if (!this.#isActive) {
@@ -228,25 +211,13 @@ export default class TranslatorManager {
       EVENT_KISS_TRANSLATOR,
       this.#windowMessageHandler
     );
-    if (this.#isUserscript) {
+    browser.runtime.onMessage.removeListener(this.#browserMessageHandler);
+    if (this.#isIframe) {
       window.removeEventListener("message", this.#innerMessageHandler);
-    } else {
-      browser.runtime.onMessage.removeListener(this.#browserMessageHandler);
-      if (this.#isIframe) {
-        window.removeEventListener("message", this.#innerMessageHandler);
-      }
     }
-
-    this.#clearShortcuts.forEach((clear) => clear());
-    this.#clearShortcuts = [];
 
     this.#clearTouchListeners.forEach((clear) => clear());
     this.#clearTouchListeners = [];
-
-    if (globalThis.GM && this.#menuCommandIds.length > 0) {
-      this.#menuCommandIds.forEach((id) => GM.unregisterMenuCommand?.(id));
-      this.#menuCommandIds = [];
-    }
 
     this.#unsubscribeFabStorage?.();
     this.#unsubscribeFabStorage = null;
@@ -408,7 +379,6 @@ export default class TranslatorManager {
     this._translator = new Translator({
       rule: this.#cloneConfig(this.#rule),
       setting: this.#cloneConfig(this.#setting),
-      isUserscript: this.#isUserscript,
       isIframe: this.#isIframe,
     });
 
@@ -524,7 +494,6 @@ export default class TranslatorManager {
   }
 
   #initializeDocumentInfo() {
-    if (this.#isUserscript) return;
     const identity = getPopupDocumentIdentity();
     this.#documentToken = identity.token;
     if (!this.#isIframe) {
@@ -748,17 +717,12 @@ export default class TranslatorManager {
   /**
    * 根据运行环境注册消息通道。
    *
-   * Userscript 环境通过 window message 通信；扩展环境通过 runtime.onMessage
-   * 接收 background 指令，iframe 中还要监听父页面转发的 window message。
+   * 扩展通过 runtime.onMessage 接收 background 指令，iframe 中还要监听父页面转发的 window message。
    */
   #setupMessageListeners() {
-    if (this.#isUserscript) {
+    browser.runtime.onMessage.addListener(this.#browserMessageHandler);
+    if (this.#isIframe) {
       window.addEventListener("message", this.#innerMessageHandler);
-    } else {
-      browser.runtime.onMessage.addListener(this.#browserMessageHandler);
-      if (this.#isIframe) {
-        window.addEventListener("message", this.#innerMessageHandler);
-      }
     }
 
     window.addEventListener(EVENT_KISS_TRANSLATOR, this.#windowMessageHandler);
@@ -900,72 +864,6 @@ export default class TranslatorManager {
     processMessage();
     // Unselected documents neither execute the command nor claim its response.
     return shouldRespond;
-  }
-
-  /**
-   * 注册页面级快捷键，并保存每个快捷键的清理函数。
-   */
-  #registerShortcuts() {
-    const { shortcuts, tranboxSetting } = this._translator.setting;
-    this.#clearShortcuts = [
-      shortcutRegister(shortcuts[OPT_SHORTCUT_TRANSLATE], () =>
-        this.#processActions({ action: MSG_TRANS_TOGGLE })
-      ),
-      shortcutRegister(shortcuts[OPT_SHORTCUT_TRANSONLY], () =>
-        this.#processActions({ action: MSG_TRANS_TOGGLE_ONLY })
-      ),
-      shortcutRegister(shortcuts[OPT_SHORTCUT_STYLE], () =>
-        this.#processActions({ action: MSG_TRANS_TOGGLE_STYLE })
-      ),
-      shortcutRegister(shortcuts[OPT_SHORTCUT_POPUP], () =>
-        this.#processActions({ action: MSG_POPUP_TOGGLE })
-      ),
-      shortcutRegister(shortcuts[OPT_SHORTCUT_SETTING], () =>
-        window.open(process.env.REACT_APP_OPTIONSPAGE, "_blank")
-      ),
-      shortcutRegister(tranboxSetting?.tranboxShortcut, () =>
-        this.#processActions({ action: MSG_TRANSBOX_TOGGLE })
-      ),
-    ];
-  }
-
-  /**
-   * 注册油猴菜单命令。
-   */
-  #registerMenus() {
-    if (!globalThis.GM) return;
-    const { contextMenuType, uiLang } = this._translator.setting;
-    if (contextMenuType === 0) return;
-
-    const i18n = newI18n(uiLang || "zh");
-
-    this.#menuCommandIds = [
-      GM.registerMenuCommand?.(
-        i18n("translate_switch"),
-        () => this.#processActions({ action: MSG_TRANS_TOGGLE }),
-        "Q"
-      ),
-      GM.registerMenuCommand?.(
-        i18n("transonly_alt"),
-        () => this.#processActions({ action: MSG_TRANS_TOGGLE_ONLY }),
-        "Q"
-      ),
-      GM.registerMenuCommand?.(
-        i18n("toggle_style"),
-        () => this.#processActions({ action: MSG_TRANS_TOGGLE_STYLE }),
-        "C"
-      ),
-      GM.registerMenuCommand?.(
-        i18n("open_menu"),
-        () => this.#processActions({ action: MSG_POPUP_TOGGLE }),
-        "K"
-      ),
-      GM.registerMenuCommand?.(
-        i18n("open_setting"),
-        () => window.open(process.env.REACT_APP_OPTIONSPAGE, "_blank"),
-        "O"
-      ),
-    ];
   }
 
   /**

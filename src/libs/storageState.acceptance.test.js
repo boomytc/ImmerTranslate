@@ -4,12 +4,6 @@ jest.mock("./log", () => ({
   ...jest.requireActual("./log"),
   kissLog: jest.fn(),
 }));
-jest.mock("./gm", () => ({
-  getGmMethod: () => {
-    throw new Error("The extension test must not access GM storage");
-  },
-}));
-
 function createEvent() {
   const listeners = new Set();
   return {
@@ -92,7 +86,7 @@ function createRuntime() {
 function loadContext(runtime, background = false) {
   let context;
   jest.isolateModules(() => {
-    jest.doMock("./client", () => ({ isExt: true, isGm: false }));
+    jest.doMock("./client", () => ({ isExt: true }));
     jest.doMock("./browser", () => ({
       browser: { runtime, storage: runtime.storage },
       isBg: () => background,

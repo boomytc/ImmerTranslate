@@ -1,4 +1,4 @@
-jest.mock("./client", () => ({ isExt: true, isGm: false }));
+jest.mock("./client", () => ({ isExt: true }));
 jest.mock("./browser", () => ({ isBg: () => false }));
 jest.mock("./msg", () => ({ sendBgMsg: jest.fn() }));
 jest.mock("./storage", () => ({ getSettingWithDefault: jest.fn() }));
