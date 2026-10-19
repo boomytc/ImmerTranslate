@@ -2,12 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_SYNC, STOKEY_SYNC } from "../config";
-import {
-  getSync,
-  putSync,
-  storage,
-  updateSyncState,
-} from "../libs/storage";
+import { getSync, putSync, storage, updateSyncState } from "../libs/storage";
 import { trySyncAllSubRules } from "../libs/subRules";
 import { apiFetch } from "../apis";
 import { useSyncCaches } from "./Sync";

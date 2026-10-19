@@ -70,7 +70,9 @@ describe("M3 global motion", () => {
     expect(M3_GLOBAL_CSS).toContain(
       "--kt-shadow-menu: 0 1px 2px rgb(0 0 0 / 0.35), 0 16px 40px rgb(0 0 0 / 0.4);"
     );
-    expect(M3_GLOBAL_CSS).toContain("--kt-glass-blur: blur(22px) saturate(1.6);");
+    expect(M3_GLOBAL_CSS).toContain(
+      "--kt-glass-blur: blur(22px) saturate(1.6);"
+    );
     expect(M3_GLOBAL_CSS).toContain(
       "--kt-liquid-blur: blur(22px) saturate(1.75) brightness(1.06);"
     );
