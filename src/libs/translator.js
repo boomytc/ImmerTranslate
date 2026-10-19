@@ -11,6 +11,7 @@ import {
   OPT_STYLE_NONE,
   DEFAULT_API_SETTING,
   DEFAULT_MOUSE_HOVER_BUBBLE_STYLE,
+  OPT_TRANS_MICROSOFT,
   DEFAULT_MOUSE_HOVER_HOLD_DELAY,
   OPT_HIGHLIGHT_WORDS_BEFORETRANS,
   OPT_HIGHLIGHT_WORDS_AFTERTRANS,
@@ -4342,8 +4343,15 @@ overflow-wrap: anywhere !important;`;
     apiSettingOverride = null
   ) {
     const { toLang } = this.#rule;
-    const fromLang = deLang || this.#rule.fromLang;
     const rawApiSetting = { ...(apiSettingOverride || this.#apiSetting) };
+    // 微软按段自动检测。短标题经常没有本地检测结果，若把已检出的段落语言
+    // 写进批量键，标题会单独成批。那一次请求失败时标题留下网络错误，
+    // 同页段落却已经翻译成功。源语言为自动时，标题和段落必须同批发出。
+    const fromLang =
+      this.#rule.fromLang === "auto" &&
+      rawApiSetting.apiType === OPT_TRANS_MICROSOFT
+        ? "auto"
+        : deLang || this.#rule.fromLang;
 
     const apiSetting = resolveApiPromptSettings(
       rawApiSetting,
