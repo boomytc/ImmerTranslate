@@ -157,6 +157,60 @@ function siteListMatches(href, list) {
   return splitFabSites(list).some((entry) => matchesSiteEntry(href, entry));
 }
 
+const FAB_UNDO_FIELDS = ["isHide", "size"];
+const FAB_SITE_FIELDS = ["hiddenSites", "shownSites"];
+
+function siteEntries(value) {
+  return splitFabSites(value);
+}
+
+/**
+ * 算出这次写入动过的字段，返回只撤回这些字段的函数。
+ * 调用时若当前值已经不是这次写入的结果，就跳过该字段。
+ * 站点名单只撤回这次加进或移出的主机名，其它主机名和 x/y 保持不动。
+ */
+export function undoFabWrite(previous, next) {
+  const before = normalizeFabConfig(previous);
+  const after = normalizeFabConfig(next);
+  const fields = FAB_UNDO_FIELDS.filter(
+    (key) => before[key] !== after[key]
+  ).map((key) => ({ key, from: before[key], to: after[key] }));
+  const sites = FAB_SITE_FIELDS.map((key) => {
+    const earlier = siteEntries(before[key]);
+    const later = siteEntries(after[key]);
+    return {
+      key,
+      added: later.filter((entry) => !earlier.includes(entry)),
+      removed: earlier.filter((entry) => !later.includes(entry)),
+    };
+  }).filter((change) => change.added.length || change.removed.length);
+
+  return (current) => {
+    const base = current && typeof current === "object" ? current : {};
+    const live = normalizeFabConfig(base);
+    const patch = {};
+    fields.forEach((change) => {
+      if (live[change.key] !== change.to) return;
+      patch[change.key] = change.from;
+    });
+    sites.forEach((change) => {
+      const entries = siteEntries(live[change.key]);
+      const added = change.added.filter((entry) => entries.includes(entry));
+      const removed = change.removed.filter(
+        (entry) => !entries.includes(entry)
+      );
+      if (!added.length && !removed.length) return;
+      const nextEntries = entries.filter((entry) => !added.includes(entry));
+      removed.forEach((entry) => {
+        if (!nextEntries.includes(entry)) nextEntries.push(entry);
+      });
+      patch[change.key] = nextEntries.join("\n");
+    });
+    if (!Object.keys(patch).length) return current;
+    return { ...base, ...patch };
+  };
+}
+
 /**
  * 全局显示时：命中 hiddenSites 则隐藏。
  * 全局隐藏时：命中 shownSites 才显示。

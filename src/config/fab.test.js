@@ -10,6 +10,7 @@ import {
   normalizeFabConfig,
   resetFabVisibilityHold,
   restoreRemovedFabSites,
+  undoFabWrite,
 } from "./fab";
 
 describe("normalizeFabAppearance", () => {
@@ -315,5 +316,53 @@ describe("applyFabSitePolicy", () => {
       ["*", "added.example", "other.example"].sort()
     );
     expect(isFabVisible(href, restored)).toBe(true);
+  });
+});
+
+describe("undoFabWrite", () => {
+  test("skips isHide when a later write already changed it, and never returns x/y", () => {
+    const undo = undoFabWrite(
+      { ...DEFAULT_FAB, isHide: false, x: 1, y: 2 },
+      { ...DEFAULT_FAB, isHide: true, x: 1, y: 2 }
+    );
+    const later = {
+      ...DEFAULT_FAB,
+      isHide: false,
+      x: 9,
+      y: 8,
+      hiddenSites: "other.com",
+    };
+    expect(undo(later)).toBe(later);
+  });
+
+  test("reverts only the hostname this write added and keeps a later hostname plus x/y", () => {
+    const undo = undoFabWrite(
+      { ...DEFAULT_FAB, hiddenSites: "", x: 1, y: 2 },
+      { ...DEFAULT_FAB, hiddenSites: "example.com", x: 1, y: 2 }
+    );
+    const external = {
+      ...DEFAULT_FAB,
+      hiddenSites: "example.com\nother.com",
+      x: 4,
+      y: 5,
+    };
+    expect(undo(external)).toEqual({ ...external, hiddenSites: "other.com" });
+  });
+
+  test("reverts size only while that size is still the written value", () => {
+    const undo = undoFabWrite(
+      { ...DEFAULT_FAB, size: 56, x: 1, y: 2 },
+      { ...DEFAULT_FAB, size: 36, x: 1, y: 2 }
+    );
+    const stillWritten = {
+      ...DEFAULT_FAB,
+      size: 36,
+      x: 8,
+      y: 9,
+      hiddenSites: "keep.com",
+    };
+    expect(undo(stillWritten)).toEqual({ ...stillWritten, size: 56 });
+    const replaced = { ...DEFAULT_FAB, size: 48, x: 8, y: 9 };
+    expect(undo(replaced)).toBe(replaced);
   });
 });

@@ -57,6 +57,7 @@ import {
   FAB_SIZE_PRESETS,
   applyFabSitePolicy,
   normalizeFabConfig,
+  undoFabWrite,
 } from "../../config/fab";
 import { useStorage } from "../../hooks/Storage";
 import {
@@ -70,7 +71,7 @@ import { effectiveTransOpen } from "../../libs/pageRuleSync";
 import { tryClearCaches } from "../../libs/cache";
 import { kissLog } from "../../libs/log";
 import { getDomainOptions, truncateMiddle } from "../../libs/url";
-import { confirmPageAction } from "./confirmPageAction";
+import { confirmPageAction, undoTranboxTransOpen } from "./confirmPageAction";
 import {
   getCompactStylePreviewCode,
   useAllTextStyles,
@@ -761,6 +762,7 @@ export default function PopupCont({
 
   const confirmFabChange = useCallback(
     async ({ previous, next }) => {
+      const undo = undoFabWrite(previous, next);
       const result = await confirmPageAction({
         send: () => publishFab(next),
         confirm: (response) => {
@@ -770,7 +772,7 @@ export default function PopupCont({
           confirmedFabKeyRef.current = `${next.isHide}\n${next.hiddenSites}\n${next.shownSites}`;
           setEchoFabVisible(response.fabVisible);
         },
-        rollback: () => updateFab(previous ?? DEFAULT_FAB),
+        rollback: () => updateFab(undo),
       });
       if (!result.ok) reportFabFailure(result.error);
       return result;
@@ -886,6 +888,11 @@ export default function PopupCont({
     async (enabled) => {
       const previous = selectionTranslateOpen;
       setLocalSelectionTranslateOpen(enabled);
+      const undoSelection = undoTranboxTransOpen(previous, enabled);
+      const revertLocalSelection = () =>
+        setLocalSelectionTranslateOpen((current) =>
+          current === enabled ? previous : current
+        );
       const persist = (transOpen) =>
         updateSetting((prev) => ({
           ...prev,
@@ -916,11 +923,14 @@ export default function PopupCont({
             setLocalSelectionTranslateOpen(transOpen);
             await persist(transOpen);
           },
-          rollback: () => setLocalSelectionTranslateOpen(previous),
+          rollback: () => {
+            revertLocalSelection();
+            return updateSetting(undoSelection);
+          },
         });
         if (!result.ok) reportFabFailure(result.error);
       } catch (error) {
-        setLocalSelectionTranslateOpen(previous);
+        revertLocalSelection();
         reportFabFailure(error);
       }
     },

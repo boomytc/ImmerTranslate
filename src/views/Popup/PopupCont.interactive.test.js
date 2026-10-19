@@ -729,6 +729,111 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     view.cleanup();
   });
 
+  test("keeps the second FAB click when the first page reply fails", async () => {
+    let resolveFirst;
+    let calls = 0;
+    const processActions = jest.fn((message) => {
+      calls += 1;
+      if (calls === 1) {
+        return new Promise((resolve) => {
+          resolveFirst = () =>
+            resolve({
+              error: "Page controls are paused while the rule editor is open.",
+            });
+        });
+      }
+      return pageReply(message);
+    });
+    const view = renderPopup({ processActions });
+    await flushEffects();
+    const globalSwitch = view.container.querySelector(
+      'input[aria-label="fab_global_switch"]'
+    );
+
+    await act(async () => {
+      globalSwitch.click();
+    });
+    await flushEffects();
+    expect(globalSwitch.checked).toBe(false);
+    expect(getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data.isHide).toBe(
+      true
+    );
+
+    await act(async () => {
+      globalSwitch.click();
+    });
+    await flushEffects();
+    expect(globalSwitch.checked).toBe(true);
+    expect(getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data.isHide).toBe(
+      false
+    );
+
+    await act(async () => {
+      resolveFirst();
+    });
+    await flushEffects();
+
+    const stored = getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data;
+    expect(stored.isHide).toBe(false);
+    expect(globalSwitch.checked).toBe(true);
+    expect(
+      view.container.querySelector('[role="alert"]').textContent
+    ).toContain("popup_action_failed");
+    view.cleanup();
+  });
+
+  test("keeps another tab's FAB edits when this change rolls back", async () => {
+    let resolveReply;
+    const processActions = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveReply = () =>
+            resolve({
+              error: "Page controls are paused while the rule editor is open.",
+            });
+        })
+    );
+    const view = renderPopup({
+      processActions,
+      targetTab: { id: 1, url: "https://example.com/page" },
+    });
+    await flushEffects();
+    const siteBtn = view.container.querySelector(
+      ".kt-popup-fab-control__site-btn"
+    );
+
+    await act(async () => {
+      siteBtn.click();
+    });
+    await flushEffects();
+    expect(
+      getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data.hiddenSites
+    ).toBe("example.com");
+
+    await act(async () => {
+      await getStorageState(STOKEY_FAB, DEFAULT_FAB).save((current) => ({
+        ...current,
+        hiddenSites: `${current.hiddenSites}\nother.com`,
+        x: 12,
+        y: 40,
+      }));
+    });
+    await flushEffects();
+
+    await act(async () => {
+      resolveReply();
+    });
+    await flushEffects();
+
+    const stored = getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data;
+    expect(stored.hiddenSites).toBe("other.com");
+    expect(stored.x).toBe(12);
+    expect(stored.y).toBe(40);
+    expect(stored.isHide).toBe(false);
+    expect(siteBtn.textContent).toBe("hide_fab_on_site");
+    view.cleanup();
+  });
+
   test("disables FAB controls until the page URL is ready", async () => {
     let resolveTab;
     mockGetCurTab.mockReturnValue(
