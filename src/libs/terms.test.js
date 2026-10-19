@@ -3,17 +3,13 @@ import {
   buildTermsRegex,
   buildTermsMatcher,
   applyTermReplace,
-  applyNaiveReplace,
-  findUnescapedRegexMeta,
-  formatDiagnosticMessage,
-  isStrictLiteralPattern,
 } from "./terms";
 
-// 术语替换纯函数测试（Task 1）
-// 覆盖：解析规格、排序、去重、非法正则、无单词边界匹配、冲突矩阵 4 类、空译文语义、旧引擎复现
+// 术语替换纯函数测试
+// 覆盖：解析规格、排序、去重、非法正则、无单词边界匹配、最长匹配、空译文语义
 describe("terms parseTerms", () => {
   test("parses key,value pairs separated by newline or semicolon", () => {
-    const { terms, invalid, originalOrder } = parseTerms(
+    const { terms, invalid } = parseTerms(
       "API,接口\nGPTs,智能体集合;React,React Native"
     );
     expect(invalid).toEqual([]);
@@ -23,8 +19,6 @@ describe("terms parseTerms", () => {
       "智能体集合",
       "接口",
     ]);
-    // originalOrder 保持原始输入顺序，与排序后的 terms 独立
-    expect(originalOrder.map((t) => t.key)).toEqual(["API", "GPTs", "React"]);
   });
 
   test("sorts overlapping keys by key.length descending", () => {
@@ -65,14 +59,6 @@ describe("terms parseTerms", () => {
     expect(invalid[0].error).toBeInstanceOf(Error);
   });
 
-  test("marks isWord only for pure ASCII word keys", () => {
-    const { terms } = parseTerms("API,接口;手机,手机;API\\.\\d+,x");
-    const byKey = Object.fromEntries(terms.map((t) => [t.key, t]));
-    expect(byKey["API"].isWord).toBe(true);
-    expect(byKey["手机"].isWord).toBe(false);
-    expect(byKey["API\\.\\d+"].isWord).toBe(false);
-  });
-
   test("wraps all keys as (key) with no word boundaries", () => {
     const { terms } = parseTerms("API,接口;手机,手机;API\\.\\d+,x");
     const byKey = Object.fromEntries(terms.map((t) => [t.key, t]));
@@ -81,14 +67,9 @@ describe("terms parseTerms", () => {
     expect(byKey["API\\.\\d+"].pattern).toBe("(API\\.\\d+)");
   });
 
-  test("term entries expose exactly key, value, pattern, isWord", () => {
+  test("term entries expose exactly key, value, pattern", () => {
     const { terms } = parseTerms("API,接口");
-    expect(Object.keys(terms[0]).sort()).toEqual([
-      "isWord",
-      "key",
-      "pattern",
-      "value",
-    ]);
+    expect(Object.keys(terms[0]).sort()).toEqual(["key", "pattern", "value"]);
   });
 
   test("splits key and value at the last comma", () => {
@@ -107,11 +88,8 @@ describe("terms parseTerms", () => {
     const empty = {
       terms: [],
       invalid: [],
-      originalOrder: [],
       diagnostics: [],
-      metaWarnings: [],
       hasErrors: false,
-      diagnosticsMode: "full",
     };
     expect(parseTerms("")).toEqual(empty);
     expect(parseTerms(null)).toEqual(empty);
@@ -122,11 +100,8 @@ describe("terms parseTerms", () => {
     const empty = {
       terms: [],
       invalid: [],
-      originalOrder: [],
       diagnostics: [],
-      metaWarnings: [],
       hasErrors: false,
-      diagnosticsMode: "full",
     };
     expect(parseTerms("   ")).toEqual(empty);
     expect(parseTerms(123)).toEqual(empty);
@@ -344,56 +319,6 @@ describe("terms applyTermReplace", () => {
   });
 });
 
-describe("terms applyNaiveReplace", () => {
-  test("reproduces the old engine: input order, no boundaries, prefix-cut", () => {
-    const parsed = parseTerms("API,接口;APIKey,应用编程接口");
-    // 原始顺序：API 在前，APIKey 在后 → alternation `(API)|(APIKey)` → API 抢占
-    const naive = applyNaiveReplace("APIKey and API", parsed);
-    expect(naive.output).toBe("接口Key and 接口");
-    expect(naive.spans.map((s) => s.termKey)).toEqual(["API", "API"]);
-    // 与修复后行为对比
-    expect(
-      applyTermReplace("APIKey and API", parsed.terms, (t, m) => t.value || m)
-        .output
-    ).toBe("应用编程接口 and 接口");
-  });
-
-  test("reproduces the prefix-cut bug for conflict case 2", () => {
-    const parsed = parseTerms("API,接口;APIKey");
-    expect(applyNaiveReplace("APIKey", parsed).output).toBe("接口Key");
-    expect(
-      applyTermReplace("APIKey", parsed.terms, (t, m) => t.value || m).output
-    ).toBe("APIKey");
-  });
-
-  test("uses originalOrder metadata over sorted array order", () => {
-    // 输入顺序：长词在前 → 无前缀切割
-    const parsed = parseTerms("APIKey,应用编程接口;API,接口");
-    expect(parsed.originalOrder.map((t) => t.key)).toEqual(["APIKey", "API"]);
-    // 原始顺序：APIKey 先 → (APIKey)|(API) → APIKey 整体命中
-    expect(applyNaiveReplace("APIKey", parsed).output).toBe("应用编程接口");
-    // 若退化为数组（已排序短在前），效果相同（排序后 APIKey 仍在 API 前）
-    expect(applyNaiveReplace("APIKey", parsed.terms).output).toBe(
-      "应用编程接口"
-    );
-  });
-
-  test("treats non-string text input as empty and returns spans shape", () => {
-    expect(applyNaiveReplace(undefined, parseTerms("API,接口"))).toEqual({
-      output: "",
-      spans: [],
-    });
-    expect(applyNaiveReplace(null, parseTerms("API,接口"))).toEqual({
-      output: "",
-      spans: [],
-    });
-    expect(applyNaiveReplace(123, parseTerms("API,接口"))).toEqual({
-      output: "",
-      spans: [],
-    });
-  });
-});
-
 describe("terms applyTermReplace with capture groups in keys (分支映射)", () => {
   const replacer = (t, m) => t.value || m;
 
@@ -422,40 +347,25 @@ describe("terms applyTermReplace with capture groups in keys (分支映射)", ()
     expect(spans[1].start).toBe(10);
     expect(spans[1].end).toBe(13);
   });
-
-  test("applyNaiveReplace 对命名捕获组 key 同样不崩溃且返回 spans", () => {
-    const parsed = parseTerms("(?<code>API)\\d+,带编号接口;API,接口");
-    const naive = applyNaiveReplace("API42 and API", parsed);
-    expect(naive.output).toBe("带编号接口 and 接口");
-    expect(naive.spans).toHaveLength(2);
-    expect(naive.spans[1].termKey).toBe("API");
-    expect(naive.spans[1].start).toBe(10);
-  });
 });
 
 // ─── Task 14：点号字面量与正则语义 ──────────────────────────────────────────
 // 术语 key 默认按正则源码处理（与既有规则语义一致，不改为字面量以免破坏已有正则规则）。
 // 点号术语（如 Dr.whob）与其他 key 一样一律按 (key) 语义匹配（无单词边界）；
-// 未转义的点号按正则通配符工作，界面需给出转义警告。
+// 未转义的点号按正则通配符工作。
 describe("terms 点号字面量与正则语义（Task 14）", () => {
-  test("Dr.whob 按正则语义解析（isWord 仅诊断元数据）", () => {
+  test("Dr.whob 按正则语义解析且不是致命错误", () => {
     const parsed = parseTerms("Dr.whob,神经病");
     const entry = parsed.terms[0];
-    expect(entry.isWord).toBe(false);
     expect(entry.pattern).toBe("(Dr.whob)");
     expect(entry.pattern).not.toMatch(/^\\b/);
-    // 点号未转义 → 产生元字符警告（非致命）
     expect(parsed.hasErrors).toBe(false);
-    expect(parsed.metaWarnings).toHaveLength(1);
-    expect(parsed.metaWarnings[0].key).toBe("Dr.whob");
-    expect(parsed.metaWarnings[0].metas).toContain(".");
   });
 
-  test("Dr\\.whob 字面点号不产生元字符警告", () => {
+  test("Dr\\.whob 按转义后的字面点号包装", () => {
     const parsed = parseTerms("Dr\\.whob,神经病");
     expect(parsed.terms[0].pattern).toBe("(Dr\\.whob)");
-    expect(parsed.terms[0].isWord).toBe(false);
-    expect(parsed.metaWarnings).toEqual([]);
+    expect(parsed.hasErrors).toBe(false);
   });
 
   test("foo.bar（未转义点号）按通配符匹配 fooXbar", () => {
@@ -506,14 +416,6 @@ describe("terms 点号字面量与正则语义（Task 14）", () => {
     expect(spans[0].value).toBe("神经病");
     expect(spans[0].replacement).toBe("神经病");
     expect(output).not.toContain("Dr.whob");
-  });
-
-  test("findUnescapedRegexMeta 仅收集未转义元字符", () => {
-    expect(findUnescapedRegexMeta("Dr.whob")).toEqual(["."]);
-    expect(findUnescapedRegexMeta("Dr\\.whob")).toEqual([]);
-    expect(findUnescapedRegexMeta("API\\.\\d+")).toEqual(["+"]);
-    expect(findUnescapedRegexMeta("API")).toEqual([]);
-    expect(findUnescapedRegexMeta(null)).toEqual([]);
   });
 });
 
@@ -614,14 +516,6 @@ describe("terms P1 分支识别修复（lookbehind / 嵌套捕获组 / 零宽边
     const boundaryOut = applyTermReplace("xy n", boundary, replacer);
     expect(boundaryOut.output).toBe("x已选 字母n");
   });
-
-  test("P1 修复作用于 applyNaiveReplace 同一条扫描链路", () => {
-    const parsed = parseTerms("((ABCDEFG)),long;(?<=x)y,look");
-    const naive = applyNaiveReplace("xy", parsed);
-    expect(naive.output).toBe("xlook");
-    expect(naive.spans).toHaveLength(1);
-    expect(naive.spans[0].termKey).toBe("(?<=x)y");
-  });
 });
 
 // ─── 零宽防护与 flags 继承（统一计划 20260829 Task 2）────────────────────────
@@ -660,21 +554,6 @@ describe("terms 零宽防护与 flags 继承（统一计划 20260829 Task 2）",
     expect(out.output).toBe("xY");
     expect(out.spans).toHaveLength(1);
     expect(out.spans[0].start).toBe(1);
-  });
-
-  test("零宽守卫作用于 applyNaiveReplace 同一条扫描链路", () => {
-    // 纯零宽术语在静态层即被排除，naive 无术语可用，输出原样。
-    const pure = parseTerms("(?=x),Y");
-    expect(pure.terms).toHaveLength(0);
-    const pureOut = applyNaiveReplace("xx", pure);
-    expect(pureOut.output).toBe("xx");
-    expect(pureOut.spans).toHaveLength(0);
-
-    // 混合臂：naive 下零宽臂同样不产 span。
-    const mixed = parseTerms("a|(?=x),Y");
-    const mixedOut = applyNaiveReplace("ax", mixed);
-    expect(mixedOut.output).toBe("Yx");
-    expect(mixedOut.spans).toHaveLength(1);
   });
 
   test("静态矩阵：纯零宽模式 fatal 且不进 terms，合法术语仍保留", () => {
@@ -772,13 +651,12 @@ describe("terms 零宽防护与 flags 继承（统一计划 20260829 Task 2）",
   });
 });
 
-// ─── matcher 缓存与 naive 缓存（统一计划 20260829 Task 3）────────────────────
+// ─── matcher 缓存（统一计划 20260829 Task 3）────────────────────────────────
 // 生产 Translator 对每个文本节点调用一次 applyTermReplace；逐节点重建分支槽位表
 // （每术语 1 次 new RegExp 探针）与 phaseRegex 是页面级卡顿根因。matcher 把
-// 组合正则、phaseRegex、槽位表一次物化，热路径零编译。naive 引擎同链路，
-// 按 originalOrder 引用做 WeakMap 记忆化。
+// 组合正则、phaseRegex、槽位表一次物化，热路径零编译。
 // 计数手段：临时把 global.RegExp 替换为计数子类（finally 还原），断言增量编译数。
-describe("terms matcher 缓存与 naive 缓存（统一计划 20260829 Task 3）", () => {
+describe("terms matcher 缓存（统一计划 20260829 Task 3）", () => {
   const replacer = (t, m) => t.value || m;
 
   /** 临时替换 global.RegExp 为计数子类；返回还原函数，调用后取回计数。 */
@@ -873,7 +751,6 @@ describe("terms matcher 缓存与 naive 缓存（统一计划 20260829 Task 3）
     const matcherB = buildTermsMatcher(parsedB);
     const textA = "Use APIKey and API today";
     const textB = "GPTs and GPT differ";
-    const textB2 = "GPTs and GPT differ";
 
     const soloA = applyTermReplace(
       textA,
@@ -887,9 +764,8 @@ describe("terms matcher 缓存与 naive 缓存（统一计划 20260829 Task 3）
       replacer,
       matcherB
     ).output;
-    const soloB2 = applyNaiveReplace(textB2, parsedB).output;
 
-    // 交错：A → B → A → naive(B)，各自结果必须与单用完全一致
+    // 交错：A → B → A，各自结果必须与单用完全一致
     const i1 = applyTermReplace(
       textA,
       parsedA.terms,
@@ -908,11 +784,9 @@ describe("terms matcher 缓存与 naive 缓存（统一计划 20260829 Task 3）
       replacer,
       matcherA
     ).output;
-    const i4 = applyNaiveReplace(textB2, parsedB).output;
     expect(i1).toBe(soloA);
     expect(i2).toBe(soloB);
     expect(i3).toBe(soloA);
-    expect(i4).toBe(soloB2);
   });
 
   test("matcher 与传入 terms 不一致时丢弃 matcher 重建，输出仍正确", () => {
@@ -929,23 +803,6 @@ describe("terms matcher 缓存与 naive 缓存（统一计划 20260829 Task 3）
     );
     expect(out.output).toBe("Talk to 智能体集合");
     expect(out.spans).toHaveLength(1);
-  });
-
-  test("naive 缓存：同 parsed 第二次 applyNaiveReplace 增量编译 0", () => {
-    const parsed = parseTerms("API,接口;APIKey,应用编程接口");
-    const text = "APIKey and API";
-    applyNaiveReplace(text, parsed); // 预热并写入 WeakMap 缓存
-
-    const restore = installCountingRegExp();
-    let delta;
-    try {
-      const out = applyNaiveReplace(text, parsed);
-      // naive 引擎按 originalOrder（API 在前）复现旧引擎前缀切割：接口Key
-      expect(out.output).toBe("接口Key and 接口");
-    } finally {
-      delta = restore();
-    }
-    expect(delta).toBe(0);
   });
 
   test("2000 字面量术语 × 单文本：matcher 路径零编译，慢路径不异常", () => {
@@ -990,97 +847,10 @@ describe("terms matcher 缓存与 naive 缓存（统一计划 20260829 Task 3）
   });
 });
 
-// ─── Task 2：fast/full 解析契约与生产热路径性能解耦 ──────────────────────────
-// parseTerms 默认（full）保留跨术语 conflicting-pattern 两两分析，用于 Playground / CLI
-// 诊断；生产 Translator 用 fast 模式省略该 O(n²) 分析。两种模式必须共享同一套基础解析
-// 结果，仅 full 额外产生 conflicting-pattern 及派生诊断状态。
-describe("terms fast/full 解析契约（Task 2）", () => {
-  test("fast 模式产出 diagnosticsMode=fast，且不含 conflicting-pattern 完整分析", () => {
-    const input = "Dr\\.who;Dr.who,神经病患者";
-    const full = parseTerms(input); // 默认 full
-    expect(full.diagnosticsMode).toBe("full");
-    expect(full.hasErrors).toBe(true);
-    expect(full.diagnostics.some((d) => d.type === "conflicting-pattern")).toBe(
-      true
-    );
-
-    const fast = parseTerms(input, { fullDiagnostics: false });
-    expect(fast.diagnosticsMode).toBe("fast");
-    // fast 跳过跨术语重叠分析：同一输入不产生 conflicting-pattern（不等于通过完整校验）。
-    expect(fast.diagnostics.some((d) => d.type === "conflicting-pattern")).toBe(
-      false
-    );
-  });
-
-  test("同一输入 fast/full 除 conflicting-pattern 外基础契约完全一致", () => {
-    const inputs = [
-      "API,接口;APIKey,应用编程接口",
-      "Dr\\.who;Dr.who,神经病患者;API,接口",
-      "a*,x;([,坏规则;Dr.who,;API,接口;API,接口;手机,phone",
-      "",
-    ];
-    for (const input of inputs) {
-      const fast = parseTerms(input, { fullDiagnostics: false });
-      const full = parseTerms(input, { fullDiagnostics: true });
-      // 基础解析结果必须一致：terms（排序）、invalid、originalOrder、metaWarnings。
-      expect(fast.terms).toEqual(full.terms);
-      expect(fast.invalid).toEqual(full.invalid);
-      expect(fast.originalOrder).toEqual(full.originalOrder);
-      expect(fast.metaWarnings).toEqual(full.metaWarnings);
-      // 基础诊断一致；full 可能比 fast 多出 conflicting-pattern（及其派生的 hasErrors=true）。
-      const fastBase = fast.diagnostics.filter(
-        (d) => d.type !== "conflicting-pattern"
-      );
-      const fullBase = full.diagnostics.filter(
-        (d) => d.type !== "conflicting-pattern"
-      );
-      expect(fullBase).toEqual(fastBase);
-      for (const d of fast.diagnostics) {
-        expect(d.type).not.toBe("conflicting-pattern");
-      }
-      // conflicting-pattern 在 full 模式继续是致命诊断；fast 省略它不代表少报故障。
-      if (fast.hasErrors) expect(full.hasErrors).toBe(true);
-      if (full.hasErrors && !fast.hasErrors) {
-        expect(
-          full.diagnostics.some((d) => d.type === "conflicting-pattern")
-        ).toBe(true);
-      }
-    }
-  });
-
-  test("fast 模式不调用 O(n²) 跨术语冲突分析（结构证据 + 宽松耗时对比）", () => {
-    const N = 300;
-    const keys = [];
-    for (let i = 0; i < N; i++) keys.push(`A\\d\\dK${i}`);
-    // 锚点字面量与 A\ d\dK0 类正则互相完整命中 → full 模式必然产生大量 conflicting-pattern。
-    const input = [...keys, "A09K0,锚点"].join(";");
-
-    const fastStart = Date.now();
-    const fast = parseTerms(input, { fullDiagnostics: false });
-    const fastElapsed = Date.now() - fastStart;
-
-    const fullStart = Date.now();
-    const full = parseTerms(input, { fullDiagnostics: true });
-    const fullElapsed = Date.now() - fullStart;
-
-    // 结构断言是主证据：fast 结果中不存在任何 overlapping 诊断，full 存在。
-    expect(fast.diagnostics.some((d) => d.type === "conflicting-pattern")).toBe(
-      false
-    );
-    expect(full.diagnostics.some((d) => d.type === "conflicting-pattern")).toBe(
-      true
-    );
-    // 术语列表一致，证明 fast 只是跳过诊断分析、不是丢了合法条目。
-    expect(fast.terms).toEqual(full.terms);
-    // 宽松耗时对比，不锁窄毫秒阈值（CI 抖动免疫）。
-    expect(fastElapsed).toBeLessThan(Math.max(100, fullElapsed));
-  });
-});
-
-// ─── Task 10：严格非法输入诊断 ──────────────────────────────────────────────
+// ─── 严格非法输入诊断 ──────────────────────────────────────────────────────
 // 解析结果区分：有效映射 / 有效保留规则 / 空源术语 / 空译文(多余逗号) /
-// 重复映射 / 冲突映射（同源不同译文）/ 冲突映射（正则重叠）。
-// 只要存在致命非法段，hasErrors=true，消费方不得生成"替换测试成功"摘要。
+// 重复映射 / 冲突映射（同源不同译文）。
+// 只要存在致命非法段，hasErrors=true。Translator 会记录 diagnostics，合法术语仍应用。
 describe("terms 严格非法输入诊断（Task 10）", () => {
   test("固定输入 1：Dr.who, 尾巴逗号按保留原文处理（非致命提醒）", () => {
     const parsed = parseTerms("Dr.who,");
@@ -1090,11 +860,7 @@ describe("terms 严格非法输入诊断（Task 10）", () => {
     // 对提醒给出段号与原始内容
     expect(extra.segmentIndex).toBe(1);
     expect(extra.segment).toBe("Dr.who,");
-    // UI 不再直出 message（i18n 归属 UI）；格式化函数为 CLI/测试提供可读文本
     expect(extra.message).toBeUndefined();
-    const formatted = formatDiagnosticMessage(extra);
-    expect(formatted).toContain("第 1 段");
-    expect(formatted).toContain("Dr.who,");
     // 产生一个保留原文的可执行术语（value 为空）
     expect(parsed.terms).toHaveLength(1);
     expect(parsed.terms[0].key).toBe("Dr.who");
@@ -1114,20 +880,6 @@ describe("terms 严格非法输入诊断（Task 10）", () => {
       (termEntry, fullMatch) => `<i>${termEntry.value || fullMatch}</i>`
     );
     expect(output).toContain("<i>API</i>");
-  });
-
-  test("固定输入 2：Dr\\.who;Dr.who,神经病患者 被拒绝（正则重叠冲突映射）", () => {
-    const parsed = parseTerms("Dr\\.who;Dr.who,神经病患者");
-    expect(parsed.hasErrors).toBe(true);
-    const conflict = parsed.diagnostics.find(
-      (d) => d.type === "conflicting-pattern"
-    );
-    expect(conflict).toBeDefined();
-    // 诊断同时指出两个 key 与同一原文（detail 结构化字段；可读文本由格式化函数产生）
-    expect(conflict.message).toBeUndefined();
-    expect(formatDiagnosticMessage(conflict)).toContain("Dr\\.who");
-    expect(formatDiagnosticMessage(conflict)).toContain("Dr.who");
-    expect(conflict.detail.literal).toBe("Dr.who");
   });
 
   test("固定输入 3：Dr.who;,abc;入门, （空源术语致命 + 尾巴逗号保留）", () => {
@@ -1186,12 +938,9 @@ describe("terms 严格非法输入诊断（Task 10）", () => {
     expect(conflictMap.hasErrors).toBe(true);
   });
 
-  test("合法长短词冲突（API/APIKey）不产生冲突映射诊断", () => {
+  test("合法长短词（API/APIKey）不产生同源冲突诊断", () => {
     const parsed = parseTerms("API,接口;APIKey,应用编程接口");
     expect(parsed.hasErrors).toBe(false);
-    expect(
-      parsed.diagnostics.some((d) => d.type === "conflicting-pattern")
-    ).toBe(false);
     expect(
       parsed.diagnostics.some((d) => d.type === "conflicting-mapping")
     ).toBe(false);
@@ -1224,21 +973,15 @@ describe("terms 严格非法输入诊断（Task 10）", () => {
     }
   });
 
-  test("每条诊断携带结构化 type/segmentIndex/segment/detail；格式化函数产物为单行", () => {
+  test("每条诊断携带结构化 type/segmentIndex/segment/detail，不带硬编码 message", () => {
     const parsed = parseTerms("Dr.who,;Dr\\.who;Dr.who,神经病患者");
     expect(parsed.diagnostics.length).toBeGreaterThan(0);
     for (const d of parsed.diagnostics) {
       expect(typeof d.type).toBe("string");
       expect(typeof d.segmentIndex).toBe("number");
       expect(typeof d.segment).toBe("string");
-      // 用户可见文案归属 UI（i18n）/ CLI（格式化函数），核心不输出硬编码中文 message
       expect(d.message).toBeUndefined();
       expect(d).toHaveProperty("detail");
-      // CLI 格式化函数产物保持单行上限，与旧 message 契约一致
-      const formatted = formatDiagnosticMessage(d);
-      expect(typeof formatted).toBe("string");
-      expect(formatted).not.toContain("\n");
-      expect(formatted.length).toBeLessThanOrEqual(200);
     }
   });
 
@@ -1289,89 +1032,10 @@ describe("terms 严格非法输入诊断（Task 10）", () => {
   });
 });
 
-// ─── 术语冲突分析引擎加固（统一计划 20260829 Task 4）─────────────────────────
-// analyzeCrossTermPatternConflicts 是 O(n²) 两两交叉分析：原实现对每个有序对
-// 编译 2 次正则（fullRegexMatches），40 条术语即 3120 次编译。加固手段：
-//   ① isStrictLiteralPattern 白名单短路：双方均为严格字面量（未转义元字符为空，
-//     且每个转义序列的被转义字符 ∈ REGEX_META_CHARS）时，字面量正则只可能完整
-//     命中自身去转义文本，双 key 不同则必然无冲突——零编译跳过；
-//   ② 按 key 预编译：非白名单对的正则每个 key 只编译一次。
-// 白名单文法反例锁定：\d 的被转义字符 d 不是元字符，不得判为字面量，
-// 否则 \d × 5 的 conflicting-pattern 检出会被漏掉（B3）。
-describe("terms 冲突分析引擎加固（统一计划 20260829 Task 4）", () => {
-  function installCountingRegExp() {
-    const RealRegExp = RegExp;
-    let count = 0;
-    class CountingRegExp extends RealRegExp {
-      constructor(...args) {
-        super(...args);
-        count += 1;
-      }
-    }
-    global.RegExp = CountingRegExp;
-    return () => {
-      global.RegExp = RealRegExp;
-      return count;
-    };
-  }
-
-  test("isStrictLiteralPattern 白名单文法：\\d 不得判为字面量，转义元字符序列可以", () => {
-    // 纯字面量
-    expect(isStrictLiteralPattern("API")).toBe(true);
-    expect(isStrictLiteralPattern("TermNo0x")).toBe(true);
-    // 转义元字符序列（被转义字符 ∈ REGEX_META_CHARS）
-    expect(isStrictLiteralPattern("Dr\\.whob")).toBe(true);
-    expect(isStrictLiteralPattern("a\\.b\\+c")).toBe(true);
-    expect(isStrictLiteralPattern("\\$\\^")).toBe(true);
-    // 反例：被转义字符不是元字符（\d \w \s 等）→ 不算字面量
-    expect(isStrictLiteralPattern("\\d")).toBe(false);
-    expect(isStrictLiteralPattern("\\w")).toBe(false);
-    // 反例：存在未转义元字符
-    expect(isStrictLiteralPattern("a.b")).toBe(false);
-    expect(isStrictLiteralPattern("(unclosed")).toBe(false);
-    expect(isStrictLiteralPattern("")).toBe(false);
-  });
-
-  test("40 条互不为子串的严格字面量术语：跨术语冲突分析零编译（full − fast 差值）", () => {
-    const keys = [];
-    for (let i = 0; i < 40; i++) keys.push(`TermNo${i}x,词${i}`);
-    const input = keys.join(";");
-    // fast 模式跳过冲突分析：其编译数 = 逐段 keyRegex 校验的基线
-    const restoreFast = installCountingRegExp();
-    let fastDelta;
-    try {
-      parseTerms(input, { fullDiagnostics: false });
-    } finally {
-      fastDelta = restoreFast();
-    }
-    const restoreFull = installCountingRegExp();
-    let fullDelta;
-    try {
-      parseTerms(input);
-    } finally {
-      fullDelta = restoreFull();
-    }
-    // full 与 fast 的编译差值应恰为 0（冲突分析贡献零编译）；加固前为 3120。
-    expect(fullDelta - fastDelta).toBe(0);
-  });
-
-  test("B3 锁定：\\d × 5 与 \\w × A 的 conflicting-pattern 必须检出", () => {
-    for (const input of ["\\d,数字;5,five", "\\w,词;A,甲"]) {
-      const parsed = parseTerms(input);
-      expect(parsed.hasErrors).toBe(true);
-      const d = parsed.diagnostics.find(
-        (diag) => diag.type === "conflicting-pattern"
-      );
-      expect(d).toBeDefined();
-      expect(parsed.terms).toHaveLength(2);
-    }
-  });
-
-  test("字面量子串对不报 conflicting-pattern，替换时取更长的词", () => {
+describe("terms longest literal match", () => {
+  test("字面量子串替换时取更长的词", () => {
     const parsed = parseTerms("abc,甲;abcde,乙");
-    expect(
-      parsed.diagnostics.some((d) => d.type === "conflicting-pattern")
-    ).toBe(false);
+    expect(parsed.hasErrors).toBe(false);
     expect(parsed.terms).toHaveLength(2);
     expect(
       applyTermReplace(
@@ -1485,76 +1149,71 @@ describe("terms 字符级不变量对抗矩阵（统一计划 20260829 Task 6）
     return out + text.slice(cursor);
   }
 
-  for (const engine of ["fixed", "naive"]) {
-    test(`不变量矩阵：${engine} 引擎在 ${MATRIX_TERMS.length} 组 × ${MATRIX_TEXTS.length} 文本上四不变量全绿`, () => {
-      const violations = [];
-      for (const termsString of MATRIX_TERMS) {
-        const parsed = parseTerms(termsString);
-        for (const text of MATRIX_TEXTS) {
-          const run = () =>
-            engine === "fixed"
-              ? applyTermReplace(text, parsed.terms, matrixReplacer)
-              : applyNaiveReplace(text, parsed);
-          let result;
-          try {
-            result = run();
-          } catch (e) {
+  test(`不变量矩阵：applyTermReplace 在 ${MATRIX_TERMS.length} 组 × ${MATRIX_TEXTS.length} 文本上四不变量全绿`, () => {
+    const violations = [];
+    for (const termsString of MATRIX_TERMS) {
+      const parsed = parseTerms(termsString);
+      for (const text of MATRIX_TEXTS) {
+        const run = () => applyTermReplace(text, parsed.terms, matrixReplacer);
+        let result;
+        try {
+          result = run();
+        } catch (e) {
+          violations.push({
+            termsString,
+            text,
+            inv: "no-throw",
+            error: String(e),
+          });
+          continue;
+        }
+        // ① spans 重建 === output
+        const rebuilt = rebuildFromSpans(text, result.spans);
+        if (rebuilt !== result.output) {
+          violations.push({
+            termsString,
+            text,
+            inv: "rebuild",
+            rebuilt,
+            output: result.output,
+          });
+        }
+        // ② span start<end 有序不重叠（零宽 span = 修复前事故形态，修复后必须绝迹）
+        const sorted = [...result.spans].sort(
+          (a, b) => a.start - b.start || a.end - b.end
+        );
+        for (const s of sorted) {
+          if (!(s.start < s.end)) {
             violations.push({
               termsString,
               text,
-              inv: "no-throw",
-              error: String(e),
+              inv: "non-zero-width",
+              span: s,
             });
-            continue;
-          }
-          // ① spans 重建 === output
-          const rebuilt = rebuildFromSpans(text, result.spans);
-          if (rebuilt !== result.output) {
-            violations.push({
-              termsString,
-              text,
-              inv: "rebuild",
-              rebuilt,
-              output: result.output,
-            });
-          }
-          // ② span start<end 有序不重叠（零宽 span = 修复前事故形态，修复后必须绝迹）
-          const sorted = [...result.spans].sort(
-            (a, b) => a.start - b.start || a.end - b.end
-          );
-          for (const s of sorted) {
-            if (!(s.start < s.end)) {
-              violations.push({
-                termsString,
-                text,
-                inv: "non-zero-width",
-                span: s,
-              });
-              break;
-            }
-          }
-          for (let i = 1; i < sorted.length; i++) {
-            if (sorted[i].start < sorted[i - 1].end) {
-              violations.push({
-                termsString,
-                text,
-                inv: "non-overlap",
-                a: sorted[i - 1],
-                b: sorted[i],
-              });
-              break;
-            }
-          }
-          // ③ 同输入两次调用全等
-          const second = run();
-          if (JSON.stringify(result) !== JSON.stringify(second)) {
-            violations.push({ termsString, text, inv: "idempotent" });
+            break;
           }
         }
+        for (let i = 1; i < sorted.length; i++) {
+          if (sorted[i].start < sorted[i - 1].end) {
+            violations.push({
+              termsString,
+              text,
+              inv: "non-overlap",
+              a: sorted[i - 1],
+              b: sorted[i],
+            });
+            break;
+          }
+        }
+        // ③ 同输入两次调用全等
+        const second = run();
+        if (JSON.stringify(result) !== JSON.stringify(second)) {
+          violations.push({ termsString, text, inv: "idempotent" });
+        }
       }
-      expect(violations).toEqual([]);
-    });
-  }
+    }
+    expect(violations).toEqual([]);
+  });
 
   test("防平凡通过守卫：字符类术语必须物化合法术语并在矩阵文本上真实命中", () => {
     // 曾经的 P1 回归形态：isZeroWidthOnlyPattern 把顶层字符类当零宽 → parseTerms
@@ -1576,30 +1235,11 @@ describe("terms 字符级不变量对抗矩阵（统一计划 20260829 Task 6）
     }
   });
 
-  test("不变量矩阵：fast/full 基础解析逐字段一致（除 conflicting-pattern）", () => {
-    for (const termsString of MATRIX_TERMS) {
-      const fast = parseTerms(termsString, { fullDiagnostics: false });
-      const full = parseTerms(termsString);
-      const fields = (p) => ({
-        terms: p.terms,
-        invalid: p.invalid,
-        originalOrder: p.originalOrder,
-        metaWarnings: p.metaWarnings,
-        baseDiags: p.diagnostics.filter(
-          (d) => d.type !== "conflicting-pattern"
-        ),
-      });
-      expect(JSON.stringify(fields(fast))).toBe(JSON.stringify(fields(full)));
-    }
-  });
-
   test("不变量矩阵：纯零宽术语修复后行为——fatal 排除且混合臂零宽分支不产 span", () => {
-    // 静态层：纯零宽模式在两种模式下都被排除（合法术语仍保留）
+    // 静态层：纯零宽模式被排除，合法术语仍保留
     for (const key of ["(?=x)", "(?<=x)", "\\b"]) {
-      for (const mode of [{}, { fullDiagnostics: false }]) {
-        const parsed = parseTerms(`${key},Y;API,接口`, mode);
-        expect(parsed.terms.map((t) => t.key)).toEqual(["API"]);
-      }
+      const parsed = parseTerms(`${key},Y;API,接口`);
+      expect(parsed.terms.map((t) => t.key)).toEqual(["API"]);
     }
     // 运行时层：混合臂 a|(?=x) 在只有零宽分支可命中的文本上零产出
     //（语料不含字母 a：消费臂无从命中；含 x：零宽分支可命中）
