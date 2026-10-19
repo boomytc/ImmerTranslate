@@ -6,44 +6,25 @@
 
 import { isExt, isGm } from "./client";
 import { sendBgMsg } from "./msg";
-import { getSettingWithDefault } from "./storage";
 import { MSG_FETCH, DEFAULT_HTTP_TIMEOUT } from "../config";
 import { isBg } from "./browser";
 import { kissLog } from "./log";
 import { parseResponse } from "./response";
 import { requestThroughPort } from "./requestPort";
 
-/**
- * 将用户配置的请求超时时间统一归一化为毫秒。
- *
- * @param {number} [timeout] 用户配置的超时时间。新配置单位为秒，旧配置可能为毫秒。
- * @returns {number} 最终使用的超时时间，单位毫秒。
- */
-export const normalizeHttpTimeout = (timeout) => {
-  const normalizedTimeout = timeout || DEFAULT_HTTP_TIMEOUT;
-  // 如果值大于 600，说明是旧配置（毫秒），直接返回；否则视为新配置（秒）并乘以 1000
-  return normalizedTimeout > 600 ? normalizedTimeout : normalizedTimeout * 1000;
-};
+/** 未指定单接口超时时使用的默认毫秒数。单接口 httpTimeout 仍以秒为单位并优先。 */
+export const DEFAULT_HTTP_TIMEOUT_MS = DEFAULT_HTTP_TIMEOUT * 1000;
 
 /**
  * 读取当前请求应使用的 HTTP 超时时间。
+ * 调用方传入的 httpTimeout 单位为秒，并优先于模块默认值。
  *
  * @param {Object} [opts] 请求选项。
- * @param {number} [opts.httpTimeout] 调用方显式传入的超时时间。
- * @returns {Promise<number>} 最终使用的超时时间，单位毫秒。
+ * @param {number} [opts.httpTimeout] 调用方显式传入的超时时间，单位秒。
+ * @returns {number} 最终使用的超时时间，单位毫秒。
  */
-export const resolveHttpTimeout = async (opts = {}) => {
-  let timeout = opts?.httpTimeout;
-  if (!timeout) {
-    try {
-      timeout = (await getSettingWithDefault())?.httpTimeout;
-    } catch (err) {
-      kissLog("getSettingWithDefault", err);
-    }
-  }
-
-  return normalizeHttpTimeout(timeout);
-};
+export const resolveHttpTimeout = (opts = {}) =>
+  (opts?.httpTimeout || DEFAULT_HTTP_TIMEOUT) * 1000;
 
 /**
  * 合并多个 AbortSignal，任意一个信号中止时都会中止合并后的信号。
@@ -255,7 +236,7 @@ const fetchKissGM = async (
  * @returns {Promise<Response>} 标准 Response 实例。
  */
 export const fetchPatcher = async (input, init = {}, opts) => {
-  const timeout = await resolveHttpTimeout(opts);
+  const timeout = resolveHttpTimeout(opts);
   const signal = mergeAbortSignals([
     init.signal,
     opts?.signal,
@@ -315,7 +296,7 @@ export const fnPolyfill = ({ fn, msg = MSG_FETCH, ...args }) => {
       opts: { ...args.opts, signal: undefined },
       ...(args.init && { init: { ...args.init, signal: undefined } }),
     };
-    if (msg === MSG_FETCH && signal) {
+    if (msg === MSG_FETCH) {
       return requestThroughPort(safeArgs, signal);
     }
     const requestPromise = sendBgMsg(msg, safeArgs);
