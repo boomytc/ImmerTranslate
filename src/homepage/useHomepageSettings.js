@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  LANG_STORAGE_KEY,
-  THEME_STORAGE_KEY,
-  homepageContent,
-} from "./content";
+import { THEME_STORAGE_KEY, homepageContent } from "./content";
 
 const readStorage = (key) => {
   try {
@@ -32,18 +28,15 @@ const getInitialTheme = () => {
   return "dark";
 };
 
-export const useHomepageSettings = () => {
-  const [language, setLanguageState] = useState(() => {
-    const stored = readStorage(LANG_STORAGE_KEY);
-    return homepageContent[stored] ? stored : "en";
-  });
-  const [themeMode, setThemeModeState] = useState(getInitialTheme);
+const detectLanguage = () => {
+  const nav = window.navigator?.language || "";
+  const language = nav.toLowerCase().startsWith("zh") ? "zh_CN" : "en";
+  return homepageContent[language] ? language : "en";
+};
 
-  const setLanguage = useCallback((value) => {
-    if (!homepageContent[value]) return;
-    setLanguageState(value);
-    writeStorage(LANG_STORAGE_KEY, value);
-  }, []);
+export const useHomepageSettings = () => {
+  const [language] = useState(detectLanguage);
+  const [themeMode, setThemeModeState] = useState(getInitialTheme);
 
   const setThemeMode = useCallback((value) => {
     setThemeModeState(value);
@@ -61,10 +54,9 @@ export const useHomepageSettings = () => {
   return useMemo(
     () => ({
       language,
-      setLanguage,
       themeMode,
       toggleThemeMode,
     }),
-    [language, setLanguage, themeMode, toggleThemeMode]
+    [language, themeMode, toggleThemeMode]
   );
 };
