@@ -57,6 +57,7 @@ const createRuntime = () => {
     };
     const back = {
       name,
+      sender: { url: "https://frame.example/locked" },
       onMessage: createEvent(),
       onDisconnect: createEvent(),
     };
@@ -560,5 +561,107 @@ describe("storage transaction coordination", () => {
 
     await expect(first).rejects.toThrow("Read failed");
     await expect(next).resolves.toBe("retried");
+  });
+
+  test("releases a granted port that never releases and rejects its late commit", async () => {
+    jest.useFakeTimers();
+    const info = jest.spyOn(console, "info").mockImplementation(() => {});
+    const runtime = createRuntime();
+    const writes = [];
+    runtime.storage.local.set.mockImplementation(async (entries) => {
+      writes.push({ ...entries });
+      Object.assign(runtime.values, entries);
+    });
+    try {
+      loadCoordinator({
+        runtime,
+        background: true,
+      }).installStorageCoordinator();
+      const holderPage = loadCoordinator({ runtime });
+      const nextPage = loadCoordinator({ runtime });
+      const hold = deferred();
+      let commitLate;
+      const holder = holderPage.withStorageLock(async ({ commit }) => {
+        commitLate = commit;
+        await hold.promise;
+      });
+      holder.catch(() => undefined);
+      await flushPromises();
+      const back = runtime.ports[0].back;
+      const disconnect = back.disconnect;
+      back.disconnect = () => {
+        back.onMessage.emit(
+          {
+            type: "commit",
+            entries: [{ key: "settings", value: "late", previous: null }],
+          },
+          back
+        );
+        disconnect();
+      };
+      let grantedNext = false;
+      const nextWrite = nextPage
+        .withStorageLock(async ({ commit }) => {
+          grantedNext = true;
+          await commit([
+            { key: "settings", value: "successor", previous: null },
+          ]);
+          return "next";
+        })
+        .then((value) => {
+          grantedNext = grantedNext && value === "next";
+          return value;
+        });
+      await flushPromises();
+      jest.advanceTimersByTime(10000);
+      await flushPromises();
+
+      expect(grantedNext).toBe(true);
+      await expect(nextWrite).resolves.toBe("next");
+      await expect(
+        commitLate([{ key: "settings", value: "too-late", previous: null }])
+      ).rejects.toThrow(/disconnect|timed out/i);
+      expect(writes.map((entry) => entry.settings)).toEqual(["successor"]);
+      expect(runtime.values.settings).toBe("successor");
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining("%c"),
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        "Storage lock held past the 10000ms limit",
+        "https://frame.example/locked",
+        expect.any(Number)
+      );
+    } finally {
+      info.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  test("throws when the background requests the storage lock while already holding it", async () => {
+    const runtime = createRuntime();
+    const background = loadCoordinator({ runtime, background: true });
+    background.installStorageCoordinator();
+    const nested = background.withStorageLock(async () => {
+      await Promise.resolve();
+      return background.withStorageLock(() => "nested");
+    });
+    let timer;
+    const hung = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error("nested background lock waited on itself")),
+        400
+      );
+    });
+    try {
+      await expect(Promise.race([nested, hung])).rejects.toThrow(
+        /cannot be re-entered/
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+    await expect(background.withStorageLock(() => "next")).resolves.toBe(
+      "next"
+    );
   });
 });

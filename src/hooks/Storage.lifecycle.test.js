@@ -13,6 +13,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../libs/storage", () => ({
   storage: {
     getObj: jest.fn(),
+    readStoredObjects: jest.fn(),
     setObj: jest.fn(),
     saveEdit: jest.fn(),
     withTransaction: jest.fn(),
@@ -104,6 +105,11 @@ describe("useStorage shared state lifecycle", () => {
     storageKey = `storage-lifecycle-${++keySequence}`;
     persisted = new Map([[storageKey, { count: 4, retained: true }]]);
     storage.getObj.mockImplementation(async (key) => persisted.get(key));
+    storage.readStoredObjects.mockImplementation(async (keys) => {
+      const stored = {};
+      for (const key of keys) stored[key] = await storage.getObj(key);
+      return stored;
+    });
     storage.withTransaction.mockImplementation((operation) =>
       operation(storage)
     );

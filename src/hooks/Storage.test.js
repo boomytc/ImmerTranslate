@@ -13,6 +13,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../libs/storage", () => ({
   storage: {
     getObj: jest.fn(),
+    readStoredObjects: jest.fn(),
     setObj: jest.fn(),
     saveEdit: jest.fn(),
     withTransaction: jest.fn(),
@@ -125,6 +126,11 @@ describe("useStorage persistence and refresh", () => {
     jest.resetAllMocks();
     storedValues = new Map([[LOCAL_KEY, DEFAULT_VALUE]]);
     storage.getObj.mockImplementation(async (key) => storedValues.get(key));
+    storage.readStoredObjects.mockImplementation(async (keys) => {
+      const stored = {};
+      for (const key of keys) stored[key] = await storage.getObj(key);
+      return stored;
+    });
     storage.withTransaction.mockImplementation((operation) =>
       operation(storage)
     );
