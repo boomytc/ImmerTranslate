@@ -3,6 +3,34 @@ import { kissLog } from "./log";
 
 const isAbortError = (error) => error?.name === "AbortError";
 
+const httpStatus = (error) => {
+  const status = Number(error?.status);
+  return Number.isInteger(status) && status >= 100 && status <= 599
+    ? status
+    : 0;
+};
+
+const isNetworkError = (error) => {
+  const name = error?.name || "";
+  if (
+    name === "TypeError" ||
+    name === "NetworkError" ||
+    name === "TimeoutError"
+  ) {
+    return true;
+  }
+  return /failed to fetch|networkerror|network error|timeout/i.test(
+    String(error?.message || "")
+  );
+};
+
+// 有 HTTP 状态时只重试 429 和 5xx。没有状态时只重试网络错误，4xx 不再重试。
+const isRetryableError = (error) => {
+  const status = httpStatus(error);
+  if (status) return status === 429 || status >= 500;
+  return isNetworkError(error);
+};
+
 const cancellationError = (message = "The operation was aborted.") =>
   new DOMException(message, "AbortError");
 
@@ -151,10 +179,10 @@ class TaskPool {
       }
 
       kissLog("task pool", err);
-      if (task.retry < this.#maxRetry) {
+      if (task.retry < this.#maxRetry && isRetryableError(err)) {
         this.#scheduleRetry(task);
       } else {
-        // 达到最大重试次数后，抛出错误并拒绝 Promise
+        // 达到最大重试次数，或错误不该重试时，把失败交给调用方
         this.#rejectTask(task, err);
       }
     } finally {

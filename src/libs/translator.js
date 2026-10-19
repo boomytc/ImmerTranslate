@@ -40,7 +40,6 @@ import {
   narrowApiConfig,
   shouldRunRuleScript,
 } from "./ruleScript";
-import { clearFetchPool } from "./pool";
 import { debounce, scheduleIdle, genEventName, parseAITerms } from "./utils";
 import {
   parseTerms,
@@ -52,7 +51,6 @@ import { escapeHTML } from "./html";
 import { parseMathInText } from "./mathParse";
 import { apiMicrosoftDict, apiTranslate, apiYoudaoDict } from "../apis";
 import { kissLog } from "./log";
-import { clearAllBatchQueue } from "./batchQueue";
 import { builtinStylesMap, genTextClass } from "./style";
 import {
   applyInlineCss,
@@ -408,6 +406,7 @@ export class Translator {
   #mouseHoverEnabled = false; // 鼠标悬停翻译
   #enabled = false; // 全局默认状态
   #runId = 0; // 用于中止过期的异步请求
+  #requestAbortController = new AbortController(); // 只取消本实例发出的翻译请求
 
   #transOnlyRevertTimer = null;
   #transOnlyRevertTarget = null;
@@ -4393,6 +4392,7 @@ overflow-wrap: anywhere !important;`;
       onStreamChunk,
       textFormat: "html",
       translateVariants: this.#setting.translateVariants,
+      signal: this.#requestAbortController.signal,
     };
 
     // 翻译开始钩子函数（允许用户在翻译请求发送前修改文本、语言或词典配置）
@@ -5222,6 +5222,13 @@ overflow-wrap: anywhere !important;`;
     }
   }
 
+  // 中止本实例这一轮翻译请求，并换一个信号给下一轮。
+  // 请求池和批队列还服务划词、输入框和字幕，不能在这里清空。
+  #cancelOwnRequests() {
+    this.#requestAbortController.abort();
+    this.#requestAbortController = new AbortController();
+  }
+
   // 关闭翻译
   disable() {
     if (!this.#enabled) return;
@@ -5232,8 +5239,7 @@ overflow-wrap: anywhere !important;`;
     this.#holdGeneration += 1;
 
     this.#cleanupAllNodes();
-    clearFetchPool();
-    clearAllBatchQueue();
+    this.#cancelOwnRequests();
 
     // 恢复页面标题
     if (this.#rule.transTitle === "true" && this.#docInfo.title) {
@@ -5252,8 +5258,7 @@ overflow-wrap: anywhere !important;`;
 
     this.#cleanupAllNodes();
     this.#resetOptions();
-    clearFetchPool();
-    clearAllBatchQueue();
+    this.#cancelOwnRequests();
 
     // 重新初始化
     this.#init();

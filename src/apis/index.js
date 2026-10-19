@@ -806,7 +806,19 @@ export const apiTranslate = async ({
             configuredBatchConcurrency >= 1
           ? Math.floor(configuredBatchConcurrency)
           : 1;
-    const key = `${apiSlug}_${fromLang}_${toLang}_${textFormat}_${enableStream ? "stream" : "batch"}_${promptSig}_${reqSig}_${effectiveBatchConcurrency}`;
+    const key = [
+      apiSlug,
+      fromLang,
+      toLang,
+      textFormat,
+      enableStream ? "stream" : "batch",
+      promptSig,
+      reqSig,
+      batchInterval,
+      batchSize,
+      batchLength,
+      effectiveBatchConcurrency,
+    ].join("_");
     const queue = getBatchQueue(key, handleTranslate, {
       batchInterval,
       batchSize,

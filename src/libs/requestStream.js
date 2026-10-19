@@ -15,6 +15,7 @@ import {
   normalizeHttpTimeout,
   resolveHttpTimeout,
 } from "./request";
+import { createHttpError } from "./response";
 
 /**
  * 油猴环境下的 SSE 流式请求。
@@ -238,7 +239,7 @@ export async function* fetchStreamNative(input, init = {}, opts = {}) {
   const response = await fetch(input, { ...init, signal });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    throw await createHttpError(response);
   }
 
   const reader = response.body.getReader();
