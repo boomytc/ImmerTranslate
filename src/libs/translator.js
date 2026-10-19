@@ -11,6 +11,9 @@ import {
   OPT_STYLE_NONE,
   DEFAULT_API_SETTING,
   DEFAULT_MOUSE_HOVER_BUBBLE_STYLE,
+  TRANS_MIN_LENGTH,
+  TRANS_MAX_LENGTH,
+  TRANS_NEWLINE_LENGTH,
   OPT_TRANS_MICROSOFT,
   DEFAULT_MOUSE_HOVER_HOLD_DELAY,
   OPT_HIGHLIGHT_WORDS_BEFORETRANS,
@@ -80,6 +83,9 @@ import {
 } from "./pageTranslateError";
 import { getDocInfo } from "./docInfo";
 import { visitTranslationTargets } from "./translationTargets";
+
+const PRE_INIT = true;
+const TRANS_INTERVAL = 100;
 
 /**
  * @class Translator
@@ -828,11 +834,8 @@ export class Translator {
   }
 
   #getPlainTextChunkLimit() {
-    const maxLength = Number(this.#setting.maxLength);
-    // 单个纯文本块必须小于 maxLength，避免后续 #isInvalidText 直接过滤。
-    const hardLimit = Number.isFinite(maxLength)
-      ? Math.max(1, maxLength - 1)
-      : 3000;
+    // 单个纯文本块必须小于段落长度上限，避免后续 #isInvalidText 直接过滤。
+    const hardLimit = Math.max(1, TRANS_MAX_LENGTH - 1);
 
     // 控制默认块大小，避免纯文本页面一次请求过长文本。
     return Math.min(3000, hardLimit);
@@ -1179,7 +1182,7 @@ export class Translator {
     if (this.#editorPaused) return;
     if (this.#rule.transOpen === "true") {
       this.enable();
-    } else if (this.#setting.preInit) {
+    } else if (PRE_INIT) {
       this.#init();
     }
   }
@@ -1335,46 +1338,15 @@ export class Translator {
     this.#termMatcher = buildTermsMatcher(terms);
   }
 
-  // #parseAITerms(termsString) {
-  //   if (!termsString || typeof termsString !== "string") return;
-
-  //   try {
-  //     this.#glossary = Object.fromEntries(
-  //       termsString
-  //         .split(/\n|;/)
-  //         .map((line) => {
-  //           const [k = "", v = ""] = line.split(",").map((s) => s.trim());
-  //           return [k, v];
-  //         })
-  //         .filter(([k]) => k)
-  //     );
-  //   } catch (err) {
-  //     kissLog("parse aiterms", err);
-  //   }
-  // }
-
-  // // todo: 利用AI总结
-  // #getDocDescription() {
-  //   try {
-  //     const meta = document.querySelector('meta[name="description"]');
-  //     const description = meta?.getAttribute("content") || "";
-  //     return truncateWords(description);
-  //   } catch (err) {
-  //     kissLog("get description", err);
-  //   }
-  //   return "";
-  // }
-
   // 监控翻译单元的可见性
   #createIntersectionObserver() {
-    const { transInterval } = this.#setting;
     const rootMargin = this.#rootMargin;
 
     const pending = new Set();
     const flush = debounce(() => {
       pending.forEach((node) => this.#performSyncNode(node));
       pending.clear();
-    }, transInterval);
+    }, TRANS_INTERVAL);
 
     return new IntersectionObserver(
       (entries) => {
@@ -2169,7 +2141,7 @@ export class Translator {
   // 收集区域内最外层（互不包含）的已观察翻译单元
   #collectHoverBlockUnits(container) {
     const units = [];
-    const maxLength = Number(this.#setting.maxLength) || 100000;
+    const maxLength = TRANS_MAX_LENGTH;
     const visit = (node, isRoot) => {
       if (!Translator.isElementOrFragment(node)) return;
       // 根节点需检查整条祖先链；递归进入的子节点其祖先已在上一层验证过，
@@ -3069,8 +3041,8 @@ export class Translator {
 
     // 文本长度
     if (
-      trimmedText.length < this.#setting.minLength ||
-      trimmedText.length > this.#setting.maxLength
+      trimmedText.length < TRANS_MIN_LENGTH ||
+      trimmedText.length > TRANS_MAX_LENGTH
     ) {
       return true;
     }
@@ -3434,10 +3406,6 @@ export class Translator {
       wrapOriginal,
       originalTextStyle,
     } = hookRule;
-    const {
-      newlineLength,
-      // langDetector，
-    } = this.#setting;
     const parentNode = hostNode.parentElement;
     const hideOrigin = transOnly === "true";
     // 在 try 外声明，供 catch 分支判断本译文容器是否已被还原移除
@@ -3482,7 +3450,7 @@ export class Translator {
         wrapper.style.margin = "8px 0";
         wrapper.style.boxSizing = "border-box";
         wrapper.appendChild(inner);
-      } else if (processedString.length > newlineLength) {
+      } else if (processedString.length > TRANS_NEWLINE_LENGTH) {
         const br = document.createElement("br");
         br.hidden = hideOrigin;
         if (transOrder === "translation-first") {
