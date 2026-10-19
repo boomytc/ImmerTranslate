@@ -19,7 +19,6 @@ import {
   useStyleList,
 } from "../../hooks/CustomStyles";
 import { css } from "@emotion/css";
-import { getRandomQuote } from "../../config/quotes";
 import { useSetting } from "../../hooks/Setting";
 import {
   SettingsCard,
@@ -27,6 +26,8 @@ import {
   SettingsSection,
   SettingsSegmented,
 } from "./SettingsCard";
+
+const STYLE_PREVIEW_SAMPLE = "这是一段用于预览译文样式的中文。";
 
 /**
  * 单个自定义 CSS 样式编辑表单区域
@@ -39,9 +40,6 @@ import {
  */
 function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
   const i18n = useI18n();
-  const {
-    setting: { uiLang },
-  } = useSetting();
   const [formData, setFormData] = useState(() => customStyle || {});
   const lastSyncedStyleRef = useRef(JSON.stringify(customStyle || {}));
   const confirm = useConfirm();
@@ -102,19 +100,11 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
     [styleCode]
   );
 
-  // 动态生成一句预览文字
-  const quote = useMemo(() => {
-    const q = getRandomQuote();
-    return uiLang === "zh" ? [q.en, q.zh] : [q.zh, q.en];
-  }, [uiLang]);
-
   return (
     <Stack spacing={3}>
       {/* 实时 CSS 渲染预览展示区 */}
       <Box>
-        {quote[0]}
-        <br />
-        <span className={textClass}>{quote[1]}</span>
+        <span className={textClass}>{STYLE_PREVIEW_SAMPLE}</span>
       </Box>
 
       {/* 样式名称输入框 */}
