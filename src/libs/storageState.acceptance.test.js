@@ -24,6 +24,7 @@ function createRuntime() {
   const onChanged = createEvent();
   const runtime = {
     values,
+    ports: [],
     onConnect: createEvent(),
     storage: {
       onChanged,
@@ -81,6 +82,7 @@ function createRuntime() {
         if (!disconnected) front.onMessage.emit(message, front);
       });
     };
+    runtime.ports.push({ front, back });
     Promise.resolve().then(() => runtime.onConnect.emit(back));
     return front;
   };
@@ -136,6 +138,91 @@ async function mountState(page) {
   await state.ensureLoaded();
   return state;
 }
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+test("a pure read returns while another page holds the storage lock", async () => {
+  const { runtime, first, second } = await setup();
+  runtime.values[STOKEY_WORDS] = JSON.stringify({ original: { kept: true } });
+  const release = deferred();
+  const holder = first.withStorageLock(() => release.promise);
+  const holderResult = holder.catch(() => undefined);
+  for (let step = 0; step < 20; step += 1) await Promise.resolve();
+  const state = second.getStorageState(STOKEY_WORDS, {});
+  const loaded = state.load();
+  let timer;
+  const hung = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("read waited for the write lock")),
+      400
+    );
+  });
+  try {
+    await Promise.race([loaded, hung]);
+    expect(state.snapshot.data).toEqual({ original: { kept: true } });
+  } finally {
+    clearTimeout(timer);
+    release.resolve();
+    await holderResult;
+    await loaded.catch(() => undefined);
+  }
+});
+
+test("a recovering read waits for a commit whose reply was lost", async () => {
+  const { runtime, first } = await setup();
+  runtime.pauseEvents = true;
+  const state = await mountState(first);
+  const writeStarted = deferred();
+  const commitGate = deferred();
+  runtime.storage.local.set.mockImplementationOnce(async (entries) => {
+    writeStarted.resolve();
+    await commitGate.promise;
+    Object.assign(runtime.values, entries);
+  });
+  const save = state.save((previous) => ({ ...previous, kept: true }));
+  await writeStarted.promise;
+  const readsBeforeRecovery = runtime.storage.local.get.mock.calls.length;
+  runtime.ports[0].front.disconnect();
+  for (let step = 0; step < 30; step += 1) await Promise.resolve();
+
+  expect(state.isRecovering).toBe(true);
+  expect(runtime.storage.local.get.mock.calls.length).toBe(readsBeforeRecovery);
+  expect(state.snapshot.data).toEqual({ original: {} });
+
+  commitGate.resolve();
+  await expect(save).rejects.toMatchObject({ storageOutcome: "unknown" });
+  expect(state.isRecovering).toBe(false);
+  expect(state.snapshot.data).toEqual({ original: {}, kept: true });
+  expect(state.editTimestamp).toBe(300);
+});
+
+test("concurrent read-then-write transactions stay serial and keep both writes", async () => {
+  const { runtime, first, second } = await setup();
+  runtime.pauseEvents = true;
+  await Promise.all([
+    first.withTransaction(async (transaction) => {
+      const current = (await transaction.getObj(STOKEY_WORDS)) || {};
+      await transaction.setObj(STOKEY_WORDS, { ...current, first: {} });
+    }),
+    second.withTransaction(async (transaction) => {
+      const current = (await transaction.getObj(STOKEY_WORDS)) || {};
+      await transaction.setObj(STOKEY_WORDS, { ...current, second: {} });
+    }),
+  ]);
+  expect(JSON.parse(runtime.values[STOKEY_WORDS])).toEqual({
+    original: {},
+    first: {},
+    second: {},
+  });
+});
 
 test("two independent page states preserve sequential edits to different words", async () => {
   const { runtime, first, second } = await setup();

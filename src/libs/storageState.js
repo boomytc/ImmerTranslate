@@ -154,16 +154,29 @@ export function getStorageState(key, defaultValue) {
     publish();
   };
   const readCurrent = async (isCurrent = () => true) => {
-    // A coordinator read waits for accepted commits whose reply was lost.
-    const recovered = await storage.withTransaction(async (transaction) => ({
-      value: await transaction.getObj(key),
-      metadata:
-        recovering && syncKey
+    let value;
+    let metadata;
+    if (recovering) {
+      // A coordinator read waits for accepted commits whose reply was lost.
+      // The same transaction reads sync metadata when this key is synced.
+      const recovered = await storage.withTransaction(async (transaction) => ({
+        value: await transaction.getObj(key),
+        metadata: syncKey
           ? (await transaction.getObj(STOKEY_SYNC))?.syncMeta?.[syncKey]
           : undefined,
-    }));
-    if (!isCurrent()) return;
-    const { value, metadata } = recovered;
+      }));
+      if (!isCurrent()) return;
+      value = recovered.value;
+      metadata = recovered.metadata;
+    } else {
+      // Popup first paint, focus/pageshow refresh, and the fab subscription
+      // read storage.local directly. They do not take the write lock.
+      value =
+        typeof storage.readStoredObjects === "function"
+          ? (await storage.readStoredObjects([key]))[key]
+          : await storage.getObj(key);
+      if (!isCurrent()) return;
+    }
     if (recovering && metadata) editTimestamp = metadata.updateAt || 0;
     // An explicit deletion remains null in its current controller. Only initial
     // hydration supplies a default for a missing key.
