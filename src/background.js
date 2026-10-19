@@ -15,6 +15,7 @@ import {
   MSG_CONTEXT_MENUS,
   MSG_COMMAND_SHORTCUTS,
   MSG_INJECT_JS,
+  MSG_INSTALL_LOCATION_HOOK,
   MSG_INJECT_CSS,
   MSG_UPDATE_CSP,
   MSG_BUILTINAI_DETECT,
@@ -56,6 +57,7 @@ import { chromeDetect, chromeTranslate } from "./libs/builtinAI";
 import { sha256 } from "./libs/utils";
 import { installStorageCoordinator } from "./libs/storageCoordination";
 import { isCurrentPopupDocument } from "./libs/popupDocument";
+import { locationHookInjection } from "./libs/locationHook";
 import { optionsApisHash } from "./libs/optionsEntry";
 import { APP_CONTEXT_KEY } from "./libs/browser";
 
@@ -888,6 +890,11 @@ const messageHandlers = {
   [MSG_SAVE_RULE]: (args) => saveRule(args), // 写入/保存规则
   [MSG_EDIT_RULE]: (args) => writeSiteRule(args),
   [MSG_INJECT_JS]: (args) => injectToCurrentTab(injectInlineJsBg, args), // 注入 JS 代码到前台
+  [MSG_INSTALL_LOCATION_HOOK]: (_args, sender) => {
+    const injection = locationHookInjection(sender);
+    if (!injection) return;
+    return browser.scripting.executeScript(injection);
+  },
   [MSG_INJECT_CSS]: (args) => injectToCurrentTab(injectInternalCss, args), // 注入 CSS 样式到前台
   [MSG_UPDATE_CSP]: (args) => updateCspRules(args), // 触发 CSP 重写规则变更
   [MSG_CONTEXT_MENUS]: (args) => addContextMenus(args), // 切换右键菜单样式

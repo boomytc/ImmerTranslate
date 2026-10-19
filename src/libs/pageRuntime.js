@@ -1,37 +1,53 @@
+import {
+  MSG_INSTALL_LOCATION_HOOK,
+  MSG_TRANS_GETRULE,
+  STOKEY_RULES,
+  STOKEY_SETTING,
+} from "../config";
 import { browser } from "./browser";
 import { isInBlacklist, matchingBlacklistEntries } from "./blacklist";
+import { isExt, isGm } from "./client";
 import {
   applyParentRuntime,
   installFrameRuntimeBridge,
   queryParentFrameRuntime,
 } from "./iframe";
+import { LOCATION_CHANGE_EVENT, installLocationHook } from "./locationHook";
 import { logger } from "./log";
+import { sendBgMsg } from "./msg";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
 import { getStorageState } from "./storageState";
 import TranslatorManager from "./translatorManager";
-import { MSG_TRANS_GETRULE, STOKEY_RULES, STOKEY_SETTING } from "../config";
+
+export function ensureLocationHook() {
+  if (isGm) {
+    installLocationHook(
+      typeof unsafeWindow !== "undefined" ? unsafeWindow : window
+    );
+    return;
+  }
+  if (!isExt) return;
+  void Promise.resolve(sendBgMsg(MSG_INSTALL_LOCATION_HOOK)).catch((error) => {
+    logger.info("location hook", error);
+  });
+}
 
 export function watchPageLocation(onChange) {
-  if (typeof window === "undefined" || !window.history) return () => {};
-  const { pushState, replaceState } = window.history;
+  if (typeof window === "undefined") return () => {};
   const notify = () => onChange(window.location.href);
-  window.history.pushState = function pushStateAndNotify(...args) {
-    const result = pushState.apply(this, args);
-    notify();
-    return result;
-  };
-  window.history.replaceState = function replaceStateAndNotify(...args) {
-    const result = replaceState.apply(this, args);
-    notify();
-    return result;
-  };
+  const targets = new Set([window]);
+  if (typeof unsafeWindow !== "undefined") targets.add(unsafeWindow);
+  targets.forEach((target) => {
+    target.addEventListener(LOCATION_CHANGE_EVENT, notify);
+  });
   window.addEventListener("popstate", notify);
   window.addEventListener("hashchange", notify);
   return () => {
-    window.history.pushState = pushState;
-    window.history.replaceState = replaceState;
+    targets.forEach((target) => {
+      target.removeEventListener(LOCATION_CHANGE_EVENT, notify);
+    });
     window.removeEventListener("popstate", notify);
     window.removeEventListener("hashchange", notify);
   };
@@ -166,6 +182,7 @@ export class PageRuntime {
       blocked || !this.#manager
         ? this.requestReconcile("start")
         : Promise.resolve();
+    ensureLocationHook();
     const watch = options.watchLocation || watchPageLocation;
     this.#unwatch = watch(() => {
       void this.requestReconcile("location");

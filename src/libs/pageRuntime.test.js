@@ -31,9 +31,16 @@ jest.mock("./subRules", () => ({
   loadOrFetchSubRules: jest.fn(),
 }));
 
-const { PageRuntime } = require("./pageRuntime");
+const { PageRuntime, watchPageLocation } = require("./pageRuntime");
+const { LOCATION_CHANGE_EVENT } = require("./locationHook");
 
 const MSG_TRANS_GETRULE = "trans_getrule";
+const nativePushState = History.prototype.pushState;
+
+function goViaPage(path) {
+  nativePushState.call(window.history, {}, "", path);
+  window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
+}
 
 async function flushHistory() {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -125,7 +132,7 @@ describe("PageRuntime", () => {
     expect(created[0].rule.transOpen).toBe("false");
     expect(listeners).toHaveLength(0);
 
-    window.history.pushState({}, "", "/page-blocked");
+    goViaPage("/page-blocked");
     await runtime.whenIdle();
     expect(managers[0].stop).toHaveBeenCalledTimes(1);
     expect(listeners).toHaveLength(1);
@@ -147,12 +154,12 @@ describe("PageRuntime", () => {
     window.history.pushState({}, "", "/stay-clear");
     const { runtime, managers } = boot();
     await runtime.start();
-    window.history.pushState({}, "", "/auto-translate");
+    goViaPage("/auto-translate");
     await runtime.whenIdle();
     expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
       expect.objectContaining({ transOpen: "true" })
     );
-    window.history.pushState({}, "", "/plain-page");
+    goViaPage("/plain-page");
     await runtime.whenIdle();
     expect(managers[0].applyLocationRule).toHaveBeenLastCalledWith(
       expect.objectContaining({ transOpen: "false" })
@@ -209,11 +216,41 @@ describe("PageRuntime", () => {
     await harness.runtime.whenIdle();
     expect(harness.created[1].rule.transOpen).toBe("false");
 
-    window.history.pushState({}, "", "/auto-translate");
+    goViaPage("/auto-translate");
     await harness.runtime.whenIdle();
     expect(harness.managers[1].applyLocationRule).toHaveBeenCalledWith(
       expect.objectContaining({ transOpen: "true" })
     );
+  });
+
+  test("a main-world location event recalculates, and the content script does not wrap history.pushState", async () => {
+    const historyPush = window.history.pushState;
+    window.history.pushState({}, "", "/stay-clear");
+    const { runtime, managers } = boot();
+    await runtime.start();
+    expect(History.prototype.pushState).toBe(nativePushState);
+    expect(window.history.pushState).toBe(historyPush);
+
+    const stop = watchPageLocation(() => {});
+    expect(window.history.pushState).toBe(historyPush);
+    expect(History.prototype.pushState).toBe(nativePushState);
+    stop();
+
+    nativePushState.call(window.history, {}, "", "/auto-translate");
+    await runtime.whenIdle();
+    expect(managers[0].applyLocationRule).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
+    await runtime.whenIdle();
+    expect(managers[0].applyLocationRule).toHaveBeenCalledWith(
+      expect.objectContaining({ transOpen: "true" })
+    );
+
+    runtime.stop();
+    window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
+    await runtime.whenIdle();
+    expect(managers[0].applyLocationRule).toHaveBeenCalledTimes(1);
+    expect(window.history.pushState).toBe(historyPush);
   });
 
   test("an inserted iframe follows the top frame and is told to restore when it turns off", async () => {
