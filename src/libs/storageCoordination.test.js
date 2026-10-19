@@ -93,16 +93,29 @@ const loadCoordinator = ({
   background = false,
   extension = true,
   gm = false,
+  pageEvents,
 } = {}) => {
   let coordinator;
-  jest.isolateModules(() => {
-    jest.doMock("./client", () => ({ isExt: extension, isGm: gm }));
-    jest.doMock("./browser", () => ({
-      browser: runtime ? { runtime, storage: runtime.storage } : undefined,
-      isBg: () => background,
-    }));
-    coordinator = require("./storageCoordination");
-  });
+  const previousPageEvents = globalThis.__IMMER_STORAGE_PAGE_EVENTS;
+  if (pageEvents) globalThis.__IMMER_STORAGE_PAGE_EVENTS = pageEvents;
+  try {
+    jest.isolateModules(() => {
+      jest.doMock("./client", () => ({ isExt: extension, isGm: gm }));
+      jest.doMock("./browser", () => ({
+        browser: runtime ? { runtime, storage: runtime.storage } : undefined,
+        isBg: () => background,
+      }));
+      coordinator = require("./storageCoordination");
+    });
+  } finally {
+    if (pageEvents) {
+      if (previousPageEvents === undefined) {
+        delete globalThis.__IMMER_STORAGE_PAGE_EVENTS;
+      } else {
+        globalThis.__IMMER_STORAGE_PAGE_EVENTS = previousPageEvents;
+      }
+    }
+  }
   return coordinator;
 };
 
@@ -561,6 +574,92 @@ describe("storage transaction coordination", () => {
 
     await expect(first).rejects.toThrow("Read failed");
     await expect(next).resolves.toBe("retried");
+  });
+
+  test("gives the next queued request the lock when the holder hides into the back/forward cache", async () => {
+    const holderEvents = new EventTarget();
+    const nextEvents = new EventTarget();
+    const runtime = createRuntime();
+    loadCoordinator({
+      runtime,
+      background: true,
+    }).installStorageCoordinator();
+    const holderPage = loadCoordinator({
+      runtime,
+      pageEvents: holderEvents,
+    });
+    const nextPage = loadCoordinator({ runtime, pageEvents: nextEvents });
+    const holder = holderPage.withStorageLock(() => new Promise(() => {}));
+    const holderFailed = expect(holder).rejects.toMatchObject({
+      message: expect.stringMatching(/disconnect/i),
+      storageOutcome: "not-committed",
+    });
+    await flushPromises();
+    const nextOperation = jest.fn(() => "next");
+    const next = nextPage.withStorageLock(nextOperation);
+    await flushPromises();
+    expect(nextOperation).not.toHaveBeenCalled();
+
+    holderEvents.dispatchEvent(
+      new PageTransitionEvent("pagehide", { persisted: true })
+    );
+    let timer;
+    const hung = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error("queued request waited for the hold timeout")),
+        400
+      );
+    });
+    try {
+      await Promise.race([next, hung]);
+    } finally {
+      clearTimeout(timer);
+    }
+    await expect(next).resolves.toBe("next");
+    await holderFailed;
+    expect(nextOperation).toHaveBeenCalledTimes(1);
+  });
+
+  test("lets the restored page request the lock again and read the stored value", async () => {
+    const pageEvents = new EventTarget();
+    const runtime = createRuntime();
+    runtime.values.words = JSON.stringify({ kept: true });
+    loadCoordinator({
+      runtime,
+      background: true,
+    }).installStorageCoordinator();
+    const page = loadCoordinator({ runtime, pageEvents });
+    const held = page.withStorageLock(() => new Promise(() => {}));
+    const heldFailed = expect(held).rejects.toMatchObject({
+      message: expect.stringMatching(/disconnect/i),
+      storageOutcome: "not-committed",
+    });
+    await flushPromises();
+    pageEvents.dispatchEvent(
+      new PageTransitionEvent("pagehide", { persisted: true })
+    );
+    await heldFailed;
+
+    pageEvents.dispatchEvent(
+      new PageTransitionEvent("pageshow", { persisted: true })
+    );
+    const read = page.withStorageLock(async () => {
+      const stored = await runtime.storage.local.get(["words"]);
+      return JSON.parse(stored.words);
+    });
+    let timer;
+    const hung = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error("restored page did not get the storage lock")),
+        400
+      );
+    });
+    try {
+      await Promise.race([read, hung]);
+    } finally {
+      clearTimeout(timer);
+    }
+    await expect(read).resolves.toEqual({ kept: true });
   });
 
   test("disconnects a silent holder and reports that disconnect to its client", async () => {
