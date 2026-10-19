@@ -4,7 +4,6 @@ import {
   URL_CACHE_TRAN,
   URL_CACHE_BINGDICT,
   URL_CACHE_DICT,
-  KV_SALT_SYNC,
   OPT_LANGS_TO_SPEC,
   OPT_LANGS_FROM_SPEC,
   OPT_LANGS_SPEC_DEFAULT,
@@ -21,7 +20,7 @@ import {
   defaultDictUserPrompt,
 } from "../config";
 import { getSetting } from "../libs/storage";
-import { sha256, withTimeout } from "../libs/utils";
+import { withTimeout } from "../libs/utils";
 import {
   isSameTranslationLanguage,
   normalizeLanguageCode,
@@ -158,29 +157,6 @@ async function getPromptCacheSig(apiSetting = {}, promptScope, glossary) {
 
   return (await getCacheDigest(promptText, PROMPT_CACHE_SALT)).slice(0, 16);
 }
-
-/**
- * 同步数据
- * @param {*} url
- * @param {*} key
- * @param {*} data
- * @return/**
- * 跨端/多终端规则与设置数据同步接口。
- * @param {string} url 同步接口的服务器 URL
- * @param {string} key 同步密钥
- * @param {Object} data 待同步的最新设置与规则数据
- * @returns {Promise<Object>} 接口返回的同步判定结果
- */
-export const apiSyncData = async (url, key, data) =>
-  fetchData(url, {
-    headers: {
-      "Content-type": "application/json",
-      // 对密钥进行 sha256 签名，保障同步的鉴权安全
-      Authorization: `Bearer ${await sha256(key, KV_SALT_SYNC)}`,
-    },
-    method: "POST",
-    body: JSON.stringify(data),
-  });
 
 const GITHUB_GIST_API = "https://api.github.com/gists";
 

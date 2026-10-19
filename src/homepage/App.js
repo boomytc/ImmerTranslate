@@ -3,7 +3,6 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import BoltIcon from "@mui/icons-material/Bolt";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
-import CodeIcon from "@mui/icons-material/Code";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import InputIcon from "@mui/icons-material/Input";
 import IntegrationInstructionsIcon from "@mui/icons-material/IntegrationInstructions";
@@ -207,16 +206,6 @@ function Hero({ content, tokens }) {
             sx={{ minHeight: 48 }}
           >
             {content.installExtension}
-          </Button>
-          <Button
-            component={Link}
-            href={process.env.REACT_APP_USERSCRIPT_DOWNLOADURL}
-            variant="outlined"
-            size="large"
-            startIcon={<CodeIcon />}
-            sx={{ minHeight: 48 }}
-          >
-            {content.installUserscript}
           </Button>
           <Button
             component={Link}

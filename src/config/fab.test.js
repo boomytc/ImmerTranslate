@@ -8,7 +8,6 @@ import {
   isFabVisible,
   normalizeFabAppearance,
   normalizeFabConfig,
-  resetFabVisibilityHold,
   restoreRemovedFabSites,
   undoFabWrite,
 } from "./fab";
@@ -55,10 +54,6 @@ describe("normalizeFabAppearance", () => {
 });
 
 describe("normalizeFabConfig", () => {
-  afterEach(() => {
-    resetFabVisibilityHold();
-  });
-
   test("fills the two site lists and appearance defaults", () => {
     expect(normalizeFabConfig(null)).toEqual(DEFAULT_FAB);
     expect(normalizeFabConfig({})).toEqual(DEFAULT_FAB);
@@ -74,7 +69,7 @@ describe("normalizeFabConfig", () => {
 
   test("is idempotent and keeps position fields", () => {
     const once = normalizeFabConfig({
-      isHide: "true",
+      isHide: true,
       hiddenSites: "x.com",
       shownSites: 12,
       x: 10,

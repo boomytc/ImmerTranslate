@@ -8,16 +8,13 @@ import Rules, {
 import { useRules } from "../../hooks/Rules";
 import { useSubRules } from "../../hooks/SubRules";
 import { useSyncCaches } from "../../hooks/Sync";
-import { loadOrFetchSubRules, syncSubRules } from "../../libs/subRules";
-import { syncShareRules } from "../../libs/sync";
+import { syncSubRules } from "../../libs/subRules";
 import {
   delSubRules,
   getDisabledSubRules,
-  getSyncWithDefault,
   removeDisabledSubRules,
   setDisabledSubRules,
 } from "../../libs/storage";
-import { OPT_SYNCTYPE_WORKER } from "../../config";
 import { OPTIONS_STYLES } from "./styles";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -83,10 +80,6 @@ jest.mock("./HelpButton", () => {
 jest.mock("../../libs/subRules", () => ({
   syncSubRules: jest.fn(),
   loadOrFetchSubRules: jest.fn(),
-}));
-
-jest.mock("../../libs/sync", () => ({
-  syncShareRules: jest.fn(),
 }));
 
 jest.mock("../../libs/storage", () => ({
@@ -829,52 +822,6 @@ describe("Options Rules personal tab", () => {
     });
     expect(view.container.querySelector('input[name="pattern"]')).toBeNull();
 
-    view.unmount();
-  });
-
-  test("prevents duplicate rule sharing while the upload is pending", async () => {
-    let resolveShare;
-    getSyncWithDefault.mockResolvedValue({
-      syncType: OPT_SYNCTYPE_WORKER,
-      syncUrl: "https://sync.example",
-      syncKey: "secret",
-    });
-    loadOrFetchSubRules.mockResolvedValue([{ pattern: "sub.example" }]);
-    syncShareRules.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveShare = resolve;
-      })
-    );
-    const openWindow = jest.spyOn(window, "open").mockImplementation(() => {});
-    const view = renderRules();
-    await openPersonalTab(view);
-    const shareButton = Array.from(
-      view.container.querySelectorAll("button")
-    ).find((button) => button.textContent === "share");
-
-    await act(async () => {
-      shareButton.click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(shareButton.disabled).toBe(true);
-    expect(shareButton.getAttribute("aria-busy")).toBe("true");
-    shareButton.click();
-    expect(syncShareRules).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolveShare("https://share.example/rules");
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(shareButton.disabled).toBe(false);
-    expect(shareButton.getAttribute("aria-busy")).toBe("false");
-    expect(openWindow).toHaveBeenCalledTimes(1);
-    expect(openWindow).toHaveBeenCalledWith(
-      "https://share.example/rules",
-      "_blank"
-    );
-    openWindow.mockRestore();
     view.unmount();
   });
 

@@ -2,13 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_SYNC, STOKEY_SYNC } from "../config";
-import {
-  getSync,
-  putSync,
-  putSyncMeta,
-  storage,
-  updateSyncState,
-} from "../libs/storage";
+import { getSync, putSync, storage, updateSyncState } from "../libs/storage";
 import { trySyncAllSubRules } from "../libs/subRules";
 import { apiFetch } from "../apis";
 import { useSyncCaches } from "./Sync";
@@ -52,7 +46,9 @@ describe("subscription cache persistence", () => {
   });
 
   test("preserves metadata and settings updated after the cache view mounts", async () => {
-    await putSyncMeta("rules");
+    await putSync({
+      syncMeta: { rules: { updateAt: Date.now() } },
+    });
     await putSync({ syncUser: "updated-user", customField: "keep" });
     const expected = await getSync();
 
