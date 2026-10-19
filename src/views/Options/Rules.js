@@ -15,9 +15,7 @@ import {
   OPT_SYNCTYPE_WORKER,
   DEFAULT_TRANS_TAG,
   OPT_SPLIT_PARAGRAPH_DISABLE,
-  OPT_HIGHLIGHT_WORDS_DISABLE,
   OPT_SPLIT_PARAGRAPH_ALL,
-  OPT_HIGHLIGHT_WORDS_ALL,
 } from "../../config";
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useI18n } from "../../hooks/I18n";
@@ -194,7 +192,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     transEndHook = "", // 翻译结束后的钩子函数
     splitParagraph = OPT_SPLIT_PARAGRAPH_DISABLE, // 段落切分策略
     splitLength = 0, // 段落切分最大长度
-    highlightWords = OPT_HIGHLIGHT_WORDS_DISABLE, // 单词高亮策略
     transOrder, // 文本顺序：由 DEFAULT_RULE / GLOBLA_RULE 提供初始值
   } = formValues;
 
@@ -651,26 +648,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 min={0}
                 max={1000}
               />
-            </Grid>
-            {/* 单词高亮标记设置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="highlightWords"
-                value={highlightWords}
-                label={i18n("highlight_words")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                {OPT_HIGHLIGHT_WORDS_ALL.map((item) => (
-                  <MenuItem key={item} value={item}>
-                    {i18n(item)}
-                  </MenuItem>
-                ))}
-              </TextField>
             </Grid>
 
             {/* 是否翻译网页 title 标签配置 */}

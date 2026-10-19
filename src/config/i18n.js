@@ -2222,10 +2222,6 @@ export const I18N = {
     zh: `切分长度 (0-10000)`,
     en: `Segmentation length(0-10000)`,
   },
-  highlight_words: {
-    zh: `高亮收藏词汇`,
-    en: `Highlight favorite words`,
-  },
   split_disable: {
     zh: `禁用`,
     en: `Disable`,
@@ -2237,18 +2233,6 @@ export const I18N = {
   split_punctuation: {
     zh: `按照句子切分`,
     en: `Split by sentence`,
-  },
-  highlight_disable: {
-    zh: `禁用`,
-    en: `Disable`,
-  },
-  highlight_beforetrans: {
-    zh: `翻译前高亮`,
-    en: `Highlight before translation`,
-  },
-  highlight_aftertrans: {
-    zh: `翻译后高亮`,
-    en: `Highlight after translation`,
   },
   pagescroll_root_margin: {
     zh: `滚动加载提前触发 (0-10000px)`,
@@ -2349,22 +2333,6 @@ export const I18N = {
   submit: {
     zh: `提交`,
     en: `Submit`,
-  },
-  favorite_word_lookup_loading: {
-    zh: `正在查询释义…`,
-    en: `Looking up definition…`,
-  },
-  favorite_word_lookup_unavailable: {
-    zh: `当前词典无法查询该词。`,
-    en: `The selected dictionary cannot look up this word.`,
-  },
-  favorite_word_definition_not_found: {
-    zh: `未找到释义。`,
-    en: `No definition found.`,
-  },
-  favorite_word_lookup_failed: {
-    zh: `释义加载失败。`,
-    en: `Failed to load definition.`,
   },
   show_translation_dot: {
     zh: `显示翻译圆点`,

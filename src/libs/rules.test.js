@@ -446,7 +446,6 @@ describe("rules terms integration（规则链路：原始规则 → 合并 → T
           },
         ],
       },
-      favWords: [],
     });
   };
 

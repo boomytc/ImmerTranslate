@@ -13,7 +13,6 @@ import {
   BUILTIN_RULES,
   STOKEY_RULES,
   OPT_SPLIT_PARAGRAPH_ALL,
-  OPT_HIGHLIGHT_WORDS_ALL,
 } from "../config";
 import { loadOrFetchSubRules } from "./subRules";
 import {
@@ -160,6 +159,7 @@ const copyRule = (rule) => {
   if (merged.scriptFieldOrigins) {
     merged.scriptFieldOrigins = { ...merged.scriptFieldOrigins };
   }
+  delete merged.highlightWords;
   return merged;
 };
 
@@ -219,7 +219,6 @@ export const mergeRules = (baseRule, overrideRule) => {
     "transTag",
     "transTitle",
     "splitParagraph",
-    "highlightWords",
     "textStyle",
     "originalTextStyle",
   ].forEach((key) => {
@@ -240,6 +239,7 @@ export const mergeRules = (baseRule, overrideRule) => {
     merged.pattern = overrideRule.pattern;
   }
 
+  delete merged.highlightWords;
   return assignScriptSources(merged, baseRule, overrideRule);
 };
 
@@ -437,7 +437,6 @@ export const checkRules = (rules) => {
         transEndHook,
         splitParagraph,
         splitLength,
-        highlightWords,
       }) => ({
         // 确保字段类型及取值的合法性，不合法或空值时回退到默认占位符或空值
         pattern: pattern.trim(),
@@ -511,10 +510,6 @@ export const checkRules = (rules) => {
           splitParagraph
         ),
         splitLength: Number.isInteger(splitLength) ? splitLength : 0,
-        highlightWords: matchValue(
-          [GLOBAL_KEY, ...OPT_HIGHLIGHT_WORDS_ALL],
-          highlightWords
-        ),
       })
     );
 

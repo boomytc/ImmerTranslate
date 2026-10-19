@@ -1,10 +1,6 @@
 const mockTranslatorManagerStart = jest.fn();
 let mockIsIframe = false;
 
-jest.mock("./config", () => ({
-  OPT_HIGHLIGHT_WORDS_DISABLE: "-",
-}));
-
 jest.mock("./libs/storage", () => ({
   getSettingWithDefault: jest.fn(),
   getFabWithDefault: jest.fn(),
@@ -121,7 +117,6 @@ describe("common iframe startup", () => {
     getFabWithDefault.mockResolvedValue({ isHide: false });
     matchRule.mockResolvedValue({
       transOpen: "true",
-      highlightWords: "-",
     });
   });
 

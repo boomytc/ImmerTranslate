@@ -148,10 +148,6 @@ function showErr(message) {
   setTimeout(removeBanner, 10000); // 10秒后自动消失
 }
 
-async function getFavWords() {
-  return [];
-}
-
 const IFRAME_TEXT_CHECK_TIMEOUT = 1000;
 const IFRAME_TEXT_IGNORE_SELECTOR = [
   "script",
@@ -280,7 +276,6 @@ export async function run(isUserscript = false) {
     // 顶层帖文 document 仍用自己的 href。黑名单继续看子 frame 自己的地址。
     const ruleHref = readRedditEmbeddingHref(window, isIframe) || href;
     const rule = await matchRule(ruleHref, setting);
-    const favWords = await getFavWords(rule);
     // 读出的配置已经是 hiddenSites / shownSites。页面是否显示由 isFabVisible
     // 按当前网址计算，这里不再改写 isHide。
     const fabConfig = normalizeFabConfig(await getFabWithDefault());
@@ -290,7 +285,6 @@ export async function run(isUserscript = false) {
       setting,
       rule,
       fabConfig,
-      favWords,
       isIframe,
       isUserscript,
       transboxOnly: isPdfDocument,
