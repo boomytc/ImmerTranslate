@@ -8,16 +8,11 @@ import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import DoneIcon from "@mui/icons-material/Done";
 import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
-import CircularProgress from "@mui/material/CircularProgress";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import { useI18n } from "../../hooks/I18n";
 import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
-  OPT_LANGDETECTOR_ALL,
-  OPT_DICT_ALL,
-  OPT_SUG_ALL,
-  OPT_LANGS_MAP,
   OPT_DICT_MAP,
   OPT_SUG_MAP,
   API_SPE_TYPES,
