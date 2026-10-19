@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/boomytc/ImmerTranslate/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/boomytc/ImmerTranslate?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC"></a>
   <img alt="许可证 GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
-  <img alt="Chrome Edge Firefox Thunderbird 用户脚本" src="https://img.shields.io/badge/%E6%94%AF%E6%8C%81-Chrome%20%7C%20Edge%20%7C%20Firefox%20%7C%20Thunderbird%20%7C%20%E7%94%A8%E6%88%B7%E8%84%9A%E6%9C%AC-informational">
+  <img alt="Chrome Edge Firefox Thunderbird" src="https://img.shields.io/badge/%E6%94%AF%E6%8C%81-Chrome%20%7C%20Edge%20%7C%20Firefox%20%7C%20Thunderbird-informational">
 </p>
 
 <p align="center">
@@ -56,7 +56,6 @@
 | Edge        | `immer-translate_<版本>_edge.zip`        | 解压，打开 `edge://extensions`，开启开发人员模式，选择「加载解压缩的扩展」。     |
 | Firefox     | `immer-translate_<版本>_firefox.zip`     | 打开 `about:debugging`，选择「临时载入附加组件」。                               |
 | Thunderbird | `immer-translate_<版本>_thunderbird.zip` | 在附加组件管理器里从文件安装。                                                   |
-| 用户脚本    | `immer-translate_<版本>_userscript.zip`  | 解压后把 `immer-translate.user.js` 装进 Tampermonkey 等脚本管理器。              |
 
 装好后点击工具栏图标即可开始；第一次可以直接用免钥服务试一下。
 

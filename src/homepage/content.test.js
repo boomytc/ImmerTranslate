@@ -44,7 +44,7 @@ describe("homepage content", () => {
       expect(content.title).toBeTruthy();
       expect(content.subtitle).toBeTruthy();
       expect(content.features).toHaveLength(9);
-      expect(content.installs).toHaveLength(6);
+      expect(content.installs).toHaveLength(4);
       expect(content.licenseAttribution).toBe(
         expectedLicenseAttribution[value]
       );
