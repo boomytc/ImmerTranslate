@@ -38,7 +38,6 @@ import {
   buildSegmentationMetrics,
   getSegmentationMetricErrors,
 } from "../../subtitle/subtitleSegmentationMetrics";
-import { DEFAULT_PARAMS } from "../../subtitle/sentenceBreaker";
 import { buildBilingualVtt } from "../../subtitle/vtt";
 
 const SAMPLE_BASE_URL = `${process.env.REACT_APP_SITEURL}/subtitle-samples`;
@@ -190,11 +189,7 @@ export default function SubtitleSegmentationPlayground({
         : null,
     [subtitleSetting?.segSlug, transApis]
   );
-  const mode = segApi
-    ? "ai"
-    : subtitleSetting?.useAlgorithmBreaker === "statistical"
-      ? "statistical"
-      : "rule";
+  const mode = segApi ? "ai" : "rule";
   const effectivePromptSlug =
     subtitleSetting?.segPromptMode === PROMPT_MODE_GLOBAL
       ? subtitleSetting?.segPromptSlug || DEFAULT_SUBTITLE_PROMPT_SLUG
@@ -461,10 +456,8 @@ export default function SubtitleSegmentationPlayground({
         };
       } else {
         cues = runBuiltinSegmentation({
-          events: prepared.events,
           flatEvents: prepared.flatEvents,
           fromLang,
-          mode,
           longSentenceThreshold: subtitleSetting?.longSentenceThreshold ?? 120,
         });
       }
@@ -566,41 +559,17 @@ export default function SubtitleSegmentationPlayground({
         ],
         [i18n("subtitle_playground_protocol", "协议"), aiProtocol],
       ]
-    : mode === "statistical"
-      ? [
-          [
-            i18n("subtitle_playground_mode", "模式"),
-            i18n("subtitle_playground_statistical_mode", "统计断句"),
-          ],
-          [
-            i18n("subtitle_playground_max_duration", "最大时长"),
-            `${DEFAULT_PARAMS.maxDurationMs}ms`,
-          ],
-          [
-            i18n("subtitle_playground_max_words", "最大词数"),
-            DEFAULT_PARAMS.maxWords,
-          ],
-          [
-            i18n("subtitle_playground_min_boundary_score", "最小边界评分"),
-            DEFAULT_PARAMS.minBoundaryScore,
-          ],
-          [
-            i18n("subtitle_playground_min_sentence_words", "最小句子词数"),
-            DEFAULT_PARAMS.minSentenceWords,
-          ],
-          [i18n("subtitle_playground_source_language", "源语言"), fromLang],
-        ]
-      : [
-          [
-            i18n("subtitle_playground_mode", "模式"),
-            i18n("subtitle_playground_rule_mode", "规则断句"),
-          ],
-          [
-            i18n("subtitle_playground_long_sentence_threshold", "长句阈值"),
-            subtitleSetting?.longSentenceThreshold ?? 120,
-          ],
-          [i18n("subtitle_playground_source_language", "源语言"), fromLang],
-        ];
+    : [
+        [
+          i18n("subtitle_playground_mode", "模式"),
+          i18n("subtitle_playground_rule_mode", "规则断句"),
+        ],
+        [
+          i18n("subtitle_playground_long_sentence_threshold", "长句阈值"),
+          subtitleSetting?.longSentenceThreshold ?? 120,
+        ],
+        [i18n("subtitle_playground_source_language", "源语言"), fromLang],
+      ];
 
   return (
     <Stack spacing={2}>

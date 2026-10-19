@@ -65,7 +65,6 @@ function renderPlayground({ subtitleSetting, transApis = [] } = {}) {
         subtitleSetting={
           subtitleSetting || {
             segSlug: "-",
-            useAlgorithmBreaker: "rule",
             longSentenceThreshold: 120,
             toLang: "zh-CN",
           }
@@ -281,7 +280,6 @@ describe("SubtitleSegmentationPlayground", () => {
       const { container, root } = renderPlayground({
         subtitleSetting: {
           segSlug: mode === "ai" ? "test-ai" : "-",
-          useAlgorithmBreaker: "rule",
           chunkLength: 2000,
           longSentenceThreshold: 120,
           toLang: "zh-CN",

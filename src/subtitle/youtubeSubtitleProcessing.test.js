@@ -139,37 +139,33 @@ describe("youtubeSubtitleProcessing", () => {
     ]);
   });
 
-  test.each(["rule", "statistical"])(
-    "%s segmentation excludes non-speech cues",
-    (mode) => {
-      const prepared = prepareTimedTextEvents([
-        {
-          tStartMs: 0,
-          dDurationMs: 500,
-          segs: [{ utf8: "Hello" }],
-        },
-        {
-          tStartMs: 500,
-          dDurationMs: 400,
-          segs: [{ utf8: "[Music]" }],
-        },
-        {
-          tStartMs: 900,
-          dDurationMs: 600,
-          segs: [{ utf8: "world." }],
-        },
-      ]);
-      const cues = runBuiltinSegmentation({
-        ...prepared,
-        fromLang: "en",
-        mode,
-      });
+  test("rule segmentation excludes non-speech cues", () => {
+    const prepared = prepareTimedTextEvents([
+      {
+        tStartMs: 0,
+        dDurationMs: 500,
+        segs: [{ utf8: "Hello" }],
+      },
+      {
+        tStartMs: 500,
+        dDurationMs: 400,
+        segs: [{ utf8: "[Music]" }],
+      },
+      {
+        tStartMs: 900,
+        dDurationMs: 600,
+        segs: [{ utf8: "world." }],
+      },
+    ]);
+    const cues = runBuiltinSegmentation({
+      ...prepared,
+      fromLang: "en",
+    });
 
-      expect(cues).not.toHaveLength(0);
-      expect(cues.every((cue) => !isNonSpeechSegment(cue.text))).toBe(true);
-      expect(cues.map((cue) => cue.text).join(" ")).toContain("Hello world.");
-    }
-  );
+    expect(cues).not.toHaveLength(0);
+    expect(cues.every((cue) => !isNonSpeechSegment(cue.text))).toBe(true);
+    expect(cues.map((cue) => cue.text).join(" ")).toContain("Hello world.");
+  });
 
   test("restores complete rule-segmented sentences around music markers in the real sample", () => {
     const source = JSON.parse(
@@ -185,7 +181,6 @@ describe("youtubeSubtitleProcessing", () => {
     const cues = runBuiltinSegmentation({
       ...prepared,
       fromLang: "en",
-      mode: "rule",
       // 本断言只验证音乐标记不再制造边界，避免被独立的超长句二次切分规则干扰。
       longSentenceThreshold: 1000,
     });
@@ -268,19 +263,6 @@ describe("youtubeSubtitleProcessing", () => {
     ).toBe(true);
   });
 
-  test("falls back to rule segmentation when statistical output is empty", () => {
-    const flatEvents = [{ text: "hello.", start: 0, end: 1000 }];
-
-    expect(
-      runBuiltinSegmentation({
-        events: [],
-        flatEvents,
-        fromLang: "en",
-        mode: "statistical",
-      })
-    ).toEqual([{ text: "hello.", start: 0, end: 1000, translation: "" }]);
-  });
-
   test("reprocesses overlong space-separated subtitles with pause rules", () => {
     const flatEvents = Array.from({ length: 18 }, (_, index) => ({
       text: index === 0 ? "First," : `word${index}`,
@@ -322,7 +304,6 @@ describe("youtubeSubtitleProcessing", () => {
         runBuiltinSegmentation({
           ...prepared,
           fromLang: lang,
-          mode: "rule",
         }).map((cue) => cue.text)
       ).toEqual(texts);
     }

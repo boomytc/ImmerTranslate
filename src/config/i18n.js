@@ -445,15 +445,6 @@ const SUBTITLE_PLAYGROUND_I18N = {
     "Protokol",
     "Giao thức"
   ),
-  subtitle_playground_statistical_mode: subtitlePlaygroundText(
-    "统计断句",
-    "Statistical segmentation",
-    "統計斷句",
-    "統計的字幕分割",
-    "통계 자막 분할",
-    "İstatistiksel bölümleme",
-    "Phân đoạn thống kê"
-  ),
   subtitle_playground_rule_mode: subtitlePlaygroundText(
     "规则断句",
     "Rule-based segmentation",
@@ -462,42 +453,6 @@ const SUBTITLE_PLAYGROUND_I18N = {
     "규칙 기반 자막 분할",
     "Kural tabanlı bölümleme",
     "Phân đoạn theo quy tắc"
-  ),
-  subtitle_playground_max_duration: subtitlePlaygroundText(
-    "最大时长",
-    "Maximum duration",
-    "最長時長",
-    "最大時間",
-    "최대 길이",
-    "Azami süre",
-    "Thời lượng tối đa"
-  ),
-  subtitle_playground_max_words: subtitlePlaygroundText(
-    "最大词数",
-    "Maximum words",
-    "最多詞數",
-    "最大単語数",
-    "최대 단어 수",
-    "Azami kelime",
-    "Số từ tối đa"
-  ),
-  subtitle_playground_min_boundary_score: subtitlePlaygroundText(
-    "最小边界评分",
-    "Minimum boundary score",
-    "最小邊界分數",
-    "最小境界スコア",
-    "최소 경계 점수",
-    "Asgari sınır puanı",
-    "Điểm ranh giới tối thiểu"
-  ),
-  subtitle_playground_min_sentence_words: subtitlePlaygroundText(
-    "最小句子词数",
-    "Minimum sentence words",
-    "最少句子詞數",
-    "文の最小単語数",
-    "문장 최소 단어 수",
-    "Asgari cümle kelimesi",
-    "Số từ câu tối thiểu"
   ),
   subtitle_playground_source_language: subtitlePlaygroundText(
     "源语言",
@@ -518,13 +473,13 @@ const SUBTITLE_PLAYGROUND_I18N = {
     "Ngôn ngữ nguồn phụ đề"
   ),
   subtitle_playground_language_required: subtitlePlaygroundText(
-    "规则和统计断句不支持 AutoDetect，请选择具体的字幕源语言。",
-    "Rule-based and statistical segmentation do not support AutoDetect. Select a specific subtitle source language.",
-    "規則和統計斷句不支援 AutoDetect，請選擇具體的字幕來源語言。",
-    "ルールおよび統計的字幕分割では AutoDetect を使用できません。字幕の元言語を選択してください。",
-    "규칙 및 통계 자막 분할은 AutoDetect를 지원하지 않습니다. 자막 원본 언어를 선택하세요.",
-    "Kural tabanlı ve istatistiksel bölümleme AutoDetect'i desteklemez. Belirli bir altyazı kaynak dili seçin.",
-    "Phân đoạn theo quy tắc và thống kê không hỗ trợ Tự động phát hiện. Hãy chọn ngôn ngữ nguồn phụ đề cụ thể."
+    "规则断句不支持 AutoDetect，请选择具体的字幕源语言。",
+    "Rule-based segmentation does not support AutoDetect. Select a specific subtitle source language.",
+    "規則斷句不支援 AutoDetect，請選擇具體的字幕來源語言。",
+    "ルールによる字幕分割では AutoDetect を使用できません。字幕の元言語を選択してください。",
+    "규칙 자막 분할은 AutoDetect를 지원하지 않습니다. 자막 원본 언어를 선택하세요.",
+    "Kural tabanlı bölümleme AutoDetect'i desteklemez. Belirli bir altyazı kaynak dili seçin.",
+    "Phân đoạn theo quy tắc không hỗ trợ Tự động phát hiện. Hãy chọn ngôn ngữ nguồn phụ đề cụ thể."
   ),
   subtitle_playground_long_sentence_threshold: subtitlePlaygroundText(
     "长句阈值",
@@ -7003,33 +6958,6 @@ export const I18N = {
     ko: `AI 지능형 문장 분리`,
     tr: `AI Akıllı Noktalama İşaretleri`,
     vi: "Ngắt câu thông minh AI",
-  },
-  builtin_sentence_break: {
-    zh: `内置断句`,
-    en: `Built-in Sentence Break`,
-    zh_TW: `內置斷句`,
-    ja: `内蔵文分割`,
-    ko: `내장 문장 분리`,
-    tr: `Yerleşik Cümle Arası`,
-    vi: "Ngắt câu tích hợp",
-  },
-  rule_sentence_break: {
-    zh: `规则断句`,
-    en: `Rule-based Break`,
-    zh_TW: `規則斷句`,
-    ja: `ルールベース分割`,
-    ko: `규칙 기반 분리`,
-    tr: `Kural Tabanlı Mola`,
-    vi: "Ngắt câu theo quy tắc",
-  },
-  statistical_sentence_break: {
-    zh: `统计断句`,
-    en: `Statistical Break`,
-    zh_TW: `統計斷句`,
-    ja: `統計的分割`,
-    ko: `통계 기반 분리`,
-    tr: `İstatistiksel Kırılım`,
-    vi: "Ngắt câu thống kê",
   },
   force_subtitle_retranslate: {
     zh: `强制重翻`,

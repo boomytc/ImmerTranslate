@@ -70,12 +70,6 @@ async function run() {
     throw new Error(`没有找到字幕样本: ${args.sample}`);
   }
 
-  const modes =
-    !args.mode || args.mode === "all" ? ["rule", "statistical"] : [args.mode];
-  if (modes.some((mode) => !["rule", "statistical"].includes(mode))) {
-    throw new Error(`不支持的断句模式: ${args.mode}`);
-  }
-
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const outputDir = path.join(OUTPUT_ROOT, timestamp);
   await fs.mkdir(outputDir, { recursive: true });
@@ -103,13 +97,12 @@ async function run() {
     const longSentenceThreshold = Number.isFinite(longSentenceThresholdArg)
       ? longSentenceThresholdArg
       : 100;
-    for (const mode of modes) {
+    const mode = "rule";
+    {
       const startedAt = performance.now();
       const cues = runBuiltinSegmentation({
-        events,
         flatEvents,
         fromLang,
-        mode,
         longSentenceThreshold,
       });
       const metrics = buildSegmentationMetrics({
