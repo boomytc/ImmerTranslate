@@ -5249,7 +5249,9 @@ overflow-wrap: anywhere !important;`;
     isExt && sendBgMsg(MSG_UPDATE_ICON, false);
   }
 
-  // 重新扫描页面
+  // 重新扫描页面。
+  // preInit 默认开启时，全文翻译从未打开也会先完成初始化，SPA 事件同样进到这里。
+  // 无论当前是否正在翻译，都只取消本实例的请求。
   rescan() {
     if (!this.#isInitialized || this.#editorPaused) return;
     this.#runId++;

@@ -1,3 +1,4 @@
+/* eslint-disable import/first -- jest.mock 必须写在 import 之前 */
 jest.mock("webdav", () => ({
   createClient: jest.fn(),
   getPatcher: jest.fn(),
@@ -136,6 +137,7 @@ import { BilingualSubtitleManager } from "../subtitle/BilingualSubtitleManager";
 import { DEFAULT_API_SETTING } from "../config";
 import { clearAllBatchQueue } from "./batchQueue";
 import { InputTranslator } from "./inputTranslate";
+import { logger } from "./log";
 import { clearFetchPool } from "./pool";
 import TranslatorManager from "./translatorManager";
 
@@ -318,13 +320,84 @@ describe("translator cancellation leaves other callers running", () => {
     }
   };
 
+  const spaEvents = [
+    [
+      "turbo:load",
+      "turbo:load",
+      () => document.documentElement.dispatchEvent(new Event("turbo:load")),
+    ],
+    [
+      "turbo:frame-load",
+      "turbo:frame-load",
+      () => {
+        const frame = document.createElement("turbo-frame");
+        document.body.appendChild(frame);
+        frame.dispatchEvent(new Event("turbo:frame-load", { bubbles: true }));
+      },
+    ],
+    [
+      "bfcache pageshow",
+      "pageshow",
+      () =>
+        window.dispatchEvent(
+          new PageTransitionEvent("pageshow", { persisted: true })
+        ),
+    ],
+  ];
+
+  const requestTexts = (gate) => {
+    try {
+      const parsed = JSON.parse(gate.init?.body || "");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const openGatesFor = (sentence) =>
+    gates.filter(
+      (gate) =>
+        !gate.settled && !gate.aborted && requestTexts(gate).includes(sentence)
+    );
+
+  // 页面句子和另外三条调用方句子必须各走各的请求，避免缓存命中或并进同一批。
+  const expectSeparateOpenRequest = (sentence, others) => {
+    const matches = openGatesFor(sentence);
+    expect(matches).toHaveLength(1);
+    expect(requestTexts(matches[0])).toEqual([sentence]);
+    for (const other of others) {
+      expect(requestTexts(matches[0])).not.toContain(other);
+    }
+    return matches[0];
+  };
+
+  const expectPeersAreSeparate = (text) => {
+    const sentences = [text.page, text.selection, text.input, text.subtitle];
+    for (const sentence of [text.selection, text.input, text.subtitle]) {
+      expectSeparateOpenRequest(
+        sentence,
+        sentences.filter((item) => item !== sentence)
+      );
+    }
+  };
+
+  const fireSpaEvent = async (fire, reason) => {
+    const info = jest.spyOn(logger, "info");
+    fire();
+    await flush();
+    expect(info).toHaveBeenCalledWith(`TranslatorManager rescanned: ${reason}`);
+    info.mockRestore();
+  };
+
   const startManager = ({
     transOpen = "false",
     transAllnow = false,
     hover = false,
+    preInit = true,
   } = {}) => {
     const manager = new TranslatorManager({
       setting: {
+        preInit,
         transInterval: 0,
         rootMargin: 0,
         minLength: 0,
@@ -460,6 +533,34 @@ describe("translator cancellation leaves other callers running", () => {
     });
   };
 
+  const expectPeersStayOpen = (peers) => {
+    for (const peerGate of [
+      peers.selectionGate,
+      peers.inputGate,
+      peers.subtitleGate,
+    ]) {
+      expect(peerGate.aborted).toBe(false);
+      expect(peerGate.init?.signal?.aborted).toBeFalsy();
+    }
+  };
+
+  const runPeersOnlyCase = async ({ act, preInit = true }) => {
+    const text = textsFor();
+    document.body.innerHTML = `<main id="root"><p id="page">${text.page}</p></main>`;
+    startManager({ transOpen: "false", hover: false, preInit });
+    expect(callsFor(text.page)).toHaveLength(0);
+    const peers = await startPeers(text);
+    expect(openGatesFor(text.page)).toHaveLength(0);
+    expectPeersAreSeparate(text);
+
+    await act();
+    await flush();
+
+    expect(callsFor(text.page)).toHaveLength(0);
+    expectPeersStayOpen(peers);
+    await expectPeersResolve(peers, text);
+  };
+
   const runCase = async ({
     transOpen = "false",
     transAllnow = false,
@@ -472,20 +573,15 @@ describe("translator cancellation leaves other callers running", () => {
     const manager = startManager({ transOpen, transAllnow, hover });
     const peers = await startPeers(text);
     const { owned, gate } = await startOwnedRequest(text, { hover });
+    expectPeersAreSeparate(text);
+    expect(requestTexts(gate)).toEqual([text.page]);
 
     await act(manager);
     await flush();
 
     expect(owned.signal.aborted).toBe(ownCancelled);
     expect(gate.aborted).toBe(ownCancelled);
-    for (const peerGate of [
-      peers.selectionGate,
-      peers.inputGate,
-      peers.subtitleGate,
-    ]) {
-      expect(peerGate.aborted).toBe(false);
-      expect(peerGate.init?.signal?.aborted).toBeFalsy();
-    }
+    expectPeersStayOpen(peers);
 
     await expectPeersResolve(peers, text);
     if (ownCancelled) {
@@ -499,7 +595,7 @@ describe("translator cancellation leaves other callers running", () => {
     }
   };
 
-  test("disable cancels the page request and lets other callers finish", async () => {
+  test("disable cancels the page request while selection and input requests stay in flight", async () => {
     await runCase({
       transOpen: "true",
       ownCancelled: true,
@@ -515,40 +611,51 @@ describe("translator cancellation leaves other callers running", () => {
     });
   });
 
-  test.each([
-    [
-      "turbo:load",
-      () => document.documentElement.dispatchEvent(new Event("turbo:load")),
-    ],
-    [
-      "turbo:frame-load",
-      () => {
-        const frame = document.createElement("turbo-frame");
-        document.body.appendChild(frame);
-        frame.dispatchEvent(new Event("turbo:frame-load", { bubbles: true }));
-      },
-    ],
-    [
-      "bfcache pageshow",
-      () =>
-        window.dispatchEvent(
-          new PageTransitionEvent("pageshow", { persisted: true })
-        ),
-    ],
-  ])(
-    "%s rescans while page translation is off and lets other callers finish",
-    async (_name, fire) => {
+  test.each(spaEvents)(
+    "B0 %s with page translation off keeps separate selection, input, and subtitle requests",
+    async (_name, reason, fire) => {
+      await runPeersOnlyCase({
+        act: () => fireSpaEvent(fire, reason),
+      });
+    }
+  );
+
+  test.each(spaEvents)(
+    "B1 %s with page translation on keeps separate selection, input, and subtitle requests",
+    async (_name, reason, fire) => {
+      await runCase({
+        transOpen: "true",
+        ownCancelled: true,
+        act: () => fireSpaEvent(fire, reason),
+      });
+    }
+  );
+
+  test.each(spaEvents)(
+    "%s cancels a hover request on a pre-initialized translator and lets other callers finish",
+    async (_name, reason, fire) => {
       await runCase({
         transOpen: "false",
         hover: true,
         ownCancelled: true,
-        act: async () => {
-          fire();
-          await flush();
-        },
+        act: () => fireSpaEvent(fire, reason),
       });
     }
   );
+
+  test("turbo:load after the body is replaced restarts while translating and lets other callers finish", async () => {
+    await runCase({
+      transOpen: "true",
+      ownCancelled: true,
+      act: async () => {
+        const nextBody = document.createElement("body");
+        nextBody.innerHTML = document.body.innerHTML;
+        document.body.replaceWith(nextBody);
+        document.documentElement.dispatchEvent(new Event("turbo:load"));
+        await flush();
+      },
+    });
+  });
 
   test("enable with transAllnow rescans and lets other callers finish", async () => {
     await runCase({
