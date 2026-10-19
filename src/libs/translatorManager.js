@@ -49,6 +49,7 @@ import { logger } from "./log";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { MSG_GET_FRAME_ID, MSG_VALIDATE_DOCUMENT } from "../config/msg";
 import { publishPageRule } from "./pageRuleSync";
+import { PAGE_SWITCH } from "./pageSwitch";
 
 /**
  * 前台翻译业务的总生命周期管理器。
@@ -97,6 +98,7 @@ export default class TranslatorManager {
   #unsubscribeFabStorage = null;
   #removeFrameBridge = null;
   #paused = false;
+  #pageSwitch = null;
   #onManualSwitch = null;
 
   // 运行期子模块实例。它们可能挂载 DOM，因此随 restart 销毁并重建。
@@ -120,14 +122,19 @@ export default class TranslatorManager {
     fabConfig,
     isIframe,
     transboxOnly = false,
-    onManualSwitch = null,
+    onManualSwitch,
+    pageSwitch = null,
   }) {
+    if (typeof onManualSwitch !== "function") {
+      throw new TypeError("TranslatorManager requires onManualSwitch");
+    }
     this.#setting = this.#cloneConfig(setting);
     this.#rule = this.#cloneConfig(rule);
     this.#fabConfig = this.#cloneConfig(fabConfig);
     this.#isIframe = isIframe;
     this.#transboxOnly = transboxOnly;
     this.#onManualSwitch = onManualSwitch;
+    this.#pageSwitch = pageSwitch;
 
     this.#innerMessageHandler = this.#handleInnerMessage.bind(this);
     this.#browserMessageHandler = this.#handleBrowserMessage.bind(this);
@@ -148,6 +155,7 @@ export default class TranslatorManager {
       return;
     }
 
+    this.#setting = this.#foldHover(this.#setting, this.#pageSwitch);
     this.#createRuntimeModules();
     this.#initializeDocumentInfo();
     this.#setupMessageListeners();
@@ -228,10 +236,6 @@ export default class TranslatorManager {
     logger.info("TranslatorManager stopped.");
   }
 
-  setManualSwitchHandler(handler) {
-    this.#onManualSwitch = handler;
-  }
-
   /** 黑名单只暂停本页网页翻译，管理器和完整规则都留着。 */
   pause() {
     if (this.#paused) return;
@@ -245,12 +249,15 @@ export default class TranslatorManager {
   }
 
   /**
-   * 应用纯函数算出的目标。开关只看 target.rule.transOpen，
-   * 设置按传入的折后值整份写入。
+   * 应用纯函数算出的目标。开或关看 #pageSwitch。
+   * 未知的旧开关（第一次应用前是 null）算关。
    */
   applyTarget(target) {
     if (!this.#isActive || !target?.rule) return;
-    if (target.setting) this.#applyFoldedSetting(target.setting);
+    const wasOn = this.#pageSwitch === PAGE_SWITCH.ON;
+    if (target.state) this.#pageSwitch = target.state;
+    const setting = this.#foldHover(target.setting, this.#pageSwitch);
+    if (setting) this.#applyFoldedSetting(setting);
     const nextRule = this.#cloneConfig(target.rule);
     this.#rule = nextRule;
     if (!this._translator) {
@@ -267,14 +274,13 @@ export default class TranslatorManager {
     }
     if (this.#paused) {
       this._translator.updateRule(nextRule);
-      if (nextRule.transOpen === "true") this._translator.continuePage();
+      if (this.#pageSwitch === PAGE_SWITCH.ON) this._translator.continuePage();
       else this._translator.resumePage();
       this.resume();
       publishPageRule(this.#getRuntimeResponse());
       return;
     }
-    const wasOn = this._translator.rule?.transOpen === "true";
-    const nextOn = nextRule.transOpen === "true";
+    const nextOn = this.#pageSwitch === PAGE_SWITCH.ON;
     if (wasOn && !nextOn) this._translator.disable();
     this._translator.updateRule(nextRule);
     if (!wasOn && nextOn) this._translator.enable();
@@ -472,6 +478,12 @@ export default class TranslatorManager {
       rule.transOpen = editing.enabled ? "true" : "false";
       setting.mouseHoverSetting.useMouseHover = editing.mouseHover;
     }
+    if (this.#pageSwitch && this.#pageSwitch !== PAGE_SWITCH.ON) {
+      setting.mouseHoverSetting = {
+        ...(setting.mouseHoverSetting || {}),
+        useMouseHover: false,
+      };
+    }
     return {
       setting,
       rule,
@@ -529,7 +541,22 @@ export default class TranslatorManager {
       },
       isTopFrame: !this.#isIframe,
       document: this.#documentInfo,
+      pageSwitch: this.#pageSwitch,
     };
+  }
+
+  /** 页面不是 on 时悬停跟着关掉。on 时保留设置里的悬停开关。 */
+  #foldHover(setting, state) {
+    if (!setting || state == null || state === PAGE_SWITCH.ON) return setting;
+    if (state !== PAGE_SWITCH.OFF && state !== PAGE_SWITCH.PAUSED) {
+      return setting;
+    }
+    const next = this.#cloneConfig(setting);
+    next.mouseHoverSetting = {
+      ...(next.mouseHoverSetting || {}),
+      useMouseHover: false,
+    };
+    return next;
   }
 
   /**
@@ -889,10 +916,13 @@ export default class TranslatorManager {
       supported: supportsTouch(),
       direction:
         this._translator?.setting?.mouseHoverSetting?.touchDirection || "right",
-      blocked: isInBlacklist(
-        window.location.href,
-        this._translator?.setting?.mouseHoverSetting?.blacklist
-      ),
+      blocked:
+        this.#pageSwitch === PAGE_SWITCH.PAUSED ||
+        this.#pageSwitch === PAGE_SWITCH.OFF ||
+        isInBlacklist(
+          window.location.href,
+          this._translator?.setting?.mouseHoverSetting?.blacklist
+        ),
     };
   }
 
@@ -988,14 +1018,16 @@ export default class TranslatorManager {
     let publishRule = false;
     switch (action) {
       case MSG_TRANS_TOGGLE: {
-        const currentlyEnabled = this._translator?.rule?.transOpen === "true";
-        const enabled =
-          typeof args?.enabled === "boolean" ? args.enabled : !currentlyEnabled;
-        if (this.#onManualSwitch) this.#onManualSwitch(enabled);
-        else if (enabled) this._translator?.enable();
-        else this._translator?.disable();
-        if (!fromExt) {
-          sendIframeMsg(MSG_TRANS_TOGGLE, { ...(args || {}), enabled });
+        // 唯一路径：交给页面运行时。子框架只跟顶层广播来的 enabled，不自己算开关。
+        if (this.#pageSwitch === PAGE_SWITCH.PAUSED) break;
+        const explicit = typeof args?.enabled === "boolean";
+        if (this.#isIframe && !explicit) break;
+        this.#onManualSwitch(explicit ? args.enabled : undefined);
+        let enabled = null;
+        if (this.#pageSwitch === PAGE_SWITCH.ON) enabled = true;
+        else if (this.#pageSwitch === PAGE_SWITCH.OFF) enabled = false;
+        if (!fromExt && typeof enabled === "boolean") {
+          sendIframeMsg(MSG_TRANS_TOGGLE, { enabled });
         }
         publishRule = true;
         break;
@@ -1069,16 +1101,20 @@ export default class TranslatorManager {
           })
         );
         break;
-      case MSG_MOUSEHOVER_TOGGLE:
-        if (
-          typeof args?.enabled !== "boolean" ||
-          Boolean(
-            this._translator?.setting?.mouseHoverSetting?.useMouseHover
-          ) !== args.enabled
-        ) {
+      case MSG_MOUSEHOVER_TOGGLE: {
+        const hoverOn = Boolean(
+          this._translator?.setting?.mouseHoverSetting?.useMouseHover
+        );
+        const requested =
+          typeof args?.enabled === "boolean" ? args.enabled : !hoverOn;
+        const pageOn =
+          this.#pageSwitch == null || this.#pageSwitch === PAGE_SWITCH.ON;
+        if (requested && !pageOn) break;
+        if (typeof args?.enabled !== "boolean" || hoverOn !== requested) {
           this._translator?.toggleMouseHover();
         }
         break;
+      }
       case MSG_TRANSINPUT_TOGGLE:
         if (typeof args?.enabled === "boolean") {
           args.enabled

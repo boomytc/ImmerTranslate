@@ -1,5 +1,6 @@
 import { browser } from "./browser";
 import { MSG_TRANS_TOGGLE } from "../config/msg";
+import { PAGE_SWITCH } from "./pageSwitch";
 
 export const MSG_NO_RECEIVER = "NO_RECEIVER";
 
@@ -131,15 +132,18 @@ export function acceptsFrameMessage(message, { isIframe = false } = {}) {
 
 /**
  * 快捷键和右键菜单不知道各 frame 当前是否已开启翻译。
- * 先问顶层拿到目标值，再把同一个 enabled 发给其余 frame。
+ * 先问顶层，顶层用 pageSwitchState 算出 paused/on/off，再把同一个 on/off 发给其余 frame。
+ * 顶层仍是 paused 时不把折叠后的 transOpen false 再广播成关闭。
  */
 export async function broadcastTranslateToggle(targetTabId) {
   const top = await sendTopFrameMsg(MSG_TRANS_TOGGLE, undefined, targetTabId);
-  const transOpen = top?.rule?.transOpen;
-  if (transOpen !== "true" && transOpen !== "false") return top;
+  const pageSwitch = top?.pageSwitch;
+  if (pageSwitch !== PAGE_SWITCH.ON && pageSwitch !== PAGE_SWITCH.OFF) {
+    return top;
+  }
   await sendTabMsg(
     MSG_TRANS_TOGGLE,
-    { enabled: transOpen === "true" },
+    { enabled: pageSwitch === PAGE_SWITCH.ON },
     undefined,
     targetTabId
   );

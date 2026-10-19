@@ -430,6 +430,7 @@ describe("translator cancellation leaves other callers running", () => {
       },
       fabConfig: { isHide: true },
       isIframe: true,
+      onManualSwitch: () => {},
     });
     managers.push(manager);
     manager.start();

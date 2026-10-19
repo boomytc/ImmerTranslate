@@ -12,7 +12,12 @@ import { logger } from "./log";
 import { sendBgMsg } from "./msg";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
-import { ManualOverride, pageTarget } from "./pageSwitch";
+import {
+  ManualOverride,
+  PAGE_SWITCH,
+  pageSwitchState,
+  pageTarget,
+} from "./pageSwitch";
 import { SITE_TRANS_OPEN, sitePolicy, sitePolicyValue } from "./siteTransOpen";
 import { getStorageState } from "./storageState";
 import { readSiteTransOpen } from "../views/Action/sitePolicy";
@@ -98,7 +103,6 @@ export class PageRuntime {
     this.#started = true;
     const options = this.options;
     this.#href = options.getHref ? options.getHref() : window.location.href;
-    this.#bindManualSwitch(this.#manager);
     if (this.#manager) {
       // 个人规则还没到。先跟随全局，不用折叠后的 matchRule.transOpen。
       const policy = sitePolicy(SITE_TRANS_OPEN.FOLLOW_GLOBAL);
@@ -147,13 +151,20 @@ export class PageRuntime {
     return this.#queue;
   }
 
-  /** 本页手动开关。黑名单期间也记下，离开后仍按记录时的策略决定是否生效。 */
+  /** 本页手动开关。暂停中没有选择可记，调用直接结束。 */
   setManualSwitch(enabled) {
-    if (!this.#context) return;
+    if (!this.#context || this.#context.blacklistHit) return;
+    const turningOn =
+      enabled === true ||
+      (enabled !== false &&
+        pageSwitchState({
+          ...this.#context,
+          override: this.#override,
+        }) !== PAGE_SWITCH.ON);
     this.#override = new ManualOverride(
       this.#context.href,
       sitePolicyValue(this.#context.policy),
-      enabled ? "on" : "off"
+      turningOn ? PAGE_SWITCH.ON : PAGE_SWITCH.OFF
     );
     this.#apply(this.#context);
   }
@@ -225,6 +236,7 @@ export class PageRuntime {
   }
 
   #apply(context) {
+    if (context.blacklistHit) this.#override = null;
     this.#context = context;
     const target = pageTarget({ ...context, override: this.#override });
     if (!this.#manager) {
@@ -234,12 +246,12 @@ export class PageRuntime {
       this.#manager = create({
         setting: target.setting,
         rule: target.rule,
+        pageSwitch: target.state,
         fabConfig: this.options.fabConfig,
         isIframe: Boolean(this.options.isIframe),
         transboxOnly: Boolean(this.options.transboxOnly),
         onManualSwitch: (enabled) => this.setManualSwitch(enabled),
       });
-      this.#bindManualSwitch(this.#manager);
       this.#manager.start();
       this.options.onActivate?.({
         href: context.href,
@@ -251,12 +263,6 @@ export class PageRuntime {
     }
     if (target.state === "paused") this.#manager.pause?.();
     else this.#manager.resume?.();
-  }
-
-  #bindManualSwitch(manager) {
-    manager?.setManualSwitchHandler?.((enabled) =>
-      this.setManualSwitch(enabled)
-    );
   }
 }
 

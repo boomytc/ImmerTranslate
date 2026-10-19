@@ -45,7 +45,12 @@ const mockSetting = {
   inputRule: { transOpen: false },
   shortcuts: {},
 };
-const mockPayload = { rule: mockRule, setting: mockSetting, isTopFrame: true };
+const mockPayload = {
+  rule: mockRule,
+  setting: mockSetting,
+  isTopFrame: true,
+  pageSwitch: "off",
+};
 const mockSendTabMsg = jest.fn(async () => ({}));
 const mockQueryPopupData = jest.fn();
 const mockLoadPopupData = jest.fn(async () => mockPayload);
@@ -222,6 +227,7 @@ describe("Page controls retained across text-tab navigation", () => {
     await act(async () => {
       pending.resolve({
         ...mockPayload,
+        pageSwitch: "on",
         rule: { ...mockRule, transOpen: "true" },
       });
     });

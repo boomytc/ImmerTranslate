@@ -341,6 +341,8 @@ function createManager({
   setting = {},
   isIframe = false,
   transboxOnly = false,
+  onManualSwitch = () => {},
+  pageSwitch = null,
 } = {}) {
   const manager = new TranslatorManager({
     setting: {
@@ -356,6 +358,8 @@ function createManager({
     fabConfig: { isHide: false },
     isIframe,
     transboxOnly,
+    onManualSwitch,
+    pageSwitch,
   });
   activeManagers.push(manager);
   return manager;
@@ -434,7 +438,12 @@ function loadContextMenuClick() {
     },
   };
   vm.runInContext(source.slice(start, end), vm.createContext(sandbox));
-  return { sendTabMsg, click: sandbox.click, real };
+  return {
+    sendTabMsg,
+    click: sandbox.click,
+    real,
+    broadcastTranslateToggle: sandbox.broadcastTranslateToggle,
+  };
 }
 
 function sendRuntimeMessage(message) {
@@ -862,64 +871,60 @@ describe("TranslatorManager SPA lifecycle", () => {
         url: "https://example.com/page",
         frameId: 0,
       },
+      pageSwitch: null,
     });
     expect(response.setting.uiLang).toBe("en");
     expect(response.setting.tranboxSetting.transOpen).toBe(false);
     expect(mockTransboxInstances[0].isEnabled()).toBe(false);
   });
 
-  test("applies an explicit page translation state without double toggling", () => {
-    const manager = createManager();
-    manager.start();
-
-    const runtimeHandler =
-      browser.runtime.onMessage.addListener.mock.calls[0][0];
-    runtimeHandler(
-      { action: "trans-toggle", args: { enabled: false } },
-      {},
-      jest.fn()
-    );
-    runtimeHandler(
-      { action: "trans-toggle", args: { enabled: true } },
-      {},
-      jest.fn()
-    );
-
-    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
+  test("throws when the page-switch callback is missing", () => {
+    expect(
+      () =>
+        new TranslatorManager({
+          setting: {},
+          rule: { transOpen: "true" },
+          fabConfig: {},
+        })
+    ).toThrow(TypeError);
   });
 
-  test("computes one target when no translation state is supplied", () => {
-    const manager = createManager();
-    manager.start();
-
-    const runtimeHandler =
-      browser.runtime.onMessage.addListener.mock.calls[0][0];
-    runtimeHandler({ action: "trans-toggle" }, {}, jest.fn());
-
-    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
-    expect(sendIframeMsg).not.toHaveBeenCalled();
-  });
-
-  test("forwards that target to child frames and they converge", () => {
-    const top = createManager({ rule: { transOpen: "true" } });
+  test("the top frame broadcasts the page switch and child frames follow it", () => {
+    const topRuntime = jest.fn(() => {
+      top.applyTarget({
+        state: "off",
+        rule: { transOpen: "false" },
+      });
+    });
+    const top = createManager({
+      rule: { transOpen: "true" },
+      pageSwitch: "on",
+      onManualSwitch: topRuntime,
+    });
     top.start();
     const { processActions } = PopupManager.mock.calls.at(-1)[0];
     processActions({ action: "trans-toggle" });
+    expect(topRuntime).toHaveBeenCalledWith(undefined);
     expect(sendIframeMsg).toHaveBeenCalledWith("trans-toggle", {
       enabled: false,
     });
+    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
 
+    const childOnRuntime = jest.fn();
+    const childOffRuntime = jest.fn();
     const childOn = createManager({
       isIframe: true,
       rule: { transOpen: "true" },
+      pageSwitch: "on",
+      onManualSwitch: childOnRuntime,
     });
     childOn.start();
     const childOff = createManager({
       isIframe: true,
       rule: { transOpen: "false" },
+      pageSwitch: "off",
+      onManualSwitch: childOffRuntime,
     });
     childOff.start();
     const handlers = browser.runtime.onMessage.addListener.mock.calls;
@@ -933,12 +938,18 @@ describe("TranslatorManager SPA lifecycle", () => {
       {},
       jest.fn()
     );
+    handlers.at(-2)[0]({ action: "trans-toggle" }, {}, jest.fn());
+    handlers.at(-1)[0]({ action: "trans-toggle" }, {}, jest.fn());
 
-    expect(mockTranslatorInstances.at(-2).disable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances.at(-1).disable).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances.at(-2).toggle).not.toHaveBeenCalled();
+    expect(childOnRuntime).toHaveBeenCalledTimes(1);
+    expect(childOnRuntime).toHaveBeenCalledWith(false);
+    expect(childOffRuntime).toHaveBeenCalledTimes(1);
+    expect(childOffRuntime).toHaveBeenCalledWith(false);
+    expect(mockTranslatorInstances.at(-2).enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances.at(-2).disable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances.at(-1).enable).not.toHaveBeenCalled();
-    expect(mockTranslatorInstances.at(-1).toggle).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances.at(-1).disable).not.toHaveBeenCalled();
+    expect(sendIframeMsg).toHaveBeenCalledTimes(1);
   });
 
   test("applies explicit feature states without flipping them on replay", () => {
@@ -1087,17 +1098,29 @@ describe("TranslatorManager SPA lifecycle", () => {
     ).not.toHaveBeenCalled();
 
     for (const action of [
-      "trans-toggle",
-      "transbox-toggle",
       "mousehover-toggle",
+      "transbox-toggle",
+      "trans-toggle",
     ]) {
       const response = sendRuntimeMessage({ action });
       expect(response.error).toBeUndefined();
       expect(response.isTopFrame).toBe(false);
     }
-    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: false } });
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: true } });
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
     expect(mockTransboxInstances[0].toggle).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].toggleMouseHover).toHaveBeenCalledTimes(
+      1
+    );
+    sendRuntimeMessage({
+      action: "mousehover-toggle",
+      args: { enabled: true },
+    });
     expect(mockTranslatorInstances[0].toggleMouseHover).toHaveBeenCalledTimes(
       1
     );
@@ -1266,9 +1289,8 @@ describe("TranslatorManager SPA lifecycle", () => {
             })
           );
         }
-        expect(mockTranslatorInstances[index].enable).toHaveBeenCalledTimes(
-          selected ? 1 : 0
-        );
+        expect(mockTranslatorInstances[index].enable).not.toHaveBeenCalled();
+        expect(mockTranslatorInstances[index].disable).not.toHaveBeenCalled();
       }
       expect(sendIframeMsg).not.toHaveBeenCalled();
     }
@@ -1285,7 +1307,7 @@ describe("TranslatorManager SPA lifecycle", () => {
       const manager = createManager({ isIframe: true });
       manager.start();
       await flushMutationObserver();
-      mockTranslatorInstances[0].enable.mockImplementation(() => {
+      mockTransboxInstances[0].enable.mockImplementation(() => {
         throw new Error("Translation initialization failed.");
       });
       const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
@@ -1294,7 +1316,7 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(
         handler(
           {
-            action: throws ? "trans-toggle" : "transinput-toggle",
+            action: throws ? "transbox-toggle" : "transinput-toggle",
             args: { enabled: true },
             responseDocumentToken: selected
               ? "current-document"
@@ -1312,9 +1334,10 @@ describe("TranslatorManager SPA lifecycle", () => {
             : "Message action is unavailable in this frame: transinput-toggle",
         });
       }
-      expect(mockTranslatorInstances[0].enable).toHaveBeenCalledTimes(
+      expect(mockTransboxInstances[0].enable).toHaveBeenCalledTimes(
         selected && throws ? 1 : 0
       );
+      expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
     }
   );
 
@@ -1342,7 +1365,8 @@ describe("TranslatorManager SPA lifecycle", () => {
       await expect(response).resolves.toMatchObject({
         document: { token: "current-document" },
       });
-      expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+      expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+      expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
       expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
       expect(sendIframeMsg).not.toHaveBeenCalled();
     }
@@ -1460,7 +1484,10 @@ describe("TranslatorManager SPA lifecycle", () => {
   });
 
   test("applyTarget turns translation off and back on with the matched rule", () => {
-    const manager = createManager({ rule: { transOpen: "true" } });
+    const manager = createManager({
+      rule: { transOpen: "false" },
+      pageSwitch: "on",
+    });
     manager.start();
     manager.applyTarget({
       state: "off",
@@ -1520,9 +1547,173 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(translator.rescan).not.toHaveBeenCalled();
   });
 
+  test("hover stays off while the page switch is paused or off", () => {
+    const manager = createManager({
+      setting: {
+        mouseHoverSetting: { useMouseHover: true, blacklist: "" },
+      },
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    const hoverSetting = {
+      mouseHoverSetting: { useMouseHover: true, blacklist: "" },
+      tranboxSetting: { transOpen: true },
+      inputRule: { transOpen: true },
+    };
+
+    manager.applyTarget({
+      state: "paused",
+      rule: { transOpen: "false" },
+      setting: hoverSetting,
+    });
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(false);
+    expect(translator.updateSetting).toHaveBeenCalled();
+    expect(
+      sendRuntimeMessage({ action: "touch-state" }).touchTranslate.blocked
+    ).toBe(true);
+    expect(sendRuntimeMessage({ action: "trans-getrule" }).pageSwitch).toBe(
+      "paused"
+    );
+
+    const runtimeHandler =
+      browser.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    runtimeHandler(
+      { action: "mousehover-toggle", args: { enabled: true } },
+      {},
+      jest.fn()
+    );
+    expect(translator.toggleMouseHover).not.toHaveBeenCalled();
+
+    manager.applyTarget({
+      state: "off",
+      rule: { transOpen: "false" },
+      setting: hoverSetting,
+    });
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(false);
+    expect(
+      sendRuntimeMessage({ action: "touch-state" }).touchTranslate.blocked
+    ).toBe(true);
+
+    manager.applyTarget({
+      state: "on",
+      rule: { transOpen: "true" },
+      setting: hoverSetting,
+    });
+    expect(translator.setting.mouseHoverSetting.useMouseHover).toBe(true);
+    expect(
+      sendRuntimeMessage({ action: "touch-state" }).touchTranslate.blocked
+    ).toBe(false);
+    runtimeHandler(
+      { action: "mousehover-toggle", args: { enabled: false } },
+      {},
+      jest.fn()
+    );
+    expect(translator.toggleMouseHover).toHaveBeenCalledTimes(1);
+  });
+
+  test("FAB and context-menu toggles do nothing while the page is paused", () => {
+    const onManualSwitch = jest.fn();
+    const manager = createManager({
+      onManualSwitch,
+      pageSwitch: "paused",
+      rule: { transOpen: "false" },
+    });
+    manager.start();
+    sendRuntimeMessage({ action: "trans-toggle" });
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: true } });
+    sendRuntimeMessage({ action: "trans-toggle", args: { enabled: false } });
+    expect(onManualSwitch).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(sendRuntimeMessage({ action: "trans-getrule" }).pageSwitch).toBe(
+      "paused"
+    );
+  });
+
+  test("a bare toggle asks the page runtime instead of the folded transOpen", () => {
+    const onManualSwitch = jest.fn();
+    const manager = createManager({
+      rule: { transOpen: "false" },
+      onManualSwitch,
+    });
+    manager.start();
+    sendRuntimeMessage({ action: "trans-toggle" });
+    expect(onManualSwitch).toHaveBeenCalledTimes(1);
+    expect(onManualSwitch).toHaveBeenCalledWith(undefined);
+    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+  });
+
+  test("the context menu translate item uses the shared page toggle", () => {
+    const harness = loadContextMenuClick();
+    harness.click({ menuItemId: harness.real.CMD_TOGGLE_TRANSLATE });
+    expect(harness.broadcastTranslateToggle).toHaveBeenCalledTimes(1);
+    expect(harness.sendTabMsg).not.toHaveBeenCalled();
+    harness.click({ menuItemId: harness.real.CMD_TOGGLE_TRANBOX });
+    expect(harness.sendTabMsg).toHaveBeenCalledWith(
+      harness.real.MSG_TRANSBOX_TOGGLE
+    );
+  });
+
+  test("leaving pause follows the page switch even if the rule transOpen disagrees", () => {
+    const manager = createManager({
+      rule: { transOpen: "true" },
+      pageSwitch: "on",
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    translator.rule.transOpen = "true";
+    manager.applyTarget({
+      state: "paused",
+      rule: { transOpen: "false" },
+    });
+    translator.rule.transOpen = "false";
+    manager.applyTarget({
+      state: "on",
+      rule: { transOpen: "false" },
+    });
+    expect(translator.continuePage).toHaveBeenCalledTimes(1);
+    expect(translator.resumePage).not.toHaveBeenCalled();
+    expect(translator.enable).not.toHaveBeenCalled();
+    expect(translator.disable).not.toHaveBeenCalled();
+  });
+
+  test("the first target treats an unknown page switch as off", () => {
+    const manager = createManager({
+      rule: { transOpen: "true" },
+      pageSwitch: null,
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    translator.rule.transOpen = "true";
+    manager.applyTarget({
+      state: "on",
+      rule: { transOpen: "false" },
+    });
+    expect(translator.enable).toHaveBeenCalledTimes(1);
+    expect(translator.disable).not.toHaveBeenCalled();
+  });
+
+  test("a later target follows the previous page switch, not rule.transOpen", () => {
+    const manager = createManager({
+      rule: { transOpen: "false" },
+      pageSwitch: "on",
+    });
+    manager.start();
+    const translator = mockTranslatorInstances[0];
+    translator.rule.transOpen = "false";
+    manager.applyTarget({
+      state: "off",
+      rule: { transOpen: "true" },
+    });
+    expect(translator.disable).toHaveBeenCalledTimes(1);
+    expect(translator.enable).not.toHaveBeenCalled();
+  });
+
   test("applyTarget keeps translation on when the target says on", () => {
     const manager = createManager({
-      rule: { transOpen: "true", selector: "p" },
+      rule: { transOpen: "false", selector: "p" },
+      pageSwitch: "on",
     });
     manager.start();
     mockTranslatorInstances[0].rule.transOpen = "true";

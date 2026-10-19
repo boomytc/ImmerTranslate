@@ -12,14 +12,6 @@ jest.mock("./libs/iframe", () => ({
   },
 }));
 
-jest.mock("./libs/redditFrame", () => ({
-  readRedditEmbeddingHref: jest.fn(() => ""),
-}));
-
-jest.mock("./libs/rules", () => ({
-  matchRule: jest.fn(),
-}));
-
 jest.mock("./libs/blacklist", () => ({
   isInBlacklist: jest.fn(() => false),
   matchingBlacklistEntries: jest.fn(() => []),
@@ -49,8 +41,6 @@ jest.mock("./libs/translatorManager", () => ({
 }));
 
 const { getSettingWithDefault, getFabWithDefault } = require("./libs/storage");
-const { matchRule } = require("./libs/rules");
-const { readRedditEmbeddingHref } = require("./libs/redditFrame");
 const { isInBlacklist, matchingBlacklistEntries } = require("./libs/blacklist");
 const { runSubtitle } = require("./subtitle/subtitle");
 const TranslatorManager = require("./libs/translatorManager").default;
@@ -86,7 +76,6 @@ describe("common iframe startup", () => {
       "http://localhost:3000/options.html";
     delete globalThis.unsafeWindow;
     jest.clearAllMocks();
-    readRedditEmbeddingHref.mockReturnValue("");
     isInBlacklist.mockImplementation(() => false);
     matchingBlacklistEntries.mockImplementation(() => []);
     mockStartPageRuntime.mockClear();
@@ -102,9 +91,6 @@ describe("common iframe startup", () => {
       logLevel: 1,
     });
     getFabWithDefault.mockResolvedValue({ isHide: false });
-    matchRule.mockResolvedValue({
-      transOpen: "true",
-    });
   });
 
   afterEach(() => {
@@ -126,41 +112,25 @@ describe("common iframe startup", () => {
     delete globalThis.unsafeWindow;
   });
 
-  test("starts translator manager for iframe with text", async () => {
+  test("starts the page runtime for an iframe with text and does not build the manager itself", async () => {
     mockIsIframe = true;
     document.body.innerHTML = "<main>Hello iframe</main>";
 
     await run();
 
-    expect(matchRule).toHaveBeenCalledTimes(1);
-    expect(matchRule).toHaveBeenCalledWith(
-      window.location.href,
-      expect.any(Object)
-    );
-    expect(TranslatorManager).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
+    expect(TranslatorManager).not.toHaveBeenCalled();
+    expect(mockStartPageRuntime).toHaveBeenCalledTimes(1);
+    expect(mockStartPageRuntime.mock.calls[0][0].isIframe).toBe(true);
+    expect(mockStartPageRuntime.mock.calls[0][0].manager).toBeUndefined();
+    mockStartPageRuntime.mock.calls[0][0].onActivate({
+      href: window.location.href,
+      setting: {},
+      rule: {},
+    });
     expect(runSubtitle).not.toHaveBeenCalled();
   });
 
-  test("matches rules with the embedding reddit page inside a child frame", async () => {
-    mockIsIframe = true;
-    document.body.innerHTML = "<span>Continue with Google</span>";
-    const embedding =
-      "https://www.reddit.com/r/announcements/comments/pg006s/covid_denialism_and_policy_clarifications/";
-    readRedditEmbeddingHref.mockReturnValue(embedding);
-
-    await run();
-
-    expect(readRedditEmbeddingHref).toHaveBeenCalledWith(window, true);
-    expect(matchRule).toHaveBeenCalledWith(embedding, expect.any(Object));
-    expect(isInBlacklist).toHaveBeenCalledWith(
-      window.location.href,
-      expect.any(String)
-    );
-    expect(TranslatorManager).toHaveBeenCalledTimes(1);
-  });
-
-  test("skips empty iframe before rule matching and manager startup", async () => {
+  test("skips an empty iframe before starting the runtime", async () => {
     mockIsIframe = true;
     document.body.innerHTML = `
       <script>const text = "ignored";</script>
@@ -170,12 +140,11 @@ describe("common iframe startup", () => {
 
     await run();
 
-    expect(matchRule).not.toHaveBeenCalled();
+    expect(mockStartPageRuntime).not.toHaveBeenCalled();
     expect(TranslatorManager).not.toHaveBeenCalled();
-    expect(mockTranslatorManagerStart).not.toHaveBeenCalled();
   });
 
-  test("waits for DOMContentLoaded before skipping loading iframe", async () => {
+  test("waits for DOMContentLoaded before skipping a loading iframe", async () => {
     mockIsIframe = true;
     setReadyState("loading");
 
@@ -188,24 +157,28 @@ describe("common iframe startup", () => {
 
     await running;
 
-    expect(matchRule).toHaveBeenCalledTimes(1);
-    expect(TranslatorManager).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
+    expect(mockStartPageRuntime).toHaveBeenCalledTimes(1);
+    expect(TranslatorManager).not.toHaveBeenCalled();
   });
 
-  test("does not apply empty-text gate to top-level pages", async () => {
+  test("does not apply the empty-text gate to top-level pages", async () => {
     mockIsIframe = false;
 
     await run();
 
-    expect(matchRule).toHaveBeenCalledTimes(1);
-    expect(TranslatorManager).toHaveBeenCalledTimes(1);
-    expect(TranslatorManager.mock.calls[0][0].transboxOnly).toBe(false);
-    expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
+    const options = mockStartPageRuntime.mock.calls[0][0];
+    expect(options.transboxOnly).toBe(false);
+    expect(options.manager).toBeUndefined();
+    expect(TranslatorManager).not.toHaveBeenCalled();
+    options.onActivate({
+      href: window.location.href,
+      setting: { logLevel: 1 },
+      rule: { transOpen: "true" },
+    });
     expect(runSubtitle).toHaveBeenCalledTimes(1);
   });
 
-  test("folds feature blacklists into a new setting and keeps the stored values", async () => {
+  test("passes the stored setting through without constructing a manager", async () => {
     const stored = {
       blacklist: "",
       tranboxSetting: { blacklist: "feature-off", transOpen: true },
@@ -228,11 +201,7 @@ describe("common iframe startup", () => {
 
     await run();
 
-    const managerSetting = TranslatorManager.mock.calls[0][0].setting;
-    expect(managerSetting).not.toBe(stored);
-    expect(managerSetting.tranboxSetting.transOpen).toBe(false);
-    expect(managerSetting.inputRule.transOpen).toBe(false);
-    expect(managerSetting.mouseHoverSetting.useMouseHover).toBe(false);
+    expect(TranslatorManager).not.toHaveBeenCalled();
     const runtimeSetting = mockStartPageRuntime.mock.calls.at(-1)[0].setting;
     expect(runtimeSetting).toBe(stored);
     expect(stored.tranboxSetting.transOpen).toBe(true);
@@ -252,11 +221,12 @@ describe("common iframe startup", () => {
 
     await run();
 
-    expect(TranslatorManager.mock.calls[0][0].fabConfig).toMatchObject({
+    expect(mockStartPageRuntime.mock.calls[0][0].fabConfig).toMatchObject({
       isHide: false,
       hiddenSites: "page.example",
       shownSites: "",
     });
+    expect(TranslatorManager).not.toHaveBeenCalled();
   });
 
   test("passes a globally hidden FAB config through when shownSites lists the page", async () => {
@@ -271,14 +241,14 @@ describe("common iframe startup", () => {
 
     await run();
 
-    expect(TranslatorManager.mock.calls[0][0].fabConfig).toMatchObject({
+    expect(mockStartPageRuntime.mock.calls[0][0].fabConfig).toMatchObject({
       isHide: true,
       hiddenSites: "",
       shownSites: "page.example",
     });
   });
 
-  test("starts transbox-only manager for PDF documents", async () => {
+  test("asks the runtime for a transbox-only PDF without starting subtitles", async () => {
     setContentType("application/pdf");
     getFabWithDefault.mockResolvedValue({
       isHide: false,
@@ -291,37 +261,39 @@ describe("common iframe startup", () => {
 
     await run();
 
-    expect(matchRule).toHaveBeenCalledTimes(1);
-    expect(TranslatorManager).toHaveBeenCalledTimes(1);
-    expect(TranslatorManager.mock.calls[0][0].transboxOnly).toBe(true);
-    expect(TranslatorManager.mock.calls[0][0].fabConfig.isHide).toBe(false);
-    expect(mockTranslatorManagerStart).toHaveBeenCalledTimes(1);
+    const options = mockStartPageRuntime.mock.calls[0][0];
+    expect(options.transboxOnly).toBe(true);
+    expect(options.fabConfig.isHide).toBe(false);
+    expect(options.manager).toBeUndefined();
+    expect(TranslatorManager).not.toHaveBeenCalled();
+    options.onActivate({
+      href: window.location.href,
+      setting: {},
+      rule: {},
+    });
     expect(runSubtitle).not.toHaveBeenCalled();
   });
 
-  test("keeps a parked runtime when the page blacklist matches", async () => {
+  test("still hands a blacklisted page to the runtime without a manager", async () => {
     matchingBlacklistEntries.mockReturnValue(["localhost"]);
 
     await run();
 
     expect(TranslatorManager).not.toHaveBeenCalled();
-    expect(mockTranslatorManagerStart).not.toHaveBeenCalled();
     expect(runSubtitle).not.toHaveBeenCalled();
-    expect(matchRule).not.toHaveBeenCalled();
     expect(mockStartPageRuntime).toHaveBeenCalledTimes(1);
     const parkedOptions = mockStartPageRuntime.mock.calls[0][0];
     expect(parkedOptions.manager).toBeUndefined();
     expect(parkedOptions.isIframe).toBe(false);
   });
 
-  test("skips non-PDF media documents before rule matching and manager startup", async () => {
+  test("skips non-PDF media documents before the runtime starts", async () => {
     setContentType("image/png");
 
     await run();
 
-    expect(matchRule).not.toHaveBeenCalled();
+    expect(mockStartPageRuntime).not.toHaveBeenCalled();
     expect(TranslatorManager).not.toHaveBeenCalled();
-    expect(mockTranslatorManagerStart).not.toHaveBeenCalled();
     expect(runSubtitle).not.toHaveBeenCalled();
   });
 });

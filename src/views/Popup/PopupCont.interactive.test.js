@@ -107,6 +107,14 @@ function pageReply(message) {
       },
     };
   }
+  if (message?.action === MSG_TRANS_TOGGLE) {
+    const enabled = Boolean(message.args?.enabled);
+    return {
+      ok: true,
+      pageSwitch: enabled ? "on" : "off",
+      rule: { transOpen: enabled ? "true" : "false" },
+    };
+  }
   return { ok: true };
 }
 
@@ -170,6 +178,7 @@ function renderPopup(props = {}) {
     processActions: jest.fn(pageReply),
     targetTab: { id: 1, url: "https://example.com/page" },
     documentInfo: { frameId: 0, token: "doc-1" },
+    pageSwitch: props.rule?.transOpen === "false" ? "off" : "on",
     ...props,
   };
 
@@ -704,6 +713,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         });
       const processActions = jest.fn(async ({ args }) => ({
         rule: { transOpen: args?.enabled ? "true" : "false" },
+        pageSwitch: args?.enabled ? "on" : "off",
       }));
       let view;
       try {

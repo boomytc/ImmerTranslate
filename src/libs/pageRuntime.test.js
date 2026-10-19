@@ -24,6 +24,9 @@ jest.mock("./translatorManager", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
+jest.mock("./redditFrame", () => ({
+  readRedditEmbeddingHref: jest.fn(() => ""),
+}));
 jest.mock("./rules", () => {
   const { isMatch } = jest.requireActual("./utils");
   const { GLOBAL_KEY } = jest.requireActual("../config");
@@ -44,6 +47,7 @@ jest.mock("./rules", () => {
           rule?.enabled !== false &&
           matchesRulePattern(href, rule.pattern)
       ),
+    saveRule: jest.fn(async () => ({})),
   };
 });
 const {
@@ -60,6 +64,7 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 const { LOCATION_CHANGE_EVENT } = require("./locationHook");
+const { readRedditEmbeddingHref } = require("./redditFrame");
 
 const nativePushState = History.prototype.pushState;
 
@@ -269,25 +274,95 @@ describe("PageRuntime", () => {
     };
   }
 
-  test("a manually enabled page stays on after a blacklist entry temporarily matches", async () => {
+  test("a bare toggle flips the current policy when the page is not paused", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();
     await harness.runtime.start();
-    harness.runtime.setManualSwitch(true);
-    harness.onSetting(pageSetting("localhost"));
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "true" }],
+    });
     await harness.runtime.whenIdle();
-    harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
-    await harness.runtime.whenIdle();
-    expect(harness.managers[0].pause).toHaveBeenCalled();
-    expect(harness.managers[0].stop).not.toHaveBeenCalled();
-    expect(harness.created).toHaveLength(1);
+    harness.runtime.setManualSwitch();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
+    harness.runtime.setManualSwitch();
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
         state: "on",
         rule: expect.objectContaining({ transOpen: "true" }),
       })
     );
-    expect(harness.managers[0].readLiveTransOpen()).toBe("true");
+  });
+
+  test("a toggle during pause changes nothing and leaves the policy", async () => {
+    const { saveRule } = require("./rules");
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "true" }],
+    });
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "on" })
+    );
+
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    const callsWhilePaused = harness.managers[0].applyTarget.mock.calls.length;
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
+
+    harness.runtime.setManualSwitch(true);
+    harness.runtime.setManualSwitch(false);
+    harness.runtime.setManualSwitch();
+    expect(harness.managers[0].applyTarget).toHaveBeenCalledTimes(
+      callsWhilePaused
+    );
+    expect(saveRule).not.toHaveBeenCalled();
+
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+    expect(saveRule).not.toHaveBeenCalled();
+  });
+
+  test("manual on, then leaving the blacklist on Follow global with global off, stays off without reload", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.runtime.setManualSwitch(true);
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "on" })
+    );
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].pause).toHaveBeenCalled();
+    expect(harness.managers[0].stop).not.toHaveBeenCalled();
+    expect(harness.created).toHaveLength(1);
+    expect(window.location.href).toContain("/spa2.html/plain");
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
+      })
+    );
+    expect(harness.managers[0].readLiveTransOpen()).toBe("false");
   });
 
   test("a manually enabled page stays on when an unrelated blacklist entry is saved", async () => {
@@ -302,7 +377,31 @@ describe("PageRuntime", () => {
     expect(harness.managers[0].readLiveTransOpen()).toBe("true");
   });
 
-  test("a manually disabled page stays off after a blacklist entry temporarily matches", async () => {
+  test("manual on, then leaving the blacklist on Auto-translate, turns the page on", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.runtime.setManualSwitch(true);
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "true" }],
+    });
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.created).toHaveLength(1);
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+  });
+
+  test("manual off, then leaving the blacklist on Auto-translate, turns the page on", async () => {
     window.history.pushState({}, "", "/auto-translate");
     const harness = boot();
     await harness.runtime.start();
@@ -319,13 +418,16 @@ describe("PageRuntime", () => {
     harness.runtime.setManualSwitch(false);
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
     harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
     await harness.runtime.whenIdle();
     expect(harness.created).toHaveLength(1);
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        state: "off",
-        rule: expect.objectContaining({ transOpen: "false" }),
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
       })
     );
   });
@@ -409,7 +511,7 @@ describe("PageRuntime", () => {
     );
   });
 
-  test("an unchanged site policy restores the live switch after parking", async () => {
+  test("an unchanged follow-global policy stays off after parking discards the manual switch", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     let siteTransOpen = "*";
     const harness = boot({
@@ -424,8 +526,8 @@ describe("PageRuntime", () => {
     expect(siteTransOpen).toBe("*");
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        state: "on",
-        rule: expect.objectContaining({ transOpen: "true" }),
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
       })
     );
   });
@@ -904,6 +1006,23 @@ describe("PageRuntime", () => {
         }),
       })
     );
+  });
+
+  test("a child frame matches rules on the embedding page", async () => {
+    const embedding =
+      "https://www.reddit.com/r/announcements/comments/pg006s/post/";
+    readRedditEmbeddingHref.mockReturnValueOnce(embedding);
+    const seen = [];
+    const harness = boot({
+      isIframe: true,
+      matchRule: async (href) => {
+        seen.push(href);
+        return { transOpen: "false", pattern: href };
+      },
+    });
+    await harness.runtime.start();
+    expect(readRedditEmbeddingHref).toHaveBeenCalledWith(window, true);
+    expect(seen[0]).toBe(embedding);
   });
 
   test("a child frame pauses on its own url and leaves the top frame running", async () => {

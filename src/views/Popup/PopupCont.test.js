@@ -171,6 +171,7 @@ function renderPopupCont(props = {}, { statefulRule = false } = {}) {
     setting,
     setRule: jest.fn(),
     handleOpenSetting: jest.fn(),
+    pageSwitch: props.rule?.transOpen === "false" ? "off" : "on",
     ...props,
   };
   const currentSetting = { ...setting, ...props.setting };
@@ -921,6 +922,7 @@ describe("PopupCont capability parity", () => {
   test("dispatches one explicit page translation state from the main switch", async () => {
     const processActions = jest.fn(({ args }) => ({
       rule: { transOpen: args.enabled ? "true" : "false" },
+      pageSwitch: args.enabled ? "on" : "off",
     }));
     const view = renderPopupCont({ processActions }, { statefulRule: true });
     await flushEffects();
@@ -944,6 +946,72 @@ describe("PopupCont capability parity", () => {
     view.cleanup();
   });
 
+  test("shows the content page switch instead of the folded rule transOpen", async () => {
+    const onView = renderPopupCont({
+      rule: { transOpen: "false" },
+      pageSwitch: "on",
+    });
+    await flushEffects();
+    expect(
+      onView.container.querySelector('input[aria-label="popup_translate_page"]')
+        .checked
+    ).toBe(true);
+    expect(
+      onView.container.querySelector(".kt-popup-hero").dataset.pageSwitch
+    ).toBe("on");
+    onView.cleanup();
+
+    const pausedView = renderPopupCont({
+      rule: { transOpen: "true" },
+      pageSwitch: "paused",
+    });
+    await flushEffects();
+    const pausedSwitch = pausedView.container.querySelector(
+      'input[aria-label="popup_translate_page"]'
+    );
+    expect(pausedSwitch.checked).toBe(false);
+    expect(
+      pausedView.container.querySelector(".kt-popup-hero").dataset.pageSwitch
+    ).toBe("paused");
+    pausedView.cleanup();
+  });
+
+  test("a paused page switch is off, disabled, and does not write", async () => {
+    const processActions = jest.fn(() => ({
+      rule: { transOpen: "true" },
+      pageSwitch: "on",
+    }));
+    const setRule = jest.fn();
+    const view = renderPopupCont({
+      processActions,
+      setRule,
+      pageSwitch: "paused",
+      rule: { transOpen: "true" },
+    });
+    await flushEffects();
+    const mainSwitch = view.container.querySelector(
+      'input[aria-label="popup_translate_page"]'
+    );
+    expect(mainSwitch.checked).toBe(false);
+    expect(mainSwitch.disabled).toBe(true);
+    await act(async () => {
+      mainSwitch.click();
+      view.container.querySelector(".kt-popup-hero").click();
+      await Promise.resolve();
+    });
+
+    expect(processActions).not.toHaveBeenCalled();
+    expect(saveRule).not.toHaveBeenCalled();
+    expect(setRule).not.toHaveBeenCalled();
+    expect(mainSwitch.checked).toBe(false);
+    expect(mainSwitch.disabled).toBe(true);
+    expect(
+      view.container.querySelector(".kt-popup-hero").dataset.pageSwitch
+    ).toBe("paused");
+    expect(view.container.querySelector('[role="alert"]')).toBeNull();
+    view.cleanup();
+  });
+
   test("applies a rule published by the floating controls", async () => {
     const view = renderPopupCont({}, { statefulRule: true });
     await flushEffects();
@@ -954,6 +1022,7 @@ describe("PopupCont capability parity", () => {
         new CustomEvent(EVENT_KISS_INNER, {
           detail: {
             action: MSG_TRANS_CURRULE,
+            pageSwitch: "off",
             rule: {
               transOpen: "false",
               apiSlug: "google",
@@ -1061,7 +1130,9 @@ describe("PopupCont capability parity", () => {
       'input[aria-label="popup_translate_page"]'
     );
     act(() => mainSwitch.click());
-    expect(liveRule.transOpen).toBe("false");
+    expect(mainSwitch.checked).toBe(false);
+    expect(setRule).not.toHaveBeenCalled();
+    expect(liveRule.transOpen).toBe("true");
     expect(mainSwitch.disabled).toBe(true);
     expect(mainSwitch.getAttribute("aria-busy")).toBe("true");
     expect(
@@ -1074,6 +1145,7 @@ describe("PopupCont capability parity", () => {
     liveRule = { ...liveRule, apiSlug: "deepl", toLang: "fr" };
     await act(async () => {
       resolveAction({
+        pageSwitch: "off",
         rule: {
           transOpen: "false",
           apiSlug: "stale-service",
@@ -1093,13 +1165,12 @@ describe("PopupCont capability parity", () => {
     ).toBe("false");
 
     expect(liveRule).toMatchObject({
-      transOpen: "false",
+      transOpen: "true",
       apiSlug: "deepl",
       toLang: "fr",
     });
-    expect(
-      setRule.mock.calls.every(([update]) => typeof update === "function")
-    ).toBe(true);
+    expect(setRule).not.toHaveBeenCalled();
+    expect(mainSwitch.checked).toBe(false);
     view.cleanup();
   });
 
@@ -1122,6 +1193,7 @@ describe("PopupCont capability parity", () => {
       },
     });
     mockSendTopFrameMsg.mockResolvedValueOnce({
+      pageSwitch: "off",
       rule: {
         transOpen: "false",
         apiSlug: "top-frame-stale-service",
@@ -1141,15 +1213,14 @@ describe("PopupCont capability parity", () => {
       await Promise.resolve();
     });
 
-    expect(liveRule).toMatchObject({
-      transOpen: "false",
+    expect(liveRule).toEqual({
+      transOpen: "true",
       apiSlug: "google",
       fromLang: "auto",
       toLang: "zh-CN",
     });
-    expect(
-      setRule.mock.calls.every(([update]) => typeof update === "function")
-    ).toBe(true);
+    expect(mainSwitch.checked).toBe(false);
+    expect(setRule).not.toHaveBeenCalled();
     expect(mockSendTabMsg).toHaveBeenCalledWith(MSG_TRANS_TOGGLE, {
       enabled: false,
     });
@@ -1185,7 +1256,8 @@ describe("PopupCont capability parity", () => {
     });
 
     expect(liveRule.transOpen).toBe("true");
-    expect(setRule).toHaveBeenCalledTimes(2);
+    expect(mainSwitch.checked).toBe(true);
+    expect(setRule).not.toHaveBeenCalled();
     const alert = view.container.querySelector('[role="alert"]');
     expect(alert).not.toBeNull();
     expect(alert.textContent).toContain("rule_toggle_failed");
@@ -1200,7 +1272,7 @@ describe("PopupCont capability parity", () => {
     });
     mockSendTabMsg.mockImplementation(async (action) =>
       action === MSG_TRANS_GETRULE
-        ? { rule: { transOpen: "false" }, setting: {} }
+        ? { pageSwitch: "off", rule: { transOpen: "false" }, setting: {} }
         : undefined
     );
     const view = renderPopupCont({ setRule });
@@ -1224,7 +1296,11 @@ describe("PopupCont capability parity", () => {
       undefined,
       undefined
     );
-    expect(liveRule.transOpen).toBe("false");
+    expect(liveRule.transOpen).toBe("true");
+    expect(
+      view.container.querySelector('input[aria-label="popup_translate_page"]')
+        .checked
+    ).toBe(false);
     expect(view.container.querySelector('[role="alert"]')).toBeNull();
     view.cleanup();
   });
@@ -1240,6 +1316,7 @@ describe("PopupCont capability parity", () => {
       liveRule = typeof update === "function" ? update(liveRule) : update;
     });
     mockSendTopFrameMsg.mockResolvedValueOnce({
+      pageSwitch: "on",
       rule: { transOpen: "true" },
     });
     const view = renderPopupCont({ setRule });
@@ -1641,6 +1718,7 @@ describe("PopupCont capability parity", () => {
   test("confirms a routed broadcast through the same captured document", async () => {
     const documentInfo = { token: "captured-document", frameId: 7 };
     mockSendTabMsg.mockResolvedValue({
+      pageSwitch: "on",
       rule: { transOpen: "true" },
       setting: {},
       document: documentInfo,
