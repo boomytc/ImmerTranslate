@@ -1,21 +1,10 @@
 import { isExt, isGm } from "./client";
 import { browser, isBg } from "./browser";
-import { kissLog } from "./log";
 
 const LOCK_NAME = "kiss-storage-transaction";
-export const STORAGE_LOCK_HOLD_TIMEOUT_MS = 10000;
 let queue = Promise.resolve();
 let databasePromise;
 let installed = false;
-let backgroundHold = 0;
-
-function usesExtensionCoordinator() {
-  return (
-    isExt &&
-    (process.env.NODE_ENV !== "test" ||
-      typeof browser?.runtime?.connect === "function")
-  );
-}
 
 function storageFailure(error, outcome = "not-committed") {
   const failure = error instanceof Error ? error : new Error(String(error));
@@ -239,29 +228,15 @@ async function withIndexedDbLock(operation, reopened = false) {
 
 /** Only short storage operations belong here; network requests must run outside. */
 export function withStorageLock(operation) {
-  // Reject only while this background turn is already inside the lock. A second
-  // background call made before that turn starts still queues behind it.
-  if (usesExtensionCoordinator() && isBg?.() && backgroundHold > 0) {
-    return Promise.reject(
-      storageFailure(new Error("Background storage lock cannot be re-entered"))
-    );
-  }
   return enqueue(() => {
-    if (usesExtensionCoordinator()) {
-      if (isBg?.()) {
-        backgroundHold += 1;
-        try {
-          return Promise.resolve(
-            operation({ commit: commitExtensionWrites })
-          ).finally(() => {
-            backgroundHold -= 1;
-          });
-        } catch (error) {
-          backgroundHold -= 1;
-          throw error;
-        }
-      }
-      return withBackgroundLock(operation);
+    if (
+      isExt &&
+      (process.env.NODE_ENV !== "test" ||
+        typeof browser?.runtime?.connect === "function")
+    ) {
+      return isBg?.()
+        ? operation({ commit: commitExtensionWrites })
+        : withBackgroundLock(operation);
     }
     // Userscript storage is shared across origins, so origin locks do not apply.
     if (isGm) return operation();
@@ -285,10 +260,8 @@ export function installStorageCoordinator() {
     if (port.name !== LOCK_NAME) return;
     let disconnected = false;
     let granted = false;
-    let timedOut = false;
     let pendingCommit;
     let release;
-    let holdTimer;
     const released = new Promise((resolve) => {
       release = resolve;
     });
@@ -298,24 +271,13 @@ export function installStorageCoordinator() {
     });
     port.onMessage.addListener((message) => {
       if (message.type === "release") release();
-      if (message.type !== "commit" || !granted || pendingCommit) return;
-      // A timed-out holder can still deliver a commit. Refuse it so a later
-      // writer cannot be overwritten. An in-flight commit already stored on
-      // pendingCommit is awaited below and is not cancelled.
-      if (timedOut || disconnected) {
-        if (timedOut && !disconnected) {
-          try {
-            port.postMessage({
-              type: "committed",
-              error: "Storage lock hold timed out",
-              storageOutcome: "not-committed",
-            });
-          } catch {
-            // The port may already be closing.
-          }
-        }
+      if (
+        message.type !== "commit" ||
+        !granted ||
+        disconnected ||
+        pendingCommit
+      )
         return;
-      }
       pendingCommit = commitExtensionWrites(message.entries).then(
         () => {
           if (!disconnected) port.postMessage({ type: "committed" });
@@ -333,33 +295,13 @@ export function installStorageCoordinator() {
     });
     enqueue(async () => {
       if (disconnected) return;
-      granted = true;
-      const acquiredAt = Date.now();
-      holdTimer = setTimeout(() => {
-        if (disconnected || timedOut) return;
-        timedOut = true;
-        kissLog(
-          `Storage lock held past the ${STORAGE_LOCK_HOLD_TIMEOUT_MS}ms limit`,
-          port.sender?.url,
-          acquiredAt
-        );
-        try {
-          port.disconnect();
-        } catch {
-          // The document may already have closed this port.
-        }
-        release();
-      }, STORAGE_LOCK_HOLD_TIMEOUT_MS);
       try {
+        granted = true;
         port.postMessage({ type: "granted" });
         await released;
-        // pendingCommit is the accepted storage.local.set still in flight.
-        // The next writer waits for it; pure readers do not.
         await pendingCommit;
       } catch {
         // A closed document cannot retain a lock or block the next writer.
-      } finally {
-        clearTimeout(holdTimer);
       }
     });
   });
