@@ -66,7 +66,10 @@ import {
 import { createLoadingSVG, createRetrySVG } from "./svg";
 import { shortcutRegister } from "./shortcut";
 import { tryDetectLang } from "./detect";
-import { isSameTranslationLanguage } from "./language";
+import {
+  isSameTranslationLanguage,
+  normalizeLanguageCode,
+} from "./language";
 import { trustedTypesHelper } from "./trustedTypes";
 import { injectJs, INJECTOR } from "../injectors";
 import { injectInternalCss, INJECT_SOURCE_PREFIX } from "./injector";
@@ -87,6 +90,23 @@ import { visitTranslationTargets } from "./translationTargets";
  */
 // Only wrappers created by this runtime are trusted across instance recreation.
 const touchTranslationOwners = new WeakMap();
+
+// 同一基础语言的不同变体（zh-TW → zh-CN）不能并进 from 为空的自动批次。
+const microsoftAutoBatchFromLang = (deLang, toLang, translateVariants) => {
+  if (deLang && translateVariants !== false) {
+    const source = normalizeLanguageCode(deLang);
+    const target = normalizeLanguageCode(toLang);
+    if (
+      source &&
+      target &&
+      source !== target &&
+      source.split("-")[0] === target.split("-")[0]
+    ) {
+      return deLang;
+    }
+  }
+  return "auto";
+};
 
 function normalizeBubbleStyle(style) {
   return String(style || "")
@@ -4346,11 +4366,16 @@ overflow-wrap: anywhere !important;`;
     const rawApiSetting = { ...(apiSettingOverride || this.#apiSetting) };
     // 微软按段自动检测。短标题经常没有本地检测结果，若把已检出的段落语言
     // 写进批量键，标题会单独成批。那一次请求失败时标题留下网络错误，
-    // 同页段落却已经翻译成功。源语言为自动时，标题和段落必须同批发出。
+    // 同页段落却已经翻译成功。源语言为自动时，普通文本共用 auto。
+    // 简繁这类变体必须保留检出的源语言，否则无法指定 from 做变体翻译。
     const fromLang =
       this.#rule.fromLang === "auto" &&
       rawApiSetting.apiType === OPT_TRANS_MICROSOFT
-        ? "auto"
+        ? microsoftAutoBatchFromLang(
+            deLang,
+            toLang,
+            this.#setting.translateVariants
+          )
         : deLang || this.#rule.fromLang;
 
     const apiSetting = resolveApiPromptSettings(
