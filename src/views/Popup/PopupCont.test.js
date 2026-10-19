@@ -1351,6 +1351,32 @@ describe("PopupCont capability parity", () => {
     }
   );
 
+  test("removes every blacklist entry that matches the current URL", async () => {
+    mockContextSetting = { blacklist: "*.example.com\nkeep.example" };
+    const view = renderPopupCont({
+      targetTab: { id: 7, url: "https://sub.example.com/reader" },
+    });
+    try {
+      await flushEffects();
+      const action = Array.from(view.container.querySelectorAll("button")).find(
+        (button) => button.textContent === "remove_from_blacklist"
+      );
+      await act(async () => action.click());
+      const reduce = mockUpdateSetting.mock.calls[0][0];
+      expect(
+        reduce({
+          blacklist: "*.example.com\nexample.com\nkeep.example",
+          retained: true,
+        })
+      ).toEqual({
+        blacklist: "keep.example",
+        retained: true,
+      });
+    } finally {
+      view.cleanup();
+    }
+  });
+
   test("reports a blacklist write failure without a success message", async () => {
     mockUpdateSetting.mockRejectedValueOnce(new Error("Storage unavailable"));
     const view = renderPopupCont();
@@ -2019,9 +2045,7 @@ describe("missing API key empty state", () => {
     ).map((node) => node.textContent);
     expect(serviceNames).toEqual(["Google", "Microsoft"]);
     expect(view.container.textContent).not.toContain("BuiltinAI");
-    expect(
-      view.container.querySelector(".kt-popup-more-service")
-    ).toBeNull();
+    expect(view.container.querySelector(".kt-popup-more-service")).toBeNull();
     view.cleanup();
   });
 
@@ -2082,11 +2106,7 @@ describe("missing API key empty state", () => {
       Array.from(
         view.container.querySelectorAll(".kt-popup-service__name")
       ).map((node) => node.textContent)
-    ).toEqual([
-      "BuiltinAI",
-      "Google",
-      "Microsoft",
-    ]);
+    ).toEqual(["BuiltinAI", "Google", "Microsoft"]);
     expect(view.container.textContent).not.toContain("DeepSeek");
     expect(view.container.textContent).not.toContain("sk-openai-secret");
     view.cleanup();

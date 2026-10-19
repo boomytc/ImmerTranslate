@@ -229,10 +229,11 @@ describe("common iframe startup", () => {
     expect(runSubtitle).toHaveBeenCalledTimes(1);
   });
 
-  test("passes the stored FAB config through unchanged when the page matches its exception list", async () => {
+  test("passes a normalized FAB config through when hiddenSites lists the page", async () => {
     getFabWithDefault.mockResolvedValue({
       isHide: false,
-      hideExceptionList: "page.example",
+      hiddenSites: "page.example",
+      shownSites: "",
     });
     isInBlacklist.mockImplementation(
       (_href, blacklist) => blacklist === "page.example"
@@ -240,16 +241,18 @@ describe("common iframe startup", () => {
 
     await run();
 
-    expect(TranslatorManager.mock.calls[0][0].fabConfig).toEqual({
+    expect(TranslatorManager.mock.calls[0][0].fabConfig).toMatchObject({
       isHide: false,
-      hideExceptionList: "page.example",
+      hiddenSites: "page.example",
+      shownSites: "",
     });
   });
 
-  test("passes a globally hidden FAB config through unchanged when the page is listed", async () => {
+  test("passes a globally hidden FAB config through when shownSites lists the page", async () => {
     getFabWithDefault.mockResolvedValue({
       isHide: true,
-      hideExceptionList: "page.example",
+      hiddenSites: "",
+      shownSites: "page.example",
     });
     isInBlacklist.mockImplementation(
       (_href, blacklist) => blacklist === "page.example"
@@ -257,9 +260,10 @@ describe("common iframe startup", () => {
 
     await run();
 
-    expect(TranslatorManager.mock.calls[0][0].fabConfig).toEqual({
+    expect(TranslatorManager.mock.calls[0][0].fabConfig).toMatchObject({
       isHide: true,
-      hideExceptionList: "page.example",
+      hiddenSites: "",
+      shownSites: "page.example",
     });
   });
 
@@ -267,7 +271,8 @@ describe("common iframe startup", () => {
     setContentType("application/pdf");
     getFabWithDefault.mockResolvedValue({
       isHide: false,
-      hideExceptionList: "page.example",
+      hiddenSites: "page.example",
+      shownSites: "",
     });
     isInBlacklist.mockImplementation(
       (_href, blacklist) => blacklist === "page.example"

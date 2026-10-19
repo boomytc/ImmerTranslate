@@ -5,7 +5,6 @@ import {
   PORT_REQUEST_FETCH,
   MSG_GET_HTTPCACHE,
   MSG_PUT_HTTPCACHE,
-  MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_ONLY,
   MSG_OPEN_OPTIONS,
   MSG_SAVE_RULE,
@@ -47,7 +46,7 @@ import { trySyncSettingAndRules } from "./libs/sync";
 import { fetchHandle, fetchStreamNative } from "./libs/fetch";
 import { handleRequestPort } from "./libs/requestPort";
 import { tryClearCaches, getHttpCache, putHttpCache } from "./libs/cache";
-import { sendTabMsg } from "./libs/msg";
+import { sendTabMsg, broadcastTranslateToggle } from "./libs/msg";
 import { trySyncAllSubRules } from "./libs/subRules";
 import { saveRule } from "./libs/rules";
 import { getCurTabId } from "./libs/msg";
@@ -929,7 +928,7 @@ browser.runtime.onMessage.addListener(async ({ action, args }, sender) => {
 browser.commands?.onCommand?.addListener?.((command) => {
   switch (command) {
     case CMD_TOGGLE_TRANSLATE:
-      sendTabMsg(MSG_TRANS_TOGGLE);
+      broadcastTranslateToggle();
       break;
     case CMD_TOGGLE_TRANSLATE_ONLY:
       sendTabMsg(MSG_TRANS_TOGGLE_ONLY);
@@ -963,7 +962,7 @@ browser?.contextMenus?.onClicked?.addListener?.(
   ({ menuItemId, selectionText }) => {
     switch (menuItemId) {
       case CMD_TOGGLE_TRANSLATE:
-        sendTabMsg(MSG_TRANS_TOGGLE);
+        broadcastTranslateToggle();
         break;
       case CMD_TOGGLE_TRANSLATE_ONLY:
         sendTabMsg(MSG_TRANS_TOGGLE_ONLY);

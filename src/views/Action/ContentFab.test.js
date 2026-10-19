@@ -23,6 +23,11 @@ import * as storageStateModule from "../../libs/storageState";
 import { fetchModelCatalog } from "../../libs/modelList";
 import { sendBgMsg } from "../../libs/msg";
 import { getDomainOptions } from "../../libs/url";
+import {
+  applyFabSitePolicy,
+  resetFabVisibilityHold,
+  isFabVisibilityHeld,
+} from "../../config/fab";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -109,6 +114,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       value: 2,
     });
     mockIsVideoFullscreen = false;
+    resetFabVisibilityHold();
     draggableProps = null;
     mockFabSetting = { transApis: [] };
     mockSiteRules = [];
@@ -1027,7 +1033,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   test("clicking hide on site button hides FAB, saves to storage, and allows undo", async () => {
     let savedUpdater = null;
     let undoUpdater = null;
-    let stored = { isHide: false, hideExceptionList: "" };
+    let stored = { isHide: false, hiddenSites: "", shownSites: "" };
     const mockSave = jest.fn((updater) => {
       if (!savedUpdater) {
         savedUpdater = updater;
@@ -1043,7 +1049,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       .mockReturnValue({
         save: mockSave,
         subscribe: mockSubscribe,
-        snapshot: { data: { isHide: false, hideExceptionList: "" } },
+        snapshot: { data: { isHide: false, hiddenSites: "", shownSites: "" } },
       });
 
     render();
@@ -1061,8 +1067,19 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(draggableProps.show).toBe(false);
     expect(mockSave).toHaveBeenCalledTimes(1);
     const domain = window.location.hostname;
-    const hideResult = savedUpdater({ isHide: false, hideExceptionList: "" });
-    expect(hideResult.hideExceptionList).toContain(domain);
+    const hideResult = savedUpdater({
+      isHide: false,
+      hiddenSites: "",
+      shownSites: "",
+    });
+    expect(hideResult).toEqual(
+      applyFabSitePolicy(
+        { isHide: false, hiddenSites: "", shownSites: "" },
+        window.location.href,
+        false
+      )
+    );
+    expect(hideResult.hiddenSites).toContain(domain);
 
     const undoBtn = container.querySelector(".kt-fab-undo-btn");
     expect(undoBtn).not.toBeNull();
@@ -1076,15 +1093,22 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(mockSave).toHaveBeenCalledTimes(2);
     const undoResult = undoUpdater({
       isHide: false,
-      hideExceptionList: domain,
+      hiddenSites: domain,
+      shownSites: "",
     });
-    expect(undoResult.hideExceptionList).not.toContain(domain);
+    expect(undoResult.hiddenSites).not.toContain(domain);
+    expect(undoResult).toEqual(
+      applyFabSitePolicy(
+        { isHide: false, hiddenSites: domain, shownSites: "" },
+        window.location.href,
+        true
+      )
+    );
     expect(processActions).toHaveBeenLastCalledWith({
       action: MSG_FAB_TOGGLE,
       args: {
-        enabled: true,
         fabConfig: expect.objectContaining({
-          hideExceptionList: expect.not.stringContaining(domain),
+          hiddenSites: expect.not.stringContaining(domain),
         }),
       },
     });
@@ -1095,7 +1119,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     jest.useFakeTimers();
     const mockSave = jest.fn((updater) =>
       Promise.resolve({
-        value: updater({ isHide: false, hideExceptionList: "" }),
+        value: updater({ isHide: false, hiddenSites: "", shownSites: "" }),
       })
     );
     const mockSubscribe = jest.fn(() => () => {});
@@ -1104,7 +1128,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       .mockReturnValue({
         save: mockSave,
         subscribe: mockSubscribe,
-        snapshot: { data: { isHide: false, hideExceptionList: "" } },
+        snapshot: { data: { isHide: false, hiddenSites: "", shownSites: "" } },
       });
 
     render();
@@ -1118,13 +1142,13 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     });
 
     expect(draggableProps.show).toBe(false);
+    expect(isFabVisibilityHeld()).toBe(true);
     expect(processActions).toHaveBeenCalledWith({
       action: MSG_FAB_TOGGLE,
       args: {
-        enabled: true,
         fabConfig: expect.objectContaining({
           isHide: false,
-          hideExceptionList: expect.stringContaining(window.location.hostname),
+          hiddenSites: expect.stringContaining(window.location.hostname),
         }),
       },
     });
@@ -1133,13 +1157,13 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       jest.advanceTimersByTime(4500);
     });
 
+    expect(isFabVisibilityHeld()).toBe(false);
     expect(processActions).toHaveBeenLastCalledWith({
       action: MSG_FAB_TOGGLE,
       args: {
-        enabled: false,
         fabConfig: expect.objectContaining({
           isHide: false,
-          hideExceptionList: expect.stringContaining(window.location.hostname),
+          hiddenSites: expect.stringContaining(window.location.hostname),
         }),
       },
     });
@@ -1151,7 +1175,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   test("when global is hidden (isHide: true) on a site exception, clicking hide on site removes site from exception list", async () => {
     let savedUpdater = null;
     let undoUpdater = null;
-    let stored = { isHide: true, hideExceptionList: "localhost" };
+    let stored = { isHide: true, hiddenSites: "", shownSites: "localhost" };
     const mockSave = jest.fn((updater) => {
       if (!savedUpdater) savedUpdater = updater;
       else undoUpdater = updater;
@@ -1164,7 +1188,9 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       .mockReturnValue({
         save: mockSave,
         subscribe: mockSubscribe,
-        snapshot: { data: { isHide: true, hideExceptionList: "localhost" } },
+        snapshot: {
+          data: { isHide: true, hiddenSites: "", shownSites: "localhost" },
+        },
       });
 
     render();
@@ -1181,9 +1207,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     const domain = window.location.hostname;
     const hideResult = savedUpdater({
       isHide: true,
-      hideExceptionList: domain,
+      hiddenSites: "",
+      shownSites: domain,
     });
-    expect(hideResult.hideExceptionList).not.toContain(domain);
+    expect(hideResult.shownSites).not.toContain(domain);
+    expect(hideResult.hiddenSites).toBe("");
 
     const undoBtn = container.querySelector(".kt-fab-undo-btn");
     await act(async () => {
@@ -1193,16 +1221,16 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(draggableProps.show).toBe(true);
     const undoResult = undoUpdater({
       isHide: true,
-      hideExceptionList: "",
+      hiddenSites: "",
+      shownSites: "",
     });
-    expect(undoResult.hideExceptionList).toContain(domain);
+    expect(undoResult.shownSites).toContain(domain);
     expect(processActions).toHaveBeenLastCalledWith({
       action: MSG_FAB_TOGGLE,
       args: {
-        enabled: true,
         fabConfig: expect.objectContaining({
           isHide: true,
-          hideExceptionList: expect.stringContaining(domain),
+          shownSites: expect.stringContaining(domain),
         }),
       },
     });
@@ -1221,7 +1249,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       .mockReturnValue({
         save: mockSave,
         subscribe: mockSubscribe,
-        snapshot: { data: { isHide: false, hideExceptionList: "" } },
+        snapshot: { data: { isHide: false, hiddenSites: "", shownSites: "" } },
       });
 
     render();
@@ -1240,7 +1268,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     // 1. Initial snapshot confirms hidden:
     act(() => {
       subscribeCallback({
-        data: { isHide: false, hideExceptionList: window.location.hostname },
+        data: {
+          isHide: false,
+          hiddenSites: window.location.hostname,
+          shownSites: "",
+        },
       });
     });
     expect(draggableProps.show).toBe(false);
@@ -1248,7 +1280,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     // A pending write is only a preview; keep the confirmed hidden state.
     act(() => {
       subscribeCallback({
-        data: { isHide: false, hideExceptionList: "" },
+        data: { isHide: false, hiddenSites: "", shownSites: "" },
         isSaving: true,
       });
     });
@@ -1258,7 +1290,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     // 2. External change in popup removes domain from exception list -> visible again!
     act(() => {
       subscribeCallback({
-        data: { isHide: false, hideExceptionList: "" },
+        data: { isHide: false, hiddenSites: "", shownSites: "" },
       });
     });
 
@@ -1269,7 +1301,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   });
 
   test("undo restores a removed wildcard exception without losing unrelated edits", async () => {
-    let stored = { isHide: true, hideExceptionList: "*\nother.example" };
+    let stored = {
+      isHide: true,
+      hiddenSites: "",
+      shownSites: "*\nother.example",
+    };
     jest.spyOn(storageStateModule, "getStorageState").mockReturnValue({
       save: jest.fn((updater) => {
         stored = updater(stored);
@@ -1283,13 +1319,13 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     await act(async () => {
       container.querySelector(".kt-content-fab-menu__mode--hide-fab").click();
     });
-    expect(stored.hideExceptionList).toBe("other.example");
+    expect(stored.shownSites).toBe("other.example");
 
-    stored = { ...stored, hideExceptionList: "other.example\nadded.example" };
+    stored = { ...stored, shownSites: "other.example\nadded.example" };
     await act(async () => {
       container.querySelector(".kt-fab-undo-btn").click();
     });
-    expect(stored.hideExceptionList.split("\n").sort()).toEqual(
+    expect(stored.shownSites.split("\n").sort()).toEqual(
       ["*", "other.example", "added.example"].sort()
     );
   });
@@ -1320,7 +1356,11 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
   });
 
   test("a rejected undo keeps the restoration available for retry", async () => {
-    let stored = { isHide: true, hideExceptionList: "*\nother.example" };
+    let stored = {
+      isHide: true,
+      hiddenSites: "",
+      shownSites: "*\nother.example",
+    };
     const save = jest.fn((updater) => {
       stored = updater(stored);
       return Promise.resolve({ value: stored });
@@ -1349,7 +1389,7 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       container.querySelector(".kt-fab-undo-btn").click();
     });
     expect(draggableProps.show).toBe(true);
-    expect(stored.hideExceptionList.split("\n").sort()).toEqual(
+    expect(stored.shownSites.split("\n").sort()).toEqual(
       ["*", "other.example"].sort()
     );
   });

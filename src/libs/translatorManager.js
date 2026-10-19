@@ -43,7 +43,14 @@ import {
   MSG_MOUSEHOVER_TOGGLE,
   MSG_TRANSINPUT_TOGGLE,
 } from "../config";
-import { isFabVisible } from "../config/fab";
+import {
+  isFabVisible,
+  normalizeFabConfig,
+  isFabVisibilityHeld,
+  DEFAULT_FAB,
+} from "../config/fab";
+import { STOKEY_FAB } from "../config/storage";
+import { getStorageState } from "./storageState";
 import { logger } from "./log";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { MSG_GET_FRAME_ID, MSG_VALIDATE_DOCUMENT } from "../config/msg";
@@ -101,6 +108,7 @@ export default class TranslatorManager {
   #windowMessageHandler = null;
   #pageRestoreHandler = null;
   #spaNavigationHandler = null;
+  #unsubscribeFabStorage = null;
 
   // 运行期子模块实例。它们可能挂载 DOM，因此随 restart 销毁并重建。
   _translator = null;
@@ -168,6 +176,7 @@ export default class TranslatorManager {
     if (!this.#transboxOnly) {
       this.#setupSpaListeners();
     }
+    this.#subscribeFabStorage();
     this.#isActive = true;
     logger.info("TranslatorManager started.");
   }
@@ -238,9 +247,49 @@ export default class TranslatorManager {
       this.#menuCommandIds = [];
     }
 
+    this.#unsubscribeFabStorage?.();
+    this.#unsubscribeFabStorage = null;
     this.#destroyRuntimeModules();
     this.#isActive = false;
     logger.info("TranslatorManager stopped.");
+  }
+
+  #subscribeFabStorage() {
+    if (this.#isIframe || this.#transboxOnly || this.#unsubscribeFabStorage) {
+      return;
+    }
+    const fabStorage = getStorageState(STOKEY_FAB, DEFAULT_FAB);
+    this.#unsubscribeFabStorage = fabStorage.subscribe((snapshot) => {
+      if (!this.#isActive) return;
+      if (snapshot?.isLoading || snapshot?.isSaving || snapshot?.isRecovering) {
+        return;
+      }
+      if (!snapshot?.data || typeof snapshot.data !== "object") return;
+      this.#fabConfig = normalizeFabConfig(snapshot.data);
+      this.#applyFabVisibility();
+    });
+  }
+
+  #applyFabVisibility() {
+    if (this.#isIframe || this.#transboxOnly || isFabVisibilityHeld()) return;
+    const href = window.location?.href || "";
+    const shouldShow = isFabVisible(href, this.#fabConfig);
+    if (shouldShow) {
+      const freshConfig = this.#cloneConfig(this.#fabConfig);
+      if (!this._fabManager) {
+        this._fabManager = new FabManager({
+          processActions: this.#processActions.bind(this),
+          fabConfig: freshConfig,
+          getSelectionEnabled: () =>
+            Boolean(this._transboxManager?.isEnabled()),
+          autoShow: false,
+        });
+      }
+      this._fabManager.show({ fabConfig: freshConfig });
+    } else {
+      this._fabManager?.destroy();
+      this._fabManager = null;
+    }
   }
 
   /**
@@ -940,6 +989,7 @@ export default class TranslatorManager {
       !requiresInput &&
       action !== MSG_POPUP_TOGGLE &&
       action !== MSG_FAB_TOGGLE &&
+      action !== MSG_TRANS_TOGGLE &&
       action !== MSG_TRANS_GETRULE
     ) {
       sendIframeMsg(action, args);
@@ -950,13 +1000,13 @@ export default class TranslatorManager {
     let publishRule = false;
     let sharedPatch = null;
     switch (action) {
-      case MSG_TRANS_TOGGLE:
-        if (typeof args?.enabled === "boolean") {
-          args.enabled
-            ? this._translator?.enable()
-            : this._translator?.disable();
-        } else {
-          this._translator?.toggle();
+      case MSG_TRANS_TOGGLE: {
+        const currentlyEnabled = this._translator?.rule?.transOpen === "true";
+        const enabled =
+          typeof args?.enabled === "boolean" ? args.enabled : !currentlyEnabled;
+        enabled ? this._translator?.enable() : this._translator?.disable();
+        if (!fromExt) {
+          sendIframeMsg(MSG_TRANS_TOGGLE, { ...(args || {}), enabled });
         }
         publishRule = true;
         // A binary toggle pins the site. Follow-mode applies runtime only.
@@ -972,6 +1022,7 @@ export default class TranslatorManager {
           }
         }
         break;
+      }
       case MSG_TRANS_TOGGLE_ONLY:
         this._translator?.toggleTransOnly();
         publishRule = true;
@@ -1012,33 +1063,20 @@ export default class TranslatorManager {
         break;
       case MSG_FAB_TOGGLE: {
         if (this.#isIframe || this.#transboxOnly) break;
-        if (args?.fabConfig) {
-          this.#fabConfig = { ...this.#fabConfig, ...args.fabConfig };
+        if (args?.fabConfig && typeof args.fabConfig === "object") {
+          this.#fabConfig = normalizeFabConfig({
+            ...this.#fabConfig,
+            ...args.fabConfig,
+          });
         }
+        // 可见性只看本页配置。popup 传来的 enabled 不再决定显隐。
+        this.#applyFabVisibility();
         const href = window.location?.href || "";
-        const shouldShow =
-          typeof args?.enabled === "boolean"
-            ? args.enabled
-            : isFabVisible(href, this.#fabConfig);
-        if (shouldShow) {
-          const freshConfig = this.#cloneConfig(this.#fabConfig);
-          if (!this._fabManager) {
-            this._fabManager = new FabManager({
-              processActions: this.#processActions.bind(this),
-              fabConfig: freshConfig,
-              getSelectionEnabled: () =>
-                Boolean(this._transboxManager?.isEnabled()),
-              autoShow: false,
-            });
-          }
-          this._fabManager.show({ fabConfig: freshConfig });
-        } else {
-          this._fabManager?.destroy();
-          this._fabManager = null;
-        }
         return {
           ...this.#getRuntimeResponse(),
-          fabVisible: Boolean(this._fabManager?.isVisible),
+          fabVisible: isFabVisibilityHeld()
+            ? Boolean(this._fabManager)
+            : isFabVisible(href, this.#fabConfig),
           fabConfig: this.#cloneConfig(this.#fabConfig),
         };
       }

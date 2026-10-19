@@ -296,7 +296,8 @@ describe("Settings floating button appearance", () => {
   const updateFab = jest.fn();
   const visibility = {
     isHide: true,
-    hideExceptionList: "https://example.com/*",
+    hiddenSites: "https://example.com/*",
+    shownSites: "keep.example",
   };
 
   beforeEach(() => {
@@ -441,8 +442,11 @@ describe("Settings floating button appearance", () => {
           String(isHide)
         );
         expect(
-          container.querySelector('textarea[name="hideExceptionList"]').value
-        ).toBe(visibility.hideExceptionList);
+          container.querySelector('textarea[name="hiddenSites"]').value
+        ).toBe(visibility.hiddenSites);
+        expect(
+          container.querySelector('textarea[name="shownSites"]').value
+        ).toBe(visibility.shownSites);
       } finally {
         act(() => root.unmount());
       }
@@ -495,8 +499,11 @@ describe("Settings floating button appearance", () => {
           "true"
         );
         expect(
-          container.querySelector('textarea[name="hideExceptionList"]').value
-        ).toBe(visibility.hideExceptionList);
+          container.querySelector('textarea[name="hiddenSites"]').value
+        ).toBe(visibility.hiddenSites);
+        expect(
+          container.querySelector('textarea[name="shownSites"]').value
+        ).toBe(visibility.shownSites);
       } finally {
         act(() => root.unmount());
       }
@@ -554,8 +561,11 @@ describe("Settings floating button appearance", () => {
           "true"
         );
         expect(
-          container.querySelector('textarea[name="hideExceptionList"]').value
-        ).toBe(visibility.hideExceptionList);
+          container.querySelector('textarea[name="hiddenSites"]').value
+        ).toBe(visibility.hiddenSites);
+        expect(
+          container.querySelector('textarea[name="shownSites"]').value
+        ).toBe(visibility.shownSites);
       } finally {
         act(() => root.unmount());
       }

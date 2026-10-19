@@ -10,7 +10,13 @@ jest.mock("./browser", () => ({
   },
 }));
 
-const { sendTabMsg, sendTopFrameMsg } = require("./msg");
+const { MSG_TRANS_TOGGLE } = require("../config/msg");
+const {
+  sendTabMsg,
+  sendTopFrameMsg,
+  broadcastTranslateToggle,
+  MSG_NO_RECEIVER,
+} = require("./msg");
 
 describe("tab messaging targets", () => {
   beforeEach(() => {
@@ -136,6 +142,47 @@ describe("tab messaging targets", () => {
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
     }
   );
+
+  test("reports a missing content script instead of swallowing it", async () => {
+    mockSendMessage.mockRejectedValue(
+      new Error("Could not establish connection. Receiving end does not exist.")
+    );
+
+    await expect(sendTopFrameMsg("toggle_fab")).resolves.toEqual({
+      error: "Could not establish connection. Receiving end does not exist.",
+      code: MSG_NO_RECEIVER,
+    });
+  });
+
+  test("broadcasts the top frame translation target to the other frames", async () => {
+    mockSendMessage
+      .mockResolvedValueOnce({ rule: { transOpen: "false" } })
+      .mockResolvedValueOnce({ rule: { transOpen: "false" } });
+
+    await expect(broadcastTranslateToggle(29)).resolves.toEqual({
+      rule: { transOpen: "false" },
+    });
+    expect(mockSendMessage).toHaveBeenNthCalledWith(
+      1,
+      29,
+      { action: MSG_TRANS_TOGGLE, args: undefined },
+      { frameId: 0 }
+    );
+    expect(mockSendMessage).toHaveBeenNthCalledWith(2, 29, {
+      action: MSG_TRANS_TOGGLE,
+      args: { enabled: false },
+    });
+  });
+
+  test("does not guess a translation target when the top frame cannot answer", async () => {
+    mockSendMessage.mockResolvedValueOnce({
+      error: "Receiving end does not exist.",
+      code: MSG_NO_RECEIVER,
+    });
+
+    await broadcastTranslateToggle(29);
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+  });
 
   test("preserves the selected response when optional recipients disappear", async () => {
     const response = { document: { token: "displayed-document", frameId: 0 } };

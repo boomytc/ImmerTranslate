@@ -18,6 +18,20 @@ const mockPopupInstances = [];
 const mockFabInstances = [];
 const mockPopupDocumentIdentity = jest.fn();
 const activeManagers = [];
+const mockFabStorage = { listeners: [] };
+
+jest.mock("./storageState", () => ({
+  getStorageState: () => ({
+    subscribe(listener) {
+      mockFabStorage.listeners.push(listener);
+      return () => {
+        mockFabStorage.listeners = mockFabStorage.listeners.filter(
+          (item) => item !== listener
+        );
+      };
+    },
+  }),
+}));
 
 jest.mock("./popupDocument", () => ({
   getPopupDocumentIdentity: () => mockPopupDocumentIdentity(),
@@ -356,6 +370,7 @@ function sendRuntimeMessageAsync(message) {
 
 describe("TranslatorManager SPA lifecycle", () => {
   beforeEach(() => {
+    mockFabStorage.listeners = [];
     jest.useFakeTimers();
     document.documentElement.innerHTML = "<head></head><body></body>";
     jest.clearAllMocks();
@@ -790,7 +805,7 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
   });
 
-  test("keeps the legacy page translation toggle when no state is supplied", () => {
+  test("computes one target when no translation state is supplied", () => {
     const manager = createManager();
     manager.start();
 
@@ -798,9 +813,47 @@ describe("TranslatorManager SPA lifecycle", () => {
       browser.runtime.onMessage.addListener.mock.calls[0][0];
     runtimeHandler({ action: "trans-toggle" }, {}, jest.fn());
 
-    expect(mockTranslatorInstances[0].toggle).toHaveBeenCalledTimes(1);
-    expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
-    expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
+    expect(sendIframeMsg).not.toHaveBeenCalled();
+  });
+
+  test("forwards that target to child frames and they converge", () => {
+    const top = createManager({ rule: { transOpen: "true" } });
+    top.start();
+    const { processActions } = PopupManager.mock.calls.at(-1)[0];
+    processActions({ action: "trans-toggle" });
+    expect(sendIframeMsg).toHaveBeenCalledWith("trans-toggle", {
+      enabled: false,
+    });
+
+    const childOn = createManager({
+      isIframe: true,
+      rule: { transOpen: "true" },
+    });
+    childOn.start();
+    const childOff = createManager({
+      isIframe: true,
+      rule: { transOpen: "false" },
+    });
+    childOff.start();
+    const handlers = browser.runtime.onMessage.addListener.mock.calls;
+    handlers.at(-2)[0](
+      { action: "trans-toggle", args: { enabled: false } },
+      {},
+      jest.fn()
+    );
+    handlers.at(-1)[0](
+      { action: "trans-toggle", args: { enabled: false } },
+      {},
+      jest.fn()
+    );
+
+    expect(mockTranslatorInstances.at(-2).disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances.at(-1).disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances.at(-2).toggle).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances.at(-1).enable).not.toHaveBeenCalled();
+    expect(mockTranslatorInstances.at(-1).toggle).not.toHaveBeenCalled();
   });
 
   test("applies explicit feature states without flipping them on replay", () => {
@@ -957,7 +1010,8 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(response.error).toBeUndefined();
       expect(response.isTopFrame).toBe(false);
     }
-    expect(mockTranslatorInstances[0].toggle).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
     expect(mockTransboxInstances[0].toggle).toHaveBeenCalledTimes(1);
     expect(mockTranslatorInstances[0].toggleMouseHover).toHaveBeenCalledTimes(
       1
@@ -1203,7 +1257,8 @@ describe("TranslatorManager SPA lifecycle", () => {
       await expect(response).resolves.toMatchObject({
         document: { token: "current-document" },
       });
-      expect(mockTranslatorInstances[0].toggle).toHaveBeenCalledTimes(1);
+      expect(mockTranslatorInstances[0].disable).toHaveBeenCalledTimes(1);
+      expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
       expect(sendIframeMsg).not.toHaveBeenCalled();
     }
   );
@@ -1500,21 +1555,25 @@ describe("TranslatorManager SPA lifecycle", () => {
   });
 
   describe("MSG_FAB_TOGGLE handling", () => {
-    test("destroys FabManager when enabled is false and preserves in-memory isHide", () => {
+    test("hides from the saved site list and ignores a contradictory enabled flag", () => {
       const manager = createManager();
       manager.start();
       const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
       const reply = jest.fn();
 
-      // Initial state: FabManager was created on start
       expect(mockFabInstances.length).toBe(1);
       const initialFab = mockFabInstances[0];
 
-      // Send MSG_FAB_TOGGLE with enabled: false (e.g. site-level hide)
       handler(
         {
           action: "toggle_fab",
-          args: { enabled: false },
+          args: {
+            enabled: true,
+            fabConfig: {
+              isHide: false,
+              hiddenSites: window.location.hostname,
+            },
+          },
         },
         {},
         reply
@@ -1524,7 +1583,10 @@ describe("TranslatorManager SPA lifecycle", () => {
       expect(reply).toHaveBeenCalledWith(
         expect.objectContaining({
           fabVisible: false,
-          fabConfig: expect.objectContaining({ isHide: false }),
+          fabConfig: expect.objectContaining({
+            isHide: false,
+            hiddenSites: window.location.hostname,
+          }),
         })
       );
     });
@@ -1535,9 +1597,13 @@ describe("TranslatorManager SPA lifecycle", () => {
       const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
       const reply = jest.fn();
 
-      // Destroy first
       handler(
-        { action: "toggle_fab", args: { enabled: false } },
+        {
+          action: "toggle_fab",
+          args: {
+            fabConfig: { hiddenSites: window.location.hostname },
+          },
+        },
         {},
         jest.fn()
       );
@@ -1546,7 +1612,10 @@ describe("TranslatorManager SPA lifecycle", () => {
       handler(
         {
           action: "toggle_fab",
-          args: { enabled: true, fabConfig: { isHide: false, size: 64 } },
+          args: {
+            enabled: false,
+            fabConfig: { isHide: false, hiddenSites: "", size: 64 },
+          },
         },
         {},
         reply
@@ -1592,7 +1661,8 @@ describe("TranslatorManager SPA lifecycle", () => {
       const handler = browser.runtime.onMessage.addListener.mock.calls[0][0];
       const hiddenConfig = {
         isHide: false,
-        hideExceptionList: window.location.hostname,
+        hiddenSites: window.location.hostname,
+        shownSites: "",
       };
 
       // Keep the mounted undo bar while making the saved policy authoritative.
@@ -1605,7 +1675,9 @@ describe("TranslatorManager SPA lifecycle", () => {
         jest.fn()
       );
       manager.restart("during-fab-undo-window");
-      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toEqual(hiddenConfig);
+      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toMatchObject(
+        hiddenConfig
+      );
 
       handler(
         {
@@ -1616,9 +1688,11 @@ describe("TranslatorManager SPA lifecycle", () => {
         jest.fn()
       );
       manager.restart("after-fab-undo-window");
-      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toEqual(hiddenConfig);
+      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toMatchObject(
+        hiddenConfig
+      );
 
-      const restoredConfig = { ...hiddenConfig, hideExceptionList: "" };
+      const restoredConfig = { ...hiddenConfig, hiddenSites: "" };
       handler(
         {
           action: "toggle_fab",
@@ -1628,7 +1702,47 @@ describe("TranslatorManager SPA lifecycle", () => {
         jest.fn()
       );
       manager.restart("after-fab-undo");
-      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toEqual(restoredConfig);
+      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toMatchObject(
+        restoredConfig
+      );
+    });
+
+    test("follows STOKEY_FAB, uses it on restart, and unsubscribes on stop", () => {
+      const manager = createManager();
+      manager.start();
+      const listener = mockFabStorage.listeners.at(-1);
+      expect(typeof listener).toBe("function");
+
+      listener({
+        data: {
+          isHide: false,
+          hiddenSites: window.location.hostname,
+          shownSites: "",
+          size: 40,
+        },
+        isLoading: false,
+      });
+      expect(mockFabInstances[0].destroy).toHaveBeenCalledTimes(1);
+
+      listener({
+        isLoading: true,
+        data: { isHide: true, shownSites: window.location.hostname },
+      });
+      expect(mockFabInstances).toHaveLength(1);
+
+      manager.restart("after-storage-change");
+      expect(FabManager.mock.calls.at(-1)[0].fabConfig).toMatchObject({
+        hiddenSites: window.location.hostname,
+        size: 40,
+      });
+
+      manager.stop();
+      expect(mockFabStorage.listeners).not.toContain(listener);
+
+      const iframe = createManager({ isIframe: true });
+      iframe.start();
+      expect(mockFabStorage.listeners).toHaveLength(0);
+      iframe.stop();
     });
   });
 });

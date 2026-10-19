@@ -12,7 +12,7 @@ import {
   STOKEY_FAB,
   STOKEY_RULES,
 } from "../../config";
-import { DEFAULT_FAB } from "../../config/fab";
+import { DEFAULT_FAB, applyFabSitePolicy } from "../../config/fab";
 import * as storageStateModule from "../../libs/storageState";
 import { getStorageState } from "../../libs/storageState";
 import { saveRule } from "../../libs/rules";
@@ -73,6 +73,25 @@ jest.mock("../../libs/modelList", () => ({
   })),
 }));
 
+function pageReply(message) {
+  if (message?.action === MSG_FAB_TOGGLE) {
+    return {
+      fabVisible:
+        typeof message.args?.enabled === "boolean"
+          ? message.args.enabled
+          : true,
+    };
+  }
+  if (message?.action === MSG_TRANSBOX_TOGGLE) {
+    return {
+      setting: {
+        tranboxSetting: { transOpen: Boolean(message.args?.enabled) },
+      },
+    };
+  }
+  return { ok: true };
+}
+
 async function flushEffects() {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -130,7 +149,7 @@ function renderPopup(props = {}) {
     setting: baseSetting,
     setRule: jest.fn(),
     handleOpenSetting: jest.fn(),
-    processActions: jest.fn(async () => ({ ok: true })),
+    processActions: jest.fn(pageReply),
     targetTab: { id: 1, url: "https://example.com/page" },
     documentInfo: { frameId: 0, token: "doc-1" },
     ...props,
@@ -159,7 +178,8 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     await fabState.save({
       ...DEFAULT_FAB,
       isHide: false,
-      hideExceptionList: "",
+      hiddenSites: "",
+      shownSites: "",
     });
   });
 
@@ -203,7 +223,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     });
 
     test("switching model triggers MSG_TRANS_SET_MODEL and updates settings", async () => {
-      const processActions = jest.fn(async () => ({ ok: true }));
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({
         processActions,
         rule: {
@@ -268,7 +288,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     });
 
     test("toggling global switch updates fab config and sends MSG_FAB_TOGGLE", async () => {
-      const processActions = jest.fn(async () => ({ ok: true }));
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({ processActions });
       await flushEffects();
 
@@ -293,8 +313,8 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       view.cleanup();
     });
 
-    test("clicking site exception button adds domain to hideExceptionList and updates button text", async () => {
-      const processActions = jest.fn(async () => ({ ok: true }));
+    test("clicking site exception button writes the same hostname entry as the floating menu", async () => {
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({ processActions });
       await flushEffects();
 
@@ -313,15 +333,22 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         args: expect.objectContaining({
           enabled: false,
           fabConfig: expect.objectContaining({
-            hideExceptionList: expect.stringContaining("example.com"),
+            hiddenSites: "example.com",
+            shownSites: "",
           }),
         }),
       });
+      expect(processActions.mock.calls[0][0].args.fabConfig).toEqual(
+        applyFabSitePolicy(
+          { ...DEFAULT_FAB, isHide: false, hiddenSites: "", shownSites: "" },
+          "https://example.com/page",
+          false
+        )
+      );
 
-      // After adding to hideExceptionList, button label toggles to show_fab_on_site
       expect(siteBtn.textContent).toBe("show_fab_on_site");
 
-      // Clicking again removes domain from hideExceptionList and restores FAB
+      // Clicking again removes the hostname and restores the button
       await act(async () => {
         siteBtn.click();
       });
@@ -332,7 +359,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         args: expect.objectContaining({
           enabled: true,
           fabConfig: expect.objectContaining({
-            hideExceptionList: "",
+            hiddenSites: "",
           }),
         }),
       });
@@ -342,7 +369,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     });
 
     test("clicking size preset chip updates fab size and sends MSG_FAB_TOGGLE", async () => {
-      const processActions = jest.fn(async () => ({ ok: true }));
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({ processActions });
       await flushEffects();
 
@@ -369,7 +396,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     });
 
     test("renders selection translation switch and toggles MSG_TRANSBOX_TOGGLE", async () => {
-      const processActions = jest.fn(async () => ({ ok: true }));
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({ processActions });
       await flushEffects();
 
@@ -408,10 +435,11 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       // Set storage to global hidden
       await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
         isHide: true,
-        hideExceptionList: "",
+        hiddenSites: "",
+        shownSites: "",
       });
 
-      const processActions = jest.fn(async () => ({ ok: true }));
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({ processActions });
       await flushEffects();
 
@@ -431,7 +459,8 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
           enabled: true,
           fabConfig: expect.objectContaining({
             isHide: true,
-            hideExceptionList: expect.stringContaining("example.com"),
+            hiddenSites: "",
+            shownSites: "example.com",
           }),
         }),
       });
@@ -440,19 +469,20 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       // Reset storage back
       await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
         isHide: false,
-        hideExceptionList: "",
+        hiddenSites: "",
+        shownSites: "",
       });
       view.cleanup();
     });
 
-    test("when hideExceptionList contains wildcard matching current site, site button shows FAB and cleans matching rule", async () => {
-      // Set storage to global visible with wildcard rule
+    test("when hiddenSites contains a wildcard matching the current site, the site button shows the FAB and removes that entry", async () => {
       await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
         isHide: false,
-        hideExceptionList: "*.example.com",
+        hiddenSites: "*.example.com",
+        shownSites: "",
       });
 
-      const processActions = jest.fn(async () => ({ ok: true }));
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({
         processActions,
         targetTab: { id: 1, url: "https://sub.example.com/page" },
@@ -476,7 +506,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         args: expect.objectContaining({
           enabled: true,
           fabConfig: expect.objectContaining({
-            hideExceptionList: "",
+            hiddenSites: "",
           }),
         }),
       });
@@ -485,7 +515,8 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       // Reset storage back
       await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
         isHide: false,
-        hideExceptionList: "",
+        hiddenSites: "",
+        shownSites: "",
       });
       view.cleanup();
     });
@@ -503,7 +534,8 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       const persistedFab = {
         ...DEFAULT_FAB,
         isHide: true,
-        hideExceptionList: "",
+        hiddenSites: "",
+        shownSites: "",
       };
       const persistedRules = [
         { pattern: "*", transOpen: "true" },
@@ -632,7 +664,7 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     });
 
     test("selecting site policy saves rule and dispatches MSG_TRANS_TOGGLE if state changes", async () => {
-      const processActions = jest.fn(async () => ({ ok: true }));
+      const processActions = jest.fn(pageReply);
       const view = renderPopup({
         processActions,
         rule: {
@@ -670,6 +702,221 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
 
       view.cleanup();
     });
+  });
+
+  test("rolls the FAB switch back when the page replies with an error", async () => {
+    const processActions = jest.fn(async () => ({
+      error: "Page controls are paused while the rule editor is open.",
+    }));
+    const view = renderPopup({ processActions });
+    await flushEffects();
+    const globalSwitch = view.container.querySelector(
+      'input[aria-label="fab_global_switch"]'
+    );
+    expect(globalSwitch.checked).toBe(true);
+
+    await act(async () => {
+      globalSwitch.click();
+    });
+    await flushEffects();
+
+    expect(globalSwitch.checked).toBe(true);
+    const stored = getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data;
+    expect(stored.isHide).toBe(false);
+    expect(
+      view.container.querySelector('[role="alert"]').textContent
+    ).toContain("popup_action_failed");
+    view.cleanup();
+  });
+
+  test("keeps the second FAB click when the first page reply fails", async () => {
+    let resolveFirst;
+    let calls = 0;
+    const processActions = jest.fn((message) => {
+      calls += 1;
+      if (calls === 1) {
+        return new Promise((resolve) => {
+          resolveFirst = () =>
+            resolve({
+              error: "Page controls are paused while the rule editor is open.",
+            });
+        });
+      }
+      return pageReply(message);
+    });
+    const view = renderPopup({ processActions });
+    await flushEffects();
+    const globalSwitch = view.container.querySelector(
+      'input[aria-label="fab_global_switch"]'
+    );
+
+    await act(async () => {
+      globalSwitch.click();
+    });
+    await flushEffects();
+    expect(globalSwitch.checked).toBe(false);
+    expect(getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data.isHide).toBe(
+      true
+    );
+
+    await act(async () => {
+      globalSwitch.click();
+    });
+    await flushEffects();
+    expect(globalSwitch.checked).toBe(true);
+    expect(getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data.isHide).toBe(
+      false
+    );
+
+    await act(async () => {
+      resolveFirst();
+    });
+    await flushEffects();
+
+    const stored = getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data;
+    expect(stored.isHide).toBe(false);
+    expect(globalSwitch.checked).toBe(true);
+    expect(
+      view.container.querySelector('[role="alert"]').textContent
+    ).toContain("popup_action_failed");
+    view.cleanup();
+  });
+
+  test("keeps another tab's FAB edits when this change rolls back", async () => {
+    let resolveReply;
+    const processActions = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveReply = () =>
+            resolve({
+              error: "Page controls are paused while the rule editor is open.",
+            });
+        })
+    );
+    const view = renderPopup({
+      processActions,
+      targetTab: { id: 1, url: "https://example.com/page" },
+    });
+    await flushEffects();
+    const siteBtn = view.container.querySelector(
+      ".kt-popup-fab-control__site-btn"
+    );
+
+    await act(async () => {
+      siteBtn.click();
+    });
+    await flushEffects();
+    expect(
+      getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data.hiddenSites
+    ).toBe("example.com");
+
+    await act(async () => {
+      await getStorageState(STOKEY_FAB, DEFAULT_FAB).save((current) => ({
+        ...current,
+        hiddenSites: `${current.hiddenSites}\nother.com`,
+        x: 12,
+        y: 40,
+      }));
+    });
+    await flushEffects();
+
+    await act(async () => {
+      resolveReply();
+    });
+    await flushEffects();
+
+    const stored = getStorageState(STOKEY_FAB, DEFAULT_FAB).snapshot.data;
+    expect(stored.hiddenSites).toBe("other.com");
+    expect(stored.x).toBe(12);
+    expect(stored.y).toBe(40);
+    expect(stored.isHide).toBe(false);
+    expect(siteBtn.textContent).toBe("hide_fab_on_site");
+    view.cleanup();
+  });
+
+  test("disables FAB controls until the page URL is ready", async () => {
+    let resolveTab;
+    mockGetCurTab.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTab = resolve;
+      })
+    );
+    const view = renderPopup({ targetTab: undefined });
+    const globalSwitch = view.container.querySelector(
+      'input[aria-label="fab_global_switch"]'
+    );
+    const sizeChip = view.container.querySelector(
+      ".kt-popup-fab-control__size-chip"
+    );
+    expect(globalSwitch.disabled).toBe(true);
+    expect(sizeChip.disabled).toBe(true);
+
+    await act(async () => {
+      resolveTab({ url: "https://example.com/ready" });
+    });
+    await flushEffects();
+    expect(globalSwitch.disabled).toBe(false);
+    expect(sizeChip.disabled).toBe(false);
+    view.cleanup();
+  });
+
+  test("echoes selection translation from the page reply and rolls it back on error", async () => {
+    const processActions = jest.fn(async (message) => {
+      if (message.action === MSG_TRANSBOX_TOGGLE) {
+        return {
+          setting: { tranboxSetting: { transOpen: message.args.enabled } },
+        };
+      }
+      return pageReply(message);
+    });
+    const view = renderPopup({ processActions });
+    await flushEffects();
+    const selectionSwitch = view.container.querySelector(
+      'input[aria-label="selection_translate"]'
+    );
+    expect(selectionSwitch.checked).toBe(true);
+
+    await act(async () => {
+      selectionSwitch.click();
+    });
+    await flushEffects();
+    expect(selectionSwitch.checked).toBe(false);
+    expect(mockUpdateSetting).toHaveBeenCalled();
+    const persisted = mockUpdateSetting.mock.calls.at(-1)[0]({
+      tranboxSetting: { transOpen: true },
+    });
+    expect(persisted.tranboxSetting.transOpen).toBe(false);
+
+    processActions.mockImplementation(async () => ({
+      error: "Page controls are paused while the rule editor is open.",
+    }));
+    await act(async () => {
+      selectionSwitch.click();
+    });
+    await flushEffects();
+    expect(selectionSwitch.checked).toBe(false);
+    expect(
+      view.container.querySelector('[role="alert"]').textContent
+    ).toContain("popup_action_failed");
+    view.cleanup();
+  });
+
+  test("marks selection translation when this site is on the tranbox blacklist", async () => {
+    mockContextSetting = {
+      blacklist: "",
+      tranboxSetting: { transOpen: true, blacklist: "*.example.com" },
+    };
+    const view = renderPopup({
+      targetTab: { id: 1, url: "https://sub.example.com/page" },
+      setting: {
+        tranboxSetting: { transOpen: true, blacklist: "*.example.com" },
+      },
+    });
+    await flushEffects();
+    expect(view.container.textContent).toContain(
+      "selection_translate_site_blocked"
+    );
+    view.cleanup();
   });
 
   describe("Footer perception and settings button", () => {

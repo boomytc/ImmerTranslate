@@ -16,6 +16,7 @@ import { runSubtitle } from "./subtitle/subtitle";
 import { logger } from "./libs/log";
 import { injectInlineJs } from "./libs/injector";
 import TranslatorManager from "./libs/translatorManager";
+import { normalizeFabConfig } from "./config/fab";
 
 /**
  * 油猴脚本特权桥接设置。
@@ -301,9 +302,9 @@ export async function run(isUserscript = false) {
     const ruleHref = readRedditEmbeddingHref(window, isIframe) || href;
     const rule = await matchRule(ruleHref, setting);
     const favWords = await getFavWords(rule);
-    // 保留存储里的全局配置。页面是否显示由 isFabVisible 统一计算，
-    // 这里再反转 isHide 会把站点特例套用第二次。
-    const fabConfig = { ...(await getFabWithDefault()) };
+    // 读出的配置已经是 hiddenSites / shownSites。页面是否显示由 isFabVisible
+    // 按当前网址计算，这里不再改写 isHide。
+    const fabConfig = normalizeFabConfig(await getFabWithDefault());
 
     // 8. 创建翻译调度器管理器并启动
     const translatorManager = new TranslatorManager({
