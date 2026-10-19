@@ -1314,11 +1314,7 @@ export class Translator {
     if (!termsString || typeof termsString !== "string") return;
 
     // 纯函数解析：按 key.length 降序、同 key 去重、非法正则收集。
-    // fast 模式跳过跨术语 O(n²) 冲突分析，避免阻塞 Translator 初始化；
-    // 跨术语 conflicting-pattern 诊断由 Playground / CLI 的完整模式负责。
-    const { terms, invalid, diagnostics, hasErrors } = parseTerms(termsString, {
-      fullDiagnostics: false,
-    });
+    const { terms, invalid, diagnostics, hasErrors } = parseTerms(termsString);
 
     if (invalid.length > 0) {
       invalid.forEach(({ key, error }) =>
@@ -1326,7 +1322,7 @@ export class Translator {
       );
     }
 
-    // 保留诊断与 hasErrors 日志（供 Playground / 控制台排查），但不再因任一非法段
+    // 保留诊断与 hasErrors 日志，但不再因任一非法段
     // 禁用整份术语：parseTerms 已逐条排除非法项，返回的 terms 是可安全应用的合法集合。
     if (hasErrors) {
       kissLog("Term parse errors (legal terms still applied): ", diagnostics);
