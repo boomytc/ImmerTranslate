@@ -11,6 +11,7 @@ import {
   OPT_STYLE_NONE,
   DEFAULT_API_SETTING,
   DEFAULT_MOUSE_HOVER_BUBBLE_STYLE,
+  OPT_TRANS_MICROSOFT,
   DEFAULT_MOUSE_HOVER_HOLD_DELAY,
   OPT_HIGHLIGHT_WORDS_BEFORETRANS,
   OPT_HIGHLIGHT_WORDS_AFTERTRANS,
@@ -65,7 +66,7 @@ import {
 import { createLoadingSVG, createRetrySVG } from "./svg";
 import { shortcutRegister } from "./shortcut";
 import { tryDetectLang } from "./detect";
-import { isSameTranslationLanguage } from "./language";
+import { isSameTranslationLanguage, normalizeLanguageCode } from "./language";
 import { trustedTypesHelper } from "./trustedTypes";
 import { injectJs, INJECTOR } from "../injectors";
 import { injectInternalCss, INJECT_SOURCE_PREFIX } from "./injector";
@@ -86,6 +87,25 @@ import { visitTranslationTargets } from "./translationTargets";
  */
 // Only wrappers created by this runtime are trusted across instance recreation.
 const touchTranslationOwners = new WeakMap();
+
+// 源语言为自动时，普通文本共用一个批量键，少发请求。
+// 这只减少请求次数，不能掩盖网络失败。
+// 同一基础语言的不同变体（zh-TW → zh-CN）不能并进 from 为空的批次。
+const microsoftAutoBatchFromLang = (deLang, toLang, translateVariants) => {
+  if (deLang && translateVariants !== false) {
+    const source = normalizeLanguageCode(deLang);
+    const target = normalizeLanguageCode(toLang);
+    if (
+      source &&
+      target &&
+      source !== target &&
+      source.split("-")[0] === target.split("-")[0]
+    ) {
+      return deLang;
+    }
+  }
+  return "auto";
+};
 
 function normalizeBubbleStyle(style) {
   return String(style || "")
@@ -4344,8 +4364,19 @@ overflow-wrap: anywhere !important;`;
     apiSettingOverride = null
   ) {
     const { toLang } = this.#rule;
-    const fromLang = deLang || this.#rule.fromLang;
     const rawApiSetting = { ...(apiSettingOverride || this.#apiSetting) };
+    // 微软在源语言为自动时按段检测。短标题经常没有本地检测结果，
+    // 若把已检出的段落语言写进批量键，标题会多占一次请求。
+    // 这里把普通文本收成 auto，只为少发请求。简繁变体仍保留检出的源语言。
+    const fromLang =
+      this.#rule.fromLang === "auto" &&
+      rawApiSetting.apiType === OPT_TRANS_MICROSOFT
+        ? microsoftAutoBatchFromLang(
+            deLang,
+            toLang,
+            this.#setting.translateVariants
+          )
+        : deLang || this.#rule.fromLang;
 
     const apiSetting = resolveApiPromptSettings(
       rawApiSetting,
