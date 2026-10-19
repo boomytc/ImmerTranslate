@@ -10,7 +10,6 @@ import { readRedditEmbeddingHref } from "./libs/redditFrame";
 import { genEventName } from "./libs/utils";
 import { handlePing, injectScript } from "./libs/gm";
 import { matchRule } from "./libs/rules";
-import { trySyncAllSubRules } from "./libs/subRules";
 import { isInBlacklist } from "./libs/blacklist";
 import { runSubtitle } from "./subtitle/subtitle";
 import { logger } from "./libs/log";
@@ -19,31 +18,15 @@ import TranslatorManager from "./libs/translatorManager";
 import { normalizeFabConfig } from "./config/fab";
 
 /**
- * 油猴脚本特权桥接设置。
- * 当用户在浏览器中打开插件设置页时（打包后的 options.html 或是 dev 调试页面），
- * 该函数负责把油猴特权 GM 接口暴露给页面环境，以便设置页面能直接读写油猴配置项。
+ * 设置页始终通过页面事件和内联脚本跟 GM 通信。
  */
 function runSettingPage() {
-  // 若油猴实际提供了 unsafeWindow (直通宿主 window 权限)，则直接挂载
-  if (hasUnsafeWindowBridge()) {
-    unsafeWindow.GM = GM;
-    unsafeWindow.APP_INFO = {
-      name: process.env.REACT_APP_NAME,
-      version: process.env.REACT_APP_VERSION,
-    };
-  } else {
-    // 否则，回退到注册 CustomEvent 监听器进行间接通信代理
-    const ping = genEventName();
-    window.addEventListener(ping, handlePing);
-    injectInlineJs(
-      `(${injectScript})("${ping}")`,
-      `${APP_LCNAME}-options-injector`
-    );
-  }
-}
-
-function hasUnsafeWindowBridge() {
-  return typeof unsafeWindow !== "undefined";
+  const ping = genEventName();
+  window.addEventListener(ping, handlePing);
+  injectInlineJs(
+    `(${injectScript})("${ping}")`,
+    `${APP_LCNAME}-options-injector`
+  );
 }
 
 /**
@@ -325,11 +308,6 @@ export async function run(isUserscript = false) {
 
     // 10. 启动视频字幕翻译子模块 (仅在顶级 frame 下运行)
     runSubtitle({ href, setting, rule, isUserscript });
-
-    // 11. 在油猴环境下，每次进入顶级页面时尝试触发一次订阅规则的自动同步检查 (每日一次)
-    if (isUserscript) {
-      trySyncAllSubRules(setting);
-    }
   } catch (err) {
     console.error("[ImmerTranslate]", err);
     showErr(err.message); // 向前台页面绘制报错 Banner，便于用户感知与排查问题

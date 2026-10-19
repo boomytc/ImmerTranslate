@@ -16,11 +16,10 @@ jest.mock("./detect", () => ({
   tryDetectLang: jest.fn(),
 }));
 
-import { Translator } from "./translator";
-import { tryDetectLang } from "./detect";
-import { clearAllBatchQueue } from "./batchQueue";
-import { clearFetchPool } from "./pool";
 import { DEFAULT_API_SETTING, I18N } from "../config";
+
+let Translator;
+let tryDetectLang;
 
 const H1 = "FAB visibility test page";
 const P1 =
@@ -125,10 +124,11 @@ describe("Microsoft page batches", () => {
   let dateNowSpy;
 
   beforeEach(() => {
+    jest.resetModules();
+    ({ Translator } = require("./translator"));
+    ({ tryDetectLang } = require("./detect"));
     jest.useFakeTimers();
-    // 任务池用 Date.now() 计算启动间隔，并且实例跨测试保留。
-    // 假时间各自从真实时间起算时，上一个测试推进过的时间会落在未来，
-    // 把下一次请求的间隔拉长，重试就停在加载动画上。这里把 Date.now 固定住。
+    // 任务池用 Date.now() 计算启动间隔。假时间往前走时，下一次请求会被排到未来。
     dateNowSpy = jest.spyOn(Date, "now").mockReturnValue(Date.now());
     document.documentElement.innerHTML = "<head></head><body></body>";
     tryDetectLang.mockImplementation(async (text) =>
@@ -155,12 +155,8 @@ describe("Microsoft page batches", () => {
   afterEach(() => {
     const translators = created.splice(0);
     translators.forEach((translator) => translator.stop());
-    clearFetchPool();
-    clearAllBatchQueue();
-    jest.runOnlyPendingTimers();
+    jest.clearAllTimers();
     translators.forEach((translator) => translator.stop());
-    clearFetchPool();
-    clearAllBatchQueue();
     dateNowSpy.mockRestore();
     global.fetch = originalFetch;
     global.IntersectionObserver = originalIntersectionObserver;

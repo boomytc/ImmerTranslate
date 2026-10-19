@@ -661,6 +661,45 @@ describe("apiTranslate prompt queue isolation", () => {
     );
   });
 
+  test("includes batch interval, size, and length in the queue key", async () => {
+    const translate = (batchInterval, batchSize, batchLength) =>
+      apiTranslate({
+        text: "hello",
+        fromLang: "en",
+        toLang: "zh-CN",
+        apiSetting: {
+          ...getOpenAiApiSetting("batch prompt A"),
+          batchInterval,
+          batchSize,
+          batchLength,
+        },
+        useCache: false,
+      });
+
+    await translate(100, 5, 1000);
+    await translate(100, 5, 1000);
+    await translate(200, 5, 1000);
+    await translate(100, 8, 1000);
+    await translate(100, 5, 2000);
+
+    const queueKeys = getBatchQueue.mock.calls.map(([key]) => key);
+    expect(queueKeys[0]).toBe(queueKeys[1]);
+    expect(queueKeys[0]).toContain("_100_5_1000_");
+    expect(queueKeys[2]).toContain("_200_5_1000_");
+    expect(queueKeys[3]).toContain("_100_8_1000_");
+    expect(queueKeys[4]).toContain("_100_5_2000_");
+    expect(new Set(queueKeys)).toEqual(
+      new Set([queueKeys[0], queueKeys[2], queueKeys[3], queueKeys[4]])
+    );
+    expect(getBatchQueue.mock.calls[2][2]).toEqual(
+      expect.objectContaining({
+        batchInterval: 200,
+        batchSize: 5,
+        batchLength: 1000,
+      })
+    );
+  });
+
   test("forces batch concurrency to one for context sessions", async () => {
     await apiTranslate({
       text: "hello",

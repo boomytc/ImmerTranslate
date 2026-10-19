@@ -37,7 +37,6 @@ import {
   newI18n,
 } from "../config";
 import { resolveApiPromptSettings } from "../config/prompt";
-import { clearFetchPool } from "./pool";
 import { debounce, scheduleIdle, genEventName, parseAITerms } from "./utils";
 import {
   parseTerms,
@@ -49,7 +48,6 @@ import { escapeHTML } from "./html";
 import { parseMathInText } from "./mathParse";
 import { apiMicrosoftDict, apiTranslate, apiYoudaoDict } from "../apis";
 import { kissLog } from "./log";
-import { clearAllBatchQueue } from "./batchQueue";
 import { builtinStylesMap, genTextClass } from "./style";
 import {
   applyInlineCss,
@@ -408,6 +406,7 @@ export class Translator {
   #mouseHoverEnabled = false; // 鼠标悬停翻译
   #enabled = false; // 全局默认状态
   #runId = 0; // 用于中止过期的异步请求
+  #requestAbortController = new AbortController(); // 只取消本实例发出的翻译请求
 
   #transOnlyRevertTimer = null;
   #transOnlyRevertTarget = null;
@@ -1311,11 +1310,7 @@ export class Translator {
     if (!termsString || typeof termsString !== "string") return;
 
     // 纯函数解析：按 key.length 降序、同 key 去重、非法正则收集。
-    // fast 模式跳过跨术语 O(n²) 冲突分析，避免阻塞 Translator 初始化；
-    // 跨术语 conflicting-pattern 诊断由 Playground / CLI 的完整模式负责。
-    const { terms, invalid, diagnostics, hasErrors } = parseTerms(termsString, {
-      fullDiagnostics: false,
-    });
+    const { terms, invalid, diagnostics, hasErrors } = parseTerms(termsString);
 
     if (invalid.length > 0) {
       invalid.forEach(({ key, error }) =>
@@ -1323,7 +1318,7 @@ export class Translator {
       );
     }
 
-    // 保留诊断与 hasErrors 日志（供 Playground / 控制台排查），但不再因任一非法段
+    // 保留诊断与 hasErrors 日志，但不再因任一非法段
     // 禁用整份术语：parseTerms 已逐条排除非法项，返回的 terms 是可安全应用的合法集合。
     if (hasErrors) {
       kissLog("Term parse errors (legal terms still applied): ", diagnostics);
@@ -4327,6 +4322,7 @@ overflow-wrap: anywhere !important;`;
       onStreamChunk,
       textFormat: "html",
       translateVariants: this.#setting.translateVariants,
+      signal: this.#requestAbortController.signal,
     };
 
     return apiTranslate(args);
@@ -5114,6 +5110,13 @@ overflow-wrap: anywhere !important;`;
     }
   }
 
+  // 中止本实例这一轮翻译请求，并换一个信号给下一轮。
+  // 请求池和批队列还服务划词、输入框和字幕，不能在这里清空。
+  #cancelOwnRequests() {
+    this.#requestAbortController.abort();
+    this.#requestAbortController = new AbortController();
+  }
+
   // 关闭翻译
   disable() {
     if (!this.#enabled) return;
@@ -5124,8 +5127,7 @@ overflow-wrap: anywhere !important;`;
     this.#holdGeneration += 1;
 
     this.#cleanupAllNodes();
-    clearFetchPool();
-    clearAllBatchQueue();
+    this.#cancelOwnRequests();
 
     // 恢复页面标题
     if (this.#rule.transTitle === "true" && this.#docInfo.title) {
@@ -5135,7 +5137,9 @@ overflow-wrap: anywhere !important;`;
     isExt && sendBgMsg(MSG_UPDATE_ICON, false);
   }
 
-  // 重新扫描页面
+  // 重新扫描页面。
+  // preInit 默认开启时，全文翻译从未打开也会先完成初始化，SPA 事件同样进到这里。
+  // 无论当前是否正在翻译，都只取消本实例的请求。
   rescan() {
     if (!this.#isInitialized || this.#editorPaused) return;
     this.#runId++;
@@ -5144,8 +5148,7 @@ overflow-wrap: anywhere !important;`;
 
     this.#cleanupAllNodes();
     this.#resetOptions();
-    clearFetchPool();
-    clearAllBatchQueue();
+    this.#cancelOwnRequests();
 
     // 重新初始化
     this.#init();

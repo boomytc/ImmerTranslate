@@ -4,14 +4,13 @@ import {
   OPT_SYNCTYPE_ALL,
   OPT_SYNCTYPE_GIST,
   OPT_SYNCTYPE_WEBDAV,
-  OPT_SYNCTYPE_WORKER,
 } from "../../config";
 import { changeSyncEncryptKey } from "../../libs/sync";
 import SyncSetting from "./SyncSetting";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-let mockInitialSyncType = OPT_SYNCTYPE_WORKER;
+let mockInitialSyncType = OPT_SYNCTYPE_WEBDAV;
 let mockInitialEncryptKey = "";
 const mockUpdateSync = jest.fn();
 
@@ -119,7 +118,6 @@ describe("SyncSetting method selection", () => {
 
     expect(view.radios()).toHaveLength(OPT_SYNCTYPE_ALL.length);
     expect(view.radioFor(OPT_SYNCTYPE_WEBDAV).tabIndex).toBe(0);
-    expect(view.radioFor(OPT_SYNCTYPE_WORKER).tabIndex).toBe(-1);
     expect(view.radioFor(OPT_SYNCTYPE_GIST).tabIndex).toBe(-1);
 
     view.unmount();
@@ -127,13 +125,13 @@ describe("SyncSetting method selection", () => {
 
   test.each([
     ["ArrowRight", OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_GIST],
-    ["ArrowRight", OPT_SYNCTYPE_GIST, OPT_SYNCTYPE_WORKER],
+    ["ArrowRight", OPT_SYNCTYPE_GIST, OPT_SYNCTYPE_WEBDAV],
     ["ArrowDown", OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_GIST],
-    ["ArrowLeft", OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_WORKER],
-    ["ArrowLeft", OPT_SYNCTYPE_WORKER, OPT_SYNCTYPE_GIST],
-    ["ArrowUp", OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_WORKER],
-    ["Home", OPT_SYNCTYPE_GIST, OPT_SYNCTYPE_WORKER],
-    ["End", OPT_SYNCTYPE_WORKER, OPT_SYNCTYPE_GIST],
+    ["ArrowLeft", OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_GIST],
+    ["ArrowLeft", OPT_SYNCTYPE_GIST, OPT_SYNCTYPE_WEBDAV],
+    ["ArrowUp", OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_GIST],
+    ["Home", OPT_SYNCTYPE_GIST, OPT_SYNCTYPE_WEBDAV],
+    ["End", OPT_SYNCTYPE_WEBDAV, OPT_SYNCTYPE_GIST],
   ])(
     "%s focuses and selects the target method",
     (key, initialSyncType, expectedSyncType) => {
@@ -158,16 +156,30 @@ describe("SyncSetting method selection", () => {
   );
 
   test("does not write when the selected method is clicked again", () => {
-    const view = renderSyncSetting(OPT_SYNCTYPE_WORKER);
+    const view = renderSyncSetting(OPT_SYNCTYPE_WEBDAV);
 
-    act(() => view.radioFor(OPT_SYNCTYPE_WORKER).click());
+    act(() => view.radioFor(OPT_SYNCTYPE_WEBDAV).click());
 
     expect(mockUpdateSync).not.toHaveBeenCalled();
     view.unmount();
   });
 
+  test("leaves a stored worker sync type unselected and unchanged", () => {
+    const view = renderSyncSetting("KISS-Worker");
+
+    expect(view.radios()).toHaveLength(2);
+    expect(
+      view.radioFor(OPT_SYNCTYPE_WEBDAV).getAttribute("aria-checked")
+    ).toBe("false");
+    expect(view.radioFor(OPT_SYNCTYPE_GIST).getAttribute("aria-checked")).toBe(
+      "false"
+    );
+    expect(mockUpdateSync).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
   test("keeps the encryption dialog named and width-safe", async () => {
-    const view = renderSyncSetting(OPT_SYNCTYPE_WORKER);
+    const view = renderSyncSetting(OPT_SYNCTYPE_WEBDAV);
     const openDialog = view.container.querySelector(
       'button[aria-label="data_sync_encrypt_key"]'
     );
@@ -197,15 +209,15 @@ describe("SyncSetting method selection", () => {
   });
 
   test("renders warnings merged into a single warning alert", () => {
-    const workerView = renderSyncSetting(OPT_SYNCTYPE_WORKER);
-    const warningAlerts = workerView.container.querySelectorAll(
+    const webdavView = renderSyncSetting(OPT_SYNCTYPE_WEBDAV);
+    const warningAlerts = webdavView.container.querySelectorAll(
       ".MuiAlert-standardWarning"
     );
     expect(warningAlerts).toHaveLength(1);
     expect(warningAlerts[0].textContent).toContain("sync_warn");
     expect(warningAlerts[0].textContent).toContain("sync_warn_2");
     expect(warningAlerts[0].textContent).not.toContain("sync_warn_gist");
-    workerView.unmount();
+    webdavView.unmount();
 
     const gistView = renderSyncSetting(OPT_SYNCTYPE_GIST);
     const gistWarningAlerts = gistView.container.querySelectorAll(
@@ -224,7 +236,7 @@ describe("SyncSetting method selection", () => {
     const rejected = new Error(rawCryptoMessage);
     rejected.code = "SYNC_DECRYPT_FAILED";
     changeSyncEncryptKey.mockRejectedValueOnce(rejected);
-    const view = renderSyncSetting(OPT_SYNCTYPE_WORKER, "current-passphrase");
+    const view = renderSyncSetting(OPT_SYNCTYPE_WEBDAV, "current-passphrase");
     const openDialog = view.container.querySelector(
       'button[aria-label="data_sync_encrypt_key"]'
     );

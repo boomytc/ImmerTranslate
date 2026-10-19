@@ -23,7 +23,6 @@ jest.mock("./rules", () => ({
 jest.mock("./browser", () => ({
   browser: { runtime: { sendMessage: jest.fn(() => Promise.resolve()) } },
 }));
-jest.mock("./subRules", () => ({ loadOrFetchSubRules: jest.fn() }));
 jest.mock("./sync", () => ({ trySyncRules: jest.fn() }));
 
 describe("page rule sync", () => {

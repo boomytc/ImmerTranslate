@@ -3,9 +3,6 @@ import {
   KV_RULES_KEY,
   MSG_EDIT_RULE,
   STOKEY_RULES,
-  STOKEY_SETTING,
-  STOKEY_RULESCACHE_PREFIX,
-  STOKEY_DISABLED_SUB_RULES,
 } from "../config";
 import {
   checkRules,
@@ -15,13 +12,7 @@ import {
   deriveRuleContext,
 } from "./rules";
 import { SELECTOR_FIELDS, splitSelectorList } from "./selectorList";
-import {
-  getSettingWithDefault,
-  normalizeStoredSetting,
-  withTransaction,
-} from "./storage";
-import { loadOrFetchSubRules } from "./subRules";
-import { kissLog } from "./log";
+import { withTransaction } from "./storage";
 import { trySyncRules } from "./sync";
 import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
@@ -30,10 +21,6 @@ import { getDomainOptions } from "./url";
 const EDITABLE_FIELDS = [...SELECTOR_FIELDS, "autoScan", "pattern"];
 let writeQueue = Promise.resolve();
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const selectedSource = (setting) =>
-  setting.injectRules
-    ? setting.subrulesList?.find((source) => source.selected)?.url || ""
-    : "";
 
 // In extensions this queue lives in the background, shared by all editor tabs.
 export function writeSiteRule({
@@ -65,39 +52,11 @@ export function writeSiteRule({
         throw new Error("invalid-patch");
     }
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const preparedSource = selectedSource(await getSettingWithDefault());
-      // Fetching may write the subscription cache, so it must precede the lock.
-      if (preparedSource) {
-        try {
-          await loadOrFetchSubRules(preparedSource);
-        } catch (error) {
-          kissLog("load injectRules", error);
-        }
-      }
       const context = await withTransaction(async (transaction) => {
-        const setting = normalizeStoredSetting(
-          await transaction.getObj(STOKEY_SETTING)
-        );
-        const source = selectedSource(setting);
-        // Prepare a newly selected source outside the transaction, then retry.
-        if (source !== preparedSource) return null;
-        const subRules = source
-          ? (await transaction.getObj(STOKEY_RULESCACHE_PREFIX + source)) || []
-          : [];
-        const disabled = source
-          ? (await transaction.getObj(STOKEY_DISABLED_SUB_RULES)) || {}
-          : {};
-        const dependencies = {
-          subRules,
-          disabledPatterns: Array.isArray(disabled[source])
-            ? disabled[source]
-            : [],
-        };
         const result = await transaction.saveEdit(
           STOKEY_RULES,
           (rules) => {
             const latest = deriveRuleContext(href, {
-              ...dependencies,
               personalRules: rules,
             });
             if (
@@ -150,7 +109,7 @@ export function writeSiteRule({
         );
         return deriveRuleContext(
           href,
-          { ...dependencies, personalRules: result.value },
+          { personalRules: result.value },
           pattern
         );
       });
