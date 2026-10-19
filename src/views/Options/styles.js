@@ -255,7 +255,7 @@ export const OPTIONS_STYLES = String.raw`
 .kt-test-connection { margin: 0; padding: 8px 12px; border-radius: var(--kt-radius-md, 12px); font-size: 12.5px; font-weight: 650; }
 .kt-test-connection--ok { color: var(--kt-grn, #146C2E); background: color-mix(in srgb, var(--kt-grn, #146C2E) 14%, transparent); }
 .kt-test-connection--fail { color: var(--kt-err, #B3261E); background: var(--kt-errc, #F9DEDC); }
-.kt-sync-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-block: 1px solid var(--kt-border, var(--kt-linev)); }
+.kt-sync-methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-block: 1px solid var(--kt-border, var(--kt-linev)); }
 .kt-sync-method { min-height: 116px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; border: 0; border-inline-start: 1px solid var(--kt-border, var(--kt-linev)); border-radius: 0; background: transparent; box-shadow: none; color: var(--kt-on); cursor: pointer; text-align: left; transition: border-color var(--kt-dur, .15s) var(--kt-ease, ease-out), box-shadow var(--kt-dur, .15s) var(--kt-ease, ease-out), transform var(--kt-dur, .15s) var(--kt-ease, ease-out); }
 .kt-sync-method:first-child { border-inline-start: 0; }
 .kt-sync-method:active { transform: scale(.98); }

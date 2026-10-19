@@ -1,11 +1,11 @@
 // 专业术语（terms）解析与替换纯函数模块
-// 无 DOM、无日志依赖，供 translator / Playground / CLI / 单元测试四方复用。
+// 无 DOM、无日志依赖，供 translator 与单元测试复用。
 //
 // 已知边界（设计裁定留档，统一计划 20260829 Task 7）：
 // - 灾难性回溯无超时：ECMAScript 没有正则执行超时 API（语言级约束），用户自写的
 //   病态正则（如嵌套量词 + 交错字面量）在极端输入上可能阻塞主线程。该风险的前置
 //   条件是用户亲手书写恶意正则（自伤而非攻击面），parseTerms 已拦截非法正则、空
-//   匹配与纯零宽模式，触发边界显著收敛；metaWarnings 引导转义降低误写概率。
+//   匹配与纯零宽模式，触发边界显著收敛。
 //   Worker 化可以把执行移出主线程，但会引入通信/生命周期/跨环境（油猴、Web、扩展）
 //   三套适配与序列化成本，相对"用户自伤"的风险量级属过度工程，裁定不采用。
 //
@@ -13,80 +13,25 @@
 // - 多条术语以换行或 ; 分隔；每条形如 key,value，key 与 value 用最后一个英文逗号分隔（key 本身允许含逗号）。
 // - key 按正则源码校验（new RegExp(key)），非法则跳过并收集进 invalid 数组（每项 { key, error }）。
 // - value 允许为空（= 不翻译，替换时保留原文并包裹标记）。"省略译文"的推荐写法是整段只写
-//   key（无逗号）；尾巴逗号 key, 同样按保留原文处理（非致命提醒，不阻断替换测试）。
+//   key（无逗号）；尾巴逗号 key, 同样按保留原文处理（非致命提醒，不阻断替换）。
 // - 相同 key 只保留首次出现；按 key.length 降序排序。
 // - 匹配语义：key 一律按正则源码包装为 (key) 参与 alternation，无单词边界，
 //   术语在原文任意位置（含其他字母内部，如 APIKeys/APIs/myAPI）都会命中。
-//   isWord（/^[A-Za-z0-9_]+$/ 判定）仅作诊断元数据保留，不再参与模式构建。
-// - 非法输入诊断：空源术语（,value）、非法正则、同源不同译文冲突（conflicting-mapping）与
-//   正则重叠冲突（conflicting-pattern）为致命诊断，hasErrors=true；尾巴逗号（key,）按保留原文
-//   处理（extra-comma 非致命提醒，仅提示更推荐只写 key）；重复映射（完全相同的 key,value）为
-//   非致命诊断；消费方在 hasErrors 时不得生成"替换测试成功"摘要。
-// - metaWarnings：有效术语的 key 中未转义正则元字符（如 .）的清单，供 UI 给出转义警告（非致命）。
-// - originalOrder 记录有效术语在原始输入中的出现顺序（供 applyNaiveReplace 复现旧引擎行为）。
+// - 非法输入诊断：空源术语（,value）、非法正则、空匹配、纯零宽、同源不同译文冲突
+//   （conflicting-mapping）为致命诊断，hasErrors=true；尾巴逗号（key,）按保留原文
+//   处理（extra-comma 非致命提醒）；重复映射（完全相同的 key,value）为非致命诊断。
+//   Translator 在 hasErrors 时把 diagnostics 记入日志，合法术语仍照常应用。
 // - 非字符串输入统一视为空输入。
 
-const WORD_KEY_REGEX = /^[A-Za-z0-9_]+$/;
-
-// 未转义即按元字符处理的常见正则字符（提示用户转义用）
-const REGEX_META_CHARS = new Set([
-  ".",
-  "*",
-  "+",
-  "?",
-  "(",
-  ")",
-  "[",
-  "]",
-  "{",
-  "}",
-  "|",
-  "^",
-  "$",
-]);
-
-// 致命诊断类型：只要存在其一，整体输入不得视为"本地替换测试成功"
-// 导出供消费方（Playground 等）复用同一判定来源，避免硬编码列表漂移。
-// 注意：extra-comma 不在其中——`key,` 按保留原文处理，仅作非致命提醒。
-export const FATAL_DIAGNOSTIC_TYPES = new Set([
+// 致命诊断类型：存在其一则 hasErrors=true。
+// extra-comma 不在其中——`key,` 按保留原文处理，仅作非致命提醒。
+const FATAL_DIAGNOSTIC_TYPES = new Set([
   "empty-source-term",
   "invalid-regex",
   "empty-matching-pattern",
   "zero-width-matching-pattern",
   "conflicting-mapping",
-  "conflicting-pattern",
 ]);
-
-/**
- * 扫描 key 中未转义的正则元字符（反斜杠转义的字符跳过）。
- * 仅用于 UI 提示（正则语义说明），不改变匹配行为。
- * @param {string} key
- * @returns {string[]} 去重后的元字符列表
- */
-export function findUnescapedRegexMeta(key) {
-  if (typeof key !== "string") return [];
-  const found = new Set();
-  for (let i = 0; i < key.length; i++) {
-    const ch = key[i];
-    if (ch === "\\") {
-      i += 1; // 跳过被转义的字符
-      continue;
-    }
-    if (REGEX_META_CHARS.has(ch)) found.add(ch);
-  }
-  return [...found];
-}
-
-/** 预编译正则完整命中字面文本（m[0] === literalText）时返回 true。 */
-function regexFullyMatches(regex, literalText) {
-  if (!regex) return false;
-  try {
-    const match = regex.exec(literalText);
-    return Boolean(match && match[0] === literalText);
-  } catch (e) {
-    return false; // parseTerms 已校验过，正常不会走到这里
-  }
-}
 
 /**
  * 跳过从 src[start]（'('）开始的平衡分组，返回 ')' 之后的位置。
@@ -208,7 +153,7 @@ function isZeroWidthOnlyPattern(key) {
   return true; // 全程未遇可消费原子 → 纯零宽
 }
 
-// 归一化入参：既接受 parsedTerms 数组，也接受 parseTerms 返回的 { terms, invalid, originalOrder } 对象
+// 归一化入参：既接受 parsedTerms 数组，也接受 parseTerms 返回的 { terms } 对象
 function toTermList(parsedTerms) {
   if (Array.isArray(parsedTerms)) return parsedTerms;
   return parsedTerms?.terms || [];
@@ -385,172 +330,19 @@ function scanWithTerms(text, regex, termList, replacer, matcher) {
 }
 
 /**
- * 为 CLI / 开发日志将结构化诊断对象格式化为人类可读的单行文本。
- * 纯格式化函数，零 React 依赖。
- * UI 层（Playground 等）应使用 i18n 键和结构化 detail 进行多语言渲染，不依赖此函数的硬编码中文。
- * @param {{ type: string, segmentIndex?: number, segment?: string, key?: string, detail?: object }} diagnostic
- * @returns {string}
- */
-export function formatDiagnosticMessage(diagnostic) {
-  if (!diagnostic) return "";
-  const { type, segmentIndex, segment, key, detail } = diagnostic;
-  const seg = detail?.segment ?? segment ?? "";
-  const idx = detail?.segmentIndex ?? segmentIndex ?? "?";
-  switch (type) {
-    case "empty-source-term":
-      return `第 ${idx} 段「${seg}」的逗号前没有源术语（空源术语）`;
-    case "invalid-regex":
-      return `第 ${idx} 段「${seg}」无法作为正则解析：${detail?.error ?? ""}`;
-    case "empty-matching-pattern":
-      return `第 ${idx} 段「${seg}」的正则可匹配空字符串（${detail?.key ?? key ?? ""}），会在任意位置注入译文导致错乱，请改用非空匹配的正则`;
-    case "zero-width-matching-pattern":
-      return `第 ${idx} 段「${seg}」的正则不消费任何字符（${detail?.key ?? key ?? ""}），会在原文任意位置零宽注入译文导致错乱，请改用消费字符的正则`;
-    case "conflicting-mapping":
-      return `第 ${idx} 段「${seg}」与第 ${detail?.prevIndex ?? "?"} 段「${detail?.key ?? key ?? ""},${detail?.prevValue ?? ""}」同源但译文不同（冲突映射）`;
-    case "conflicting-pattern":
-      return `第 ${detail?.segmentIndexA ?? "?"} 段「${detail?.keyA ?? ""}」与第 ${detail?.segmentIndexB ?? "?"} 段「${detail?.keyB ?? ""}」的正则同时命中同一原文「${detail?.literal ?? ""}」（冲突映射），请转义或统一术语写法`;
-    case "extra-comma":
-      return `第 ${idx} 段「${seg}」逗号后没有译文（多余逗号）；已按保留原文处理，更推荐只写 key 不加尾巴逗号`;
-    case "duplicate-mapping":
-      return `第 ${idx} 段「${seg}」与第 ${detail?.prevIndex ?? "?"} 段重复（重复映射），已忽略`;
-    default:
-      return `第 ${idx} 段「${seg}」存在诊断（${type ?? ""}）`;
-  }
-}
-
-/**
- * 严格字面量白名单文法：key 不含未转义正则元字符，且每个转义序列的被转义字符
- * 本身 ∈ REGEX_META_CHARS（如 \. \+ \$）。
- *
- * 反例锁定：\d 的被转义字符 d 不是元字符 → 不算字面量（否则 \d × 5 的
- * conflicting-pattern 检出会被漏掉）。\\（转义反斜杠）的被转义字符 \ 也不在
- * 元字符集合内 → 保守不算字面量。
- *
- * 严格字面量模式作为正则只可能匹配其源码的去转义文本，两两冲突判定因此可
- * 退化为纯子串比较，实现零正则编译的 O(n²) 短路。
- *
- * @param {string} key
- * @returns {boolean}
- */
-export function isStrictLiteralPattern(key) {
-  if (typeof key !== "string" || key === "") return false;
-  for (let i = 0; i < key.length; i++) {
-    const ch = key[i];
-    if (ch === "\\") {
-      if (!REGEX_META_CHARS.has(key[i + 1])) return false;
-      i += 1;
-      continue;
-    }
-    if (REGEX_META_CHARS.has(ch)) return false;
-  }
-  return true;
-}
-
-/**
- * 跨术语正则重叠冲突分析（两两全量交叉校验，O(n²) 诊断逻辑）。
- * 仅在 full 模式（Playground / CLI / 完整测试）下调用，避免阻塞生产 Translator 初始化。
- *
- * 性能加固（统一计划 20260829 Task 4）：
- *   ① isStrictLiteralPattern 白名单短路——双方均为严格字面量时，字面量正则
- *     只可能完整命中自身去转义文本，双 key 不同则必然无冲突，零编译跳过；
- *   ② 按 key 预编译——非白名单对的正则每个 key 只编译一次（原实现对每个
- *     有序对编译 2 次，40 条字面量术语即 3120 次编译）。
- */
-function analyzeCrossTermPatternConflicts(terms, seenKeys, diagnostics) {
-  const patternConflictSeen = new Set();
-  const strictLiteralCache = new Map(); // key → boolean
-  const regexCache = new Map(); // key → RegExp | null
-
-  const isStrict = (key) => {
-    let v = strictLiteralCache.get(key);
-    if (v === undefined) {
-      v = isStrictLiteralPattern(key);
-      strictLiteralCache.set(key, v);
-    }
-    return v;
-  };
-  const getRegex = (key) => {
-    if (!regexCache.has(key)) {
-      let re = null;
-      try {
-        re = new RegExp(key); // 非全局：exec 不推进 lastIndex，可安全复用
-      } catch (e) {
-        re = null; // parseTerms 已校验过，正常不会走到这里
-      }
-      regexCache.set(key, re);
-    }
-    return regexCache.get(key);
-  };
-
-  for (let i = 0; i < terms.length; i++) {
-    for (let j = 0; j < terms.length; j++) {
-      if (i === j) continue;
-      const a = terms[i];
-      const b = terms[j];
-      if (a.key === b.key) continue;
-      const literalOverlap =
-        a.key.length <= b.key.length
-          ? b.key.includes(a.key)
-          : a.key.includes(b.key);
-      if (literalOverlap) continue;
-
-      // 白名单短路：双方均为严格字面量 → 字面量正则只匹配自身去转义文本，
-      // key 不同则不可能互相完整命中，无需编译任何正则。
-      if (isStrict(a.key) && isStrict(b.key)) continue;
-
-      // 任一方向的正则完整命中对方字面 key 即视为同一原文被两个术语同时认领
-      const reA = getRegex(a.key);
-      const hitB = regexFullyMatches(reA, b.key);
-      const reB = getRegex(b.key);
-      const hitA = regexFullyMatches(reB, a.key);
-      if (!hitB && !hitA) continue;
-
-      const signature = [a.key, b.key].sort().join("\u0000");
-      if (patternConflictSeen.has(signature)) continue;
-      patternConflictSeen.add(signature);
-
-      const literal = hitB ? b.key : a.key;
-      diagnostics.push({
-        type: "conflicting-pattern",
-        segmentIndex: seenKeys.get(a.key)?.index || i + 1,
-        segment: a.key,
-        key: a.key,
-        detail: {
-          keyA: a.key,
-          keyB: b.key,
-          literal,
-          segmentIndexA: seenKeys.get(a.key)?.index,
-          segmentIndexB: seenKeys.get(b.key)?.index,
-        },
-      });
-    }
-  }
-}
-
-/**
  * 解析术语字符串
  * @param {string} termsString
- * @param {object} [options]
- * @param {boolean} [options.fullDiagnostics=true] 是否执行跨术语 O(n²) 冲突分析（Playground / CLI / 完整测试传 true；生产 Translator 传 false）
  * @returns {{
- *   terms: Array<{ key: string, value: string, pattern: string, isWord: boolean }>,
+ *   terms: Array<{ key: string, value: string, pattern: string }>,
  *   invalid: Array<{ key: string, error: Error }>,
- *   originalOrder: Array<{ key: string, value: string, pattern: string, isWord: boolean }>,
  *   diagnostics: Array<{ type: string, segmentIndex: number, segment: string, key?: string, detail: object }>,
- *   metaWarnings: Array<{ key: string, segmentIndex: number, metas: string[] }>,
  *   hasErrors: boolean,
- *   diagnosticsMode: "fast" | "full",
  * }}
  */
-export function parseTerms(termsString, options = {}) {
-  const fullDiagnostics = options?.fullDiagnostics !== false;
-  const diagnosticsMode = fullDiagnostics ? "full" : "fast";
-
+export function parseTerms(termsString) {
   const terms = [];
   const invalid = [];
-  const originalOrder = [];
   const diagnostics = [];
-  const metaWarnings = [];
   const seenKeys = new Map(); // key -> { value, index }，记录首个出现的段
 
   // 非字符串/空白串统一视为空输入
@@ -558,11 +350,8 @@ export function parseTerms(termsString, options = {}) {
     return {
       terms,
       invalid,
-      originalOrder,
       diagnostics,
-      metaWarnings,
       hasErrors: false,
-      diagnosticsMode,
     };
   }
 
@@ -695,26 +484,11 @@ export function parseTerms(termsString, options = {}) {
       continue;
     }
 
-    // isWord 仅作诊断元数据（Playground/测试引用），不参与模式构建：
     // 生产匹配中，key 一律按正则源码包装为 (key)，无单词边界。
-    const isWord = WORD_KEY_REGEX.test(key);
     const pattern = `(${key})`;
-    const entry = { key, value, pattern, isWord };
+    const entry = { key, value, pattern };
     seenKeys.set(key, { value, index: segmentIndex });
     terms.push(entry);
-    originalOrder.push(entry);
-
-    // 未转义正则元字符提示（非致命，仅 UI 警告）
-    const metas = findUnescapedRegexMeta(key);
-    if (metas.length > 0) {
-      metaWarnings.push({ key, segmentIndex, metas });
-    }
-  }
-
-  // 跨术语正则重叠冲突分析（O(n²)）：仅 full 模式执行。
-  // fast 模式下省略该诊断只表示"未执行完整冲突分析"，不宣称输入通过了完整校验。
-  if (fullDiagnostics) {
-    analyzeCrossTermPatternConflicts(terms, seenKeys, diagnostics);
   }
 
   // 按 key.length 降序排序（重叠 key 长词在前，避免短词抢占）
@@ -725,11 +499,8 @@ export function parseTerms(termsString, options = {}) {
   return {
     terms,
     invalid,
-    originalOrder,
     diagnostics,
-    metaWarnings,
     hasErrors,
-    diagnosticsMode,
   };
 }
 
@@ -846,44 +617,5 @@ export function applyTermReplace(text, parsedTerms, replacer, regex) {
 
   return scanWithTerms(text, combinedRegex, terms, (termEntry, fullMatch) =>
     replacer(termEntry, fullMatch)
-  );
-}
-
-// naive 主正则缓存：按 originalOrder / 术语数组引用做 WeakMap 记忆化（GC 友好，
-// 无上限泄漏风险）。缓存的是 buildTermsMatcher 物化对象，与 applyTermReplace
-// 共用同一快路径。契约同 matcher：缓存命中期间不得就地变异术语条目 key 字段。
-const naiveMatcherCache = new WeakMap();
-
-/**
- * 复现旧引擎行为：不按长度排序、无 \b 单词边界、保持用户输入原始顺序的 alternation。
- * 优先使用 parseTerms 输出的 originalOrder 元数据，否则退化为 parsedTerms 的数组顺序。
- * 主正则按术语数组引用缓存（同 parsed 第二次调用零编译）。
- * 用于"修复前/后"对比演示。
- * @param {string} text
- * @param {Array|object} parsedTerms
- * @returns {{ output: string, spans: Array<{ start: number, end: number, termKey: string, value: string, replacement: string }> }}
- */
-export function applyNaiveReplace(text, parsedTerms) {
-  // 非字符串统一视为空输入
-  if (typeof text !== "string") return { output: "", spans: [] };
-
-  const orderedTerms = Array.isArray(parsedTerms?.originalOrder)
-    ? parsedTerms.originalOrder
-    : toTermList(parsedTerms);
-  if (orderedTerms.length === 0) return { output: text, spans: [] };
-
-  let matcher = naiveMatcherCache.get(orderedTerms);
-  if (!matcher) {
-    matcher = buildTermsMatcher(orderedTerms);
-    if (matcher) naiveMatcherCache.set(orderedTerms, matcher);
-  }
-  if (!matcher) return { output: text, spans: [] };
-
-  return scanWithTerms(
-    text,
-    matcher.regex,
-    orderedTerms,
-    (termEntry, fullMatch) => termEntry.value || fullMatch,
-    matcher
   );
 }

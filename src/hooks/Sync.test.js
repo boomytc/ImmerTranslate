@@ -2,13 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_SYNC, STOKEY_SYNC } from "../config";
-import {
-  getSync,
-  putSync,
-  putSyncMeta,
-  storage,
-  updateSyncState,
-} from "../libs/storage";
+import { getSync, putSync, storage, updateSyncState } from "../libs/storage";
 import { useSyncCaches } from "./Sync";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -48,7 +42,9 @@ describe("sync cache persistence", () => {
   });
 
   test("preserves metadata and settings updated after the cache view mounts", async () => {
-    await putSyncMeta("rules");
+    await putSync({
+      syncMeta: { rules: { updateAt: Date.now() } },
+    });
     await putSync({ syncUser: "updated-user", customField: "keep" });
     const expected = await getSync();
 
@@ -75,10 +71,10 @@ describe("sync cache persistence", () => {
     act(() => root.render(null));
     await storage.del(STOKEY_SYNC);
     await act(async () => root.render(<Probe />));
-    expect((await getSync()).syncType).toBe("KISS-Worker");
+    expect((await getSync()).syncType).toBe(DEFAULT_SYNC.syncType);
 
     await act(async () => cache.updateDataCache("first-source"));
-    expect((await getSync()).syncType).toBe("KISS-Worker");
+    expect((await getSync()).syncType).toBe(DEFAULT_SYNC.syncType);
     expect((await getSync()).dataCaches["first-source"]).toEqual(
       expect.any(Number)
     );

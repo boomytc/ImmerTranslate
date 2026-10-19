@@ -2,9 +2,6 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import Rules from "./Rules";
 import { useRules } from "../../hooks/Rules";
-import { syncShareRules } from "../../libs/sync";
-import { getSyncWithDefault } from "../../libs/storage";
-import { OPT_SYNCTYPE_WORKER } from "../../config";
 import { OPTIONS_STYLES } from "./styles";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -59,14 +56,6 @@ jest.mock("./HelpButton", () => {
   };
 });
 
-jest.mock("../../libs/sync", () => ({
-  syncShareRules: jest.fn(),
-}));
-
-jest.mock("../../libs/storage", () => ({
-  getSyncWithDefault: jest.fn(() => Promise.resolve({})),
-}));
-
 jest.mock("../../libs/log", () => ({
   kissLog: jest.fn(),
   LogLevel: {
@@ -74,31 +63,7 @@ jest.mock("../../libs/log", () => ({
   },
 }));
 
-let mockSubRules;
 const mockPutRule = jest.fn();
-const mockUpdateDataCache = jest.fn();
-const mockDeleteDataCache = jest.fn();
-const mockReloadSync = jest.fn();
-
-beforeEach(() => {
-  mockReloadSync.mockResolvedValue(undefined);
-});
-
-function createSubRules(overrides = {}) {
-  return {
-    subList: [{ url: "https://rules.example/main.json", selected: true }],
-    selectSub: jest.fn(),
-    beginSubAdd: () => ({ isCurrent: () => true, finish: jest.fn() }),
-    addSub: jest.fn(),
-    delSub: jest.fn(),
-    selectedSub: { url: "https://rules.example/main.json", selected: true },
-    selectedUrl: "https://rules.example/main.json",
-    selectedRules: [{ pattern: "en.wikipedia.org" }],
-    setSelectedRulesForUrl: jest.fn(),
-    loading: false,
-    ...overrides,
-  };
-}
 
 function renderRules() {
   const container = document.createElement("div");
@@ -133,14 +98,6 @@ async function flushEffects() {
   });
 }
 
-async function openSubscribeTab(view) {
-  const tab = getByRole(view.container, "tab", "subscribe_rules");
-  await act(async () => {
-    tab.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  });
-  await flushEffects();
-}
-
 async function openPersonalTab(view) {
   const tab = getByRole(view.container, "tab", "personal_rules");
   await act(async () => {
@@ -156,14 +113,6 @@ function getByRole(container, role, name) {
     throw new Error(`Unable to find ${role} named ${name}`);
   }
   return element;
-}
-
-function getButtonByLabel(container, label) {
-  const button = container.querySelector(`button[aria-label="${label}"]`);
-  if (!button) {
-    throw new Error(`Unable to find button labelled ${label}`);
-  }
-  return button;
 }
 
 function getButtonByText(container, text) {
@@ -354,51 +303,6 @@ describe("Options Rules personal tab", () => {
     });
     expect(view.container.querySelector('input[name="pattern"]')).toBeNull();
 
-    view.unmount();
-  });
-
-  test("prevents duplicate rule sharing while the upload is pending", async () => {
-    let resolveShare;
-    getSyncWithDefault.mockResolvedValue({
-      syncType: OPT_SYNCTYPE_WORKER,
-      syncUrl: "https://sync.example",
-      syncKey: "secret",
-    });
-    syncShareRules.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveShare = resolve;
-      })
-    );
-    const openWindow = jest.spyOn(window, "open").mockImplementation(() => {});
-    const view = renderRules();
-    await openPersonalTab(view);
-    const shareButton = Array.from(
-      view.container.querySelectorAll("button")
-    ).find((button) => button.textContent === "share");
-
-    await act(async () => {
-      shareButton.click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(shareButton.disabled).toBe(true);
-    expect(shareButton.getAttribute("aria-busy")).toBe("true");
-    shareButton.click();
-    expect(syncShareRules).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolveShare("https://share.example/rules");
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(shareButton.disabled).toBe(false);
-    expect(shareButton.getAttribute("aria-busy")).toBe("false");
-    expect(openWindow).toHaveBeenCalledTimes(1);
-    expect(openWindow).toHaveBeenCalledWith(
-      "https://share.example/rules",
-      "_blank"
-    );
-    openWindow.mockRestore();
     view.unmount();
   });
 

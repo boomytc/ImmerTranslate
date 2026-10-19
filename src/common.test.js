@@ -343,7 +343,7 @@ describe("common iframe startup", () => {
     }
   });
 
-  test("exposes legacy GM value listeners through the direct settings bridge", async () => {
+  test("keeps legacy GM value listeners on the GM shim", async () => {
     const keys = [
       "GM",
       "GM_addValueChangeListener",
@@ -359,14 +359,16 @@ describe("common iframe startup", () => {
     process.env.REACT_APP_OPTIONSPAGE = window.location.href;
     try {
       await run(true);
-      expect(globalThis.unsafeWindow.GM.addValueChangeListener).toBe(add);
-      expect(globalThis.unsafeWindow.GM.removeValueChangeListener).toBe(remove);
+      expect(globalThis.GM.addValueChangeListener).toBe(add);
+      expect(globalThis.GM.removeValueChangeListener).toBe(remove);
+      expect(globalThis.unsafeWindow.GM).toBeUndefined();
       expectNoNormalUserscriptStartup();
     } finally {
       originals.forEach(([key, value]) => {
         if (value === undefined) delete globalThis[key];
         else globalThis[key] = value;
       });
+      delete globalThis.unsafeWindow;
     }
   });
 
@@ -475,7 +477,7 @@ describe("common iframe startup", () => {
     }
   });
 
-  test("mounts GM directly when unsafeWindow is available", async () => {
+  test("does not mount GM on unsafeWindow", async () => {
     const originalHref = window.location.href;
     const gm = {
       info: {
@@ -492,16 +494,14 @@ describe("common iframe startup", () => {
     try {
       await run(true);
 
-      expect(globalThis.unsafeWindow.GM).toBe(gm);
-      expect(globalThis.unsafeWindow.APP_INFO).toEqual({
-        name: process.env.REACT_APP_NAME,
-        version: process.env.REACT_APP_VERSION,
-      });
-      expect(injectInlineJs).not.toHaveBeenCalled();
+      expect(globalThis.unsafeWindow.GM).toBeUndefined();
+      expect(globalThis.unsafeWindow.APP_INFO).toBeUndefined();
+      expect(injectInlineJs).toHaveBeenCalledTimes(1);
       expectNoNormalUserscriptStartup();
     } finally {
       window.history.pushState({}, "", originalHref);
       delete globalThis.GM;
+      delete globalThis.unsafeWindow;
     }
   });
 

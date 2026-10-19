@@ -11,14 +11,13 @@ import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
   URL_KISS_RULES_NEW_ISSUE,
-  OPT_SYNCTYPE_WORKER,
   DEFAULT_TRANS_TAG,
   OPT_SPLIT_PARAGRAPH_DISABLE,
   OPT_HIGHLIGHT_WORDS_DISABLE,
   OPT_SPLIT_PARAGRAPH_ALL,
   OPT_HIGHLIGHT_WORDS_ALL,
 } from "../../config";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useI18n } from "../../hooks/I18n";
 import Typography from "@mui/material/Typography";
 import Accordion from "@mui/material/Accordion";
@@ -32,12 +31,8 @@ import Switch from "@mui/material/Switch";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import DeleteIcon from "@mui/icons-material/Delete";
-import LoadingButton from "@mui/lab/LoadingButton";
-import ShareIcon from "@mui/icons-material/Share";
 import { useAlert } from "../../hooks/Alert";
-import { syncShareRules } from "../../libs/sync";
 import { debounce } from "../../libs/utils";
-import { getSyncWithDefault } from "../../libs/storage";
 import ClearAllIcon from "@mui/icons-material/ClearAll";
 import HelpButton from "./HelpButton";
 import DownloadButton from "./DownloadButton";
@@ -1019,61 +1014,6 @@ function RuleAccordion({ rule, rules, isExpanded = false }) {
   );
 }
 
-// 规则分享按钮组件，允许将用户规则同步上传至 WebDAV 或云服务并生成分享链接
-function ShareButton({ rules }) {
-  const alert = useAlert();
-  const i18n = useI18n();
-  const [sharing, setSharing] = useState(false);
-  const sharingRef = useRef(false);
-
-  // 处理分享点击逻辑
-  const handleClick = async () => {
-    if (sharingRef.current) return;
-    sharingRef.current = true;
-    setSharing(true);
-    try {
-      // 获取同步配置
-      const { syncType, syncUrl, syncKey } = await getSyncWithDefault();
-      // 只有启用了 WebDAV 等云同步方式时，才支持生成分享
-      if (syncType !== OPT_SYNCTYPE_WORKER || !syncUrl || !syncKey) {
-        alert.warning(i18n("error_sync_setting"));
-        return;
-      }
-
-      const shareRules = [...rules.list];
-
-      // 将规则同步并生成唯一的云存储分享 URL
-      const url = await syncShareRules({
-        rules: shareRules,
-        syncUrl,
-        syncKey,
-      });
-
-      // 在新标签页中打开规则分享页面
-      window.open(url, "_blank");
-    } catch (err) {
-      alert.warning(i18n("error_got_some_wrong"));
-      kissLog("share rules", err);
-    } finally {
-      sharingRef.current = false;
-      setSharing(false);
-    }
-  };
-
-  return (
-    <LoadingButton
-      size="small"
-      variant="outlined"
-      onClick={handleClick}
-      loading={sharing}
-      aria-busy={sharing}
-      startIcon={<ShareIcon />}
-    >
-      {i18n("share")}
-    </LoadingButton>
-  );
-}
-
 // 个人自定义规则面板组件
 function UserRules({ rules }) {
   const i18n = useI18n();
@@ -1140,15 +1080,13 @@ function UserRules({ rules }) {
           {i18n("add")}
         </Button>
 
-        {/* 导入、导出、分享、清空、帮助与注入配置切换 */}
+        {/* 导入、导出、清空、帮助与注入配置切换 */}
         <UploadButton text={i18n("import")} handleImport={handleImport} />
         <DownloadButton
           handleData={() => JSON.stringify([...rules.list], null, 2)}
           text={i18n("export")}
           fileName={`immer-rules_v2_${Date.now()}.json`}
         />
-
-        <ShareButton rules={rules} />
 
         <Button
           size="small"
