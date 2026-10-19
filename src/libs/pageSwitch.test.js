@@ -175,6 +175,37 @@ describe("page switch", () => {
     expect(override.value).toBe("on");
   });
 
+  test.each([
+    ["Don't auto-translate", "false", PAGE_SWITCH.OFF],
+    ["Auto-translate", "true", PAGE_SWITCH.ON],
+  ])(
+    "M06 after the blacklist lifts, %s is the current policy",
+    (_label, nextPolicy, expected) => {
+      const override = new ManualOverride(URL, "*", "on");
+      const open = {
+        rule: { transOpen: "*", selector: "article" },
+        policy: sitePolicy("*"),
+        href: URL,
+        override,
+        globalTransOpen: "false",
+      };
+      expect(pageSwitchState({ ...open, blacklistHit: false })).toBe(
+        PAGE_SWITCH.ON
+      );
+      expect(pageSwitchState({ ...open, blacklistHit: true })).toBe(
+        PAGE_SWITCH.PAUSED
+      );
+      expect(
+        pageSwitchState({
+          ...open,
+          rule: { transOpen: nextPolicy, selector: "article" },
+          policy: sitePolicy(nextPolicy),
+          blacklistHit: false,
+        })
+      ).toBe(expected);
+    }
+  );
+
   test("a folded transOpen string is not a site policy", () => {
     expect(() =>
       pageSwitchState({

@@ -261,6 +261,32 @@ describe("rules enabled state", () => {
     }
   );
 
+  test("matchRule fills selector fields on a sparse personal rule from the global rule", async () => {
+    getRulesWithDefault.mockResolvedValue([
+      {
+        ...GLOBLA_RULE,
+        selector: "article",
+        keepSelector: "code",
+        terms: "Foo=Bar",
+        transOnlyRevertDelay: "1.5",
+      },
+      { pattern: "localhost", transOpen: "true" },
+    ]);
+
+    await expect(
+      matchRule("http://localhost/page", {
+        injectRules: false,
+        subrulesList: [],
+      })
+    ).resolves.toMatchObject({
+      selector: "article",
+      keepSelector: "code",
+      terms: "Foo=Bar",
+      transOnlyRevertDelay: "1.5",
+      transOpen: "true",
+    });
+  });
+
   test("a sparse selector save writes only the given fields", async () => {
     getRulesWithDefault.mockResolvedValue([
       { ...GLOBLA_RULE, transOpen: "true" },

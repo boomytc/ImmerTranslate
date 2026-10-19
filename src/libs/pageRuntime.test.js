@@ -331,6 +331,45 @@ describe("PageRuntime", () => {
     );
   });
 
+  test.each([
+    ["Don't auto-translate", "false", "off"],
+    ["Auto-translate", "true", "on"],
+  ])(
+    "M06 leaving the blacklist follows the policy chosen while paused: %s",
+    async (_label, transOpen, state) => {
+      window.history.pushState({}, "", "/spa2.html/plain");
+      const harness = boot();
+      await harness.runtime.start();
+      harness.runtime.setManualSwitch(true);
+      expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({ state: "on" })
+      );
+
+      harness.onSetting(pageSetting("localhost"));
+      await harness.runtime.whenIdle();
+      expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({ state: "paused" })
+      );
+
+      harness.onRules({
+        data: [{ pattern: "localhost", transOpen }],
+      });
+      await harness.runtime.whenIdle();
+      expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({ state: "paused" })
+      );
+
+      harness.onSetting(pageSetting(""));
+      await harness.runtime.whenIdle();
+      expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          state,
+          rule: expect.objectContaining({ transOpen }),
+        })
+      );
+    }
+  );
+
   test("a never-translate policy chosen while parked turns the page off", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();

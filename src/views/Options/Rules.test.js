@@ -451,3 +451,68 @@ describe("Options Rules personal tab", () => {
     view.unmount();
   });
 });
+
+describe("Options Rules sparse personal rule", () => {
+  // The popup and FAB site-policy writes store only the fields they set.
+  const sparseRule = { pattern: "localhost", transOpen: "true" };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useRules.mockReturnValue({
+      list: [sparseRule, { pattern: "*", selector: "p" }],
+      put: mockPutRule,
+    });
+  });
+
+  async function expandRule(view, pattern) {
+    const summary = Array.from(
+      view.container.querySelectorAll('[role="button"]')
+    ).find((item) => item.textContent === pattern);
+    await act(async () => {
+      summary.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushEffects();
+  }
+
+  test("expands a sparse rule without throwing", async () => {
+    const view = renderRules();
+    await openPersonalTab(view);
+
+    await expect(expandRule(view, "localhost")).resolves.toBeUndefined();
+    expect(view.container.querySelector('input[name="transOpen"]')?.value).toBe(
+      "true"
+    );
+    expect(
+      view.container.querySelector('input[name="splitParagraph"]')?.value
+    ).toBe("*");
+
+    view.unmount();
+  });
+
+  test("saving an edit writes only the changed field, not the filled defaults", async () => {
+    const view = renderRules();
+    await openPersonalTab(view);
+    await expandRule(view, "localhost");
+
+    await act(async () => {
+      getButtonByText(view.container, "edit").dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    await flushEffects();
+    await selectOption(view.container, "wrapOriginal", "enable");
+    await act(async () => {
+      getButtonByText(view.container, "save").dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      );
+    });
+    await flushEffects();
+
+    expect(mockPutRule).toHaveBeenCalledTimes(1);
+    expect(mockPutRule).toHaveBeenCalledWith("localhost", {
+      wrapOriginal: "true",
+    });
+
+    view.unmount();
+  });
+});
