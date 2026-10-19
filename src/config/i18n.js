@@ -640,30 +640,6 @@ export const I18N = {
     zh: `选择器祖节点样式`,
     en: `Grand Selector Style`,
   },
-  inject_js: {
-    zh: `注入JS`,
-    en: `Inject JS`,
-  },
-  inject_js_helper: {
-    zh: `预加载时注入，一个页面仅运行一次。内置全局对象 KT: {
-      apiTranslate,
-      apiDectect,
-      apiSetting,
-      apisMap,
-      toLang,
-      docInfo,
-      glossary,
-    }`,
-    en: `Injected during preload, runs only once per page. Built-in global object KT: {
-      apiTranslate,
-      apiDectect,
-      apiSetting,
-      apisMap,
-      toLang,
-      docInfo,
-      glossary,
-    }`,
-  },
   inject_css: {
     zh: `注入CSS`,
     en: `Inject CSS`,
@@ -1671,32 +1647,6 @@ export const I18N = {
   selection_skip_langs_helper: {
     zh: `列表中的语言不弹窗（设定后，第二目标语言互译功能将自动禁用）`,
     en: `Don't show popup for languages in this list (when enabled, will automatically disable bidirectional translation for the second target language)`,
-  },
-  translate_start_hook: {
-    zh: `翻译开始钩子函数`,
-    en: `Translate Start Hook`,
-  },
-  translate_start_hook_helper: {
-    zh: `翻译前时运行，入参为： {text,
-      fromLang,
-      toLang,
-      apiSetting,
-      docInfo,
-      glossary,}`,
-    en: `Run before translation, input parameters are: {text,
-      fromLang,
-      toLang,
-      apiSetting,
-      docInfo,
-      glossary,}`,
-  },
-  translate_end_hook: {
-    zh: `翻译完成钩子函数`,
-    en: `Translate End Hook`,
-  },
-  translate_end_hook_helper: {
-    zh: `翻译完成时运行，入参为： ({hostNode, parentNode, nodes, wrapperNode, innerNode})`,
-    en: `Run when translation is complete, input parameters are: ({hostNode, parentNode, nodes, wrapperNode, innerNode})`,
   },
   english_dict: {
     zh: `英文词典`,

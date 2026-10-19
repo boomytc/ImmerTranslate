@@ -56,15 +56,12 @@ export const DEFAULT_RULE = {
   selectStyle: "", // 改变翻译目标节点本身的 CSS 样式 (如清除行高限制等)
   parentStyle: "", // 改变翻译目标节点父级的 CSS 样式
   grandStyle: "", // 改变翻译目标节点祖父级的 CSS 样式
-  injectJs: "", // 页面翻译开始时注入并运行的 JS 脚本
   transOnly: GLOBAL_KEY, // 是否仅显示译文而不显示原文 (单语翻译)
   transOnlyRevert: GLOBAL_KEY, // 仅译文模式下，鼠标悬浮时是否临时恢复显示原文
   transOnlyRevertDelay: GLOBAL_KEY, // 悬浮恢复原文的延迟时间 (秒)
   transOrder: GLOBAL_KEY, // 文本顺序：原文在上 ("original-first") 或 译文在上 ("translation-first")
   transTag: GLOBAL_KEY, // 译文嵌套的 HTML 标签 (如 font, span 等)
   transTitle: GLOBAL_KEY, // 是否翻译网页的 document.title
-  transStartHook: "", // 翻译事务启动时的 Hook 脚本 (通过 eval/Sval 执行)
-  transEndHook: "", // 翻译事务完成后的 Hook 脚本
   autoScan: GLOBAL_KEY, // 是否启用智能文本节点扫描 (扫描未匹配选择器的裸文本)
   hasRichText: GLOBAL_KEY, // 是否启用富文本(包含嵌套 HTML 标签)翻译而非仅纯文本
   hasShadowroot: GLOBAL_KEY, // 页面是否包含 Shadow DOM，若为 true 会递归穿透扫描
@@ -98,15 +95,12 @@ export const GLOBLA_RULE = {
   selectStyle: DEFAULT_SELECT_STYLE,
   parentStyle: "",
   grandStyle: "",
-  injectJs: "",
   injectCss: "",
   transOnly: "false", // 默认保留原文，呈现双语对比形式
   transOnlyRevert: "false",
   transOnlyRevertDelay: "0.5",
   transTag: DEFAULT_TRANS_TAG,
   transTitle: "false", // 默认不自动翻译网页 Tab 标题
-  transStartHook: "",
-  transEndHook: "",
   autoScan: "true", // 默认自动扫描文本节点，确保漏网之鱼也被翻译
   hasRichText: "true", // 默认进行富文本标签翻译，以保证链接等样式不会在翻译后破损
   hasShadowroot: "false", // 默认不主动穿透 Shadow DOM (因性能开销，仅在特定页面开启)
