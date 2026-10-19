@@ -21,20 +21,14 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
 import CssBaseline from "@mui/material/CssBaseline";
-import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
-import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import ThemeProvider from "@mui/material/styles/ThemeProvider";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import {
-  homepageContent,
-  languageOptions,
-  LICENSE_SOURCE_URL,
-} from "./content";
+import { homepageContent, LICENSE_SOURCE_URL } from "./content";
 import { getHomepageTheme, getHomepageTokens } from "./theme";
 import { useHomepageSettings } from "./useHomepageSettings";
 
@@ -72,14 +66,7 @@ function LogoMark({ tokens }) {
   );
 }
 
-function Header({
-  content,
-  language,
-  setLanguage,
-  themeMode,
-  toggleThemeMode,
-  tokens,
-}) {
+function Header({ content, themeMode, toggleThemeMode, tokens }) {
   const compact = useMediaQuery("(max-width:520px)");
 
   return (
@@ -131,27 +118,6 @@ function Header({
         >
           {content.navGithub}
         </Button>
-        <FormControl size="small" sx={{ minWidth: { xs: 132, sm: 168 } }}>
-          <Select
-            native
-            value={language}
-            onChange={(event) => setLanguage(event.target.value)}
-            aria-label={content.languageLabel}
-            sx={{
-              borderRadius: 2,
-              fontWeight: 700,
-              ".MuiSelect-select": {
-                py: 1,
-              },
-            }}
-          >
-            {languageOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </FormControl>
         <Tooltip
           title={themeMode === "dark" ? content.themeLight : content.themeDark}
         >
@@ -539,8 +505,7 @@ function Footer({ content, tokens }) {
 }
 
 function Homepage() {
-  const { language, setLanguage, themeMode, toggleThemeMode } =
-    useHomepageSettings();
+  const { language, themeMode, toggleThemeMode } = useHomepageSettings();
   const content = homepageContent[language] || homepageContent.en;
   const theme = useMemo(() => getHomepageTheme(themeMode), [themeMode]);
   const tokens = useMemo(() => getHomepageTokens(themeMode), [themeMode]);
@@ -571,8 +536,6 @@ function Homepage() {
         >
           <Header
             content={content}
-            language={language}
-            setLanguage={setLanguage}
             themeMode={themeMode}
             toggleThemeMode={toggleThemeMode}
             tokens={tokens}

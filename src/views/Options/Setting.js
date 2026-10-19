@@ -20,7 +20,6 @@ import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 
 import {
-  UI_LANGS,
   TRANS_NEWLINE_LENGTH,
   OPT_LANGDETECTOR_ALL,
   OPT_SHORTCUT_TRANSLATE,
@@ -271,7 +270,6 @@ export default function Settings() {
 
   // 解构当前基础查词偏好设置
   const {
-    uiLang,
     minLength,
     maxLength,
     clearCache,
@@ -338,24 +336,6 @@ export default function Settings() {
             {i18n("general")}
           </Typography>
           <Grid container columns={12}>
-            {/* 设置面板用户界面语言 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                name="uiLang"
-                value={uiLang}
-                label={i18n("ui_lang")}
-                onChange={handleChange}
-              >
-                {UI_LANGS.map(([lang, name]) => (
-                  <MenuItem key={lang} value={lang}>
-                    {name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
             {/* 工具栏弹窗打开时默认显示的界面 (仅 Extension 模式) */}
             {isExt && (
               <Grid item xs={12} sm={12} md={6} lg={6}>
