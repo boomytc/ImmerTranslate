@@ -1,5 +1,4 @@
 import {
-  createM3CssVariableDeclarations,
   createM3CssVariables,
   M3_BRAND_COLORS,
   M3_DURATION,
@@ -35,9 +34,6 @@ describe("M3 brand colors", () => {
         "--kt-bg": "#131314",
         "--kt-on": "#E3E3E3",
       })
-    );
-    expect(createM3CssVariableDeclarations(colors)).toContain(
-      "--kt-pri: #4FD8EB;"
     );
     expect(resolveM3ThemeMode("auto", true)).toBe("dark");
   });

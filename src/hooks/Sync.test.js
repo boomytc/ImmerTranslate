@@ -5,7 +5,6 @@ import { DEFAULT_SYNC, STOKEY_SYNC } from "../config";
 import {
   getSync,
   putSync,
-  putSyncMeta,
   storage,
   updateSyncState,
 } from "../libs/storage";
@@ -52,7 +51,9 @@ describe("subscription cache persistence", () => {
   });
 
   test("preserves metadata and settings updated after the cache view mounts", async () => {
-    await putSyncMeta("rules");
+    await putSync({
+      syncMeta: { rules: { updateAt: Date.now() } },
+    });
     await putSync({ syncUser: "updated-user", customField: "keep" });
     const expected = await getSync();
 
