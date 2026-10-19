@@ -422,8 +422,7 @@ export class Translator {
   #blockSelectorInvalid = false; // 自定义块级选择器是否已确认无效
   #textClass = {}; // 译文样式class
   #lastActiveTextStyle = null; // 上次选中的有效译文样式
-  #textSheet = null; // CSSStyleSheet 实例
-  #textStylesRaw = ""; // 原始 CSS 文本
+  #textSheet = null;
   #apisMap = new Map(); // 用于接口快速查找
 
   #observedNodes = new WeakSet(); // 存储所有被识别出的、可翻译的 DOM 节点单元
@@ -1234,11 +1233,11 @@ export class Translator {
   #createTextStyles() {
     const [textClass, textStyles] = genTextClass(this.#setting.customStyles);
     this.#textClass = textClass;
-    this.#textStylesRaw = `${textStyles}\n${PAGE_TRANSLATION_CHROME_CSS}`;
+    const cssText = `${textStyles}\n${PAGE_TRANSLATION_CHROME_CSS}`;
     ensurePageTranslationChromeStyle();
 
     const textSheet = new CSSStyleSheet();
-    textSheet.replaceSync(this.#textStylesRaw);
+    textSheet.replaceSync(cssText);
     this.#textSheet = textSheet;
   }
 
