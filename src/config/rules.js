@@ -60,8 +60,6 @@ export const DEFAULT_RULE = {
   wrapOriginal: GLOBAL_KEY, // 是否为原文节点增加稳定的包裹元素
   originalTextStyle: GLOBAL_KEY, // 原文样式类型 (继承/覆盖全局)
   transOpen: GLOBAL_KEY, // 是否自动开启翻译 (继承/覆盖全局)
-  // bgColor: "", // 译文颜色 (作废)
-  // textDiyStyle: "", // 自定义译文样式 (作废)
   textExtStyle: "", // 附加到译文元素上的 CSS 样式字符串
   termsStyle: "", // 匹配到专有名词时的自定义高亮样式
   highlightStyle: "", // 生词本生词的高亮样式
@@ -69,21 +67,14 @@ export const DEFAULT_RULE = {
   parentStyle: "", // 改变翻译目标节点父级的 CSS 样式
   grandStyle: "", // 改变翻译目标节点祖父级的 CSS 样式
   injectJs: "", // 页面翻译开始时注入并运行的 JS 脚本
-  // injectCss: "", // 注入CSS (作废)
   transOnly: GLOBAL_KEY, // 是否仅显示译文而不显示原文 (单语翻译)
   transOnlyRevert: GLOBAL_KEY, // 仅译文模式下，鼠标悬浮时是否临时恢复显示原文
   transOnlyRevertDelay: GLOBAL_KEY, // 悬浮恢复原文的延迟时间 (秒)
   transOrder: GLOBAL_KEY, // 文本顺序：原文在上 ("original-first") 或 译文在上 ("translation-first")
   transTag: GLOBAL_KEY, // 译文嵌套的 HTML 标签 (如 font, span 等)
   transTitle: GLOBAL_KEY, // 是否翻译网页的 document.title
-  // transSelected: GLOBAL_KEY, // 是否启用划词翻译 (移回setting)
-  // detectRemote: GLOBAL_KEY, // 是否使用远程语言检测 (移回setting)
-  // skipLangs: [], // 不翻译的语言 (移回setting)
-  // fixerSelector: "", // 修复函数选择器 (暂时作废)
-  // fixerFunc: GLOBAL_KEY, // 修复函数 (暂时作废)
   transStartHook: "", // 翻译事务启动时的 Hook 脚本 (通过 eval/Sval 执行)
   transEndHook: "", // 翻译事务完成后的 Hook 脚本
-  // transRemoveHook: "", // 钩子函数 (暂时作废)
   autoScan: GLOBAL_KEY, // 是否启用智能文本节点扫描 (扫描未匹配选择器的裸文本)
   hasRichText: GLOBAL_KEY, // 是否启用富文本(包含嵌套 HTML 标签)翻译而非仅纯文本
   hasShadowroot: GLOBAL_KEY, // 页面是否包含 Shadow DOM，若为 true 会递归穿透扫描
@@ -112,8 +103,6 @@ export const GLOBLA_RULE = {
   wrapOriginal: "false", // 默认不改变原文 DOM 层级
   originalTextStyle: OPT_STYLE_NONE, // 默认原文不加额外样式
   transOpen: "false", // 默认不自动开始翻译网页 (需要手动点击或快捷键)
-  // bgColor: DEFAULT_COLOR, // 译文颜色 (作废)
-  // textDiyStyle: DEFAULT_DIY_STYLE, // 自定义译文样式 (作废)
   textExtStyle: "",
   termsStyle: "font-weight: bold;", // 专业术语默认加粗
   highlightStyle: "color: red;", // 高亮生词默认标红
@@ -127,14 +116,8 @@ export const GLOBLA_RULE = {
   transOnlyRevertDelay: "0.5",
   transTag: DEFAULT_TRANS_TAG,
   transTitle: "false", // 默认不自动翻译网页 Tab 标题
-  // transSelected: "true", // 是否启用划词翻译 (移回setting)
-  // detectRemote: "true", // 是否使用远程语言检测 (移回setting)
-  // skipLangs: [], // 不翻译的语言 (移回setting)
-  // fixerSelector: "", // 修复函数选择器 (暂时作废)
-  // fixerFunc: "-", // 修复函数 (暂时作废)
   transStartHook: "",
   transEndHook: "",
-  // transRemoveHook: "", // 钩子函数 (暂时作废)
   autoScan: "true", // 默认自动扫描文本节点，确保漏网之鱼也被翻译
   hasRichText: "true", // 默认进行富文本标签翻译，以保证链接等样式不会在翻译后破损
   hasShadowroot: "false", // 默认不主动穿透 Shadow DOM (因性能开销，仅在特定页面开启)
