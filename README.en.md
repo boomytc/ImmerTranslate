@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
+  <a href="README.md">中文</a>
 </p>
 
 ## Why ImmerTranslate
@@ -37,7 +37,7 @@
 | Rules and glossary | Save translation rules per site, subscribe to rule lists, and use a glossary.                                        |
 | Sync               | Encrypted settings can be synced, for example over WebDAV.                                                           |
 
-Interface languages: English, 简体中文, 繁體中文, 日本語, 한국어, Türkçe, Tiếng Việt, Русский.
+Interface languages: English, 简体中文.
 
 ## Translation services
 

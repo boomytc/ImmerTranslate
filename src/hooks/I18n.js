@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useSetting } from "./Setting";
-import { I18N, URL_RAW_PREFIX } from "../config";
+import { I18N, URL_RAW_PREFIX, normalizeUiLang } from "../config";
 import { useGet } from "./Fetch";
 
 /**
@@ -11,7 +11,7 @@ import { useGet } from "./Fetch";
  * @returns {string} 本地化后的文本
  */
 export const getI18n = (uiLang, key, defaultText = key) => {
-  return I18N?.[key]?.[uiLang] ?? defaultText;
+  return I18N?.[key]?.[normalizeUiLang(uiLang)] ?? defaultText;
 };
 
 // Bind the language and keep the lookup function stable until uiLang changes.

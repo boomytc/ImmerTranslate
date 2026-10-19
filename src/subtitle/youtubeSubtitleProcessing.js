@@ -5,7 +5,6 @@ import {
 } from "../config";
 import { logger } from "../libs/log.js";
 import { normalizeLanguageCode } from "../libs/language.js";
-import { intelligentSentenceBreak } from "./sentenceBreaker.js";
 import { isNonSpeechSegment } from "./subtitleTextClassification.js";
 
 const NO_SPACE_LANGUAGES = ["zh", "ja", "ko", "th", "lo", "km", "my"];
@@ -489,77 +488,39 @@ export function formatSubtitles(
 }
 
 /**
- * 基于启发式统计算法提取字幕分句。
+ * 内置兜底断句。只走规则断句。
  *
- * @param {Array<object>} events 清洗后的 YouTube json3 events。
- * @returns {Array<object>|null} 统计算法生成的字幕条目，异常时返回 null。
- */
-function algorithmicSegment(events) {
-  try {
-    const algorithmicSubtitles = intelligentSentenceBreak({ events });
-    return algorithmicSubtitles.map((sub) => ({
-      text: sub.text,
-      start: sub.start,
-      end: sub.end,
-      translation: "",
-    }));
-  } catch (error) {
-    logger.info("Youtube Provider: Error in algorithmic segmentation", error);
-    return null;
-  }
-}
-
-/**
- * 内置兜底断句方法。
- * 根据配置选择统计断句或内置规则断句。
- *
- * @param {Array<object>} events 清洗后的 YouTube json3 events。
+ * @param {Array<object>} _events 清洗后的 YouTube json3 events。规则断句使用展平事件。
  * @param {Array<object>} flatEvents 展平后的字幕事件流。
  * @param {string} fromLang 字幕源语言代码。
  * @param {object} [setting={}] 字幕处理配置。
  * @returns {Array<object>} 格式化后的字幕条目。
  */
-export function builtinSegment(events, flatEvents, fromLang, setting = {}) {
+export function builtinSegment(_events, flatEvents, fromLang, setting = {}) {
   return runBuiltinSegmentation({
-    events,
     flatEvents,
     fromLang,
-    mode: setting.useAlgorithmBreaker,
     longSentenceThreshold: setting.longSentenceThreshold,
   });
 }
 
 /**
- * 统一运行规则或统计算法，并始终返回标准 SubtitleCue 结构。
+ * 运行规则断句，并始终返回标准 SubtitleCue 结构。
  */
 export function runBuiltinSegmentation({
-  events = [],
   flatEvents = [],
   fromLang = "auto",
-  mode = "rule",
   longSentenceThreshold = 120,
 } = {}) {
-  const toCues = (items) =>
-    (items || []).map((item) => ({
-      start: item.start,
-      end: item.end,
-      text: item.text,
-      translation: item.translation || "",
-    }));
-
-  if (mode === "statistical") {
-    logger.info("Youtube Provider: Sentence break mode: STATISTICAL");
-    const result = algorithmicSegment(events);
-    if (result?.length) return toCues(result);
-    logger.info(
-      "Youtube Provider: Statistical segmentation returned empty, falling back to rule"
-    );
-  }
-
   logger.info("Youtube Provider: Sentence break mode: RULE");
-  return toCues(
-    formatSubtitles(flatEvents, fromLang, { longSentenceThreshold })
-  );
+  return (
+    formatSubtitles(flatEvents, fromLang, { longSentenceThreshold }) || []
+  ).map((item) => ({
+    start: item.start,
+    end: item.end,
+    text: item.text,
+    translation: item.translation || "",
+  }));
 }
 
 /**

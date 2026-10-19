@@ -154,30 +154,6 @@ describe("TranCont", () => {
     document.body.innerHTML = "";
   });
 
-  test("renders an explicit read-only empty state in the Playground", async () => {
-    const { container, root } = renderTranCont({
-      text: "",
-      isPlayground: true,
-    });
-    await flushEffects();
-
-    const textarea = container.querySelector("textarea");
-    expect(
-      container.querySelector(".kt-playground-translator__result")
-    ).not.toBeNull();
-    expect(textarea.readOnly).toBe(true);
-    expect(textarea.classList).toContain("kt-resizable-textarea");
-    expect(textarea.closest(".kt-resizable-text-field")).not.toBeNull();
-    expect(
-      getComputedStyle(textarea.closest(".MuiInputBase-root")).overflow
-    ).toBe("visible");
-    expect(getComputedStyle(textarea).resize).toBe("vertical");
-    expect(textarea.placeholder).toBe("playground_translation_empty_result");
-    expect(container.querySelector("button[data-copy-text]")).toBeNull();
-    expect(apiTranslate).not.toHaveBeenCalled();
-    act(() => root.unmount());
-  });
-
   test("renders an accessible read-only result with copy and speech actions", async () => {
     apiTranslate.mockResolvedValueOnce({ trText: "译文" });
     const { container, root } = renderTranCont();

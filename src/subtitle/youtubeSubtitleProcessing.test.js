@@ -139,37 +139,33 @@ describe("youtubeSubtitleProcessing", () => {
     ]);
   });
 
-  test.each(["rule", "statistical"])(
-    "%s segmentation excludes non-speech cues",
-    (mode) => {
-      const prepared = prepareTimedTextEvents([
-        {
-          tStartMs: 0,
-          dDurationMs: 500,
-          segs: [{ utf8: "Hello" }],
-        },
-        {
-          tStartMs: 500,
-          dDurationMs: 400,
-          segs: [{ utf8: "[Music]" }],
-        },
-        {
-          tStartMs: 900,
-          dDurationMs: 600,
-          segs: [{ utf8: "world." }],
-        },
-      ]);
-      const cues = runBuiltinSegmentation({
-        ...prepared,
-        fromLang: "en",
-        mode,
-      });
+  test("rule segmentation excludes non-speech cues", () => {
+    const prepared = prepareTimedTextEvents([
+      {
+        tStartMs: 0,
+        dDurationMs: 500,
+        segs: [{ utf8: "Hello" }],
+      },
+      {
+        tStartMs: 500,
+        dDurationMs: 400,
+        segs: [{ utf8: "[Music]" }],
+      },
+      {
+        tStartMs: 900,
+        dDurationMs: 600,
+        segs: [{ utf8: "world." }],
+      },
+    ]);
+    const cues = runBuiltinSegmentation({
+      ...prepared,
+      fromLang: "en",
+    });
 
-      expect(cues).not.toHaveLength(0);
-      expect(cues.every((cue) => !isNonSpeechSegment(cue.text))).toBe(true);
-      expect(cues.map((cue) => cue.text).join(" ")).toContain("Hello world.");
-    }
-  );
+    expect(cues).not.toHaveLength(0);
+    expect(cues.every((cue) => !isNonSpeechSegment(cue.text))).toBe(true);
+    expect(cues.map((cue) => cue.text).join(" ")).toContain("Hello world.");
+  });
 
   test("restores complete rule-segmented sentences around music markers in the real sample", () => {
     const source = JSON.parse(
@@ -185,7 +181,6 @@ describe("youtubeSubtitleProcessing", () => {
     const cues = runBuiltinSegmentation({
       ...prepared,
       fromLang: "en",
-      mode: "rule",
       // 本断言只验证音乐标记不再制造边界，避免被独立的超长句二次切分规则干扰。
       longSentenceThreshold: 1000,
     });
@@ -268,19 +263,6 @@ describe("youtubeSubtitleProcessing", () => {
     ).toBe(true);
   });
 
-  test("falls back to rule segmentation when statistical output is empty", () => {
-    const flatEvents = [{ text: "hello.", start: 0, end: 1000 }];
-
-    expect(
-      runBuiltinSegmentation({
-        events: [],
-        flatEvents,
-        fromLang: "en",
-        mode: "statistical",
-      })
-    ).toEqual([{ text: "hello.", start: 0, end: 1000, translation: "" }]);
-  });
-
   test("reprocesses overlong space-separated subtitles with pause rules", () => {
     const flatEvents = Array.from({ length: 18 }, (_, index) => ({
       text: index === 0 ? "First," : `word${index}`,
@@ -322,11 +304,79 @@ describe("youtubeSubtitleProcessing", () => {
         runBuiltinSegmentation({
           ...prepared,
           fromLang: lang,
-          mode: "rule",
         }).map((cue) => cue.text)
       ).toEqual(texts);
     }
   );
+
+  test("covers every subtitle sample without duplicate text or overlapping cues", () => {
+    const root = path.join(process.cwd(), "testdata/subtitle-samples");
+    const catalog = JSON.parse(
+      fs.readFileSync(path.join(root, "index.json"), "utf8")
+    );
+    const noSpaceLanguages = ["zh", "ja", "ko", "th", "lo", "km", "my"];
+    const tokenize = (text, isNoSpace) => {
+      const normalized = String(text || "").toLowerCase();
+      if (isNoSpace) return Array.from(normalized.replace(/\s+/g, ""));
+      return normalized.match(/[\p{L}\p{N}]+|[^\s\p{L}\p{N}]/gu) || [];
+    };
+    const tokenCounts = (texts, isNoSpace) => {
+      const counts = new Map();
+      for (const token of tokenize(texts.join(" "), isNoSpace)) {
+        counts.set(token, (counts.get(token) || 0) + 1);
+      }
+      return counts;
+    };
+
+    for (const sample of catalog.samples) {
+      const source = JSON.parse(
+        fs.readFileSync(path.join(root, sample.path), "utf8")
+      );
+      const rawEvents = Array.isArray(source) ? source : source.events;
+      const fromLang = source.lang || sample.language || "auto";
+      const prepared = prepareTimedTextEvents(rawEvents, fromLang);
+      const isNoSpace = noSpaceLanguages.some((lang) =>
+        String(fromLang).startsWith(lang)
+      );
+
+      const mode = "rule";
+      {
+        const cues = runBuiltinSegmentation({
+          ...prepared,
+          fromLang,
+          mode,
+          longSentenceThreshold: 100,
+        });
+        const sourceCounts = tokenCounts(
+          prepared.flatEvents.map((event) => event.text),
+          isNoSpace
+        );
+        const resultCounts = tokenCounts(
+          cues.map((cue) => cue.text),
+          isNoSpace
+        );
+        let missing = 0;
+        let duplicated = 0;
+        for (const [token, count] of sourceCounts) {
+          missing += Math.max(0, count - (resultCounts.get(token) || 0));
+        }
+        for (const [token, count] of resultCounts) {
+          duplicated += Math.max(0, count - (sourceCounts.get(token) || 0));
+        }
+        expect({ sample: sample.id, mode, missing, duplicated }).toEqual({
+          sample: sample.id,
+          mode,
+          missing: 0,
+          duplicated: 0,
+        });
+        for (let index = 1; index < cues.length; index += 1) {
+          expect(Number(cues[index].start)).toBeGreaterThanOrEqual(
+            Number(cues[index - 1].end)
+          );
+        }
+      }
+    }
+  });
 
   test("splits no-space-language subtitles at a long pause without punctuation", () => {
     // 对无标点的自动字幕，超过一秒的静音仍应形成明确边界。
