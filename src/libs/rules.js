@@ -13,7 +13,6 @@ import {
   BUILTIN_RULES,
   STOKEY_RULES,
   OPT_SPLIT_PARAGRAPH_ALL,
-  OPT_HIGHLIGHT_WORDS_ALL,
 } from "../config";
 import { getRulesWithDefault, saveEdit } from "./storage";
 import { trySyncRules } from "./sync";
@@ -181,7 +180,6 @@ export const mergeRules = (baseRule, overrideRule) => {
     "transTag",
     "transTitle",
     "splitParagraph",
-    "highlightWords",
     "textStyle",
     "originalTextStyle",
   ].forEach((key) => {
@@ -327,7 +325,6 @@ export const checkRules = (rules) => {
         transTitle,
         splitParagraph,
         splitLength,
-        highlightWords,
       }) => ({
         // 确保字段类型及取值的合法性，不合法或空值时回退到默认占位符或空值
         pattern: pattern.trim(),
@@ -398,10 +395,6 @@ export const checkRules = (rules) => {
           splitParagraph
         ),
         splitLength: Number.isInteger(splitLength) ? splitLength : 0,
-        highlightWords: matchValue(
-          [GLOBAL_KEY, ...OPT_HIGHLIGHT_WORDS_ALL],
-          highlightWords
-        ),
       })
     );
 

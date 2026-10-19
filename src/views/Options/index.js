@@ -16,7 +16,6 @@ import Apis from "./Apis";
 import Prompts from "./Prompts";
 import InputSetting from "./InputSetting";
 import Tranbox from "./Tranbox";
-import FavWords from "./FavWords";
 import MouseHoverSetting from "./MouseHover";
 import SubtitleSetting from "./Subtitle";
 import StylesSetting from "./StylesSetting";
@@ -128,7 +127,6 @@ export default function Options() {
                     <Route path="apis" element={<Apis />} />
                     <Route path="prompts" element={<Prompts />} />
                     <Route path="sync" element={<SyncSetting />} />
-                    <Route path="words" element={<FavWords />} />
                     <Route path="about" element={<About />} />
                   </Route>
                 </Routes>

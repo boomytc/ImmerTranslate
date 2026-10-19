@@ -1,10 +1,5 @@
-import { OPT_HIGHLIGHT_WORDS_DISABLE } from "./config";
 import { APP_LCNAME, APP_NAME } from "./config/app";
-import {
-  getFabWithDefault,
-  getSettingWithDefault,
-  getWordsWithDefault,
-} from "./libs/storage";
+import { getFabWithDefault, getSettingWithDefault } from "./libs/storage";
 import { isIframe } from "./libs/iframe";
 import { readRedditEmbeddingHref } from "./libs/redditFrame";
 import { genEventName } from "./libs/utils";
@@ -136,26 +131,6 @@ function showErr(message) {
   setTimeout(removeBanner, 10000); // 10秒后自动消失
 }
 
-/**
- * 依据匹配规则，获取用户生词本中的所有单词用于高亮显示。
- * @param {Object} rule 当前页面的翻译匹配规则
- * @returns {Promise<Array<string>>} 生词本里的单词数组
- */
-async function getFavWords(rule) {
-  if (
-    rule.highlightWords &&
-    rule.highlightWords !== OPT_HIGHLIGHT_WORDS_DISABLE
-  ) {
-    try {
-      return Object.keys(await getWordsWithDefault());
-    } catch (err) {
-      logger.info("get fav words", err);
-    }
-  }
-
-  return [];
-}
-
 const IFRAME_TEXT_CHECK_TIMEOUT = 1000;
 const IFRAME_TEXT_IGNORE_SELECTOR = [
   "script",
@@ -284,7 +259,6 @@ export async function run(isUserscript = false) {
     // 顶层帖文 document 仍用自己的 href。黑名单继续看子 frame 自己的地址。
     const ruleHref = readRedditEmbeddingHref(window, isIframe) || href;
     const rule = await matchRule(ruleHref, setting);
-    const favWords = await getFavWords(rule);
     // 读出的配置已经是 hiddenSites / shownSites。页面是否显示由 isFabVisible
     // 按当前网址计算，这里不再改写 isHide。
     const fabConfig = normalizeFabConfig(await getFabWithDefault());
@@ -294,7 +268,6 @@ export async function run(isUserscript = false) {
       setting,
       rule,
       fabConfig,
-      favWords,
       isIframe,
       isUserscript,
       transboxOnly: isPdfDocument,

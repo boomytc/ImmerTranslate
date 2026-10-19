@@ -308,9 +308,7 @@ export function Menus({
   const {
     apiSlug, // 当前页面使用的字幕翻译服务 apiSlug
     segSlug, // 选中的智能断句大模型 apiSlug
-    skipAd, // 是否开启自动跳过广告
     isBilingual, // 是否采用双语对照视图显示
-    blurTranslation, // 是否启用模糊隐藏译文，悬浮时显示的背词模式
     autoTranslate, // 当前视频是否开启字幕翻译
     aiContextSlug, // 选中的上下文增强服务 apiSlug
   } = formData;
@@ -369,20 +367,6 @@ export function Menus({
         name="isBilingual"
         value={isBilingual}
         label={i18n("is_bilingual_view")}
-      />
-      {/* 译文模糊背词开关 */}
-      <Switch
-        onChange={handleChange}
-        name="blurTranslation"
-        value={blurTranslation}
-        label={i18n("is_blur_translation")}
-      />
-      {/* 广告跳过开关 */}
-      <Switch
-        onChange={handleChange}
-        name="skipAd"
-        value={skipAd}
-        label={i18n("is_skip_ad")}
       />
       {/* 字幕下载动作按钮：按需 AI 断句下允许下载当前已处理的字幕 */}
       <Button

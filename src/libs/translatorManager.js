@@ -81,7 +81,6 @@ export default class TranslatorManager {
   #setting;
   #rule;
   #fabConfig;
-  #favWords;
   #isUserscript;
   #isIframe;
   #transboxOnly;
@@ -129,7 +128,6 @@ export default class TranslatorManager {
     setting,
     rule,
     fabConfig,
-    favWords,
     isIframe,
     isUserscript,
     transboxOnly = false,
@@ -137,7 +135,6 @@ export default class TranslatorManager {
     this.#setting = this.#cloneConfig(setting);
     this.#rule = this.#cloneConfig(rule);
     this.#fabConfig = this.#cloneConfig(fabConfig);
-    this.#favWords = this.#cloneConfig(favWords);
     this.#isIframe = isIframe;
     this.#isUserscript = isUserscript;
     this.#transboxOnly = transboxOnly;
@@ -201,7 +198,6 @@ export default class TranslatorManager {
     this.#setting = state.setting;
     this.#rule = state.rule;
     this.#fabConfig = state.fabConfig;
-    this.#favWords = state.favWords;
 
     this.#createRuntimeModules();
     this.#refreshDocumentElementObserver();
@@ -309,7 +305,6 @@ export default class TranslatorManager {
     this._translator = new Translator({
       rule: this.#cloneConfig(this.#rule),
       setting: this.#cloneConfig(this.#setting),
-      favWords: this.#cloneConfig(this.#favWords),
       isUserscript: this.#isUserscript,
       isIframe: this.#isIframe,
     });
@@ -418,7 +413,6 @@ export default class TranslatorManager {
       setting,
       rule,
       fabConfig: this.#cloneConfig(this.#fabConfig),
-      favWords: this.#cloneConfig(this.#favWords),
     };
   }
 

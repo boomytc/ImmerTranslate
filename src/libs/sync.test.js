@@ -3,10 +3,8 @@ jest.mock("../config", () => ({
   APP_LCNAME: "immertranslate",
   KV_SETTING_KEY: "kiss-setting_v2.json",
   KV_RULES_KEY: "kiss-rules_v2.json",
-  KV_WORDS_KEY: "kiss-words.json",
   STOKEY_SETTING: "setting",
   STOKEY_RULES: "rules",
-  STOKEY_WORDS: "words",
   STOKEY_SYNC: "sync",
   OPT_SYNCTYPE_WEBDAV: "WebDAV",
   OPT_SYNCTYPE_GIST: "GitHub Gist",
@@ -18,13 +16,10 @@ jest.mock("./storage", () => ({
   updateSyncState: jest.fn(),
   getSettingWithDefault: jest.fn(),
   getRulesWithDefault: jest.fn(),
-  getWordsWithDefault: jest.fn(),
   getSetting: jest.fn(),
   getRules: jest.fn(),
-  getWords: jest.fn(),
   setSetting: jest.fn(),
   setRules: jest.fn(),
-  setWords: jest.fn(),
   storage: { withTransaction: jest.fn(), readSyncSnapshot: jest.fn() },
 }));
 
@@ -72,11 +67,9 @@ import {
   getSettingWithDefault,
   getRulesWithDefault,
   getSyncWithDefault,
-  getWordsWithDefault,
   putSync,
   setSetting,
   setRules,
-  setWords,
   updateSyncState,
   storage,
 } from "./storage";
@@ -90,7 +83,6 @@ const RECOVERY_OLD_ENCRYPT_KEY = "recovery-old-passphrase";
 const NEW_SYNC_ENCRYPT_KEY = "new-sync-encrypt-passphrase";
 const SETTING_KEY = "kiss-setting_v2.json";
 const RULES_KEY = "kiss-rules_v2.json";
-const WORDS_KEY = "kiss-words.json";
 
 beforeEach(() => {
   const transaction = {
@@ -99,7 +91,6 @@ beforeEach(() => {
       ({
         setting: setSetting,
         rules: setRules,
-        words: setWords,
       })[key](value),
   };
   storage.withTransaction.mockImplementation((operation) =>
@@ -109,7 +100,6 @@ beforeEach(() => {
     value: await {
       setting: getSettingWithDefault,
       rules: getRulesWithDefault,
-      words: getWordsWithDefault,
     }[key](),
     syncConfig: await getSyncWithDefault(),
   }));
@@ -515,15 +505,10 @@ describe("GitHub Gist sync", () => {
           updateAt: 201,
           syncAt: 1,
         },
-        [WORDS_KEY]: {
-          updateAt: 202,
-          syncAt: 1,
-        },
       },
     });
     getSettingWithDefault.mockResolvedValue({ setting: true });
     getRulesWithDefault.mockResolvedValue([{ pattern: "*" }]);
-    getWordsWithDefault.mockResolvedValue({ hello: true });
     apiGetGist.mockResolvedValue({ files: {} });
 
     Date.now.mockReturnValue(9999);
@@ -545,30 +530,18 @@ describe("GitHub Gist sync", () => {
     );
     expect(encryptSyncValue).toHaveBeenNthCalledWith(
       3,
-      JSON.stringify({ hello: true }),
-      SYNC_ENCRYPT_KEY
-    );
-    expect(encryptSyncValue).toHaveBeenNthCalledWith(
-      4,
       JSON.stringify({ setting: true }),
       NEW_SYNC_ENCRYPT_KEY
     );
     expect(encryptSyncValue).toHaveBeenNthCalledWith(
-      5,
+      4,
       JSON.stringify([{ pattern: "*" }]),
       NEW_SYNC_ENCRYPT_KEY
     );
-    expect(encryptSyncValue).toHaveBeenNthCalledWith(
-      6,
-      JSON.stringify({ hello: true }),
-      NEW_SYNC_ENCRYPT_KEY
-    );
-    const uploadedSetting = JSON.parse(apiUpdateGistFile.mock.calls[3][3]);
-    const uploadedRules = JSON.parse(apiUpdateGistFile.mock.calls[4][3]);
-    const uploadedWords = JSON.parse(apiUpdateGistFile.mock.calls[5][3]);
+    const uploadedSetting = JSON.parse(apiUpdateGistFile.mock.calls[2][3]);
+    const uploadedRules = JSON.parse(apiUpdateGistFile.mock.calls[3][3]);
     expect(uploadedSetting.updateAt).toBe(9999);
     expect(uploadedRules.updateAt).toBe(9999);
-    expect(uploadedWords.updateAt).toBe(9999);
     expect(putSync).toHaveBeenCalledWith({
       syncMeta: expect.objectContaining({
         [SETTING_KEY]: {
@@ -580,14 +553,6 @@ describe("GitHub Gist sync", () => {
     expect(putSync).toHaveBeenCalledWith({
       syncMeta: expect.objectContaining({
         [RULES_KEY]: {
-          updateAt: 9999,
-          syncAt: 9999,
-        },
-      }),
-    });
-    expect(putSync).toHaveBeenCalledWith({
-      syncMeta: expect.objectContaining({
-        [WORDS_KEY]: {
           updateAt: 9999,
           syncAt: 9999,
         },
@@ -640,7 +605,6 @@ describe("GitHub Gist sync", () => {
     });
     getSettingWithDefault.mockResolvedValue({ setting: true });
     getRulesWithDefault.mockResolvedValue([]);
-    getWordsWithDefault.mockResolvedValue({});
     apiGetGist.mockResolvedValue({ files: {} });
 
     await changeSyncEncryptKey({

@@ -1,4 +1,4 @@
-import { STOKEY_WORDS, STOKEY_SYNC, KV_WORDS_KEY } from "../config";
+import { STOKEY_RULES, STOKEY_SYNC, KV_RULES_KEY } from "../config";
 
 jest.mock("./log", () => ({
   ...jest.requireActual("./log"),
@@ -101,7 +101,6 @@ function loadContext(runtime, background = false) {
       ...require("./storageCoordination"),
       ...require("./storage"),
       ...require("./storageState"),
-      ...require("../subtitle/favoriteWords"),
     };
   });
   return context;
@@ -123,7 +122,7 @@ afterEach(() => {
 
 async function setup() {
   const runtime = createRuntime();
-  runtime.values[STOKEY_WORDS] = JSON.stringify({ original: {} });
+  runtime.values[STOKEY_RULES] = JSON.stringify({ original: {} });
   const background = loadContext(runtime, true);
   background.installStorageCoordinator();
   const first = loadContext(runtime);
@@ -132,8 +131,8 @@ async function setup() {
 }
 
 async function mountState(page) {
-  const state = page.getStorageState(STOKEY_WORDS, {});
-  state.configureSync(KV_WORDS_KEY);
+  const state = page.getStorageState(STOKEY_RULES, {});
+  state.configureSync(KV_RULES_KEY);
   cleanups.push(state.subscribe(() => {}));
   await state.ensureLoaded();
   return state;
@@ -151,12 +150,12 @@ function deferred() {
 
 test("a pure read returns while another page holds the storage lock", async () => {
   const { runtime, first, second } = await setup();
-  runtime.values[STOKEY_WORDS] = JSON.stringify({ original: { kept: true } });
+  runtime.values[STOKEY_RULES] = JSON.stringify({ original: { kept: true } });
   const release = deferred();
   const holder = first.withStorageLock(() => release.promise);
   const holderResult = holder.catch(() => undefined);
   for (let step = 0; step < 20; step += 1) await Promise.resolve();
-  const state = second.getStorageState(STOKEY_WORDS, {});
+  const state = second.getStorageState(STOKEY_RULES, {});
   const loaded = state.load();
   let timer;
   const hung = new Promise((_, reject) => {
@@ -209,15 +208,15 @@ test("concurrent read-then-write transactions stay serial and keep both writes",
   runtime.pauseEvents = true;
   await Promise.all([
     first.withTransaction(async (transaction) => {
-      const current = (await transaction.getObj(STOKEY_WORDS)) || {};
-      await transaction.setObj(STOKEY_WORDS, { ...current, first: {} });
+      const current = (await transaction.getObj(STOKEY_RULES)) || {};
+      await transaction.setObj(STOKEY_RULES, { ...current, first: {} });
     }),
     second.withTransaction(async (transaction) => {
-      const current = (await transaction.getObj(STOKEY_WORDS)) || {};
-      await transaction.setObj(STOKEY_WORDS, { ...current, second: {} });
+      const current = (await transaction.getObj(STOKEY_RULES)) || {};
+      await transaction.setObj(STOKEY_RULES, { ...current, second: {} });
     }),
   ]);
-  expect(JSON.parse(runtime.values[STOKEY_WORDS])).toEqual({
+  expect(JSON.parse(runtime.values[STOKEY_RULES])).toEqual({
     original: {},
     first: {},
     second: {},
@@ -231,9 +230,9 @@ test("two independent page states preserve sequential edits to different words",
   const secondState = await mountState(second);
   expect(firstState).not.toBe(secondState);
   await firstState.save((previous) => ({ ...previous, first: {} }));
-  expect(await first.getWords()).toEqual({ original: {}, first: {} });
+  expect(await first.getRules()).toEqual({ original: {}, first: {} });
   await secondState.save((previous) => ({ ...previous, second: {} }));
-  const actual = await second.getWords();
+  const actual = await second.getRules();
   expect(runtime.storage.local.set).toHaveBeenCalledTimes(2);
   expect(actual).toEqual({ original: {}, first: {}, second: {} });
   expect(secondState.snapshot.data).toEqual(actual);
@@ -244,7 +243,7 @@ test("control: a single page state preserves both sequential edits", async () =>
   const state = await mountState(first);
   await state.save((previous) => ({ ...previous, first: {} }));
   await state.save((previous) => ({ ...previous, second: {} }));
-  expect(await first.getWords()).toEqual({
+  expect(await first.getRules()).toEqual({
     original: {},
     first: {},
     second: {},
@@ -254,16 +253,16 @@ test("control: a single page state preserves both sequential edits", async () =>
 test("control: independent pages passing updater functions directly to saveEdit preserve both edits", async () => {
   const { first, second } = await setup();
   await first.saveEdit(
-    STOKEY_WORDS,
+    STOKEY_RULES,
     (previous) => ({ ...previous, first: {} }),
-    KV_WORDS_KEY
+    KV_RULES_KEY
   );
   await second.saveEdit(
-    STOKEY_WORDS,
+    STOKEY_RULES,
     (previous) => ({ ...previous, second: {} }),
-    KV_WORDS_KEY
+    KV_RULES_KEY
   );
-  expect(await second.getWords()).toEqual({
+  expect(await second.getRules()).toEqual({
     original: {},
     first: {},
     second: {},
@@ -279,7 +278,7 @@ test("concurrent independent page reducers merge against the coordinated value",
     firstState.save((previous) => ({ ...previous, first: {} })),
     secondState.save((previous) => ({ ...previous, second: {} })),
   ]);
-  expect(await first.getWords()).toEqual({
+  expect(await first.getRules()).toEqual({
     original: {},
     first: {},
     second: {},
@@ -315,22 +314,7 @@ test("an explicit replacement is checked against storage rather than a stale pre
   await firstState.save((previous) => ({ ...previous, first: {} }));
   const result = await secondState.save({ original: {} });
   expect(result.changed).toBe(true);
-  expect(await second.getWords()).toEqual({ original: {} });
-});
-
-test("favorite completion includes a single data and metadata commit", async () => {
-  const { runtime, first } = await setup();
-  runtime.values[STOKEY_SYNC] = JSON.stringify({
-    syncMeta: { [KV_WORDS_KEY]: { updateAt: 100, syncAt: 110 } },
-  });
-  expect(
-    await first.saveFavoriteWordIfMissing("first", { definition: "first word" })
-  ).toBe(true);
-  expect((await first.getSync()).syncMeta[KV_WORDS_KEY].updateAt).toBe(300);
-  expect(runtime.storage.local.set).toHaveBeenCalledTimes(1);
-  expect(
-    Object.keys(runtime.storage.local.set.mock.calls[0][0]).sort()
-  ).toEqual([STOKEY_WORDS, STOKEY_SYNC].sort());
+  expect(await second.getRules()).toEqual({ original: {} });
 });
 
 test("an explicit removal remains null after real storage invalidations", async () => {
@@ -338,7 +322,7 @@ test("an explicit removal remains null after real storage invalidations", async 
   const state = await mountState(first);
   await state.remove();
   await state.load();
-  expect(await first.getWords()).toBeNull();
+  expect(await first.getRules()).toBeNull();
   expect(state.snapshot.data).toBeNull();
   expect(state.dirty).toBe(false);
 });
@@ -353,15 +337,15 @@ test("hydration waits for a replacement read when an event invalidates its first
   let reads = 0;
   runtime.storage.local.get.mockImplementation(async (keys) => {
     const values = await getValues(keys);
-    if (keys.includes(STOKEY_WORDS) && reads++ === 0) await firstRead;
+    if (keys.includes(STOKEY_RULES) && reads++ === 0) await firstRead;
     return values;
   });
-  const state = first.getStorageState(STOKEY_WORDS, {});
+  const state = first.getStorageState(STOKEY_RULES, {});
   cleanups.push(state.subscribe(() => {}));
   const hydrated = state.ensureLoaded();
   for (let step = 0; step < 20; step += 1) await Promise.resolve();
-  runtime.values[STOKEY_WORDS] = JSON.stringify({ latest: {} });
-  runtime.storage.onChanged.emit({ [STOKEY_WORDS]: {} }, "local");
+  runtime.values[STOKEY_RULES] = JSON.stringify({ latest: {} });
+  runtime.storage.onChanged.emit({ [STOKEY_RULES]: {} }, "local");
   for (let step = 0; step < 20; step += 1) await Promise.resolve();
   releaseFirstRead();
   await hydrated;

@@ -14,9 +14,6 @@ import Divider from "@mui/material/Divider";
 import { useI18n } from "../../hooks/I18n";
 import {
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
-  OPT_ENHANCE_ON,
-  OPT_ENHANCE_OFF,
-  OPT_ENHANCE_MOBILE_OFF,
   DEFAULT_SUBTITLE_PROMPT_SLUG,
   PROMPT_MODE_FOLLOW_API,
   PROMPT_MODE_GLOBAL,
@@ -31,7 +28,6 @@ import { useApiList } from "../../hooks/Api";
 import { usePromptList } from "../../hooks/Prompt";
 import ValidationInput from "../../hooks/ValidationInput";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { normalizeSubtitleMode } from "../../subtitle/modes";
 import {
   SettingsAdvanced,
   SettingsCard,
@@ -470,11 +466,6 @@ export default function SubtitleSetting() {
     autoTranslate = true,
     isBilingual,
     displayOrder = "original-first",
-    blurTranslation = false,
-    hoverLookupMode,
-    autoFavWord = false,
-    showList = OPT_ENHANCE_MOBILE_OFF,
-    skipAd = false,
     aiContextSlug = "-",
     segPromptMode = PROMPT_MODE_FOLLOW_API,
     segPromptSlug,
@@ -483,11 +474,8 @@ export default function SubtitleSetting() {
     translationStyle,
     showLoadNotification = true,
     hideSubtitleButton = false,
-    rememberPosition = false,
   } = subtitleSetting;
 
-  const hoverLookupModeValue = normalizeSubtitleMode(hoverLookupMode);
-  const showListValue = normalizeSubtitleMode(showList);
   const selectedSegPromptSlug = segPromptSlug || DEFAULT_SUBTITLE_PROMPT_SLUG;
   const hasSelectedSegPrompt = subtitlePromptOptions.some(
     (prompt) => prompt.slug === selectedSegPromptSlug
@@ -852,55 +840,6 @@ export default function SubtitleSetting() {
                 ))}
               </TextField>
             </SettingsRow>
-            <SettingsRow
-              label={i18n("is_skip_ad")}
-              description={i18n("settings_skip_ad_description")}
-            >
-              <SettingsSwitch
-                checked={skipAd}
-                label={i18n("is_skip_ad")}
-                onChange={(checked) => updateSubtitle({ skipAd: checked })}
-              />
-            </SettingsRow>
-          </SettingsCard>
-        </SettingsSection>
-
-        <SettingsSection title={i18n("settings_learning_group")}>
-          <SettingsCard>
-            <SettingsRow
-              label={i18n("is_blur_translation")}
-              description={i18n("settings_blur_translation_description")}
-            >
-              <SettingsSwitch
-                checked={blurTranslation}
-                label={i18n("is_blur_translation")}
-                onChange={(checked) =>
-                  updateSubtitle({ blurTranslation: checked })
-                }
-              />
-            </SettingsRow>
-            <SettingsRow label={i18n("subtitle_hover_lookup")}>
-              <SettingsSegmented
-                value={hoverLookupModeValue}
-                label={i18n("subtitle_hover_lookup")}
-                onChange={(value) => updateSubtitle({ hoverLookupMode: value })}
-                items={[
-                  { value: OPT_ENHANCE_ON, label: i18n("enable") },
-                  { value: OPT_ENHANCE_OFF, label: i18n("disable") },
-                  {
-                    value: OPT_ENHANCE_MOBILE_OFF,
-                    label: i18n("disable_on_mobile"),
-                  },
-                ]}
-              />
-            </SettingsRow>
-            <SettingsRow label={i18n("auto_fav_word")}>
-              <SettingsSwitch
-                checked={autoFavWord}
-                label={i18n("auto_fav_word")}
-                onChange={(checked) => updateSubtitle({ autoFavWord: checked })}
-              />
-            </SettingsRow>
           </SettingsCard>
         </SettingsSection>
 
@@ -1038,24 +977,6 @@ export default function SubtitleSetting() {
               </TextField>
             </Grid>
 
-            {/* 视频侧边/下方的独立字幕全文滚动列表显示模式 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                name="showList"
-                value={showListValue}
-                label={i18n("show_subtitle_list", "显示字幕列表")}
-                onChange={handleChange}
-              >
-                <MenuItem value={OPT_ENHANCE_ON}>{i18n("enable")}</MenuItem>
-                <MenuItem value={OPT_ENHANCE_OFF}>{i18n("disable")}</MenuItem>
-                <MenuItem value={OPT_ENHANCE_MOBILE_OFF}>
-                  {i18n("disable_on_mobile")}
-                </MenuItem>
-              </TextField>
-            </Grid>
             {/* 网页加载完毕且成功识别到视频字幕流时，是否在右下角弹出载入成功的横幅提示 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
@@ -1080,21 +1001,6 @@ export default function SubtitleSetting() {
                 name="hideSubtitleButton"
                 value={hideSubtitleButton}
                 label={i18n("hide_subtitle_button")}
-                onChange={handleChange}
-              >
-                <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                <MenuItem value={false}>{i18n("disable")}</MenuItem>
-              </TextField>
-            </Grid>
-            {/* Remember the dragged subtitle position for subsequent videos. */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                name="rememberPosition"
-                value={rememberPosition}
-                label={i18n("remember_subtitle_position")}
                 onChange={handleChange}
               >
                 <MenuItem value={true}>{i18n("enable")}</MenuItem>

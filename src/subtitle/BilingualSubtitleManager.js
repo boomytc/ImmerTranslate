@@ -4,14 +4,6 @@ import { decodeHTMLEntities } from "../libs/html.js";
 import { parseMathInText } from "../libs/mathParse.js";
 import { apiTranslate } from "../apis/index.js";
 import { resolveApiPromptSettings } from "../config/prompt.js";
-import { trustedTypesHelper } from "../libs/trustedTypes.js";
-import { isSubtitleModeEnabled } from "./modes.js";
-import {
-  addWordHoverStyles,
-  WordTooltipController,
-  wrapWordsWithSpans,
-} from "./wordHover.js";
-
 /**
  * @class BilingualSubtitleManager
  * @description 负责控制在 YouTube 原生视频播放器上悬浮渲染双语字幕，以及对字幕进行预翻译缓存管理的核心逻辑类
@@ -26,14 +18,10 @@ export class BilingualSubtitleManager {
   #setting = {}; // 全局设置项副本
   #isAdPlaying = false; // 当前视频是否正在播放 YouTube 广告
   #throttledTriggerTranslations; // 预翻译请求防抖节流函数
-  #wordTooltipController = null; // 划词查义气泡弹窗控制器
   #seekSyncRafId = null; // 控制进度 seek 完毕后强制同步的 requestAnimationFrame ID
   #translationSessionId = 0; // 当前翻译会话版本 ID，用于防竞态过滤过期异步请求
   #abortController = null; // 用于在实例销毁时中止所有尚未返回的网络请求
-  #wasPlayingBeforeHover = false; // 记录鼠标 hover 单词前视频是否原本处于播放状态，用于离开时恢复播放
-  #hoverTarget = null;
   #playerControlBarObserver = null; // 监听播放器底部控制条显隐突变的 MutationObserver
-  #playerResizeObserver = null; // 记住位置时监听播放器尺寸变化
   #syncPaperBottomAfterDrag = null; // 拖拽结束后按当前控制条状态修正字幕位置
   #syncPaperPosition = null; // 按当前播放器尺寸和控制条状态重算字幕位置
 
@@ -59,20 +47,6 @@ export class BilingualSubtitleManager {
       this.#triggerTranslations.bind(this),
       (setting.throttleTrans ?? 30) * 1000
     );
-
-    // 如果启用了悬浮背词/查词翻译功能，将所需 CSS 样式表写入 head
-    if (this.#isHoverLookupEnabled()) {
-      addWordHoverStyles();
-      this.#wordTooltipController = new WordTooltipController({
-        getVideoContainer: () => this.#videoEl.parentElement?.parentElement,
-        getTimestamp: () => this.#getCurrentSubtitleStartTime(),
-      });
-    }
-  }
-
-  // 判定是否激活了悬浮查词翻译功能
-  #isHoverLookupEnabled() {
-    return isSubtitleModeEnabled(this.#setting.hoverLookupMode);
   }
 
   /**
@@ -110,13 +84,9 @@ export class BilingualSubtitleManager {
     // 释放 MutationObserver 监听器
     this.#playerControlBarObserver?.disconnect();
     this.#playerControlBarObserver = null;
-    this.#playerResizeObserver?.disconnect();
-    this.#playerResizeObserver = null;
     this.#syncPaperBottomAfterDrag = null;
     this.#syncPaperPosition = null;
     this.#formattedSubtitles = [];
-    this.#wordTooltipController?.destroy();
-    this.#wordTooltipController = null;
   }
 
   /**
@@ -138,10 +108,8 @@ export class BilingualSubtitleManager {
     const controlBar = player.querySelector(".ytp-left-controls");
     if (!controlBar) return;
     const controlBarHeight = parseFloat(getComputedStyle(controlBar).height);
-    const rememberPosition = this.#setting.rememberPosition === true;
     const configuredRatio = Number(this.#setting.positionRatio);
-    let positionRatio =
-      rememberPosition &&
+    const positionRatio =
       Number.isFinite(configuredRatio) &&
       configuredRatio >= 0 &&
       configuredRatio <= 1
@@ -165,15 +133,9 @@ export class BilingualSubtitleManager {
       if (!force && isHidden === lastControlBarHiddenState) return;
       lastControlBarHiddenState = isHidden;
 
-      if (rememberPosition) {
-        baseBottomWhenControlsHidden = clampBaseBottom(
-          player.clientHeight * positionRatio
-        );
-      } else {
-        baseBottomWhenControlsHidden = clampBaseBottom(
-          baseBottomWhenControlsHidden
-        );
-      }
+      baseBottomWhenControlsHidden = clampBaseBottom(
+        baseBottomWhenControlsHidden
+      );
 
       const shouldFloatAboveControlBar =
         baseBottomWhenControlsHidden < controlBarHeight * 2;
@@ -188,11 +150,6 @@ export class BilingualSubtitleManager {
 
     this.#syncPaperBottomAfterDrag = (draggedBottom) => {
       baseBottomWhenControlsHidden = clampBaseBottom(draggedBottom);
-      if (rememberPosition && player.clientHeight > 0) {
-        positionRatio = baseBottomWhenControlsHidden / player.clientHeight;
-        this.#setting.positionRatio = positionRatio;
-        this.#setting.onSubtitlePositionChange?.(positionRatio);
-      }
       syncPaperElBottom({ force: true });
     };
     this.#syncPaperPosition = () => syncPaperElBottom({ force: true });
@@ -202,13 +159,6 @@ export class BilingualSubtitleManager {
     const observer = new MutationObserver(() => syncPaperElBottom());
     observer.observe(player, { attributes: true, attributeFilter: ["class"] });
     this.#playerControlBarObserver = observer;
-
-    if (rememberPosition && typeof ResizeObserver === "function") {
-      this.#playerResizeObserver = new ResizeObserver(() => {
-        syncPaperElBottom({ force: true });
-      });
-      this.#playerResizeObserver.observe(player);
-    }
   }
 
   /**
@@ -265,8 +215,6 @@ export class BilingualSubtitleManager {
     videoContainer.style.position = "relative";
     videoContainer.appendChild(container);
 
-    const isHoverLookupEnabled = this.#isHoverLookupEnabled();
-
     // 4. 为字幕框启用拖拽交互
     this.#enableDragging(
       this.#paperEl,
@@ -275,41 +223,8 @@ export class BilingualSubtitleManager {
       (draggedBottom) => this.#syncPaperBottomAfterDrag?.(draggedBottom)
     );
 
-    // 5. 如果开启了悬浮查词，则在鼠标 hover 字幕窗口时暂停视频，方便用户稳妥查词；移开鼠标时自动恢复播放
-    if (isHoverLookupEnabled) {
-      this.#captionWindowEl.addEventListener("pointerenter", (e) => {
-        if (e.target === this.#captionWindowEl) {
-          this.#wasPlayingBeforeHover = this.#videoEl && !this.#videoEl.paused;
-          if (this.#videoEl && !this.#videoEl.paused) {
-            this.#videoEl.pause();
-          }
-        }
-      });
-
-      this.#captionWindowEl.addEventListener("pointerleave", (e) => {
-        if (e.target === this.#captionWindowEl) {
-          if (
-            this.#wasPlayingBeforeHover &&
-            this.#videoEl &&
-            this.#videoEl.paused
-          ) {
-            this.#videoEl.play();
-          }
-          this.#wasPlayingBeforeHover = false;
-          this.#hoverTarget = null;
-        }
-      });
-    }
-
-    // 6. 开启底部控制栏显隐监听
+    // 5. 开启底部控制栏显隐监听
     this.#observePlayerControlBar();
-  }
-
-  /**
-   * 为翻译分词后产生的每一个单词标签绑 hover 移入/移出事件
-   */
-  #attachSpanListeners() {
-    this.#wordTooltipController?.attachSpanListeners(this.#captionWindowEl);
   }
 
   /**
@@ -570,29 +485,13 @@ export class BilingualSubtitleManager {
       p1.style.cssText = this.#setting.originStyle;
       p1.style.margin = "0";
 
-      const isHoverLookupEnabled = this.#isHoverLookupEnabled();
-
-      if (isHoverLookupEnabled) {
-        // 如果开启划词查词，用 span 标记每个单词
-        p1.innerHTML = trustedTypesHelper.createHTML(
-          wrapWordsWithSpans(subtitle.text)
-        );
-      } else {
-        // 没有查词需要时，只做常规安全截断后展示 text 文本内容
-        p1.textContent = truncateWords(subtitle.text);
-      }
+      p1.textContent = truncateWords(subtitle.text);
 
       // 2. 创建字幕译文 (translation) 显示节点
       const p2 = document.createElement("p");
       p2.style.cssText = this.#setting.translationStyle;
       p2.style.margin = "0";
-      if (isHoverLookupEnabled) {
-        p2.innerHTML = trustedTypesHelper.createHTML(
-          wrapWordsWithSpans(subtitle.translation || "...")
-        );
-      } else {
-        p2.textContent = truncateWords(subtitle.translation) || "...";
-      }
+      p2.textContent = truncateWords(subtitle.translation) || "...";
 
       // 3. 根据用户设置，决定显示双语对照还是仅显示翻译
       if (this.#setting.isBilingual) {
@@ -603,23 +502,6 @@ export class BilingualSubtitleManager {
         this.#captionWindowEl.replaceChildren(...children);
       } else {
         this.#captionWindowEl.replaceChildren(p2);
-      }
-
-      // 4. 背词背句模式（模糊译文，鼠标悬停时才显现翻译）
-      if (this.#setting.blurTranslation) {
-        const blurValue = "blur(6px)";
-        p2.style.setProperty("filter", blurValue);
-        p2.addEventListener("pointerenter", () => {
-          p2.style.removeProperty("filter");
-        });
-        p2.addEventListener("pointerleave", () => {
-          p2.style.setProperty("filter", blurValue);
-        });
-      }
-
-      // 5. 重新为新生成的 span 单词绑定 hover 查词动作
-      if (isHoverLookupEnabled) {
-        this.#attachSpanListeners();
       }
 
       this.#paperEl.style.display = "block";

@@ -122,7 +122,6 @@ export const DEFAULT_TRANBOX_SETTING = {
   blacklist: "", // 划词翻译禁用的域名列表
   apiSlugs: [OPT_TRANS_MICROSOFT], // 启用的翻译 API (支持多选)
   singleWordNoTrans: false, // 划词为单个单词时是否仅查询词典，不请求整句翻译服务
-  autoFavWord: false, // 打开划词翻译框时自动收藏英文单词
   fromLang: "auto",
   toLang: "zh-CN",
   toLang2: "en", // 第二目标语言，用于自动反向互译
@@ -159,10 +158,6 @@ display: inline-block`; // 字幕外层窗口的 CSS 默认样式
 const SUBTITLE_ORIGIN_STYLE = `font-size: clamp(1rem, 2cqw, 3rem);`; // 字幕原文的默认 CSS 样式
 const SUBTITLE_TRANSLATION_STYLE = `font-size: clamp(1rem, 2cqw, 3rem);`; // 字幕译文的默认 CSS 样式
 
-export const OPT_ENHANCE_ON = "on";
-export const OPT_ENHANCE_OFF = "off";
-export const OPT_ENHANCE_MOBILE_OFF = "mobile_off"; // 移动端浏览器中默认禁用
-
 // --- 字幕翻译核心配置 ---
 export const DEFAULT_SUBTITLE_SETTING = {
   enabled: true, // 是否自动开启视频字幕翻译功能
@@ -178,16 +173,10 @@ export const DEFAULT_SUBTITLE_SETTING = {
   autoTranslate: true, // 是否在获取并解析视频字幕后立即启动翻译
   isBilingual: true, // 字幕是否启用双语对照显示
   displayOrder: "original-first", // 字幕双语显示顺序：原文在前或译文在前
-  blurTranslation: false, // 是否模糊显示译文 (用于听力/口语训练)
-  skipAd: false, // 是否在识别到 YouTube 广告字幕时进行特殊快进
   windowStyle: SUBTITLE_WINDOW_STYLE, // 字幕背景及定位样式
   originStyle: SUBTITLE_ORIGIN_STYLE, // 原文字体大小及字重样式
   translationStyle: SUBTITLE_TRANSLATION_STYLE, // 译文字体大小样式
-  hoverLookupMode: OPT_ENHANCE_MOBILE_OFF, // 鼠标悬停到字幕单词上时是否弹出查词面板
-  autoFavWord: false, // 字幕悬停查词成功后是否自动收藏单词
-  showList: OPT_ENHANCE_MOBILE_OFF, // 是否在侧边/右侧显示字幕全文滚动历史面板
   hideSubtitleButton: false, // 是否隐藏 YouTube 播放器中的字幕功能按钮
-  rememberPosition: false, // 是否记住字幕拖动后的相对位置
   positionRatio: 0.05, // 字幕底边相对播放器高度的比例
   aiContextSlug: "-", // 是否为字幕启用智能上下文，以获取更好的代词翻译效果
   segPromptMode: PROMPT_MODE_FOLLOW_API, // AI 断句提示词来源：接口默认或指定 subtitle prompt

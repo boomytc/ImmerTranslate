@@ -92,7 +92,6 @@ export default function Tranbox() {
     transOpen,
     apiSlugs,
     singleWordNoTrans = false,
-    autoFavWord = false,
     fromLang,
     toLang,
     toLang2 = "en",
@@ -227,16 +226,6 @@ export default function Tranbox() {
                     label: getApiDisplayName(api),
                   })),
                 ]}
-              />
-            </SettingsRow>
-            <SettingsRow
-              label={i18n("auto_fav_word")}
-              description={i18n("settings_auto_favorite_description")}
-            >
-              <SettingsSwitch
-                checked={autoFavWord}
-                label={i18n("auto_fav_word")}
-                onChange={(checked) => updateTranbox({ autoFavWord: checked })}
               />
             </SettingsRow>
           </SettingsCard>

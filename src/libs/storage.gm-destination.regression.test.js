@@ -1,9 +1,9 @@
 import {
   DEFAULT_SYNC,
   KV_SETTING_KEY,
-  KV_WORDS_KEY,
+  KV_RULES_KEY,
   STOKEY_SYNC,
-  STOKEY_WORDS,
+  STOKEY_RULES,
 } from "../config";
 
 jest.mock("./browser", () => ({}));
@@ -40,7 +40,7 @@ const initialSync = {
   syncEncryptKey: "passphrase-a",
   syncMeta: {
     [KV_SETTING_KEY]: { updateAt: 10, syncAt: 11 },
-    [KV_WORDS_KEY]: { updateAt: 20, syncAt: 21 },
+    [KV_RULES_KEY]: { updateAt: 20, syncAt: 21 },
     custom: { updateAt: 30 },
   },
 };
@@ -83,7 +83,7 @@ test.each(["configuration read", "metadata updater"])(
     const metadata =
       pauseAt === "configuration read"
         ? first.putSync({
-            syncMeta: { [KV_WORDS_KEY]: { updateAt: Date.now() } },
+            syncMeta: { [KV_RULES_KEY]: { updateAt: Date.now() } },
           })
         : first.updateSyncState(async (current) => {
             paused.resolve();
@@ -92,7 +92,7 @@ test.each(["configuration read", "metadata updater"])(
               ...current,
               syncMeta: {
                 ...current.syncMeta,
-                [KV_WORDS_KEY]: { updateAt: 20, syncAt: 200 },
+                [KV_RULES_KEY]: { updateAt: 20, syncAt: 200 },
               },
             };
           });
@@ -139,12 +139,12 @@ test("a GM metadata update preserves other inline timestamps and custom metadata
     ...current,
     syncMeta: {
       ...current.syncMeta,
-      [KV_WORDS_KEY]: { updateAt: 20, syncAt: 200 },
+      [KV_RULES_KEY]: { updateAt: 20, syncAt: 200 },
     },
   }));
   expect(JSON.parse(values.get(STOKEY_SYNC)).syncMeta).toEqual({
     ...initialSync.syncMeta,
-    [KV_WORDS_KEY]: { updateAt: 20, syncAt: 200 },
+    [KV_RULES_KEY]: { updateAt: 20, syncAt: 200 },
   });
   await page.updateSyncState((current) => ({
     ...current,
@@ -152,12 +152,12 @@ test("a GM metadata update preserves other inline timestamps and custom metadata
   }));
   expect((await page.getSync()).syncMeta).toEqual({
     ...initialSync.syncMeta,
-    [KV_WORDS_KEY]: { updateAt: 20, syncAt: 200 },
+    [KV_RULES_KEY]: { updateAt: 20, syncAt: 200 },
     custom: { updateAt: 300 },
   });
   expect(JSON.parse(values.get(STOKEY_SYNC)).syncMeta).toEqual({
     ...initialSync.syncMeta,
-    [KV_WORDS_KEY]: { updateAt: 20, syncAt: 200 },
+    [KV_RULES_KEY]: { updateAt: 20, syncAt: 200 },
     custom: { updateAt: 300 },
   });
 });
@@ -173,27 +173,27 @@ test.each([
       STOKEY_SYNC,
       JSON.stringify({
         ...initialSync,
-        syncMeta: { ...initialSync.syncMeta, [KV_WORDS_KEY]: meta },
+        syncMeta: { ...initialSync.syncMeta, [KV_RULES_KEY]: meta },
       })
     );
-    values.set(STOKEY_WORDS, JSON.stringify({ local: {} }));
+    values.set(STOKEY_RULES, JSON.stringify({ local: {} }));
     const page = loadPage();
 
     await page.updateSyncState(async (current, transaction) => {
-      await transaction.setObj(STOKEY_WORDS, { remote: {} });
+      await transaction.setObj(STOKEY_RULES, { remote: {} });
       return {
         ...current,
         syncMeta: {
           ...current.syncMeta,
-          [KV_WORDS_KEY]: { updateAt: 100, syncAt: 400 },
+          [KV_RULES_KEY]: { updateAt: 100, syncAt: 400 },
         },
       };
     });
 
-    expect(await page.getWords()).toEqual({ remote: {} });
+    expect(await page.getRules()).toEqual({ remote: {} });
     expect((await page.getSync()).syncMeta).toEqual({
       ...initialSync.syncMeta,
-      [KV_WORDS_KEY]: { updateAt: 100, syncAt: 400 },
+      [KV_RULES_KEY]: { updateAt: 100, syncAt: 400 },
     });
   }
 );
@@ -222,7 +222,7 @@ test.each([
       await resume.promise;
       return {
         ...current,
-        syncMeta: { ...current.syncMeta, [KV_WORDS_KEY]: incoming },
+        syncMeta: { ...current.syncMeta, [KV_RULES_KEY]: incoming },
       };
     });
 
@@ -230,11 +230,11 @@ test.each([
       await paused.promise;
       await second.updateSyncState((current) => ({
         ...current,
-        syncMeta: { ...current.syncMeta, [KV_WORDS_KEY]: concurrent },
+        syncMeta: { ...current.syncMeta, [KV_RULES_KEY]: concurrent },
       }));
       resume.resolve();
       await pending;
-      expect((await first.getSync()).syncMeta[KV_WORDS_KEY]).toEqual(
+      expect((await first.getSync()).syncMeta[KV_RULES_KEY]).toEqual(
         concurrent
       );
     } finally {
@@ -257,7 +257,7 @@ test("GM adoption permits an older version while another origin changes a differ
       ...current,
       syncMeta: {
         ...current.syncMeta,
-        [KV_WORDS_KEY]: { updateAt: 10, syncAt: 400 },
+        [KV_RULES_KEY]: { updateAt: 10, syncAt: 400 },
       },
     };
   });
@@ -276,7 +276,7 @@ test("GM adoption permits an older version while another origin changes a differ
     expect((await first.getSync()).syncMeta).toEqual({
       ...initialSync.syncMeta,
       [KV_SETTING_KEY]: { updateAt: 500, syncAt: 501 },
-      [KV_WORDS_KEY]: { updateAt: 10, syncAt: 400 },
+      [KV_RULES_KEY]: { updateAt: 10, syncAt: 400 },
     });
   } finally {
     resume.resolve();
@@ -311,9 +311,9 @@ test.each([
     const pending =
       operation === "metadata"
         ? first.putSync({
-            syncMeta: { [KV_WORDS_KEY]: { updateAt: Date.now() } },
+            syncMeta: { [KV_RULES_KEY]: { updateAt: Date.now() } },
           })
-        : first.saveEdit(STOKEY_WORDS, { added: {} }, KV_WORDS_KEY, {
+        : first.saveEdit(STOKEY_RULES, { added: {} }, KV_RULES_KEY, {
             timestamp: 100,
           });
     try {
@@ -342,10 +342,10 @@ test.each([
         syncMeta: {},
       });
       expect(globalThis.GM.setValue.mock.calls.map(([key]) => key)).toEqual(
-        operation === "metadata" ? [] : [STOKEY_WORDS]
+        operation === "metadata" ? [] : [STOKEY_RULES]
       );
       if (operation === "business edit") {
-        expect(JSON.parse(values.get(STOKEY_WORDS))).toEqual({ added: {} });
+        expect(JSON.parse(values.get(STOKEY_RULES))).toEqual({ added: {} });
       }
     } finally {
       resume.resolve();
