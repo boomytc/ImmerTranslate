@@ -32,24 +32,7 @@ jest.mock("./trans", () => ({
     events.map((event, id) => ({ id, text: event.text })),
 }));
 
-import {
-  apiDict,
-  apiSubtitle,
-  apiSummarizeContext,
-  apiTranslate,
-} from "./index";
-import {
-  handleDict,
-  handleSubtitle,
-  handleSummarize,
-  handleTranslate,
-} from "./trans";
-import { getHttpCachePolyfill, putHttpCachePolyfill } from "../libs/cache";
-import { clearAllBatchQueue } from "../libs/batchQueue";
-import {
-  DEFAULT_API_LIST,
-  OPT_TRANS_OPENAI,
-} from "../config";
+import { DEFAULT_API_LIST, OPT_TRANS_OPENAI } from "../config";
 
 const SECRET = "super-secret-key-value";
 
@@ -74,8 +57,32 @@ const reqSigOf = (cacheInput) => cacheParams(cacheInput).get("reqSig");
 
 describe("request config cache and batch isolation", () => {
   let cache;
+  let apiDict;
+  let apiSubtitle;
+  let apiSummarizeContext;
+  let apiTranslate;
+  let handleDict;
+  let handleSubtitle;
+  let handleSummarize;
+  let handleTranslate;
+  let getHttpCachePolyfill;
+  let putHttpCachePolyfill;
 
   beforeEach(() => {
+    jest.resetModules();
+    ({
+      apiDict,
+      apiSubtitle,
+      apiSummarizeContext,
+      apiTranslate,
+    } = require("./index"));
+    ({
+      handleDict,
+      handleSubtitle,
+      handleSummarize,
+      handleTranslate,
+    } = require("./trans"));
+    ({ getHttpCachePolyfill, putHttpCachePolyfill } = require("../libs/cache"));
     cache = new Map();
     getHttpCachePolyfill.mockImplementation(async (key) => cache.get(key));
     putHttpCachePolyfill.mockImplementation(async (key, _init, value) => {
@@ -106,7 +113,6 @@ describe("request config cache and batch isolation", () => {
   });
 
   afterEach(() => {
-    clearAllBatchQueue();
     jest.clearAllMocks();
   });
 
@@ -216,7 +222,6 @@ describe("request config cache and batch isolation", () => {
     expect(sameA.trText).toContain("model-a|");
     expect(sameB.trText).toContain("model-a|");
 
-    clearAllBatchQueue();
     handleTranslate.mockClear();
     await Promise.all([
       submit("alpha", { model: "model-a" }),
@@ -231,7 +236,6 @@ describe("request config cache and batch isolation", () => {
         .sort()
     ).toEqual(["model-a:alpha", "model-b:beta"]);
 
-    clearAllBatchQueue();
     handleTranslate.mockClear();
     await Promise.all([
       submit("alpha", {

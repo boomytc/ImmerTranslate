@@ -132,14 +132,7 @@ const { TextDecoder, TextEncoder } = require("util");
 global.TextEncoder = global.TextEncoder || TextEncoder;
 global.TextDecoder = global.TextDecoder || TextDecoder;
 
-import { apiTranslate } from "../apis";
-import { BilingualSubtitleManager } from "../subtitle/BilingualSubtitleManager";
 import { DEFAULT_API_SETTING } from "../config";
-import { clearAllBatchQueue } from "./batchQueue";
-import { InputTranslator } from "./inputTranslate";
-import { logger } from "./log";
-import { clearFetchPool } from "./pool";
-import TranslatorManager from "./translatorManager";
 
 const translated = (text) => `译:${text}`;
 
@@ -177,6 +170,11 @@ const flush = async (ms = 20) => {
 };
 
 describe("translator cancellation leaves other callers running", () => {
+  let apiTranslate;
+  let BilingualSubtitleManager;
+  let InputTranslator;
+  let TranslatorManager;
+  let logger;
   const managers = [];
   const subtitles = [];
   const inputs = [];
@@ -190,6 +188,14 @@ describe("translator cancellation leaves other callers running", () => {
   let originalCrypto;
 
   beforeEach(() => {
+    jest.resetModules();
+    ({ apiTranslate } = require("../apis"));
+    ({
+      BilingualSubtitleManager,
+    } = require("../subtitle/BilingualSubtitleManager"));
+    ({ InputTranslator } = require("./inputTranslate"));
+    ({ logger } = require("./log"));
+    TranslatorManager = require("./translatorManager").default;
     sequence = 0;
     gates = [];
     global.__recordedTranslates = [];
@@ -262,8 +268,7 @@ describe("translator cancellation leaves other callers running", () => {
     subtitles.splice(0).forEach((manager) => manager.destroy());
     inputs.splice(0).forEach((translator) => translator.disable());
     managers.splice(0).forEach((manager) => manager.stop());
-    clearFetchPool();
-    clearAllBatchQueue();
+    jest.clearAllTimers();
     global.fetch = originalFetch;
     global.IntersectionObserver = originalIntersectionObserver;
     global.CSSStyleSheet = originalCSSStyleSheet;
