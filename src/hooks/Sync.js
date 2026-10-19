@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STOKEY_SYNC, DEFAULT_SYNC } from "../config";
 import { useStorage } from "./Storage";
-import {
-  getSyncWithDefault,
-  storage,
-  updateSyncState,
-} from "../libs/storage";
+import { getSyncWithDefault, storage, updateSyncState } from "../libs/storage";
 import { kissLog } from "../libs/log";
 
 /** Read and mutate the current sync configuration. */
@@ -27,7 +23,7 @@ function enqueueSyncCacheOperation(operation) {
 }
 
 async function readSyncCacheState() {
-  // Userscript settings can be opened before any background initialization.
+  // Settings can be opened before any background initialization.
   await storage.trySetObj(STOKEY_SYNC, DEFAULT_SYNC);
   return getSyncWithDefault();
 }

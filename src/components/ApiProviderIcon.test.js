@@ -18,7 +18,6 @@ import ApiProviderIcon, {
   resolveApiIconPresentation,
 } from "./ApiProviderIcon";
 
-let mockIsGm = false;
 let mockIsOptions = false;
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -27,14 +26,8 @@ jest.mock("../libs/browser", () => ({
   browser: undefined,
   isOptions: () => mockIsOptions,
 }));
-jest.mock("../libs/client", () => ({
-  get isGm() {
-    return mockIsGm;
-  },
-}));
 
 beforeEach(() => {
-  mockIsGm = false;
   mockIsOptions = false;
 });
 
@@ -127,12 +120,6 @@ describe("getApiIconSrc", () => {
       })
     ).toBe("/immertranslate/api/APIMart.svg");
   });
-
-  test("uses the bundled generic icon by default in a userscript", () => {
-    mockIsGm = true;
-
-    expect(getApiIconSrc(OPT_TRANS_GOOGLE, { runtime: undefined })).toBe("");
-  });
 });
 
 describe("resolveApiIconPresentation", () => {
@@ -185,17 +172,6 @@ describe("resolveApiIconPresentation", () => {
 });
 
 describe("ApiProviderIcon", () => {
-  test("shows provider artwork on the hosted userscript options page", () => {
-    mockIsGm = true;
-    mockIsOptions = true;
-    const view = renderIcon({ apiType: OPT_TRANS_GOOGLE });
-
-    expect(view.container.querySelector("img").getAttribute("src")).toBe(
-      `${process.env.PUBLIC_URL || "."}/api/Google.svg`
-    );
-    view.unmount();
-  });
-
   test("does not invert a regular provider image on a dark light-surface badge", () => {
     const view = renderIcon(
       { apiType: OPT_TRANS_OPENAI, lightSurface: true },
@@ -205,19 +181,6 @@ describe("ApiProviderIcon", () => {
     expect(getComputedStyle(view.container.querySelector("img")).filter).toBe(
       "none"
     );
-    view.unmount();
-  });
-
-  test("gives the userscript fallback a dark foreground on a light surface", () => {
-    mockIsGm = true;
-    const view = renderIcon(
-      { apiType: OPT_TRANS_GOOGLE, lightSurface: true },
-      "dark"
-    );
-
-    expect(
-      getComputedStyle(view.container.querySelector(".MuiSvgIcon-root")).color
-    ).toBe("rgb(31, 31, 31)");
     view.unmount();
   });
 });

@@ -10,13 +10,13 @@ import {
   OPT_SYNCTYPE_WEBDAV,
 } from "../config";
 
-jest.mock("./client", () => ({ isExt: false, isGm: false }));
+jest.mock("./client", () => ({ isExt: false }));
 jest.mock("./browser", () => ({ isOptions: () => true }));
 jest.mock("./log", () => ({
   ...jest.requireActual("./log"),
   kissLog: jest.fn(),
 }));
-jest.mock("./fetch", () => ({ fetchPatcher: jest.fn(), fetchGM: jest.fn() }));
+jest.mock("./fetch", () => ({ fetchPatcher: jest.fn() }));
 jest.mock("webdav", () => ({
   createClient: jest.fn(),
   getPatcher: () => ({ patch: jest.fn() }),

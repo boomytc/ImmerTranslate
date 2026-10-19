@@ -8,7 +8,6 @@ import { getFetchPool } from "./pool";
 import { getHttpCachePolyfill } from "./cache";
 import { createAsyncQueue } from "./stream";
 import {
-  fetchGM,
   fetchPatcher,
   fetchHandle,
   fnPolyfill,
@@ -17,7 +16,7 @@ import {
 } from "./request";
 import { fetchStreamNative, requestStream } from "./requestStream";
 
-export { fetchGM, fetchPatcher, fetchHandle, fnPolyfill, fetchStreamNative };
+export { fetchPatcher, fetchHandle, fnPolyfill, fetchStreamNative };
 
 /**
  * 发起普通网络请求，并按调用方配置应用缓存与并发池。

@@ -13,7 +13,7 @@ import {
   OPT_SYNCTYPE_WEBDAV,
 } from "../config";
 
-jest.mock("../libs/client", () => ({ isExt: true, isGm: false }));
+jest.mock("../libs/client", () => ({ isExt: true }));
 jest.mock("../libs/storageCoordination", () => {
   let queue = Promise.resolve();
   return {
@@ -38,7 +38,6 @@ jest.mock("../libs/log", () => ({
 }));
 jest.mock("../libs/fetch", () => ({
   fetchPatcher: jest.fn(),
-  fetchGM: jest.fn(),
 }));
 jest.mock("webdav", () => ({
   createClient: jest.fn(),

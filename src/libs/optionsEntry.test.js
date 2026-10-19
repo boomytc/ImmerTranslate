@@ -38,21 +38,7 @@ describe("openOptionsApisPage", () => {
   });
 
   test("extension reuses MSG_OPEN_OPTIONS and asks for the APIs tab", () => {
-    clientState.isExt = true;
     openOptionsApisPage();
     expect(sendBgMsg).toHaveBeenCalledWith(MSG_OPEN_OPTIONS, { hash: "/apis" });
-  });
-
-  test("userscript opens the hosted options page at #/apis", () => {
-    process.env.REACT_APP_OPTIONSPAGE = "https://example.test/options#/rules";
-    const open = jest.spyOn(window, "open").mockImplementation(() => null);
-    openOptionsApisPage();
-    expect(sendBgMsg).not.toHaveBeenCalled();
-    expect(open).toHaveBeenCalledWith(
-      "https://example.test/options#/apis",
-      "_blank",
-      "noopener,noreferrer"
-    );
-    open.mockRestore();
   });
 });

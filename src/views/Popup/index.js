@@ -18,7 +18,6 @@ import {
   MSG_OPEN_SEPARATE_WINDOW,
   MSG_FIT_SEPARATE_WINDOW,
   SEPARATE_WINDOW_CONTENT_WIDTH,
-  CLIENT_THUNDERBIRD,
   STOKEY_SETTING,
   DEFAULT_SETTING,
   GLOBLA_RULE,
@@ -34,7 +33,6 @@ import { useSetting } from "../../hooks/Setting";
 import { useSeparateWindowBounds } from "../../hooks/SeparateWindowBounds";
 import { browser } from "../../libs/browser";
 import {
-  client,
   isFirefox,
   isAutoTranslateClipboardSupported,
 } from "../../libs/client";
@@ -82,7 +80,7 @@ function useFitSeparateWindow(enabled, panelRef) {
 
           // Gecko scales DOM outer/screen values with layout zoom. Its tab zoom
           // may instead be text-only, which is already reflected in scrollHeight.
-          const isGecko = isFirefox || client === CLIENT_THUNDERBIRD;
+          const isGecko = isFirefox;
           const screenScale =
             isGecko && window.outerWidth > 0
               ? currentWindow.width / window.outerWidth

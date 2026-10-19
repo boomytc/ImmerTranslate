@@ -228,7 +228,7 @@ describe.each(["document", "shadow root"])(
 
     test.each([
       ["extension", false],
-      ["userscript", true],
+      ["page", true],
     ])(
       "opening settings in the %s retracts after leaving and returning to the tab",
       (client, synchronousBlur) => {

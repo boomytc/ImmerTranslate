@@ -5,20 +5,12 @@ import { STOKEY_RULES, STOKEY_SETTING, STOKEY_SYNC } from "../../config";
 import { trySyncRules, trySyncSetting } from "../../libs/sync";
 import { refreshStorageKeys } from "../../libs/storageRefresh";
 import { kissLog } from "../../libs/log";
-import { adaptScript } from "../../libs/gm";
-import { sleep } from "../../libs/utils";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-let mockIsGm = false;
 const mockSettingProvider = jest.fn();
 const mockPageMounted = jest.fn();
 
-jest.mock("../../libs/client", () => ({
-  get isGm() {
-    return mockIsGm;
-  },
-}));
 jest.mock("../../libs/sync", () => ({
   trySyncRules: jest.fn(),
   trySyncSetting: jest.fn(),
@@ -30,8 +22,6 @@ jest.mock("../../libs/log", () => ({
   kissLog: jest.fn(),
   LogLevel: { INFO: { value: 1 } },
 }));
-jest.mock("../../libs/gm", () => ({ adaptScript: jest.fn() }));
-jest.mock("../../libs/utils", () => ({ sleep: jest.fn() }));
 jest.mock("../../hooks/Setting", () => ({
   SettingProvider: function SettingProvider(props) {
     mockSettingProvider(props);
@@ -199,12 +189,10 @@ describe("Options startup sync", () => {
   const originalVersion = process.env.REACT_APP_VERSION;
 
   beforeEach(() => {
-    mockIsGm = false;
     jest.resetAllMocks();
     trySyncRules.mockResolvedValue(undefined);
     trySyncSetting.mockResolvedValue(undefined);
     refreshStorageKeys.mockResolvedValue(undefined);
-    sleep.mockResolvedValue(undefined);
     process.env.REACT_APP_NAME = "ImmerTranslate";
     process.env.REACT_APP_VERSION = "2.0.25";
   });
@@ -388,62 +376,5 @@ describe("Options startup sync", () => {
     await resolveDeferred(settingSync);
     expect(mockSettingProvider).toHaveBeenCalledTimes(renderCount);
     expect(refreshStorageKeys).toHaveBeenCalledTimes(2);
-  });
-
-  test("waits for an older compatible GM bridge before rendering and syncing", async () => {
-    const bridgeWait = createDeferred();
-    const settingSync = createDeferred();
-    mockIsGm = true;
-    sleep.mockReturnValueOnce(bridgeWait.promise);
-    trySyncSetting.mockReturnValueOnce(settingSync.promise);
-    const view = renderOptions("#/apis", { strict: true });
-    await flushEffects();
-
-    expect(mockSettingProvider).not.toHaveBeenCalled();
-    expect(adaptScript).not.toHaveBeenCalled();
-    expect(trySyncSetting).not.toHaveBeenCalled();
-    window.APP_INFO = {
-      name: "ImmerTranslate",
-      version: "2.0.24",
-      eventName: "bridge-ping",
-    };
-    await resolveDeferred(bridgeWait);
-    expect(adaptScript).toHaveBeenCalledTimes(1);
-    expect(adaptScript).toHaveBeenCalledWith("bridge-ping");
-    expect(view.query("apis-page")).not.toBe(null);
-    expectLocked(view);
-    expect(trySyncSetting).toHaveBeenCalledTimes(1);
-    expect(mockSettingProvider.mock.invocationCallOrder[0]).toBeGreaterThan(
-      adaptScript.mock.invocationCallOrder[0]
-    );
-    await resolveDeferred(settingSync);
-    expectLocked(view, false);
-  });
-
-  test("shows a version mismatch without reading storage", async () => {
-    mockIsGm = true;
-    window.APP_INFO = {
-      name: "ImmerTranslate",
-      version: "2.1.0",
-      eventName: "bridge-ping",
-    };
-    const view = renderOptions("#/apis");
-    await flushEffects();
-
-    expect(view.container.textContent).toContain("not the latest version");
-    expect(adaptScript).not.toHaveBeenCalled();
-    expect(trySyncSetting).not.toHaveBeenCalled();
-    expect(mockSettingProvider).not.toHaveBeenCalled();
-  });
-
-  test("shows a timeout when the userscript bridge stays unavailable", async () => {
-    mockIsGm = true;
-    const view = renderOptions("#/apis");
-    await flushEffects();
-
-    expect(view.container.textContent).toContain("Time out. Please confirm");
-    expect(sleep).toHaveBeenCalledTimes(8);
-    expect(trySyncSetting).not.toHaveBeenCalled();
-    expect(mockSettingProvider).not.toHaveBeenCalled();
   });
 });

@@ -22,7 +22,7 @@ jest.mock("query-string", () => ({
   stringify: (value) => new URLSearchParams(value).toString(),
 }));
 jest.mock("@streamparser/json", () => ({ JSONParser: jest.fn() }));
-jest.mock("./client", () => ({ isExt: true, isGm: false }));
+jest.mock("./client", () => ({ isExt: true }));
 jest.mock("./browser", () => ({
   isBg: () => true,
   isOptions: () => false,

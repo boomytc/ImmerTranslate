@@ -1,13 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const VERSION_FILES = [
-  "package.json",
-  ".env",
-  "public/manifest.json",
-  "public/manifest.firefox.json",
-  "public/manifest.thunderbird.json",
-];
+export const VERSION_FILES = ["package.json", ".env", "public/manifest.json"];
 
 export function assertVersion(version) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {

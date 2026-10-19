@@ -16,11 +16,6 @@ jest.mock("./libs/redditFrame", () => ({
   readRedditEmbeddingHref: jest.fn(() => ""),
 }));
 
-jest.mock("./libs/gm", () => ({
-  handlePing: jest.fn(),
-  injectScript: jest.fn(),
-}));
-
 jest.mock("./libs/rules", () => ({
   matchRule: jest.fn(),
 }));
@@ -41,10 +36,6 @@ jest.mock("./libs/log", () => ({
   },
 }));
 
-jest.mock("./libs/injector", () => ({
-  injectInlineJs: jest.fn(),
-}));
-
 const mockStartPageRuntime = jest.fn(async () => ({}));
 jest.mock("./libs/pageRuntime", () => ({
   startPageRuntime: (...args) => mockStartPageRuntime(...args),
@@ -62,10 +53,8 @@ const { matchRule } = require("./libs/rules");
 const { readRedditEmbeddingHref } = require("./libs/redditFrame");
 const { isInBlacklist, matchingBlacklistEntries } = require("./libs/blacklist");
 const { runSubtitle } = require("./subtitle/subtitle");
-const { injectInlineJs } = require("./libs/injector");
 const TranslatorManager = require("./libs/translatorManager").default;
 const { run } = require("./common");
-const { APP_LCNAME } = require("./config/app");
 
 function setReadyState(value) {
   Object.defineProperty(document, "readyState", {
@@ -79,12 +68,6 @@ function setContentType(value) {
     configurable: true,
     value,
   });
-}
-
-function expectNoNormalUserscriptStartup() {
-  expect(getSettingWithDefault).not.toHaveBeenCalled();
-  expect(matchRule).not.toHaveBeenCalled();
-  expect(TranslatorManager).not.toHaveBeenCalled();
 }
 
 describe("common iframe startup", () => {
@@ -340,275 +323,5 @@ describe("common iframe startup", () => {
     expect(TranslatorManager).not.toHaveBeenCalled();
     expect(mockTranslatorManagerStart).not.toHaveBeenCalled();
     expect(runSubtitle).not.toHaveBeenCalled();
-  });
-
-  test("creates the userscript GM shim before settings are read", async () => {
-    const originalGM = globalThis.GM;
-    const originalGMGetValue = globalThis.GM_getValue;
-    const originalGMXmlhttpRequest = globalThis.GM_xmlhttpRequest;
-    const legacyGetValue = jest.fn();
-    const legacyXmlhttpRequest = jest.fn();
-    let gmDuringRead;
-
-    delete globalThis.GM;
-    globalThis.GM_getValue = legacyGetValue;
-    globalThis.GM_xmlhttpRequest = legacyXmlhttpRequest;
-    getSettingWithDefault.mockImplementation(async () => {
-      gmDuringRead = globalThis.GM;
-      return {
-        blacklist: "",
-        tranboxSetting: { blacklist: "", transOpen: true },
-        inputRule: { blacklist: "", transOpen: true },
-        mouseHoverSetting: { blacklist: "", useMouseHover: true },
-        logLevel: 1,
-      };
-    });
-
-    try {
-      await run(true);
-
-      expect(getSettingWithDefault).toHaveBeenCalledTimes(1);
-      expect(gmDuringRead).toBeDefined();
-      expect(gmDuringRead.getValue).toBe(legacyGetValue);
-      expect(gmDuringRead.xmlHttpRequest).toBe(legacyXmlhttpRequest);
-    } finally {
-      if (originalGM === undefined) {
-        delete globalThis.GM;
-      } else {
-        globalThis.GM = originalGM;
-      }
-      if (originalGMGetValue === undefined) {
-        delete globalThis.GM_getValue;
-      } else {
-        globalThis.GM_getValue = originalGMGetValue;
-      }
-      if (originalGMXmlhttpRequest === undefined) {
-        delete globalThis.GM_xmlhttpRequest;
-      } else {
-        globalThis.GM_xmlhttpRequest = originalGMXmlhttpRequest;
-      }
-    }
-  });
-
-  test("keeps legacy GM value listeners on the GM shim", async () => {
-    const keys = [
-      "GM",
-      "GM_addValueChangeListener",
-      "GM_removeValueChangeListener",
-    ];
-    const originals = keys.map((key) => [key, globalThis[key]]);
-    const add = jest.fn();
-    const remove = jest.fn();
-    globalThis.GM = {};
-    globalThis.GM_addValueChangeListener = add;
-    globalThis.GM_removeValueChangeListener = remove;
-    globalThis.unsafeWindow = {};
-    process.env.REACT_APP_OPTIONSPAGE = window.location.href;
-    try {
-      await run(true);
-      expect(globalThis.GM.addValueChangeListener).toBe(add);
-      expect(globalThis.GM.removeValueChangeListener).toBe(remove);
-      expect(globalThis.unsafeWindow.GM).toBeUndefined();
-      expectNoNormalUserscriptStartup();
-    } finally {
-      originals.forEach(([key, value]) => {
-        if (value === undefined) delete globalThis[key];
-        else globalThis[key] = value;
-      });
-      delete globalThis.unsafeWindow;
-    }
-  });
-
-  test("fills missing fields on existing userscript GM object", async () => {
-    const originalGM = globalThis.GM;
-    const originalGMXmlhttpRequest = globalThis.GM_xmlhttpRequest;
-    const existingSetValue = jest.fn();
-    const legacyXmlhttpRequest = jest.fn();
-    let gmDuringRead;
-
-    globalThis.GM = { setValue: existingSetValue };
-    globalThis.GM_xmlhttpRequest = legacyXmlhttpRequest;
-    getSettingWithDefault.mockImplementation(async () => {
-      gmDuringRead = globalThis.GM;
-      return {
-        blacklist: "",
-        tranboxSetting: { blacklist: "", transOpen: true },
-        inputRule: { blacklist: "", transOpen: true },
-        mouseHoverSetting: { blacklist: "", useMouseHover: true },
-        logLevel: 1,
-      };
-    });
-
-    try {
-      await run(true);
-
-      expect(getSettingWithDefault).toHaveBeenCalledTimes(1);
-      expect(gmDuringRead.setValue).toBe(existingSetValue);
-      expect(gmDuringRead.xmlHttpRequest).toBe(legacyXmlhttpRequest);
-    } finally {
-      if (originalGM === undefined) {
-        delete globalThis.GM;
-      } else {
-        globalThis.GM = originalGM;
-      }
-      if (originalGMXmlhttpRequest === undefined) {
-        delete globalThis.GM_xmlhttpRequest;
-      } else {
-        globalThis.GM_xmlhttpRequest = originalGMXmlhttpRequest;
-      }
-    }
-  });
-
-  test("does not replace existing GM xmlHttpRequest", async () => {
-    const originalGM = globalThis.GM;
-    const originalGMXmlhttpRequest = globalThis.GM_xmlhttpRequest;
-    const existingXmlhttpRequest = jest.fn();
-    const legacyXmlhttpRequest = jest.fn();
-    let gmDuringRead;
-
-    globalThis.GM = { xmlHttpRequest: existingXmlhttpRequest };
-    globalThis.GM_xmlhttpRequest = legacyXmlhttpRequest;
-    getSettingWithDefault.mockImplementation(async () => {
-      gmDuringRead = globalThis.GM;
-      return {
-        blacklist: "",
-        tranboxSetting: { blacklist: "", transOpen: true },
-        inputRule: { blacklist: "", transOpen: true },
-        mouseHoverSetting: { blacklist: "", useMouseHover: true },
-        logLevel: 1,
-      };
-    });
-
-    try {
-      await run(true);
-
-      expect(getSettingWithDefault).toHaveBeenCalledTimes(1);
-      expect(gmDuringRead.xmlHttpRequest).toBe(existingXmlhttpRequest);
-    } finally {
-      if (originalGM === undefined) {
-        delete globalThis.GM;
-      } else {
-        globalThis.GM = originalGM;
-      }
-      if (originalGMXmlhttpRequest === undefined) {
-        delete globalThis.GM_xmlhttpRequest;
-      } else {
-        globalThis.GM_xmlhttpRequest = originalGMXmlhttpRequest;
-      }
-    }
-  });
-
-  test("falls back when unsafeWindow grant exists but unsafeWindow is unavailable", async () => {
-    const originalHref = window.location.href;
-    window.history.pushState({}, "", "/options.html");
-    process.env.REACT_APP_OPTIONSPAGE = window.location.href;
-    globalThis.GM = {
-      info: {
-        script: {
-          grant: ["unsafeWindow"],
-        },
-      },
-    };
-
-    try {
-      await run(true);
-
-      expect(injectInlineJs).toHaveBeenCalledTimes(1);
-      expect(injectInlineJs.mock.calls[0][1]).toBe(
-        `${APP_LCNAME}-options-injector`
-      );
-      expectNoNormalUserscriptStartup();
-    } finally {
-      window.history.pushState({}, "", originalHref);
-      delete globalThis.GM;
-    }
-  });
-
-  test("does not mount GM on unsafeWindow", async () => {
-    const originalHref = window.location.href;
-    const gm = {
-      info: {
-        script: {
-          grant: ["unsafeWindow"],
-        },
-      },
-    };
-    window.history.pushState({}, "", "/options.html");
-    process.env.REACT_APP_OPTIONSPAGE = window.location.href;
-    globalThis.GM = gm;
-    globalThis.unsafeWindow = {};
-
-    try {
-      await run(true);
-
-      expect(globalThis.unsafeWindow.GM).toBeUndefined();
-      expect(globalThis.unsafeWindow.APP_INFO).toBeUndefined();
-      expect(injectInlineJs).toHaveBeenCalledTimes(1);
-      expectNoNormalUserscriptStartup();
-    } finally {
-      window.history.pushState({}, "", originalHref);
-      delete globalThis.GM;
-      delete globalThis.unsafeWindow;
-    }
-  });
-
-  test("falls back when GM grant metadata is missing", async () => {
-    const originalHref = window.location.href;
-    window.history.pushState({}, "", "/options.html");
-    process.env.REACT_APP_OPTIONSPAGE = window.location.href;
-    globalThis.GM = { info: {} };
-
-    try {
-      await run(true);
-
-      expect(injectInlineJs).toHaveBeenCalledTimes(1);
-      expect(injectInlineJs.mock.calls[0][1]).toBe(
-        `${APP_LCNAME}-options-injector`
-      );
-      expectNoNormalUserscriptStartup();
-    } finally {
-      window.history.pushState({}, "", originalHref);
-      delete globalThis.GM;
-    }
-  });
-
-  test("uses setting page proxy for dev userscript options page", async () => {
-    const originalHref = window.location.href;
-    window.history.pushState({}, "", "/options");
-    process.env.REACT_APP_OPTIONSPAGE_DEV = window.location.href;
-    globalThis.GM = { info: {} };
-
-    try {
-      await run(true);
-
-      expect(injectInlineJs).toHaveBeenCalledTimes(1);
-      expect(injectInlineJs.mock.calls[0][1]).toBe(
-        `${APP_LCNAME}-options-injector`
-      );
-      expectNoNormalUserscriptStartup();
-    } finally {
-      window.history.pushState({}, "", originalHref);
-      delete globalThis.GM;
-    }
-  });
-
-  test("uses setting page proxy for local userscript options page", async () => {
-    const originalHref = window.location.href;
-    window.history.pushState({}, "", "/options.html");
-    process.env.REACT_APP_OPTIONSPAGE_LOCAL = window.location.href;
-    globalThis.GM = { info: {} };
-
-    try {
-      await run(true);
-
-      expect(injectInlineJs).toHaveBeenCalledTimes(1);
-      expect(injectInlineJs.mock.calls[0][1]).toBe(
-        `${APP_LCNAME}-options-injector`
-      );
-      expectNoNormalUserscriptStartup();
-    } finally {
-      window.history.pushState({}, "", originalHref);
-      delete globalThis.GM;
-    }
   });
 });

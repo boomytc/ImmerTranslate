@@ -26,7 +26,7 @@ describe("pageTranslateFailureKey", () => {
     expect(
       pageTranslateFailureKey(new Error("net::ERR_INTERNET_DISCONNECTED"))
     ).toBe(PAGE_TRANSLATE_NETWORK);
-    expect(pageTranslateFailureKey(new Error("GM request timeout."))).toBe(
+    expect(pageTranslateFailureKey(new Error("request timeout."))).toBe(
       PAGE_TRANSLATE_NETWORK
     );
     expect(
@@ -130,7 +130,7 @@ describe("selectionTranslateFailureKey", () => {
     expect(selectionTranslateFailureKey(new TypeError("Failed to fetch"))).toBe(
       PAGE_TRANSLATE_NETWORK
     );
-    expect(selectionTranslateFailureKey(new Error("GM request timeout."))).toBe(
+    expect(selectionTranslateFailureKey(new Error("request timeout."))).toBe(
       PAGE_TRANSLATE_NETWORK
     );
     expect(selectionTranslateFailureKey({ status: 502 })).toBe(
@@ -182,7 +182,7 @@ describe("inputTranslateFailureKey", () => {
     expect(inputTranslateFailureKey(new TypeError("Failed to fetch"))).toBe(
       PAGE_TRANSLATE_NETWORK
     );
-    expect(inputTranslateFailureKey(new Error("GM request timeout."))).toBe(
+    expect(inputTranslateFailureKey(new Error("request timeout."))).toBe(
       PAGE_TRANSLATE_NETWORK
     );
     expect(inputTranslateFailureKey({ status: 502 })).toBe(PAGE_TRANSLATE_HTTP);

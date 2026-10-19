@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/boomytc/ImmerTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/boomytc/ImmerTranslate?label=release"></a>
   <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
-  <img alt="Chrome, Edge, Firefox, Thunderbird" src="https://img.shields.io/badge/works%20on-Chrome%20%7C%20Edge%20%7C%20Firefox%20%7C%20Thunderbird-informational">
+  <img alt="Chrome, Edge" src="https://img.shields.io/badge/works%20on-Chrome%20%7C%20Edge-informational">
 </p>
 
 <p align="center">
@@ -50,12 +50,10 @@ Preset LLM services start disabled. Enable one in Options, then fill in the base
 
 The extension is not on the browser stores yet. Download the package for your browser from [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest):
 
-| Browser     | File                                        | How to install                                                                       |
-| ----------- | ------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Chrome      | `immer-translate_<version>_chrome.zip`      | Unzip, open `chrome://extensions`, turn on Developer mode, and choose Load unpacked. |
-| Edge        | `immer-translate_<version>_edge.zip`        | Unzip, open `edge://extensions`, turn on Developer mode, and choose Load unpacked.   |
-| Firefox     | `immer-translate_<version>_firefox.zip`     | Open `about:debugging` and choose Load Temporary Add-on.                             |
-| Thunderbird | `immer-translate_<version>_thunderbird.zip` | Install from file in the Add-ons Manager.                                            |
+| Browser | File                                   | How to install                                                                       |
+| ------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| Chrome  | `immer-translate_<version>_chrome.zip` | Unzip, open `chrome://extensions`, turn on Developer mode, and choose Load unpacked. |
+| Edge    | `immer-translate_<version>_edge.zip`   | Unzip, open `edge://extensions`, turn on Developer mode, and choose Load unpacked.   |
 
 Click the toolbar icon to start. On first run you can try a free service straight away.
 

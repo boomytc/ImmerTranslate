@@ -50,7 +50,7 @@ Follow the version-script sections of `VERSION_MANAGEMENT.md` and the repository
    pnpm version:set -- <version>
    ```
 
-3. Confirm `package.json`, `.env`, `public/manifest.json`, `public/manifest.firefox.json`, and `public/manifest.thunderbird.json` all contain the target version.
+3. Confirm `package.json`, `.env`, and `public/manifest.json` all contain the target version.
 4. Find the latest version tag with `git tag --sort=-version:refname`. When a tag exists, review `git log --oneline --no-merges <latest-tag>..HEAD`. When none exists, review commits since the current top `CHANGELOG.md` heading. Then prepend one `## v<target>` section to `CHANGELOG.md`:
    - Write concise Chinese bullets describing user-visible changes.
    - Summarize behavior rather than copying commit messages mechanically.
@@ -85,7 +85,7 @@ Follow the version-script sections of `VERSION_MANAGEMENT.md` and the repository
    git push origin v<target>
    ```
 
-5. Find the tag-triggered `release.yml` run, watch it to completion, and verify `gh release view v<target>`. Confirm all five `immer-translate_v<target>_<client>.zip` assets and `immer-translate_v<target>_manifest.json` are present, and Pages version agrees. For a failed upload or Pages deploy, use the original run artifact with the documented guarded recovery workflow; never clobber assets or rebuild replacements. Report failures without retrying destructive or publication steps automatically.
+5. Find the tag-triggered `release.yml` run, watch it to completion, and verify `gh release view v<target>`. Confirm the Chrome and Edge `immer-translate_v<target>_<client>.zip` assets and `immer-translate_v<target>_manifest.json` are present. The workflow no longer builds or publishes web, and it does not update gh-pages. For a failed upload, use the original run artifact with the documented guarded recovery workflow; never clobber assets or rebuild replacements. Report failures without retrying destructive or publication steps automatically.
 
 ## 5. Report
 

@@ -1,4 +1,4 @@
-import { isExt, isGm } from "./client";
+import { isExt } from "./client";
 import { browser, isBg } from "./browser";
 import { kissLog } from "./log";
 
@@ -334,8 +334,6 @@ export function withStorageLock(operation) {
         throw error;
       }
     }
-    // Userscript storage is shared across origins, so origin locks do not apply.
-    if (isGm) return operation();
     if (globalThis.navigator?.locks?.request) {
       return navigator.locks.request(LOCK_NAME, operation);
     }
