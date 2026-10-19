@@ -438,10 +438,10 @@ export class InputTranslator {
     uiLang = "zh",
   } = {}) {
     this.#config = {
-      inputRule,
-      prompts,
-      subtitleSetting,
-      transApis,
+      inputRule: structuredClone(inputRule),
+      prompts: structuredClone(prompts),
+      subtitleSetting: structuredClone(subtitleSetting),
+      transApis: structuredClone(transApis),
       translateVariants,
       parseLatex,
     };
@@ -936,13 +936,13 @@ export class InputTranslator {
     const wasEnabled = this.#isEnabled;
     if (wasEnabled) this.disable();
 
-    if (inputRule) this.#config.inputRule = inputRule;
-    if (prompts) this.#config.prompts = prompts;
+    if (inputRule) this.#config.inputRule = structuredClone(inputRule);
+    if (prompts) this.#config.prompts = structuredClone(prompts);
     if (subtitleSetting) {
-      this.#config.subtitleSetting = subtitleSetting;
+      this.#config.subtitleSetting = structuredClone(subtitleSetting);
     }
     if (transApis) {
-      this.#config.transApis = transApis;
+      this.#config.transApis = structuredClone(transApis);
     }
     if (uiLang) this.#uiLang = uiLang;
 
