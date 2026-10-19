@@ -850,6 +850,49 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
     expect(siteSelect.value).toBe("false");
   });
 
+  test("FAB treats a personal rule without transOpen as follow", async () => {
+    const pattern = getDomainOptions(window.location.href)[0];
+    mockSiteRules = [{ pattern, selector: "article" }];
+    const getFabPageState = jest.fn(async () => ({
+      rule: { apiSlug: "microsoft", transOnly: "false" },
+    }));
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+          getFabPageState={getFabPageState}
+        />
+      )
+    );
+    clickFab();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const siteSelect = container.querySelector(
+      ".kt-content-fab-menu__site-select"
+    );
+    expect(siteSelect.value).toBe("*");
+  });
+
+  test("FAB does not show an illegal personal transOpen as follow", () => {
+    const pattern = getDomainOptions(window.location.href)[0];
+    mockSiteRules = [{ pattern, transOpen: "bogus" }];
+    act(() =>
+      root.render(
+        <ContentFab
+          fabConfig={{}}
+          processActions={processActions}
+          getSelectionEnabled={getSelectionEnabled}
+        />
+      )
+    );
+    expect(() => {
+      clickFab();
+    }).toThrow(/Unknown site translation policy/);
+  });
+
   test("follows a popup rule and writes the target language back", async () => {
     mockFabSetting = {
       transApis: [

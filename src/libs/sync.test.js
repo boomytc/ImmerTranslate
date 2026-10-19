@@ -59,6 +59,17 @@ jest.mock("./log", () => ({
   kissLog: jest.fn(),
 }));
 
+jest.mock("./rules", () => ({
+  checkRules: jest.fn((rules) =>
+    rules.map((rule) => ({
+      ...rule,
+      transOpen: ["*", "true", "false"].includes(rule.transOpen)
+        ? rule.transOpen
+        : "*",
+    }))
+  ),
+}));
+
 jest.mock("./syncCrypto", () => ({
   encryptSyncValue: jest.fn(),
   decryptSyncValue: jest.fn(),
@@ -84,6 +95,7 @@ import {
   storage,
 } from "./storage";
 import { decryptSyncValue, encryptSyncValue } from "./syncCrypto";
+import { checkRules } from "./rules";
 import { createClient, getPatcher } from "webdav";
 
 const SYNC_DESCRIPTION = "kiss translator sync files";
@@ -602,6 +614,51 @@ describe("GitHub Gist sync", () => {
       },
       { preserveDestination: true }
     );
+  });
+
+  test("normalizes remote rules with checkRules before writing them locally", async () => {
+    const remoteRules = [
+      { pattern: "news.example.com", selector: "article" },
+      { pattern: "bad.example.com", transOpen: "bogus" },
+    ];
+    getSyncWithDefault.mockResolvedValue({
+      syncType: "GitHub Gist",
+      syncUrl: "existing-gist",
+      syncKey: SYNC_KEY,
+      syncEncryptKey: SYNC_ENCRYPT_KEY,
+      syncMeta: {
+        [SETTING_KEY]: { updateAt: 10, syncAt: 1 },
+        [RULES_KEY]: { updateAt: 10, syncAt: 1 },
+        [WORDS_KEY]: { updateAt: 10, syncAt: 1 },
+      },
+    });
+    getSettingWithDefault.mockResolvedValue({ setting: true });
+    getRulesWithDefault.mockResolvedValue([
+      { pattern: "local.example.com", transOpen: "true" },
+    ]);
+    getWordsWithDefault.mockResolvedValue({ hello: true });
+    apiGetGist.mockResolvedValue({
+      files: {
+        [SETTING_KEY]: {
+          content: encryptedGistFileContent({ setting: true }, 50),
+        },
+        [RULES_KEY]: {
+          content: encryptedGistFileContent(remoteRules, 50),
+        },
+        [WORDS_KEY]: {
+          content: encryptedGistFileContent({ hello: true }, 50),
+        },
+      },
+    });
+
+    await changeSyncEncryptKey({
+      oldEncryptKey: SYNC_ENCRYPT_KEY,
+      newEncryptKey: NEW_SYNC_ENCRYPT_KEY,
+    });
+
+    expect(checkRules).toHaveBeenCalledWith(remoteRules);
+    expect(setRules).toHaveBeenCalledWith(checkRules(remoteRules));
+    expect(setRules).not.toHaveBeenCalledWith(remoteRules);
   });
 
   test("keeps old encryption passphrase when re-encryption fails", async () => {

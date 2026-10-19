@@ -30,8 +30,13 @@ test("reads the matching personal rule and falls back to follow-global", () => {
       { pattern: "news.example.com", transOpen: "false" },
     ])
   ).toBe("false");
+  expect(
+    readSiteTransOpen(href, [{ pattern: "news.example.com", selector: "p" }])
+  ).toBe(GLOBAL_KEY);
   expect(() =>
-    readSiteTransOpen(href, [{ pattern: "news.example.com" }])
+    readSiteTransOpen(href, [
+      { pattern: "news.example.com", transOpen: "bogus" },
+    ])
   ).toThrow(TypeError);
   expect(() =>
     readSiteTransOpen(href, [{ pattern: "news.example.com", transOpen: false }])

@@ -15,19 +15,19 @@ export const SITE_TRANS_OPEN_OPTIONS = [
 ];
 
 /**
- * Personal-rule transOpen for this page.
- * `*` follows the global rule; missing or unknown values do the same.
+ * 本页个人规则的 transOpen。
+ * 没有匹配的个人规则，或匹配规则没有 transOpen 键，都是跟随全局 `*`
+ * （与规则合并里空值继续继承一致）。
+ * 有 transOpen 键但值不是 `*` / `"true"` / `"false"` 时抛错，不能读成跟随。
  */
 export function readSiteTransOpen(href, rules) {
   const matched =
     typeof findMatchingRule === "function"
       ? findMatchingRule(rules || [], href)
       : undefined;
-  // 没有个人规则才是跟随全局。匹配到的规则缺值或值非法必须报错，
-  // 不能把「不自动翻译」和坏数据都读成「*」。
   if (!matched) return SITE_TRANS_OPEN.FOLLOW_GLOBAL;
   if (!Object.prototype.hasOwnProperty.call(matched, "transOpen")) {
-    throw new TypeError("Site rule is missing transOpen");
+    return SITE_TRANS_OPEN.FOLLOW_GLOBAL;
   }
   return siteTransOpenValue(matched.transOpen);
 }

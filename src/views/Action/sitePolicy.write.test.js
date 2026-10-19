@@ -80,5 +80,8 @@ describe("site policy writes", () => {
     await expect(
       writeSiteTransOpen(href, false, storedRef.rules)
     ).rejects.toThrow(/Unknown site translation policy/);
+    await expect(
+      writeSiteTransOpen(href, "bogus", storedRef.rules)
+    ).rejects.toThrow(/Unknown site translation policy/);
   });
 });

@@ -598,6 +598,74 @@ describe("PageRuntime", () => {
     );
   });
 
+  test("a stored personal rule without transOpen follows the global rule", async () => {
+    window.history.pushState({}, "", "/index.html");
+    const harness = boot({
+      matchRule: async () => ({ transOpen: "false", selector: "p" }),
+    });
+    await harness.runtime.start();
+    harness.onRules({
+      data: [
+        { pattern: "*", transOpen: "true" },
+        { pattern: "localhost", selector: "article" },
+      ],
+    });
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+  });
+
+  test.each([
+    ["missing", [{ pattern: "localhost" }]],
+    [
+      "illegal",
+      [{ pattern: "*", transOpen: "bogus" }, { pattern: "localhost" }],
+    ],
+  ])(
+    "a global rule that is %s reads as false when the page follows it",
+    async (_label, rules) => {
+      window.history.pushState({}, "", "/index.html");
+      const harness = boot({
+        matchRule: async () => ({ transOpen: "true", selector: "p" }),
+      });
+      await harness.runtime.start();
+      harness.onRules({ data: rules });
+      await harness.runtime.whenIdle();
+      expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          state: "off",
+          rule: expect.objectContaining({ transOpen: "false" }),
+        })
+      );
+    }
+  );
+
+  test("a personal rule with an illegal transOpen errors instead of following", async () => {
+    window.history.pushState({}, "", "/index.html");
+    const { logger } = require("./log");
+    const harness = boot({
+      matchRule: async () => ({ transOpen: "false", selector: "p" }),
+    });
+    await harness.runtime.start();
+    harness.managers[0].applyTarget.mockClear();
+    harness.onRules({
+      data: [
+        { pattern: "*", transOpen: "true" },
+        { pattern: "localhost", transOpen: "bogus" },
+      ],
+    });
+    await harness.runtime.whenIdle();
+    expect(logger.info).toHaveBeenCalledWith(
+      "page runtime",
+      expect.any(TypeError)
+    );
+    expect(harness.managers[0].applyTarget).not.toHaveBeenCalled();
+  });
+
   test("withFeatureBlacklists leaves a frozen stored setting unchanged", () => {
     const stored = deepFreeze({
       blacklist: "",

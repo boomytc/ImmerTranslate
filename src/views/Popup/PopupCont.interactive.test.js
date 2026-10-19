@@ -59,9 +59,27 @@ jest.mock("../../libs/msg", () => ({
   sendTopFrameMsg: (...args) => mockSendTopFrameMsg(...args),
 }));
 
-jest.mock("../../libs/rules", () => ({
-  saveRule: jest.fn(async () => ({})),
-}));
+jest.mock("../../libs/rules", () => {
+  const { isMatch } = jest.requireActual("../../libs/utils");
+  const { GLOBAL_KEY } = jest.requireActual("../../config");
+  const matchesRulePattern = (href, pattern) =>
+    String(pattern || "")
+      .split(/\n|,/)
+      .some((item) => {
+        const text = item.trim();
+        return text !== "" && text !== GLOBAL_KEY && isMatch(href, text);
+      });
+  return {
+    saveRule: jest.fn(async () => ({})),
+    findMatchingRule: (rules, href) =>
+      (rules || []).find(
+        (rule) =>
+          rule?.pattern !== GLOBAL_KEY &&
+          rule?.enabled !== false &&
+          matchesRulePattern(href, rule.pattern)
+      ),
+  };
+});
 
 jest.mock("../../libs/sync", () => ({
   syncData: jest.fn(),
@@ -712,6 +730,73 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
           view.container.querySelector(".kt-popup-policy-mode--active")
             .textContent
         ).toBe("site_trans_follow");
+      } finally {
+        spy.mockRestore();
+        view?.cleanup();
+      }
+    });
+
+    test("a stored personal rule without transOpen follows global in the popup", async () => {
+      const rulesState = {
+        snapshot: {
+          data: [{ pattern: "example.com", selector: "article" }],
+          isLoading: false,
+        },
+        configureSync: jest.fn(),
+        subscribe(listener) {
+          listener(this.snapshot);
+          return () => {};
+        },
+        ensureLoaded: jest.fn(async () => {}),
+        save: jest.fn(),
+      };
+      const actualGetStorageState = storageStateModule.getStorageState;
+      const spy = jest
+        .spyOn(storageStateModule, "getStorageState")
+        .mockImplementation((key, defaultValue) => {
+          if (key === STOKEY_RULES) return rulesState;
+          return actualGetStorageState(key, defaultValue);
+        });
+      let view;
+      try {
+        view = renderPopup();
+        await flushEffects();
+        expect(
+          view.container.querySelector(".kt-popup-policy-mode--active")
+            .textContent
+        ).toBe("site_trans_follow");
+      } finally {
+        spy.mockRestore();
+        view?.cleanup();
+      }
+    });
+
+    test("an illegal stored transOpen is not shown as follow", async () => {
+      const rulesState = {
+        snapshot: {
+          data: [{ pattern: "example", transOpen: "bogus" }],
+          isLoading: false,
+        },
+        configureSync: jest.fn(),
+        subscribe(listener) {
+          listener(this.snapshot);
+          return () => {};
+        },
+        ensureLoaded: jest.fn(async () => {}),
+        save: jest.fn(),
+      };
+      const actualGetStorageState = storageStateModule.getStorageState;
+      const spy = jest
+        .spyOn(storageStateModule, "getStorageState")
+        .mockImplementation((key, defaultValue) => {
+          if (key === STOKEY_RULES) return rulesState;
+          return actualGetStorageState(key, defaultValue);
+        });
+      let view;
+      try {
+        expect(() => {
+          view = renderPopup();
+        }).toThrow(/Unknown site translation policy/);
       } finally {
         spy.mockRestore();
         view?.cleanup();

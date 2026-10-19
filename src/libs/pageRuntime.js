@@ -56,6 +56,7 @@ function subscribeStorage(key, defaultValue, onData) {
   });
 }
 
+/** 全局规则缺 transOpen，或值不是 `"true"`，读侧都当成 `"false"`。 */
 function globalTransOpenOf(rules) {
   const value = (rules || []).find(
     (rule) => rule?.pattern === SITE_TRANS_OPEN.FOLLOW_GLOBAL

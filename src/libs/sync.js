@@ -36,6 +36,7 @@ import { createClient, getPatcher } from "webdav";
 import { fetchPatcher } from "./fetch";
 import { kissLog } from "./log";
 import { encryptSyncValue, decryptSyncValue } from "./syncCrypto";
+import { checkRules } from "./rules";
 import {
   enqueueStorageSync,
   enqueueStorageWrite,
@@ -701,7 +702,7 @@ export const changeSyncEncryptKey = async ({
 
   // 三类远端数据都通过旧口令校验后，才把较新的版本写入本地并开始重加密。
   if (synced.setting?.isNew) await setSetting(synced.setting.value);
-  if (synced.rules?.isNew) await setRules(synced.rules.value);
+  if (synced.rules?.isNew) await setRules(checkRules(synced.rules.value));
   if (synced.words?.isNew) await setWords(synced.words.value);
 
   await forceSyncDataWithEncryptKey(
