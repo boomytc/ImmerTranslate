@@ -236,6 +236,7 @@ export class PageRuntime {
   }
 
   #apply(context) {
+    if (context.blacklistHit) this.#override = null;
     this.#context = context;
     const target = pageTarget({ ...context, override: this.#override });
     if (!this.#manager) {

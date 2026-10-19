@@ -337,25 +337,32 @@ describe("PageRuntime", () => {
     expect(saveRule).not.toHaveBeenCalled();
   });
 
-  test("a manually enabled page stays on after a blacklist entry temporarily matches", async () => {
+  test("manual on, then leaving the blacklist on Follow global with global off, stays off without reload", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     const harness = boot();
     await harness.runtime.start();
     harness.runtime.setManualSwitch(true);
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "on" })
+    );
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
-    harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
+    harness.onSetting(pageSetting(""));
     await harness.runtime.whenIdle();
     expect(harness.managers[0].pause).toHaveBeenCalled();
     expect(harness.managers[0].stop).not.toHaveBeenCalled();
     expect(harness.created).toHaveLength(1);
+    expect(window.location.href).toContain("/spa2.html/plain");
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        state: "on",
-        rule: expect.objectContaining({ transOpen: "true" }),
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
       })
     );
-    expect(harness.managers[0].readLiveTransOpen()).toBe("true");
+    expect(harness.managers[0].readLiveTransOpen()).toBe("false");
   });
 
   test("a manually enabled page stays on when an unrelated blacklist entry is saved", async () => {
@@ -370,7 +377,31 @@ describe("PageRuntime", () => {
     expect(harness.managers[0].readLiveTransOpen()).toBe("true");
   });
 
-  test("a manually disabled page stays off after a blacklist entry temporarily matches", async () => {
+  test("manual on, then leaving the blacklist on Auto-translate, turns the page on", async () => {
+    window.history.pushState({}, "", "/spa2.html/plain");
+    const harness = boot();
+    await harness.runtime.start();
+    harness.runtime.setManualSwitch(true);
+    harness.onSetting(pageSetting("localhost"));
+    await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
+    harness.onRules({
+      data: [{ pattern: "localhost", transOpen: "true" }],
+    });
+    harness.onSetting(pageSetting(""));
+    await harness.runtime.whenIdle();
+    expect(harness.created).toHaveLength(1);
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
+      })
+    );
+  });
+
+  test("manual off, then leaving the blacklist on Auto-translate, turns the page on", async () => {
     window.history.pushState({}, "", "/auto-translate");
     const harness = boot();
     await harness.runtime.start();
@@ -387,13 +418,16 @@ describe("PageRuntime", () => {
     harness.runtime.setManualSwitch(false);
     harness.onSetting(pageSetting("localhost"));
     await harness.runtime.whenIdle();
+    expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: "paused" })
+    );
     harness.onSetting(pageSetting("localhost:8765/spa2.html/blocked"));
     await harness.runtime.whenIdle();
     expect(harness.created).toHaveLength(1);
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        state: "off",
-        rule: expect.objectContaining({ transOpen: "false" }),
+        state: "on",
+        rule: expect.objectContaining({ transOpen: "true" }),
       })
     );
   });
@@ -477,7 +511,7 @@ describe("PageRuntime", () => {
     );
   });
 
-  test("an unchanged site policy restores the live switch after parking", async () => {
+  test("an unchanged follow-global policy stays off after parking discards the manual switch", async () => {
     window.history.pushState({}, "", "/spa2.html/plain");
     let siteTransOpen = "*";
     const harness = boot({
@@ -492,8 +526,8 @@ describe("PageRuntime", () => {
     expect(siteTransOpen).toBe("*");
     expect(harness.managers[0].applyTarget).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        state: "on",
-        rule: expect.objectContaining({ transOpen: "true" }),
+        state: "off",
+        rule: expect.objectContaining({ transOpen: "false" }),
       })
     );
   });
