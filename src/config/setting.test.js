@@ -2,7 +2,6 @@ import {
   DEFAULT_INPUT_RULE,
   DEFAULT_MOUSE_HOVER_SETTING,
   DEFAULT_SETTING,
-  DEFAULT_SUBRULES_LIST,
   DEFAULT_SUBTITLE_SETTING,
   DEFAULT_TRANBOX_SETTING,
   OPT_INPUT_DOT_ALWAYS,
@@ -51,9 +50,7 @@ describe("translation box defaults", () => {
     expect(DEFAULT_SETTING).not.toHaveProperty("deletedTransApiSlugs");
   });
 
-  test("keeps the default subscription rules URL as the site match source", () => {
-    const selected = DEFAULT_SUBRULES_LIST.find((item) => item.selected);
-    expect(selected.url).toMatch(/kiss-rules_v2\.json$/);
+  test("ships builtin site rules for pages the global rule would over-translate", () => {
     const patterns = BUILTIN_RULES.map((rule) => rule.pattern);
     expect(patterns).toEqual(
       expect.arrayContaining([

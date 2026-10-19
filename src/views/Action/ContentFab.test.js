@@ -23,11 +23,7 @@ import * as storageStateModule from "../../libs/storageState";
 import { fetchModelCatalog } from "../../libs/modelList";
 import { sendBgMsg } from "../../libs/msg";
 import { getDomainOptions } from "../../libs/url";
-import {
-  applyFabSitePolicy,
-  resetFabVisibilityHold,
-  isFabVisibilityHeld,
-} from "../../config/fab";
+import { applyFabSitePolicy, isFabVisibilityHeld } from "../../config/fab";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -39,9 +35,6 @@ jest.mock("../../hooks/Rules", () => ({
   useRules: () => ({ list: mockSiteRules, isLoading: false }),
 }));
 // Saving a site rule imports the rules module, which pulls these in.
-jest.mock("../../libs/subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
-}));
 jest.mock("../../libs/sync", () => ({
   trySyncRules: jest.fn(),
 }));
@@ -114,7 +107,6 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       value: 2,
     });
     mockIsVideoFullscreen = false;
-    resetFabVisibilityHold();
     draggableProps = null;
     mockFabSetting = { transApis: [] };
     mockSiteRules = [];

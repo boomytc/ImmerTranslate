@@ -1,6 +1,5 @@
 import { checkRules, matchRule, saveRule } from "./rules";
-import { getDisabledSubRules, getRulesWithDefault, saveEdit } from "./storage";
-import { loadOrFetchSubRules } from "./subRules";
+import { getRulesWithDefault, saveEdit } from "./storage";
 import { GLOBLA_RULE } from "../config/rules";
 import { OPT_TRANS_MICROSOFT, OPT_TRANS_TENCENT } from "../config/api";
 import { DEFAULT_API_SETTING } from "../config";
@@ -8,11 +7,6 @@ import { DEFAULT_API_SETTING } from "../config";
 jest.mock("./storage", () => ({
   getRulesWithDefault: jest.fn(),
   saveEdit: jest.fn(),
-  getDisabledSubRules: jest.fn(),
-}));
-
-jest.mock("./subRules", () => ({
-  loadOrFetchSubRules: jest.fn(),
 }));
 
 jest.mock("./sync", () => ({
@@ -46,7 +40,6 @@ test("uses Microsoft as the default webpage translator", () => {
 });
 
 test("keeps an explicitly stored Tencent global rule", async () => {
-  getDisabledSubRules.mockResolvedValue([]);
   getRulesWithDefault.mockResolvedValue([
     { pattern: "*", apiSlug: OPT_TRANS_TENCENT },
   ]);
@@ -62,8 +55,6 @@ test("keeps an explicitly stored Tencent global rule", async () => {
 describe("rules enabled state", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    getDisabledSubRules.mockResolvedValue([]);
-    loadOrFetchSubRules.mockResolvedValue([]);
     saveEdit.mockImplementation(async (_key, update) => ({
       value: update(await getRulesWithDefault()),
       changed: true,
@@ -90,37 +81,6 @@ describe("rules enabled state", () => {
 
     expect(rule.pattern).toBe("example.com");
     expect(rule.selector).toBe("article");
-  });
-
-  test("skips disabled personal rules and falls back to subscription rules", async () => {
-    getRulesWithDefault.mockResolvedValue([
-      {
-        pattern: "example.com",
-        enabled: false,
-        selector: "article",
-      },
-      {
-        pattern: "*",
-        selector: "p",
-        transOpen: "false",
-      },
-    ]);
-    loadOrFetchSubRules.mockResolvedValue([
-      {
-        pattern: "example.com",
-        selector: ".sub-rule",
-      },
-    ]);
-
-    const rule = await matchRule("https://example.com/post", {
-      injectRules: true,
-      subrulesList: [
-        { url: "https://rules.example/main.json", selected: true },
-      ],
-    });
-
-    expect(rule.pattern).toBe("example.com");
-    expect(rule.selector).toBe(".sub-rule");
   });
 
   test("skips disabled personal rules and falls back to global rules", async () => {
@@ -453,8 +413,6 @@ describe("rules terms integration（规则链路：原始规则 → 合并 → T
     jest.useFakeTimers();
     jest.clearAllMocks();
     document.documentElement.innerHTML = "<head></head><body></body>";
-    getDisabledSubRules.mockResolvedValue([]);
-    loadOrFetchSubRules.mockResolvedValue([]);
     tryDetectLang.mockResolvedValue("en");
     apiTranslate.mockImplementation(({ text }) =>
       Promise.resolve({ trText: text, isSame: false })

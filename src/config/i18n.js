@@ -164,10 +164,6 @@ export const I18N = {
     zh: `每次请求间隔时间 (0-5000ms)`,
     en: `Time Between Requests (0-5000ms)`,
   },
-  translate_interval: {
-    zh: `翻译间隔时间 (1-2000ms)`,
-    en: `Translation Interval (1-2000ms)`,
-  },
   http_timeout: {
     zh: `请求超时时间 (1-600s)`,
     en: `Request Timeout Time (1-600s)`,
@@ -203,18 +199,6 @@ export const I18N = {
   gemini_2_url_help: {
     zh: `Google AI Studio 的 OpenAI 兼容接口（/v1beta/openai/chat/completions），适用于中转或代理`,
     en: `Google AI Studio OpenAI-compatible API (/v1beta/openai/chat/completions), suitable for proxies/relays`,
-  },
-  min_translate_length: {
-    zh: `最小翻译字符数 (1-100)`,
-    en: `Minimum number Of Translated Characters (1-100)`,
-  },
-  max_translate_length: {
-    zh: `最大翻译字符数 (100-100000)`,
-    en: `Maximum number Of Translated Characters (100-100000)`,
-  },
-  num_of_newline_characters: {
-    zh: `换行字符数 (1-1000)`,
-    en: `Number of Newline Characters (1-1000)`,
   },
   translate_service: {
     zh: `翻译服务`,
@@ -445,8 +429,8 @@ export const I18N = {
     en: `3. Regarding filling in the rules: Leave the input box blank or select "*" in the drop-down box to use global rule. CSS selectors support prefixes: "+" means add to the global rules, "-" means exclude.`,
   },
   sync_warn: {
-    zh: `1、涉及隐私数据的同步请谨慎选择第三方同步服务，建议自行搭建 Cloudflare Worker 或 WebDAV 服务。`,
-    en: `1. When synchronizing data that involves privacy, please be cautious about choosing third-party sync services. It is recommended to set up your own Cloudflare Worker or WebDAV service.`,
+    zh: `1、涉及隐私数据的同步请谨慎选择第三方同步服务，建议自行搭建 WebDAV 服务。`,
+    en: `1. When synchronizing data that involves privacy, please be cautious about choosing third-party sync services. It is recommended to set up your own WebDAV service.`,
   },
   sync_warn_gist: {
     zh: `3、GitHub Gist 不会出现在公开搜索或发现页面中，但任何拥有该链接的人都可以查看内容。`,
@@ -459,10 +443,6 @@ export const I18N = {
   sync_warn_encryption: {
     zh: `同步加密口令独立用于数据解密，请妥善保存，遗失后无法读取已加密的云端数据。`,
     en: `The sync encryption passphrase is used independently for data decryption, so keep it safe; encrypted cloud data cannot be read if it is lost.`,
-  },
-  about_sync_api: {
-    zh: `自建数据同步服务`,
-    en: `Self-host a data sync service`,
   },
   about_api: {
     zh: `1、其中 BuiltinAI 为浏览器内置AI翻译，目前仅 Chrome 138 及以上版本得到支持。`,
@@ -832,10 +812,6 @@ export const I18N = {
     zh: `抱歉，出错了！`,
     en: `Sorry, something went wrong!`,
   },
-  error_sync_setting: {
-    zh: `同步类型必须为自建 Worker，且地址与密钥需填写完整`,
-    en: `The sync type must be the self-hosted Worker, and the address and key must be filled in`,
-  },
   click_test: {
     zh: `点击测试`,
     en: `Click Test`,
@@ -979,10 +955,6 @@ export const I18N = {
   clear_failed: {
     zh: `清除失败`,
     en: `Clear failed`,
-  },
-  share: {
-    zh: `分享`,
-    en: `Share`,
   },
   clear_all: {
     zh: `清空`,
@@ -2033,10 +2005,6 @@ export const I18N = {
   placeholder: {
     zh: `占位符`,
     en: `Placeholder`,
-  },
-  if_pre_init: {
-    zh: `是否预初始化`,
-    en: `Whether to pre-initialize`,
   },
   btn_tip_click_away: {
     zh: `失焦隐藏/显示`,

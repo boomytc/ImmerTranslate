@@ -379,7 +379,9 @@ test("advances the destination generation and resets metadata only for a user ch
     destinationRevision: 1,
     syncMeta: {},
   });
-  await page.putSyncMeta(KV_SETTING_KEY);
+  await page.putSync({
+    syncMeta: { [KV_SETTING_KEY]: { updateAt: Date.now() } },
+  });
   expect((await page.getSync()).destinationRevision).toBe(1);
 });
 

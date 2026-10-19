@@ -10,9 +10,7 @@ const { TextEncoder, TextDecoder } = require("util");
 global.TextEncoder = global.TextEncoder || TextEncoder;
 global.TextDecoder = global.TextDecoder || TextDecoder;
 
-import { handleTranslate } from "./trans";
 import { DEFAULT_API_LIST, OPT_TRANS_OPENAI } from "../config";
-import { clearFetchPool } from "../libs/pool";
 
 const flushMicrotasks = async () => {
   for (let index = 0; index < 20; index += 1) await Promise.resolve();
@@ -20,8 +18,13 @@ const flushMicrotasks = async () => {
 
 describe("pooled translation cancellation", () => {
   const previousFetch = global.fetch;
+  let handleTranslate;
+  let getFetchPool;
 
   beforeEach(() => {
+    jest.resetModules();
+    ({ handleTranslate } = require("./trans"));
+    ({ getFetchPool } = require("../libs/pool"));
     jest.useFakeTimers();
     global.fetch = jest.fn(async () => ({
       ok: true,
@@ -32,7 +35,6 @@ describe("pooled translation cancellation", () => {
   });
 
   afterEach(() => {
-    clearFetchPool();
     jest.clearAllTimers();
     jest.useRealTimers();
     global.fetch = previousFetch;
@@ -75,7 +77,7 @@ describe("pooled translation cancellation", () => {
     expect(jest.getTimerCount()).toBe(1);
     expect(global.fetch).not.toHaveBeenCalled();
 
-    clearFetchPool();
+    getFetchPool().clear();
     await flushMicrotasks();
     const outcomeBeforeTimers = outcome;
     jest.runOnlyPendingTimers();

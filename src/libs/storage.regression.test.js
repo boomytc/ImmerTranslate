@@ -37,8 +37,12 @@ test("preserves metadata updates from independent pages sharing storage", async 
 
     // Separate registries prevent a module-local queue from hiding the race.
     await Promise.all([
-      first.putSyncMeta(KV_SETTING_KEY),
-      second.putSyncMeta(KV_RULES_KEY),
+      first.putSync({
+        syncMeta: { [KV_SETTING_KEY]: { updateAt: 1 } },
+      }),
+      second.putSync({
+        syncMeta: { [KV_RULES_KEY]: { updateAt: 2 } },
+      }),
     ]);
 
     expect(

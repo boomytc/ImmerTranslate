@@ -26,11 +26,7 @@ jest.mock("../config/app", () => {
 
 const { apiTranslate } = require("../apis");
 const { tryDetectLang } = require("./detect");
-const {
-  DEFAULT_API_SETTING,
-  I18N,
-  OPT_TRANS_MICROSOFT,
-} = require("../config");
+const { DEFAULT_API_SETTING, I18N, OPT_TRANS_MICROSOFT } = require("../config");
 const { Translator } = require("./translator");
 
 const flushAsync = async () => {

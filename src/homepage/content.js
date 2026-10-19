@@ -33,16 +33,6 @@ const createInstalls = (meta = {}) => {
       meta: meta.release || "Release package",
       href: RELEASES_URL,
     },
-    {
-      name: "Userscript",
-      meta: "Tampermonkey / Violentmonkey",
-      href: process.env.REACT_APP_USERSCRIPT_DOWNLOADURL,
-    },
-    {
-      name: "iOS Safari",
-      meta: "Userscripts Safari",
-      href: process.env.REACT_APP_USERSCRIPT_IOS_DOWNLOADURL,
-    },
   ];
 };
 const baseContent = {
@@ -56,12 +46,11 @@ const baseContent = {
     title:
       "Minimalist. Open-source. An all-scenario geek-style translation tool.",
     subtitle:
-      "ImmerTranslate brings page translation, selection lookup, input-box translation, and YouTube subtitles into one lightweight browser extension and userscript.",
+      "ImmerTranslate brings page translation, selection lookup, input-box translation, and YouTube subtitles into one lightweight browser extension.",
     installExtension: "Install Extension",
-    installUserscript: "Install Userscript",
     openOptions: "Open Script Settings",
     github: "GitHub",
-    status: ["Extension", "Userscript", "AI APIs", "Rules", "Sync"],
+    status: ["Extension", "AI APIs", "Rules", "Sync"],
     installTitle: "Install targets",
     installSubtitle: "Pick the client that fits your browser and workflow.",
     featureTitle: "Translation workspace",
@@ -135,12 +124,11 @@ const translations = {
     eyebrow: "开源翻译工具箱",
     title: "简约。开源。全场景极客式翻译工具。",
     subtitle:
-      "ImmerTranslate 将网页翻译、划词查询、输入框翻译和 YouTube 字幕整合到一个轻量的浏览器扩展与油猴脚本中。",
+      "ImmerTranslate 将网页翻译、划词查询、输入框翻译和 YouTube 字幕整合到一个轻量的浏览器扩展中。",
     installExtension: "安装扩展",
-    installUserscript: "安装脚本",
     openOptions: "打开脚本设置",
     github: "GitHub",
-    status: ["浏览器扩展", "油猴脚本", "AI 接口", "规则", "同步"],
+    status: ["浏览器扩展", "AI 接口", "规则", "同步"],
     installTitle: "安装入口",
     installSubtitle: "选择适合你的浏览器和使用方式的客户端。",
     featureTitle: "翻译工作台",

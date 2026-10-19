@@ -1,5 +1,4 @@
-import { clearAllBatchQueue, getBatchQueue } from "./batchQueue";
-
+let getBatchQueue;
 let queueId = 0;
 const makeQueue = (fn, options) =>
   getBatchQueue(`cancellation-${queueId++}`, fn, options);
@@ -23,8 +22,12 @@ const flush = async () => {
   await Promise.resolve();
 };
 
+beforeEach(() => {
+  jest.resetModules();
+  ({ getBatchQueue } = require("./batchQueue"));
+});
+
 afterEach(() => {
-  clearAllBatchQueue();
   jest.useRealTimers();
 });
 
@@ -244,7 +247,9 @@ test("clearing settles queued and running callers, suppresses late chunks, and a
     })
   );
   const waiting = observe(oldQueue.addTask("waiting"));
-  clearAllBatchQueue();
+  oldQueue.destroy();
+  jest.resetModules();
+  ({ getBatchQueue } = require("./batchQueue"));
   expect((await running).error.message).toBe("Queue instance was destroyed.");
   expect((await waiting).error.message).toBe("Queue instance was destroyed.");
   expect(fn.mock.calls[0][1].signal.aborted).toBe(true);

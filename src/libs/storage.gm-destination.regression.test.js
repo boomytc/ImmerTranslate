@@ -82,7 +82,9 @@ test.each(["configuration read", "metadata updater"])(
     const second = loadPage();
     const metadata =
       pauseAt === "configuration read"
-        ? first.putSyncMeta(KV_RULES_KEY)
+        ? first.putSync({
+            syncMeta: { [KV_RULES_KEY]: { updateAt: Date.now() } },
+          })
         : first.updateSyncState(async (current) => {
             paused.resolve();
             await resume.promise;
@@ -308,7 +310,9 @@ test.each([
     const second = loadPage();
     const pending =
       operation === "metadata"
-        ? first.putSyncMeta(KV_RULES_KEY)
+        ? first.putSync({
+            syncMeta: { [KV_RULES_KEY]: { updateAt: Date.now() } },
+          })
         : first.saveEdit(STOKEY_RULES, { added: {} }, KV_RULES_KEY, {
             timestamp: 100,
           });
