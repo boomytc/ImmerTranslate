@@ -36,10 +36,6 @@ export function isFabVisibilityHeld() {
   return fabVisibilityHolds > 0;
 }
 
-export function resetFabVisibilityHold() {
-  fabVisibilityHolds = 0;
-}
-
 // Older stored configurations do not contain appearance preferences.
 export function normalizeFabAppearance(config) {
   return {
@@ -61,9 +57,7 @@ export function normalizeFabAppearance(config) {
 }
 
 function normalizeIsHide(value) {
-  if (value === true || value === "true") return true;
-  if (value === false || value === "false") return false;
-  return DEFAULT_FAB.isHide;
+  return typeof value === "boolean" ? value : DEFAULT_FAB.isHide;
 }
 
 function asSiteList(value) {

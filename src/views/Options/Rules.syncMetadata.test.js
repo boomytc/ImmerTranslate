@@ -26,7 +26,6 @@ jest.mock("../../libs/browser", () => ({ isOptions: () => false }));
 jest.mock("../../libs/gm", () => ({ getGmMethod: jest.fn() }));
 jest.mock("../../libs/sync", () => ({
   syncData: jest.fn(),
-  syncShareRules: jest.fn(),
 }));
 jest.mock("../../hooks/I18n", () => ({ useI18n: () => (key) => key }));
 jest.mock("../../hooks/Confirm", () => ({ useConfirm: () => jest.fn() }));

@@ -3,8 +3,6 @@ import {
   KV_SETTING_KEY,
   KV_RULES_KEY,
   KV_WORDS_KEY,
-  KV_RULES_SHARE_KEY,
-  KV_SALT_SHARE,
   OPT_SYNCTYPE_WEBDAV,
   OPT_SYNCTYPE_GIST,
   STOKEY_SETTING,
@@ -24,14 +22,12 @@ import {
   storage,
 } from "./storage";
 import {
-  apiSyncData,
   apiCreateGist,
   apiListGists,
   apiGetGist,
   apiUpdateGistFile,
   apiFetchText,
 } from "../apis";
-import { sha256, removeEndchar } from "./utils";
 import { createClient, getPatcher } from "webdav";
 import { fetchPatcher } from "./fetch";
 import { kissLog } from "./log";
@@ -111,19 +107,6 @@ const syncByWebdav = async (
   // 3. 若云端没有该文件或本地数据更新，则把本地最新数据上传覆盖云端文件
   await client.putFileContents(filename, JSON.stringify(data, null, 2));
   return data;
-};
-
-/**
- * 通过自建 Worker 转发接口同步数据。
- * @param {Object} data 同步数据
- * @param {Object} params Worker 连接参数
- * @param {string} params.syncUrl 自建 Worker API 的基础路径
- * @param {string} params.syncKey 访问 Worker 的校验密钥
- * @returns {Promise<Object>} 同步后的最新数据
- */
-const syncByWorker = async (data, { syncUrl, syncKey }) => {
-  syncUrl = removeEndchar(syncUrl, "/");
-  return await apiSyncData(`${syncUrl}/sync`, syncKey, data);
 };
 
 export const getGistId = (input = "") => {
@@ -238,16 +221,19 @@ const decryptSyncData = async (data, syncEncryptKey) => {
 };
 
 /**
- * 按同步类型分发到 Worker / WebDAV / Gist。
- * options.forceWrite 只用于 WebDAV/Gist 客户端侧跳过远端时间戳比较；
- * Worker 协议不额外透传该字段，重加密时通过提升 updateAt 表达新密文版本。
+ * 按同步类型分发到 WebDAV 或 Gist。
+ * 已保存的其他同步类型保持原值，这里直接拒绝，不改写本地配置。
+ * options.forceWrite 用于跳过远端时间戳比较。
  */
-const syncByType = async (syncType, data, args, options) =>
-  syncType === OPT_SYNCTYPE_WEBDAV
-    ? await syncByWebdav(data, args, options)
-    : syncType === OPT_SYNCTYPE_GIST
-      ? await syncByGist(data, args, options)
-      : await syncByWorker(data, args);
+const syncByType = async (syncType, data, args, options) => {
+  if (syncType === OPT_SYNCTYPE_WEBDAV) {
+    return syncByWebdav(data, args, options);
+  }
+  if (syncType === OPT_SYNCTYPE_GIST) {
+    return syncByGist(data, args, options);
+  }
+  throw new Error(`unsupported sync type: ${syncType}`);
+};
 
 /**
  * 修改同步加密口令时强制用指定口令回写某一类个人同步数据。
@@ -306,7 +292,7 @@ const forceSyncDataWithEncryptKey = async (key, value, syncEncryptKey) => {
 };
 
 /**
- * 核心同步调度器。根据配置的 syncType（WebDAV / Worker）执行对应的网络同步，
+ * 核心同步调度器。根据配置的 syncType（WebDAV / Gist）执行对应的网络同步，
  * 并依据“最新修改时间戳”双向更新本地 Storage 与云端。
  * @param {string} key 存储键值 (如 KV_SETTING_KEY, KV_RULES_KEY)
  * @param {*} value 本地最新的状态数据值
@@ -644,37 +630,6 @@ export const trySyncWords = async () => {
   } catch (err) {
     kissLog("sync fav words", err.message);
   }
-};
-
-/**
- * 同步并公开分享当前规则。
- * 将用户的规则数组推送到 Worker 云端服务，并生成一个基于 sha256 签名的唯一订阅分享链接。
- * @param {Object} params
- * @param {Array<Object>} params.rules 待分享的规则数组
- * @param {string} params.syncUrl 分享 Worker 端点
- * @param {string} params.syncKey 分享校验密钥
- * @returns {Promise<string>} 返回生成的规则订阅分享 URL
- */
-export const syncShareRules = async ({ rules, syncUrl, syncKey }) => {
-  const data = {
-    key: KV_RULES_SHARE_KEY,
-    value: JSON.stringify(rules, null, 2),
-    updateAt: Date.now(),
-  };
-  const args = {
-    syncUrl,
-    syncKey,
-  };
-
-  // REVIEW: 分享规则采用 Worker 接口，直接将全部规则上传云端
-  await syncByWorker(data, args);
-
-  // 利用 SHA256 密钥对生成预共享密钥 (psk) 并加固定盐，保障分享接口的鉴权
-  // WARNING: 鉴权参数 psk 暴露在 URL 中作为查询参数。如果用户在非 HTTPS 环境下传输或分享该链接，
-  // 可能会因网络中间人嗅探或浏览器历史记录泄露该 psk，存在未授权访问或篡改风险。建议强制提示使用 HTTPS URL。
-  const psk = await sha256(syncKey, KV_SALT_SHARE);
-  const shareUrl = `${syncUrl}/rules?psk=${psk}`;
-  return shareUrl;
 };
 
 /**

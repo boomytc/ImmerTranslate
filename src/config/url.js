@@ -13,7 +13,6 @@ export const URL_CACHE_DICT = `https://${APP_LCNAME}/dict`; // AI 词典结果�
 export const URL_CACHE_CONTEXT = `https://${APP_LCNAME}/context`; // 智能上下文分析结果缓存 Key
 
 // --- 外部相关的开源仓库及文档地址 ---
-export const URL_KISS_WORKER = "https://github.com/boomytc/ImmerTranslate"; // 自建同步服务说明
 export const URL_GITHUB_GIST_TOKEN =
   "https://github.com/settings/personal-access-tokens"; // GitHub Fine-grained Token 设置页
 export const URL_KISS_RULES_NEW_ISSUE =

@@ -23,11 +23,7 @@ import * as storageStateModule from "../../libs/storageState";
 import { fetchModelCatalog } from "../../libs/modelList";
 import { sendBgMsg } from "../../libs/msg";
 import { getDomainOptions } from "../../libs/url";
-import {
-  applyFabSitePolicy,
-  resetFabVisibilityHold,
-  isFabVisibilityHeld,
-} from "../../config/fab";
+import { applyFabSitePolicy, isFabVisibilityHeld } from "../../config/fab";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -114,7 +110,6 @@ describe.each(["document", "shadow root"])("ContentFab in %s", (context) => {
       value: 2,
     });
     mockIsVideoFullscreen = false;
-    resetFabVisibilityHold();
     draggableProps = null;
     mockFabSetting = { transApis: [] };
     mockSiteRules = [];

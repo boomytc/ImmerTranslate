@@ -29,7 +29,6 @@ jest.mock("../../libs/browser", () => ({ isOptions: () => false }));
 jest.mock("../../libs/gm", () => ({ getGmMethod: jest.fn() }));
 jest.mock("../../libs/sync", () => ({
   syncData: jest.fn(),
-  syncShareRules: jest.fn(),
 }));
 jest.mock("../../libs/storage", () => ({
   ...jest.requireActual("../../libs/storage"),

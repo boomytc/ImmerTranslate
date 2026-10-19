@@ -7,12 +7,10 @@ import SyncSetting from "./SyncSetting";
 import { SettingProvider } from "../../hooks/Setting";
 import ThemeProvider from "./OptionsTheme";
 import { useEffect, useRef, useState } from "react";
-import { isGm } from "../../libs/client";
 import { AlertProvider } from "../../hooks/Alert";
 import { ConfirmProvider } from "../../hooks/Confirm";
 import Link from "@mui/material/Link";
 import Divider from "@mui/material/Divider";
-import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Apis from "./Apis";
 import Prompts from "./Prompts";
@@ -105,16 +103,6 @@ export default function Options() {
           >{`${process.env.REACT_APP_NAME} v${process.env.REACT_APP_VERSION}`}</Link>
         </Divider>
         <Alert severity="error">{error}</Alert>
-        {isGm && (
-          <Stack spacing={2}>
-            <Link href={process.env.REACT_APP_USERSCRIPT_DOWNLOADURL}>
-              Install/Update Userscript for Tampermonkey/Violentmonkey
-            </Link>
-            <Link href={process.env.REACT_APP_USERSCRIPT_IOS_DOWNLOADURL}>
-              Install/Update Userscript for iOS Safari
-            </Link>
-          </Stack>
-        )}
       </center>
     );
   }

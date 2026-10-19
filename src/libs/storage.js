@@ -648,22 +648,6 @@ export const putSync = (obj, options) =>
         : {}),
     };
   }, options);
-export const putSyncMeta = (key) => {
-  const updateAt = Date.now();
-  return updateSyncState((current) => ({
-    ...current,
-    syncMeta: {
-      ...current.syncMeta,
-      [key]: {
-        ...current.syncMeta?.[key],
-        updateAt: Math.max(
-          updateAt,
-          (current.syncMeta?.[key]?.updateAt || 0) + 1
-        ),
-      },
-    },
-  }));
-};
 
 /**
  * 首次加载或升级时，尝试向本地写入系统默认初始数据。

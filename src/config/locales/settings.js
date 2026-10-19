@@ -79,12 +79,4 @@ export const SETTINGS_I18N = {
     zh: `私密 GitHub Gist`,
     en: `Private GitHub Gist`,
   },
-  sync_method_worker_description: {
-    zh: `自托管 Cloudflare Worker`,
-    en: `Self-hosted Cloudflare Worker`,
-  },
-  sync_method_worker_name: {
-    zh: `Worker`,
-    en: `Worker`,
-  },
 };

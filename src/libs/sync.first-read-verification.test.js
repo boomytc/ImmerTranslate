@@ -5,14 +5,12 @@ import {
   apiCreateGist,
   apiGetGist,
   apiListGists,
-  apiSyncData,
   apiUpdateGistFile,
 } from "../apis";
 import {
   KV_WORDS_KEY,
   OPT_SYNCTYPE_GIST,
   OPT_SYNCTYPE_WEBDAV,
-  OPT_SYNCTYPE_WORKER,
   STOKEY_SYNC,
   STOKEY_WORDS,
 } from "../config";
@@ -36,7 +34,6 @@ jest.mock("webdav", () => ({
   getPatcher: () => ({ patch: jest.fn() }),
 }));
 jest.mock("../apis", () => ({
-  apiSyncData: jest.fn(),
   apiCreateGist: jest.fn(),
   apiListGists: jest.fn(),
   apiGetGist: jest.fn(),
@@ -77,7 +74,6 @@ const GIST_FILENAME = `sync-words_${KV_WORDS_KEY}`;
 const PROVIDERS = [
   ["WebDAV", OPT_SYNCTYPE_WEBDAV],
   ["Gist", OPT_SYNCTYPE_GIST],
-  ["Worker", OPT_SYNCTYPE_WORKER],
 ];
 
 function deferred() {
@@ -134,12 +130,6 @@ async function createRemote() {
   apiListGists.mockResolvedValue([
     { id: "review-gist", description: "kiss translator sync files" },
   ]);
-  apiSyncData.mockImplementation(async (_url, _token, packet) => {
-    const cloud = JSON.parse(await read());
-    if (cloud.updateAt >= packet.updateAt) return cloud;
-    write(JSON.stringify(packet));
-    return packet;
-  });
   return {
     read,
     writes,
