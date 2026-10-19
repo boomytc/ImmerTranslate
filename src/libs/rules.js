@@ -138,7 +138,6 @@ const copyRule = (rule) => {
   if (merged.scriptFieldOrigins) {
     merged.scriptFieldOrigins = { ...merged.scriptFieldOrigins };
   }
-  delete merged.highlightWords;
   return merged;
 };
 
@@ -218,7 +217,6 @@ export const mergeRules = (baseRule, overrideRule) => {
     merged.pattern = overrideRule.pattern;
   }
 
-  delete merged.highlightWords;
   return assignScriptSources(merged, baseRule, overrideRule);
 };
 
