@@ -272,4 +272,143 @@ describe("PageRuntime", () => {
       expect.objectContaining({ transOpen: "false" })
     );
   });
+
+  test("a rules refresh does not turn a live translation back off", async () => {
+    window.history.pushState({}, "", "/index.html");
+    const manager = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      applyLocationRule: jest.fn(),
+      rule: { transOpen: "true" },
+    };
+    const harness = boot({
+      manager,
+      matchRule: async () => ({ transOpen: "false", pattern: "stored" }),
+    });
+    await harness.runtime.start();
+    harness.onRules({ data: [{ pattern: "*", transOpen: "false" }] });
+    await harness.runtime.whenIdle();
+    expect(manager.stop).not.toHaveBeenCalled();
+    expect(manager.applyLocationRule).not.toHaveBeenCalled();
+    expect(manager.rule.transOpen).toBe("true");
+  });
+
+  test("a child frame parking on its own url leaves the top frame and its popup snapshot", async () => {
+    const notify = [];
+    const parked = [];
+    let topHref = "http://localhost:8765/spa-frame.html";
+    let childHref = "http://localhost:8765/spa2.html";
+    const setting = {
+      blacklist: "spa2.html/blocked",
+      tranboxSetting: {},
+      inputRule: {},
+      mouseHoverSetting: {},
+    };
+    const watchLocation = (onChange) => {
+      notify.push(onChange);
+      return () => {};
+    };
+    const listen = (handler, info) => {
+      const entry = { handler, isIframe: Boolean(info?.isIframe) };
+      parked.push(entry);
+      return () => {
+        const index = parked.indexOf(entry);
+        if (index >= 0) parked.splice(index, 1);
+      };
+    };
+    const topManager = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      applyLocationRule: jest.fn(),
+      rule: { transOpen: "true" },
+    };
+    const top = boot({
+      manager: topManager,
+      setting,
+      getHref: () => topHref,
+      watchLocation,
+      listen,
+      matchRule: async () => ({ transOpen: "false" }),
+    });
+    const child = boot({
+      isIframe: true,
+      setting,
+      getHref: () => childHref,
+      watchLocation,
+      listen,
+      matchRule: async () => ({ transOpen: "false", apiSlug: "child" }),
+      queryParent: async () => ({ transOpen: true, fabVisible: true }),
+    });
+    await top.runtime.start();
+    await child.runtime.start();
+    const childManager = child.managers[0];
+    expect(child.created[0].rule.transOpen).toBe("true");
+
+    childHref = "http://localhost:8765/spa2.html/blocked";
+    notify.forEach((onChange) => onChange());
+    await Promise.all([top.runtime.whenIdle(), child.runtime.whenIdle()]);
+
+    expect(childManager.stop).toHaveBeenCalledTimes(1);
+    expect(parked.some((entry) => entry.isIframe)).toBe(true);
+    expect(topManager.stop).not.toHaveBeenCalled();
+    expect(topManager.applyLocationRule).not.toHaveBeenCalled();
+    expect(topManager.rule.transOpen).toBe("true");
+
+    const replies = parked
+      .map((entry) =>
+        entry.handler({ action: MSG_TRANS_GETRULE, targetTopFrame: true })
+      )
+      .filter((reply) => reply !== undefined);
+    expect(replies).toEqual([]);
+  });
+
+  test("a blacklisted top frame does not park a child that misses the blacklist", async () => {
+    const notify = [];
+    let topHref = "http://localhost:8765/spa-frame.html";
+    const childHref = "http://localhost:8765/spa2.html";
+    const setting = {
+      blacklist: "spa-frame.html/blocked",
+      tranboxSetting: {},
+      inputRule: {},
+      mouseHoverSetting: {},
+    };
+    const watchLocation = (onChange) => {
+      notify.push(onChange);
+      return () => {};
+    };
+    const topManager = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      applyLocationRule: jest.fn(),
+      rule: { transOpen: "true" },
+    };
+    const top = boot({
+      manager: topManager,
+      setting,
+      getHref: () => topHref,
+      watchLocation,
+      matchRule: async () => ({ transOpen: "false" }),
+    });
+    const child = boot({
+      isIframe: true,
+      setting,
+      getHref: () => childHref,
+      watchLocation,
+      matchRule: async () => ({ transOpen: "false" }),
+      queryParent: async () => ({ transOpen: true, fabVisible: false }),
+    });
+    await top.runtime.start();
+    await child.runtime.start();
+    const childManager = child.managers[0];
+
+    topHref = "http://localhost:8765/spa-frame.html/blocked";
+    notify.forEach((onChange) => onChange());
+    await Promise.all([top.runtime.whenIdle(), child.runtime.whenIdle()]);
+
+    expect(topManager.stop).toHaveBeenCalledTimes(1);
+    expect(top.listeners).toHaveLength(1);
+    expect(childManager.stop).not.toHaveBeenCalled();
+    expect(child.listeners).toHaveLength(0);
+    expect(childManager.applyLocationRule).not.toHaveBeenCalled();
+  });
 });

@@ -2,15 +2,20 @@ import { GLOBAL_KEY, MSG_SAVE_RULE } from "../../config";
 import { isExt } from "../../libs/client";
 import { sendBgMsg } from "../../libs/msg";
 import { findMatchingRule, saveRule } from "../../libs/rules";
+import {
+  SITE_TRANS_OPEN,
+  isSiteTransOpen,
+  siteTransOpenValue,
+} from "../../libs/siteTransOpen";
 import { getDomainOptions } from "../../libs/url";
 
-const SITE_TRANS_OPEN = new Set([GLOBAL_KEY, "true", "false"]);
+export { SITE_TRANS_OPEN };
 
 /** Values shown by the current-site control, in menu order. */
 export const SITE_TRANS_OPEN_OPTIONS = [
-  { value: GLOBAL_KEY, labelKey: "site_trans_follow" },
-  { value: "true", labelKey: "site_trans_on" },
-  { value: "false", labelKey: "site_trans_off" },
+  { value: SITE_TRANS_OPEN.FOLLOW_GLOBAL, labelKey: "site_trans_follow" },
+  { value: SITE_TRANS_OPEN.AUTO_TRANSLATE, labelKey: "site_trans_on" },
+  { value: SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE, labelKey: "site_trans_off" },
 ];
 
 /**
@@ -22,7 +27,7 @@ export function readSiteTransOpen(href, rules) {
     typeof findMatchingRule === "function"
       ? findMatchingRule(rules || [], href)?.transOpen
       : undefined;
-  return SITE_TRANS_OPEN.has(value) ? value : GLOBAL_KEY;
+  return isSiteTransOpen(value) ? value : SITE_TRANS_OPEN.FOLLOW_GLOBAL;
 }
 
 /**
@@ -44,7 +49,7 @@ export function siteRulePattern(href, rules) {
 export function sitePolicyRecord(href, rules, transOpen) {
   const pattern = siteRulePattern(href, rules);
   if (!pattern || pattern === GLOBAL_KEY) return null;
-  return { pattern, transOpen };
+  return { pattern, transOpen: siteTransOpenValue(transOpen) };
 }
 
 export async function writeSiteTransOpen(

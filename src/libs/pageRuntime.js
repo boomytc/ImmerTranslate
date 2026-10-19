@@ -14,7 +14,7 @@ import {
 } from "./iframe";
 import { LOCATION_CHANGE_EVENT, installLocationHook } from "./locationHook";
 import { logger } from "./log";
-import { sendBgMsg } from "./msg";
+import { acceptsFrameMessage, sendBgMsg } from "./msg";
 import { getPopupDocumentIdentity } from "./popupDocument";
 import { readRedditEmbeddingHref } from "./redditFrame";
 import { matchRule as matchRuleDefault } from "./rules";
@@ -110,13 +110,14 @@ function listenForParkedPage(handler, { isUserscript, isIframe }) {
   if (!isUserscript && typeof runtime?.addListener === "function") {
     const onRuntime = (message, _sender, sendResponse) => {
       const result = handler(message);
+      if (result === undefined) return;
       if (result && typeof result.then === "function") {
         result.then(sendResponse, (error) =>
           sendResponse({ error: error?.message || String(error) })
         );
         return true;
       }
-      if (result !== undefined) sendResponse(result);
+      sendResponse(result);
       return true;
     };
     runtime.addListener(onRuntime);
@@ -231,16 +232,21 @@ export class PageRuntime {
     return this.#queue;
   }
 
-  async #reconcile(generation) {
+  async #reconcile(generation, reason) {
     if (generation !== this.#generation) return;
     const href = this.options.getHref
       ? this.options.getHref()
       : window.location.href;
+    const hrefChanged = href !== this.#href;
     this.#href = href;
     if (matchingBlacklistEntries(this.#setting?.blacklist, href).length) {
       this.#park();
       return;
     }
+    // focus / pageshow 会把规则存储重读一遍，子 frame 的地址变化也可能
+    // 误触本 frame 的 location 回调。地址没变时保留运行中的翻译开关。
+    // 显式的 parent 重算仍按 K 继承父页面运行态。
+    if (this.#manager && !hrefChanged && reason !== "parent") return;
     await this.#activate(generation);
   }
 
@@ -259,6 +265,13 @@ export class PageRuntime {
 
   #onParkedMessage(message) {
     if (message?.action !== MSG_TRANS_GETRULE) return undefined;
+    if (
+      !acceptsFrameMessage(message, {
+        isIframe: Boolean(this.options.isIframe),
+      })
+    ) {
+      return undefined;
+    }
     return parkedPageResponse({
       rule: this.#rule,
       setting: this.#setting,

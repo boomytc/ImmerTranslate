@@ -387,6 +387,7 @@ export class Translator {
   #isShadowRootJsInjected = false; //
   #mouseHoverEnabled = false; // 鼠标悬停翻译
   #enabled = false; // 全局默认状态
+  #reportsToolbarIcon = true;
   #runId = 0; // 用于中止过期的异步请求
 
   #transOnlyRevertTimer = null;
@@ -1093,9 +1094,10 @@ export class Translator {
     return result;
   }
 
-  constructor({ rule = {}, setting = {}, favWords = [] }) {
+  constructor({ rule = {}, setting = {}, favWords = [], isIframe = false }) {
     this.#setting = { ...Translator.DEFAULT_OPTIONS, ...setting };
     this.#rule = { ...Translator.DEFAULT_RULE, ...rule };
+    this.#reportsToolbarIcon = !isIframe;
     if (this.#rule.textStyle && this.#rule.textStyle !== OPT_STYLE_NONE) {
       this.#lastActiveTextStyle = this.#rule.textStyle;
     }
@@ -5169,7 +5171,7 @@ overflow-wrap: anywhere !important;`;
       this.#translateTitle();
     }
 
-    isExt && sendBgMsg(MSG_UPDATE_ICON, true);
+    this.#reportsToolbarIcon && isExt && sendBgMsg(MSG_UPDATE_ICON, true);
   }
 
   // 翻译页面标题
@@ -5209,7 +5211,7 @@ overflow-wrap: anywhere !important;`;
       document.title = this.#docInfo.title;
     }
 
-    isExt && sendBgMsg(MSG_UPDATE_ICON, false);
+    this.#reportsToolbarIcon && isExt && sendBgMsg(MSG_UPDATE_ICON, false);
   }
 
   // 重新扫描页面

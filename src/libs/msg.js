@@ -81,6 +81,8 @@ export const sendTabMsg = async (
     message.expectedDocumentToken = expectedDocumentToken;
   if (responseDocumentToken)
     message.responseDocumentToken = responseDocumentToken;
+  // frameId 0 只应落到顶层。消息体里再带一标记，避免子 frame 抢先回复。
+  if (options?.frameId === 0) message.targetTopFrame = true;
   if (!responseDocumentToken || options || expectedDocumentToken) {
     return sendMessage(tabId, message, options);
   }
@@ -121,6 +123,12 @@ export const sendTopFrameMsg = (
   expectedDocumentToken
 ) =>
   sendTabMsg(action, args, { frameId: 0 }, targetTabId, expectedDocumentToken);
+
+/** 顶层查询带 targetTopFrame。子 frame 看到后必须不回复、不执行。 */
+export function acceptsFrameMessage(message, { isIframe = false } = {}) {
+  if (message?.targetTopFrame === true && isIframe) return false;
+  return true;
+}
 
 /**
  * 快捷键和右键菜单不知道各 frame 当前是否已开启翻译。

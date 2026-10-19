@@ -7,6 +7,7 @@ import {
   MSG_TOUCH_TRANSLATE_STATE,
 } from "../config";
 import { browser } from "./browser";
+import { acceptsFrameMessage } from "./msg";
 import { Translator } from "./translator";
 import { InputTranslator } from "./inputTranslate";
 import { TransboxManager } from "./tranbox";
@@ -803,6 +804,9 @@ export default class TranslatorManager {
    * 处理扩展 background 发送的 runtime 消息。
    */
   #handleBrowserMessage(message, sender, sendResponse) {
+    if (!acceptsFrameMessage(message, { isIframe: this.#isIframe })) {
+      return false;
+    }
     const shouldRespond =
       !message.responseDocumentToken ||
       message.responseDocumentToken === this.#documentToken;

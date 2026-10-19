@@ -28,6 +28,7 @@ import { getRulesWithDefault, saveEdit, getDisabledSubRules } from "./storage";
 import { trySyncRules } from "./sync";
 import { kissLog } from "./log";
 import { splitSelectorList } from "./selectorList";
+import { isSiteTransOpen } from "./siteTransOpen";
 
 /**
  * 差分合并 CSS 选择器。
@@ -556,7 +557,16 @@ const applySavedRule = (rules, curRule) => {
   };
 
   // Keep inherited values represented by their default placeholders.
+  // 本站策略是枚举。调用方显式写入的 true/false/* 必须原样保留，
+  // 不能因为和当前全局相同就收成 *。
+  const explicitTransOpen =
+    Object.prototype.hasOwnProperty.call(curRule, "transOpen") &&
+    isSiteTransOpen(curRule.transOpen);
   Object.keys(GLOBLA_RULE).forEach((key) => {
+    if (key === "transOpen" && explicitTransOpen) {
+      newRule.transOpen = curRule.transOpen;
+      return;
+    }
     newRule[key] =
       !mergedRule[key] || mergedRule[key] === globalRule[key]
         ? DEFAULT_RULE[key]

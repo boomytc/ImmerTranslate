@@ -63,6 +63,22 @@ describe("site policy writes", () => {
     const personal = storedRef.rules.filter((rule) => rule.pattern !== "*");
     expect(personal).toHaveLength(1);
     expect(personal[0].pattern).toBe("news.example.com");
-    expect(personal[0].transOpen).toBe("*");
+    expect(personal[0].transOpen).toBe("false");
+  });
+
+  test("each site policy is stored and read back as the same enum", async () => {
+    const href = "http://localhost:8765/index.html";
+    const { SITE_TRANS_OPEN, readSiteTransOpen } = require("./sitePolicy");
+    for (const policy of Object.values(SITE_TRANS_OPEN)) {
+      storedRef.rules = [{ ...GLOBLA_RULE }];
+      await writeSiteTransOpen(href, policy, storedRef.rules);
+      const personal = storedRef.rules.filter((rule) => rule.pattern !== "*");
+      expect(personal).toHaveLength(1);
+      expect(personal[0].transOpen).toBe(policy);
+      expect(readSiteTransOpen(href, storedRef.rules)).toBe(policy);
+    }
+    await expect(
+      writeSiteTransOpen(href, false, storedRef.rules)
+    ).rejects.toThrow(/Unknown site translation policy/);
   });
 });
