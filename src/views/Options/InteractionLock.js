@@ -17,8 +17,7 @@ export default function InteractionLock({ locked, children, ...props }) {
 
   const blockInteraction = (event) => {
     if (!locked) return;
-    // React registers touchstart as passive; the later click is still blocked.
-    if (event.type !== "touchstart") event.preventDefault();
+    event.preventDefault();
     event.stopPropagation();
   };
 
@@ -60,8 +59,6 @@ export default function InteractionLock({ locked, children, ...props }) {
       onMouseUpCapture={blockInteraction}
       onPointerDownCapture={blockInteraction}
       onPointerUpCapture={blockInteraction}
-      onTouchStartCapture={blockInteraction}
-      onTouchEndCapture={blockInteraction}
       onKeyDownCapture={blockKeyboard}
       onKeyPressCapture={blockKeyboard}
       onKeyUpCapture={blockKeyboard}

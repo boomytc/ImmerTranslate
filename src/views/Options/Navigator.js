@@ -25,7 +25,7 @@ function normalizeSearchText(text, uiLang) {
   }
 }
 
-export default function Navigator({ open, isMobile = false, onClose }) {
+export default function Navigator({ open, compact = false, onClose }) {
   const i18n = useI18n();
   const {
     setting: { uiLang },
@@ -61,7 +61,12 @@ export default function Navigator({ open, isMobile = false, onClose }) {
             "/tranbox",
             SelectAllRoundedIcon,
           ],
-          ["hover", i18n("touch_paragraph"), "/mousehover", SegmentRoundedIcon],
+          [
+            "hover",
+            i18n("paragraph_translate"),
+            "/mousehover",
+            SegmentRoundedIcon,
+          ],
           ["input", i18n("input_translate"), "/input", KeyboardRoundedIcon],
           [
             "subtitle",
@@ -116,10 +121,10 @@ export default function Navigator({ open, isMobile = false, onClose }) {
     <aside
       id="kt-options-navigation"
       className={`kt-options-sidebar ${open ? "kt-options-sidebar--open" : ""}`}
-      role={isMobile ? "dialog" : undefined}
-      aria-modal={isMobile ? "true" : undefined}
-      aria-labelledby={isMobile ? "kt-options-navigation-title" : undefined}
-      tabIndex={isMobile ? -1 : undefined}
+      role={compact ? "dialog" : undefined}
+      aria-modal={compact ? "true" : undefined}
+      aria-labelledby={compact ? "kt-options-navigation-title" : undefined}
+      tabIndex={compact ? -1 : undefined}
     >
       <a
         className="kt-options-brand"
@@ -166,7 +171,7 @@ export default function Navigator({ open, isMobile = false, onClose }) {
                   to={path}
                   end={path === "/"}
                   key={id}
-                  onClick={isMobile ? onClose : undefined}
+                  onClick={compact ? onClose : undefined}
                 >
                   <Icon />
                   <span>{label}</span>
@@ -180,7 +185,7 @@ export default function Navigator({ open, isMobile = false, onClose }) {
           </div>
         )}
       </nav>
-      {isMobile && (
+      {compact && (
         <button
           type="button"
           className="kt-options-sidebar__close"

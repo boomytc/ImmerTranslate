@@ -42,19 +42,19 @@ jest.mock("./Header", () => {
 });
 jest.mock("./Navigator", () => {
   const React = require("react");
-  return ({ open, isMobile, onClose }) =>
+  return ({ open, compact, onClose }) =>
     React.createElement(
       "aside",
       {
         id: "kt-options-navigation",
-        role: isMobile ? "dialog" : undefined,
-        "aria-modal": isMobile ? "true" : undefined,
-        "aria-labelledby": isMobile ? "kt-options-navigation-title" : undefined,
-        tabIndex: isMobile ? -1 : undefined,
+        role: compact ? "dialog" : undefined,
+        "aria-modal": compact ? "true" : undefined,
+        "aria-labelledby": compact ? "kt-options-navigation-title" : undefined,
+        tabIndex: compact ? -1 : undefined,
       },
       React.createElement("input", { "aria-label": "search" }),
       React.createElement("a", { href: "#/" }, "overview"),
-      isMobile
+      compact
         ? React.createElement(
             "button",
             {
@@ -89,7 +89,7 @@ test.each([
   act(() => root.unmount());
 });
 
-describe("mobile settings navigation", () => {
+describe("compact settings navigation", () => {
   let mediaQuery;
   let mediaQueryListeners;
   let originalMatchMedia;

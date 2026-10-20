@@ -67,7 +67,6 @@ test("keeps the selection FAB inside its themed render root", () => {
 test.each([
   ["onMouseUp", "mouseup"],
   ["onMouseOver", "mouseover"],
-  ["onTouchEnd", "touchend"],
 ])(
   "preserves %s activation without repeating it for the pointer click",
   (btnEvent, eventName) => {
@@ -75,13 +74,11 @@ test.each([
 
     act(() => {
       view.button.dispatchEvent(
-        eventName === "touchend"
-          ? new Event(eventName, { bubbles: true, cancelable: true })
-          : new MouseEvent(eventName, {
-              bubbles: true,
-              cancelable: true,
-              detail: 1,
-            })
+        new MouseEvent(eventName, {
+          bubbles: true,
+          cancelable: true,
+          detail: 1,
+        })
       );
       view.button.dispatchEvent(
         new MouseEvent("click", {

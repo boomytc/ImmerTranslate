@@ -247,7 +247,6 @@ export default function Settings() {
   const {
     clearCache,
     contextMenuType = 1,
-    touchModes = [2],
     blacklist = DEFAULT_BLACKLIST.join(",\n"),
     csplist = DEFAULT_CSPLIST.join(",\n"),
     orilist = DEFAULT_ORILIST.join(",\n"),
@@ -347,27 +346,6 @@ export default function Settings() {
               >
                 <MenuItem value={0}>{i18n("fab_click_menu")}</MenuItem>
                 <MenuItem value={1}>{i18n("fab_click_translate")}</MenuItem>
-              </TextField>
-            </Grid>
-            {/* 移动端/触屏端特定的触摸手势快捷翻译触发方式 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                name="touchModes"
-                value={touchModes}
-                label={i18n("touch_translate_shortcut")}
-                onChange={handleChange}
-                SelectProps={{
-                  multiple: true,
-                }}
-              >
-                {[0, 2, 3, 4, 5, 6, 7].map((item) => (
-                  <MenuItem key={item} value={item}>
-                    {i18n(`touch_tap_${item}`)}
-                  </MenuItem>
-                ))}
               </TextField>
             </Grid>
             {/* 浏览器右键上下文菜单的展示层级 */}

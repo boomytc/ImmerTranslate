@@ -25,7 +25,6 @@ export function getMuiSwitchStyleOverrides(color) {
       transition: positionTransition,
       "&:not(.Mui-disabled):hover": {
         backgroundColor: `color-mix(in srgb, ${color.onSurface} 8%, transparent)`,
-        "@media (hover: none)": { backgroundColor: "transparent" },
       },
       "&.Mui-focusVisible": {
         outline: `2px solid ${color.primary}`,
@@ -44,7 +43,6 @@ export function getMuiSwitchStyleOverrides(color) {
         "& .MuiSwitch-input": { left: -20 },
         "&:not(.Mui-disabled):hover": {
           backgroundColor: `color-mix(in srgb, ${color.primary} 8%, transparent)`,
-          "@media (hover: none)": { backgroundColor: "transparent" },
         },
       },
       "&.Mui-disabled": {

@@ -6,8 +6,8 @@ import {
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
   OPT_INPUT_TRANS_SIGNS,
   OPT_INPUT_DOT_DISABLE,
-  OPT_INPUT_DOT_MOBILE,
   OPT_INPUT_DOT_ALWAYS,
+  isInputDotShown,
   DEFAULT_INPUT_RULE,
 } from "../../config";
 import ShortcutInput from "./ShortcutInput";
@@ -145,17 +145,17 @@ export default function InputSetting() {
           </SettingsRow>
           <SettingsRow label={i18n("show_translation_dot")}>
             <SettingsSegmented
-              value={showDot || DEFAULT_INPUT_RULE.showDot}
+              value={
+                isInputDotShown(showDot)
+                  ? OPT_INPUT_DOT_ALWAYS
+                  : OPT_INPUT_DOT_DISABLE
+              }
               label={i18n("show_translation_dot")}
               onChange={(value) => updateInputRule({ showDot: value })}
               items={[
                 {
                   value: OPT_INPUT_DOT_DISABLE,
                   label: i18n("show_dot_disable"),
-                },
-                {
-                  value: OPT_INPUT_DOT_MOBILE,
-                  label: i18n("show_dot_mobile"),
                 },
                 {
                   value: OPT_INPUT_DOT_ALWAYS,

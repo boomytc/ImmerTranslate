@@ -6,10 +6,6 @@ import useSelectionController from "./useSelectionController";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-jest.mock("../libs/mobile", () => ({
-  isMobile: false,
-}));
-
 jest.mock("../libs/detectFast", () => {
   const actual = jest.requireActual("../libs/detectFast");
   return {

@@ -25,7 +25,7 @@ const NARROW_API_LAYOUT_STYLES = String.raw`
 export const OPTIONS_STYLES = String.raw`
 .kt-options-shell { --kt-settings-font-size: ${SETTINGS_FONT_SIZE}px; --kt-settings-helper-font-size: ${SETTINGS_HELPER_FONT_SIZE}px; --kt-settings-control-width: 260px; min-height: 100vh; background: var(--kt-bg); color: var(--kt-on); }
 .kt-options-background { position: relative; z-index: 0; }
-.kt-options-mobile-header { display: none; }
+.kt-options-compact-header { display: none; }
 .kt-options-layout { min-height: 100vh; display: grid; grid-template-columns: 270px minmax(0, 1fr); }
 .kt-options-sidebar {
   width: 270px;
@@ -297,8 +297,8 @@ export const OPTIONS_STYLES = String.raw`
 
 @media (max-width: 1179px) {
   .kt-options-layout { display: block; }
-  .kt-options-mobile-header { min-height: 62px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 30; padding: 8px 14px; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); background: var(--kt-sf0); }
-  .kt-options-mobile-header__name { flex: 1; font-size: 14px; font-weight: 700; }
+  .kt-options-compact-header { min-height: 62px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 30; padding: 8px 14px; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); background: var(--kt-sf0); }
+  .kt-options-compact-header__name { flex: 1; font-size: 14px; font-weight: 700; }
   .kt-options-sidebar { position: fixed; left: 0; transform: translateX(-105%); transition: transform var(--kt-dur, .15s) var(--kt-ease, ease-out); box-shadow: var(--kt-shadow-menu); }
   .kt-options-sidebar--open { transform: translateX(0); }
   .kt-options-sidebar--open .kt-options-brand { padding-right: 60px; }
@@ -320,7 +320,7 @@ ${NARROW_API_LAYOUT_STYLES}
 }
 
 @supports not (container-type: inline-size) {
-  /* Add the mobile main's 36px horizontal padding to each content breakpoint.
+  /* Add the compact main's 36px horizontal padding to each content breakpoint.
      The desktop layout starts with 792px of content, above both cutoffs. */
   @media (max-width: 656px) {
 ${NARROW_OPTIONS_MAIN_STYLES}

@@ -1,19 +1,3 @@
-let mockRealTouchControl = false;
-jest.mock(
-  "../../components/TouchTranslateControl",
-  () => (props) =>
-    mockRealTouchControl
-      ? require("react").createElement(
-          jest.requireActual("../../components/TouchTranslateControl").default,
-          props
-        )
-      : null
-);
-jest.mock("../../hooks/MouseHover", () => ({
-  useMouseHoverSetting: () => ({
-    updateMouseHoverSetting: mockUpdateMouseHoverSetting,
-  }),
-}));
 /* eslint-disable testing-library/no-container, testing-library/no-unnecessary-act */
 import { act, StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -31,8 +15,6 @@ import {
   MSG_OPEN_OPTIONS,
   MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
-  MSG_TOUCH_TRANSLATE_MODE_SET,
-  MSG_TOUCH_TRANSLATE_STATE,
   DEFAULT_API_LIST,
 } from "../../config";
 
@@ -51,7 +33,6 @@ const mockStyles = Array.from({ length: 7 }, (_, index) => {
   };
 });
 const mockUpdateSetting = jest.fn();
-const mockUpdateMouseHoverSetting = jest.fn();
 const mockGetCurTab = jest.fn();
 const mockSendBgMsg = jest.fn(async () => []);
 const mockSendTabMsg = jest.fn(async () => undefined);
@@ -214,7 +195,6 @@ function renderPopupCont(props = {}, { statefulRule = false } = {}) {
 
 describe("PopupCont capability parity", () => {
   beforeEach(() => {
-    mockRealTouchControl = false;
     mockIsExt = false;
     mockGetCurTab.mockReset();
     mockGetCurTab.mockResolvedValue({ url: "https://example.com/page" });
@@ -228,7 +208,6 @@ describe("PopupCont capability parity", () => {
     mockSendTopFrameMsg.mockResolvedValue(undefined);
     isCurrentPopupDocument.mockResolvedValue(true);
     mockUpdateSetting.mockReset();
-    mockUpdateMouseHoverSetting.mockReset();
     mockUpdateSetting.mockResolvedValue({ changed: true });
     mockContextSetting = { blacklist: "" };
     saveRule.mockReset();
@@ -239,233 +218,6 @@ describe("PopupCont capability parity", () => {
   afterEach(() => {
     jest.useRealTimers();
     document.body.innerHTML = "";
-  });
-
-  test("real touch controls appear below the hero and use the page receiver", async () => {
-    mockRealTouchControl = true;
-    window.PointerEvent = MouseEvent;
-    Object.defineProperty(navigator, "maxTouchPoints", {
-      configurable: true,
-      value: 2,
-    });
-    const processActions = jest.fn(({ args }) => ({
-      touchTranslate: {
-        mode: args?.mode || "off",
-        supported: true,
-        direction: "right",
-      },
-    }));
-    const view = renderPopupCont({ processActions, isContent: true });
-    try {
-      await flushEffects();
-      const control = view.container.querySelector("[data-kiss-touch-ui]");
-      const hero = view.container.querySelector(".kt-popup-hero");
-      expect(
-        hero.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy();
-      act(() =>
-        control
-          .querySelector('[role="combobox"]')
-          .dispatchEvent(
-            new MouseEvent("mousedown", { bubbles: true, button: 0 })
-          )
-      );
-      await act(async () =>
-        document.querySelector('[data-value="tap"]').click()
-      );
-      expect(control.querySelector('[role="combobox"]').textContent).toBe(
-        "touch_tap"
-      );
-    } finally {
-      view.cleanup();
-    }
-  }, 15000);
-
-  test.each([0, 7])(
-    "binds touch state and mode changes to captured frame %s without querying the active tab",
-    async (frameId) => {
-      mockRealTouchControl = true;
-      window.PointerEvent = MouseEvent;
-      Object.defineProperty(navigator, "maxTouchPoints", {
-        configurable: true,
-        value: 2,
-      });
-      const documentInfo = { frameId, token: "captured-touch-document" };
-      mockGetCurTab.mockResolvedValue({ id: 99, url: "https://other.example" });
-      mockSendTabMsg.mockImplementation(async (action, args) =>
-        action === MSG_TRANS_GETRULE
-          ? { rule: {}, setting: {}, document: documentInfo }
-          : {
-              touchTranslate: {
-                mode: args?.mode || "off",
-                supported: true,
-                direction: "right",
-              },
-            }
-      );
-      const view = renderPopupCont({
-        targetTab: { id: 42, url: "https://captured.example" },
-        documentInfo,
-      });
-      try {
-        await flushEffects();
-        expect(mockSendTabMsg).toHaveBeenCalledWith(
-          MSG_TOUCH_TRANSLATE_STATE,
-          undefined,
-          { frameId },
-          42,
-          documentInfo.token
-        );
-        const control = view.container.querySelector("[data-kiss-touch-ui]");
-        act(() =>
-          control
-            .querySelector('[role="combobox"]')
-            .dispatchEvent(
-              new MouseEvent("mousedown", { bubbles: true, button: 0 })
-            )
-        );
-        await act(async () =>
-          document.querySelector('[data-value="tap"]').click()
-        );
-        expect(mockSendTabMsg).toHaveBeenCalledWith(
-          MSG_TOUCH_TRANSLATE_MODE_SET,
-          { mode: "tap" },
-          { frameId },
-          42,
-          documentInfo.token
-        );
-        expect(mockGetCurTab).not.toHaveBeenCalled();
-        expect(mockUpdateMouseHoverSetting).toHaveBeenCalledWith({
-          touchMode: "tap",
-        });
-      } finally {
-        view.cleanup();
-      }
-    }
-  );
-
-  test("loads touch state when the initially hidden page tab becomes visible", async () => {
-    mockRealTouchControl = true;
-    window.PointerEvent = MouseEvent;
-    Object.defineProperty(navigator, "maxTouchPoints", {
-      configurable: true,
-      value: 2,
-    });
-    const documentInfo = { frameId: 0, token: "captured-touch-document" };
-    mockSendTabMsg.mockImplementation(async (action) =>
-      action === MSG_TRANS_GETRULE
-        ? { rule: {}, setting: {}, document: documentInfo }
-        : {
-            touchTranslate: {
-              mode: "tap",
-              supported: true,
-              direction: "right",
-            },
-          }
-    );
-    const view = renderPopupCont({
-      targetTab: { id: 42, url: "https://captured.example" },
-      documentInfo,
-      isVisible: false,
-    });
-    try {
-      await flushEffects();
-      expect(mockSendTabMsg).not.toHaveBeenCalled();
-      expect(view.container.querySelector("[data-kiss-touch-ui]")).toBeNull();
-      view.rerender({ isVisible: true });
-      await flushEffects();
-      expect(
-        view.container.querySelector('[data-kiss-touch-ui] [role="combobox"]')
-          .textContent
-      ).toBe("touch_tap");
-      expect(mockUpdateMouseHoverSetting).not.toHaveBeenCalled();
-    } finally {
-      view.cleanup();
-    }
-  });
-
-  test.each(["navigation", "hidden", "reshown", "unmounted"])(
-    "does not persist a late touch mode response after the popup is %s",
-    async (transition) => {
-      mockRealTouchControl = true;
-      window.PointerEvent = MouseEvent;
-      Object.defineProperty(navigator, "maxTouchPoints", {
-        configurable: true,
-        value: 2,
-      });
-      const documentInfo = { frameId: 0, token: "captured-touch-document" };
-      let finishModeChange;
-      mockSendTabMsg.mockImplementation(async (action) => {
-        if (action === MSG_TRANS_GETRULE)
-          return { rule: {}, setting: {}, document: documentInfo };
-        if (action === MSG_TOUCH_TRANSLATE_MODE_SET)
-          return new Promise((resolve) => {
-            finishModeChange = resolve;
-          });
-        return {
-          touchTranslate: { mode: "off", supported: true, direction: "right" },
-        };
-      });
-      const onPageUnavailable = jest.fn();
-      const view = renderPopupCont({
-        targetTab: { id: 42, url: "https://captured.example" },
-        documentInfo,
-        onPageUnavailable,
-      });
-      let unmounted = false;
-      try {
-        await flushEffects();
-        act(() =>
-          view.container
-            .querySelector('[data-kiss-touch-ui] [role="combobox"]')
-            .dispatchEvent(
-              new MouseEvent("mousedown", { bubbles: true, button: 0 })
-            )
-        );
-        act(() => document.querySelector('[data-value="swipe"]').click());
-        if (transition === "navigation") {
-          isCurrentPopupDocument.mockResolvedValue(false);
-        } else if (transition === "hidden" || transition === "reshown") {
-          view.rerender({ isVisible: false });
-          if (transition === "reshown") view.rerender({ isVisible: true });
-        } else {
-          view.cleanup();
-          unmounted = true;
-        }
-        await act(async () =>
-          finishModeChange({
-            touchTranslate: {
-              mode: "swipe",
-              supported: true,
-              direction: "right",
-            },
-          })
-        );
-        expect(mockUpdateMouseHoverSetting).not.toHaveBeenCalled();
-        if (transition === "navigation")
-          expect(onPageUnavailable).toHaveBeenCalledTimes(1);
-      } finally {
-        if (!unmounted) view.cleanup();
-      }
-    }
-  );
-
-  test("real touch controls remain silent without an injected receiver", async () => {
-    mockRealTouchControl = true;
-    window.PointerEvent = MouseEvent;
-    Object.defineProperty(navigator, "maxTouchPoints", {
-      configurable: true,
-      value: 2,
-    });
-    const view = renderPopupCont();
-    try {
-      await flushEffects();
-      expect(view.container.querySelector("[data-kiss-touch-ui]")).toBeNull();
-      expect(view.container.textContent).not.toContain("touch_failed");
-      expect(view.container.querySelector(".kt-popup-hero")).not.toBeNull();
-    } finally {
-      view.cleanup();
-    }
   });
 
   test("groups rule editing and cache clearing only while advanced options are expanded", async () => {

@@ -4,8 +4,6 @@ import DraggableResizable from "./DraggableResizable";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-jest.mock("../../libs/mobile", () => ({ isMobile: false }));
-
 const emptyRect = {
   x: 0,
   y: 0,

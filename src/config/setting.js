@@ -82,7 +82,7 @@ export const DEFAULT_INPUT_RULE = {
   triggerCount: 1, // 快捷键连续敲击次数
   triggerTime: 200, // 敲击时间间隔 (毫秒)
   transSign: OPT_INPUT_TRANS_SIGNS[0], // 默认以斜杠（"/"）结尾时触发翻译
-  showDot: OPT_INPUT_DOT_ALWAYS, // 图标指示器：桌面和移动端都显示
+  showDot: OPT_INPUT_DOT_ALWAYS, // 输入框边缘的翻译图标
 };
 
 // 划词翻译框的触发时机常量
@@ -98,7 +98,7 @@ export const OPT_TRANBOX_TRIGGER_ALL = [
 ];
 // 划词后弹出按钮的定位模式
 export const OPT_TRANBOX_BTN_POSITION_FIXED = "fixed"; // 固定显示在选区右下角
-export const OPT_TRANBOX_BTN_POSITION_MOUSE = "mouse"; // 跟随鼠标或触摸结束位置显示
+export const OPT_TRANBOX_BTN_POSITION_MOUSE = "mouse"; // 跟随鼠标位置显示
 export const OPT_TRANBOX_BTN_POSITION_ALL = [
   OPT_TRANBOX_BTN_POSITION_FIXED,
   OPT_TRANBOX_BTN_POSITION_MOUSE,
@@ -199,8 +199,6 @@ font-size: 15px;
 line-height: 1.45;
 box-shadow: 0 1px 2px rgba(23, 24, 28, 0.08), 0 12px 32px rgba(23, 24, 28, 0.2);`;
 export const DEFAULT_MOUSE_HOVER_SETTING = {
-  touchMode: "tap", // Preferred gesture; activation is document-local.
-  touchDirection: "right",
   useMouseHover: false, // 是否开启鼠标悬停翻译
   blacklist: "", // 鼠标悬停翻译禁用的网页黑名单
   mouseHoverKey: DEFAULT_MOUSEHOVER_KEY, // 主按键
@@ -231,7 +229,6 @@ export const DEFAULT_SETTING = {
   shortcuts: DEFAULT_SHORTCUTS, // 键盘快捷键配置对象
   inputRule: DEFAULT_INPUT_RULE, // 输入框即时翻译相关配置
   tranboxSetting: DEFAULT_TRANBOX_SETTING, // 划词翻译及字典结果面板配置
-  touchModes: [2], // 触屏移动端翻译触发行为配置 (数组，支持多选，如单指双击/三击)
   blacklist: DEFAULT_BLACKLIST.join(",\n"), // 禁用整页双语翻译的网址/黑名单列表
   csplist: DEFAULT_CSPLIST.join(",\n"), // 强制禁用内容安全策略(CSP)以允许向翻译 API 发送请求的网址列表
   orilist: DEFAULT_ORILIST.join(",\n"), // 需要改写或删除 Cross-Origin HTTP 请求头的网址列表

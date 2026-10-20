@@ -5,7 +5,6 @@ import { putFab } from "../../libs/storage";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-jest.mock("../../libs/mobile", () => ({ isMobile: false }));
 jest.mock("../../libs/storage", () => ({ putFab: jest.fn() }));
 
 describe("Draggable FAB edge locking", () => {
@@ -673,7 +672,7 @@ describe("Draggable FAB edge locking", () => {
     expect(draggable.style.width).toBe("");
   });
 
-  test("an expanded overlay reveals the snapped control for touch input", () => {
+  test("an expanded overlay reveals the snapped control", () => {
     const fab = renderFab();
     expect(draggable.style.opacity).toBe("1");
     expect(draggable.style.transform).toBe("translate(580px, 200px)");

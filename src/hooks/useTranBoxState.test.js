@@ -6,10 +6,6 @@ import { getTranBox } from "../libs/storage";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-jest.mock("../libs/mobile", () => ({
-  isMobile: false,
-}));
-
 jest.mock("../libs/iframe", () => ({
   isIframe: false,
 }));

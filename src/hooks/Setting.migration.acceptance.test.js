@@ -9,7 +9,6 @@ import {
   CURRENT_SETTINGS_VERSION,
   KV_SETTING_KEY,
   OPT_INPUT_DOT_DISABLE,
-  OPT_INPUT_DOT_MOBILE,
   STOKEY_SETTING,
   STOKEY_SYNC,
 } from "../config";
@@ -347,24 +346,21 @@ describe("settings normalization across the production persistence chain", () =>
     }
   );
 
-  test("keeps a stored mobile input dot without persisting", async () => {
+  test("keeps a stored legacy mobile input dot without persisting", async () => {
     const bytes = await mount(
       currentSetting({
-        inputRule: { showDot: OPT_INPUT_DOT_MOBILE, toLang: "zh-CN" },
+        inputRule: { showDot: "mobile", toLang: "zh-CN" },
       })
     );
 
     expect(settings.setting.inputRule).toMatchObject({
-      showDot: OPT_INPUT_DOT_MOBILE,
+      showDot: "mobile",
       toLang: "zh-CN",
     });
     expectReadOnly(bytes);
   });
 
-  test.each([
-    [{ showDot: OPT_INPUT_DOT_DISABLE }, OPT_INPUT_DOT_DISABLE],
-    [{ showDot: OPT_INPUT_DOT_MOBILE }, OPT_INPUT_DOT_MOBILE],
-  ])(
+  test.each([[{ showDot: OPT_INPUT_DOT_DISABLE }, OPT_INPUT_DOT_DISABLE]])(
     "reads a stored input dot without persisting %#",
     async (inputRule, showDot) => {
       const bytes = await mount(

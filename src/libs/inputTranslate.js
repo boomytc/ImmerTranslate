@@ -9,7 +9,6 @@ import { APP_LCNAME } from "../config/app";
 import { newI18n } from "../config/i18n";
 import { resolveApiPromptSettings } from "../config/prompt";
 import { inputTranslateFailureKey } from "./pageTranslateError";
-import { isMobile } from "./mobile";
 import { genEventName, removeEndchar, matchInputStr, sleep } from "./utils";
 import { parseMathInText } from "./mathParse";
 import { stepShortcutRegister } from "./shortcut";
@@ -241,6 +240,7 @@ const NOTICE_MAX_WIDTH = 320;
 const NOTICE_GAP = 8;
 const NOTICE_MARGIN = 8;
 const NOTICE_FALLBACK_SIZE = { width: 280, height: 72 };
+const FLOAT_BTN_SIZE = 30;
 
 const FAILURE_NOTICE_STYLE = `
   position: fixed !important;
@@ -603,9 +603,7 @@ export class InputTranslator {
   // 将创建逻辑抽离，保持代码整洁
   createFloatButtonDOM() {
     this.#floatBtn = document.createElement("div");
-    // ... 样式代码保持不变 ...
-    const isTouch = isMobile || navigator.maxTouchPoints > 0;
-    const size = isTouch ? "36px" : "30px";
+    const size = `${FLOAT_BTN_SIZE}px`;
 
     this.#floatBtn.style.cssText = `
         position: fixed;
@@ -628,9 +626,6 @@ export class InputTranslator {
     };
     // 这里的监听器随 DOM 销毁而销毁，无需手动 removeEventListener
     this.#floatBtn.addEventListener("mousedown", preventFocusLoss);
-    this.#floatBtn.addEventListener("touchstart", preventFocusLoss, {
-      passive: false,
-    });
 
     const handleTrigger = (e) => {
       e.preventDefault();
@@ -640,7 +635,6 @@ export class InputTranslator {
     };
 
     this.#floatBtn.addEventListener("click", handleTrigger);
-    this.#floatBtn.addEventListener("touchend", handleTrigger);
 
     document.body.appendChild(this.#floatBtn);
   }
@@ -678,9 +672,7 @@ export class InputTranslator {
     }
 
     const rect = this.#activeInput.getBoundingClientRect();
-    // ... 位置计算逻辑保持不变 ...
-    const isTouch = isMobile || navigator.maxTouchPoints > 0;
-    const btnSize = isTouch ? 36 : 30;
+    const btnSize = FLOAT_BTN_SIZE;
     const padding = 5;
     let top = rect.bottom - btnSize - padding;
     let left = rect.right - btnSize - padding;

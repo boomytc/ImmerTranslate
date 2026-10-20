@@ -65,9 +65,7 @@ test("scopes the resolved Material 3 palette to its root", () => {
   const filledInputHover =
     filledInputRoot["&:not(.Mui-disabled, .Mui-focused):hover"];
   expect(filledInputHover.backgroundColor).toBe("#2D2F31");
-  expect(filledInputHover["@media (hover: none)"].backgroundColor).toBe(
-    "#282A2C"
-  );
+  expect(filledInputHover).not.toHaveProperty(["@media (hover: none)"]);
   expect(filledInputRoot["&.Mui-error"].borderColor).toBe("#F2B8B5");
   expect(filledInputRoot["&.Mui-error.Mui-focused"].borderColor).toBe(
     "#F2B8B5"
@@ -131,9 +129,9 @@ test("scopes the resolved Material 3 palette to its root", () => {
   });
   expect(defaultIconButton.color).toBe("#C4C7C5");
   expect(defaultIconButton["&:hover"].backgroundColor).toBe("#282A2C");
-  expect(
-    defaultIconButton["&:hover"]["@media (hover: none)"].backgroundColor
-  ).toBe("transparent");
+  expect(defaultIconButton["&:hover"]).not.toHaveProperty([
+    "@media (hover: none)",
+  ]);
   expect(primaryIconButton.color).toBe(undefined);
   expect(primaryIconButton["&:hover"]).toBe(undefined);
   expect(defaultIconButton["&.Mui-focusVisible"]).toEqual({
@@ -176,9 +174,9 @@ test("scopes the resolved Material 3 palette to its root", () => {
   expect(
     capturedTheme.components.MuiMenu.styleOverrides.paper.borderRadius
   ).toBe(M3_RADIUS_XL);
-  expect(
-    capturedTheme.components.MuiMenu.styleOverrides.paper.boxShadow
-  ).toBe("var(--kt-shadow-menu)");
+  expect(capturedTheme.components.MuiMenu.styleOverrides.paper.boxShadow).toBe(
+    "var(--kt-shadow-menu)"
+  );
   expect(
     capturedTheme.components.MuiPopover.styleOverrides.paper.borderRadius
   ).toBe(M3_RADIUS_XL);

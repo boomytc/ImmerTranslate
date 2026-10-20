@@ -7,7 +7,6 @@ import {
   useCallback,
 } from "react";
 import { limitFloat, limitNumber } from "../../libs/utils";
-import { isMobile } from "../../libs/mobile";
 import { putFab } from "../../libs/storage";
 import { debounce } from "../../libs/utils";
 import Paper from "@mui/material/Paper";
@@ -95,7 +94,7 @@ function DraggableWrapper({ children, usePaper, ...props }) {
 }
 
 /**
- * Support pointer and touch dragging with edge snapping and hover reveal.
+ * Support pointer dragging with edge snapping and hover reveal.
  */
 export default function Draggable({
   windowSize: { w: windowWidth, h: windowHeight },
@@ -383,22 +382,22 @@ export default function Draggable({
     }
     // Only panel controls skip dragging: the FAB handle is itself a button.
     // Capture pointer movement even after the pointer leaves the handle.
-    !isMobile && e.target.setPointerCapture(e.pointerId);
+    e.target.setPointerCapture(e.pointerId);
     onStart && onStart();
     draggedRef.current = false;
     const rect = containerRef.current?.getBoundingClientRect();
     const currentX = rect ? rect.left : position.x * windowWidth;
     const currentY = rect ? rect.top : position.y * windowHeight;
-    const { clientX, clientY } = isMobile ? e.targetTouches[0] : e;
+    const { clientX, clientY } = e;
     setOrigin({ x: currentX, y: currentY, clientX, clientY });
   };
 
-  // Move the container by the current pointer or touch displacement.
+  // Move the container by the current pointer displacement.
   const handlePointerMove = (e) => {
     if (!origin) return;
     onMove && onMove();
     draggedRef.current = true;
-    const { clientX, clientY } = isMobile ? e.targetTouches[0] : e;
+    const { clientX, clientY } = e;
     const dx = clientX - origin.clientX;
     const dy = clientY - origin.clientY;
     let x = origin.x + dx;
@@ -477,19 +476,12 @@ export default function Draggable({
       : "opacity 160ms ease";
 
   // Cancellation must end a drag because browsers do not emit a later up event.
-  const touchProps = isMobile
-    ? {
-        onTouchStart: handlePointerDown,
-        onTouchMove: handlePointerMove,
-        onTouchEnd: handlePointerUp,
-        onTouchCancel: handlePointerUp,
-      }
-    : {
-        onPointerDown: handlePointerDown,
-        onPointerMove: handlePointerMove,
-        onPointerUp: handlePointerUp,
-        onPointerCancel: handlePointerUp,
-      };
+  const pointerProps = {
+    onPointerDown: handlePointerDown,
+    onPointerMove: handlePointerMove,
+    onPointerUp: handlePointerUp,
+    onPointerCancel: handlePointerUp,
+  };
 
   return (
     <div
@@ -504,7 +496,6 @@ export default function Draggable({
         zIndex: 2147483647,
         display: show ? "block" : "none",
         willChange: "transform, opacity",
-        touchAction: "none",
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -521,14 +512,7 @@ export default function Draggable({
       }}
     >
       <DraggableWrapper usePaper={usePaper}>
-        <div
-          style={{
-            touchAction: "none", // Prevent scrolling gestures while dragging.
-          }}
-          {...touchProps}
-        >
-          {handler}
-        </div>
+        <div {...pointerProps}>{handler}</div>
         <div>{children}</div>
       </DraggableWrapper>
     </div>

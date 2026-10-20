@@ -46,7 +46,6 @@ jest.mock("../../libs/client", () => ({
   },
 }));
 jest.mock("../../libs/msg", () => ({ sendBgMsg: jest.fn() }));
-jest.mock("../../libs/mobile", () => ({ isMobile: false }));
 jest.mock("../../libs/storage", () => ({ putFab: jest.fn() }));
 
 // Keep the actual Draggable and MUI components so event isolation is exercised.
@@ -64,10 +63,6 @@ describe.each(["document", "shadow root"])(
       mockIsExt = true;
       sendBgMsg.mockReset();
       window.PointerEvent = MouseEvent;
-      Object.defineProperty(navigator, "maxTouchPoints", {
-        configurable: true,
-        value: 0,
-      });
       jest.useFakeTimers();
       jest
         .spyOn(HTMLElement.prototype, "getBoundingClientRect")
@@ -126,10 +121,6 @@ describe.each(["document", "shadow root"])(
       act(() => jest.runOnlyPendingTimers());
       expect(menu()).not.toBeNull();
     };
-    const touch = (target, type) =>
-      act(() =>
-        target.dispatchEvent(new Event(type, { bubbles: true, composed: true }))
-      );
 
     const wrapper = () => fab().closest('[style*="position: fixed"]');
 
@@ -178,32 +169,24 @@ describe.each(["document", "shadow root"])(
       }
     );
 
-    test.each(["click", "touch"])(
-      "restores appearance after an outside %s closes the menu",
-      (interaction) => {
-        render({ halfHide: false, opacity: 0.35 });
+    test("restores appearance after an outside click closes the menu", () => {
+      render({ halfHide: false, opacity: 0.35 });
 
-        expect(wrapper().style.transform).toBe("translate(0px, 100px)");
-        expect(wrapper().style.opacity).toBe("0.35");
+      expect(wrapper().style.transform).toBe("translate(0px, 100px)");
+      expect(wrapper().style.opacity).toBe("0.35");
 
-        openMenu();
-        expect(wrapper().style.opacity).toBe("1");
-        expect(wrapper().style.transform).toBe("translate(0px, 100px)");
+      openMenu();
+      expect(wrapper().style.opacity).toBe("1");
+      expect(wrapper().style.transform).toBe("translate(0px, 100px)");
 
-        if (interaction === "touch") {
-          touch(outsideHost, "touchstart");
-          touch(outsideHost, "touchend");
-        } else {
-          click(outsideHost);
-        }
-        expect(menu()).toBeNull();
-        expect(wrapper().style.opacity).toBe("0.35");
+      click(outsideHost);
+      expect(menu()).toBeNull();
+      expect(wrapper().style.opacity).toBe("0.35");
 
-        render({ halfHide: true, opacity: 0.6 });
-        expect(wrapper().style.transform).toBe("translate(-28px, 100px)");
-        expect(wrapper().style.opacity).toBe("0.6");
-      }
-    );
+      render({ halfHide: true, opacity: 0.6 });
+      expect(wrapper().style.transform).toBe("translate(-28px, 100px)");
+      expect(wrapper().style.opacity).toBe("0.6");
+    });
 
     test("keeps direct translation available with customized appearance", () => {
       render({ halfHide: false, opacity: 0.25, size: 96, fabClickAction: 1 });
@@ -406,51 +389,6 @@ describe.each(["document", "shadow root"])(
       }
     );
 
-    test("real touch control survives Portal clicks and synchronizes on reopen", async () => {
-      Object.defineProperty(navigator, "maxTouchPoints", {
-        configurable: true,
-        value: 2,
-      });
-      let mode = "off";
-      processActions.mockImplementation(({ args }) => {
-        if (args?.mode) mode = args.mode;
-        return {
-          touchTranslate: { mode, supported: true, direction: "right" },
-        };
-      });
-      render();
-      openMenu();
-      await act(async () => {
-        Array.from(menu().querySelectorAll('[role="menuitem"]'))
-          .find((el) => el.textContent === "touch_paragraph")
-          .click();
-      });
-      const select = menu().querySelector('[role="combobox"]');
-      act(() =>
-        select.dispatchEvent(
-          new MouseEvent("mousedown", {
-            bubbles: true,
-            composed: true,
-            button: 0,
-          })
-        )
-      );
-      await act(async () => {
-        document.querySelector('[data-value="tap"]').click();
-      });
-      expect(menu()).not.toBeNull();
-      expect(select.textContent).toBe("touch_tap");
-      click(document.body);
-      expect(menu()).toBeNull();
-      openMenu();
-      await act(async () => {
-        await Promise.resolve();
-      });
-      expect(menu().querySelector('[role="combobox"]').textContent).toBe(
-        "touch_tap"
-      );
-    });
-
     test("the first outside click closes after clicking the menu surface", () => {
       render();
       openMenu();
@@ -504,41 +442,22 @@ describe.each(["document", "shadow root"])(
       }
     );
 
-    test("a touch outside closes while menu touches and scrolling keep it open", () => {
-      render();
-      openMenu();
-      touch(menu(), "touchstart");
-      touch(menu(), "touchend");
-      expect(menu()).not.toBeNull();
-      touch(document.body, "touchstart");
-      touch(document.body, "touchmove");
-      touch(document.body, "touchend");
-      expect(menu()).not.toBeNull();
-
-      touch(document.body, "touchstart");
-      touch(document.body, "touchend");
-
-      expect(menu()).toBeNull();
-      expect(processActions).not.toHaveBeenCalled();
-    });
-
     test.each(["close", "unmount"])(
-      "removes outside interaction listeners on %s",
+      "removes the outside click listener on %s",
       (operation) => {
         const addListener = jest.spyOn(document, "addEventListener");
         const removeListener = jest.spyOn(document, "removeEventListener");
         render();
         openMenu();
-        const eventTypes = ["click", "touchstart", "touchmove", "touchend"];
         // MUI registers shared pointer listeners while mounting its buttons.
-        // The menu effect runs afterward, so inspect the latest callbacks.
-        const menuCalls = [...addListener.mock.calls].reverse();
-        const listeners = eventTypes.map((type) =>
-          menuCalls.find(
-            ([eventType, , capture]) => eventType === type && capture === true
-          )
-        );
-        expect(listeners.every(Boolean)).toBe(true);
+        // The menu effect runs afterward, so inspect the latest callback.
+        const listener = [...addListener.mock.calls]
+          .reverse()
+          .find(
+            ([eventType, , capture]) =>
+              eventType === "click" && capture === true
+          );
+        expect(listener).toBeTruthy();
 
         if (operation === "close") {
           click(fab());
@@ -546,9 +465,7 @@ describe.each(["document", "shadow root"])(
           act(() => root.render(null));
         }
 
-        for (const listener of listeners) {
-          expect(removeListener).toHaveBeenCalledWith(...listener);
-        }
+        expect(removeListener).toHaveBeenCalledWith(...listener);
       }
     );
   }

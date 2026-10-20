@@ -57,35 +57,36 @@ describe("InputSetting", () => {
   });
 
   test.each([
-    ["mobile", "show_dot_disable", "-"],
-    ["mobile", "show_dot_always", "always"],
-    ["always", "show_dot_mobile", "mobile"],
-  ])("records an explicit %s to %s choice", (current, label, showDot) => {
-    mockShowDot = current;
-    const container = document.createElement("div");
-    const root = createRoot(container);
-    act(() => root.render(<InputSetting />));
+    ["mobile", "show_dot_disable", "show_dot_always", "always"],
+    ["always", "show_dot_always", "show_dot_disable", "-"],
+  ])(
+    "shows %s as %s and records the %s choice",
+    (current, selectedLabel, label, showDot) => {
+      mockShowDot = current;
+      const container = document.createElement("div");
+      const root = createRoot(container);
+      act(() => root.render(<InputSetting />));
 
-    const group = container.querySelector(
-      '[role="radiogroup"][aria-label="show_translation_dot"]'
-    );
-    const selectedLabel =
-      current === "always" ? "show_dot_always" : "show_dot_mobile";
-    expect(
-      group
-        .querySelector(`[aria-label="${selectedLabel}"]`)
-        .getAttribute("aria-checked")
-    ).toBe("true");
-    act(() =>
-      group.querySelector(`[role="radio"][aria-label="${label}"]`).click()
-    );
+      const group = container.querySelector(
+        '[role="radiogroup"][aria-label="show_translation_dot"]'
+      );
+      expect(group.querySelectorAll('[role="radio"]')).toHaveLength(2);
+      expect(
+        group
+          .querySelector(`[aria-label="${selectedLabel}"]`)
+          .getAttribute("aria-checked")
+      ).toBe("true");
+      act(() =>
+        group.querySelector(`[role="radio"][aria-label="${label}"]`).click()
+      );
 
-    expect(mockUpdateInputRule).toHaveBeenCalledWith({
-      showDot,
-    });
+      expect(mockUpdateInputRule).toHaveBeenCalledWith({
+        showDot,
+      });
 
-    act(() => root.unmount());
-  });
+      act(() => root.unmount());
+    }
+  );
 
   test("renders one complete trigger-count control for values one through five", () => {
     const container = document.createElement("div");

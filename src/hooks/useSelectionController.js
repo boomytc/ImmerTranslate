@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { sleep, limitNumber } from "../libs/utils";
-import { isMobile } from "../libs/mobile";
 import {
   detectLangFast,
   isPureNumberText,
@@ -29,12 +28,11 @@ import { DEFAULT_FAB, normalizeFabAppearance } from "../config/fab";
 export const TRANBTN_SIZE = DEFAULT_FAB.size;
 // Leaves room for the ring and drop shadow so the button is not flush-cut at the viewport edge.
 export const TRANBTN_VIEWPORT_INSET = 8;
-const TRANBTN_MOUSE_GAP = isMobile ? 16 : 12;
+const TRANBTN_MOUSE_GAP = 12;
 
 function getPointerPosition(e) {
-  const touch = e?.changedTouches?.[0] || e?.touches?.[0];
-  const clientX = touch?.clientX ?? e?.clientX;
-  const clientY = touch?.clientY ?? e?.clientY;
+  const clientX = e?.clientX;
+  const clientY = e?.clientY;
   if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
     return {
       x: clientX,
@@ -42,8 +40,8 @@ function getPointerPosition(e) {
     };
   }
 
-  const pageX = touch?.pageX ?? e?.pageX;
-  const pageY = touch?.pageY ?? e?.pageY;
+  const pageX = e?.pageX;
+  const pageY = e?.pageY;
   if (Number.isFinite(pageX) && Number.isFinite(pageY)) {
     return {
       x: pageX - window.scrollX,
@@ -566,25 +564,16 @@ export default function useSelectionController({
   ]);
 
   const btnEvent = useMemo(() => {
-    if (isMobile) {
-      return "onTouchEnd";
-    } else if (triggerMode === OPT_TRANBOX_TRIGGER_HOVER) {
-      return "onMouseOver";
-    }
-    return "onMouseUp";
+    return triggerMode === OPT_TRANBOX_TRIGGER_HOVER
+      ? "onMouseOver"
+      : "onMouseUp";
   }, [triggerMode]);
 
   useEffect(() => {
     // 双击触发模式下监听 dblclick：仅在浏览器双击自动选词时触发，
     // 拖拽选择不会派发 dblclick，从而避免复制等操作时的误触。
-    let eventName;
-    if (triggerMode === OPT_TRANBOX_TRIGGER_DBLCLICK) {
-      eventName = "dblclick";
-    } else if (isMobile) {
-      eventName = "touchend";
-    } else {
-      eventName = "mouseup";
-    }
+    const eventName =
+      triggerMode === OPT_TRANBOX_TRIGGER_DBLCLICK ? "dblclick" : "mouseup";
 
     window.addEventListener(eventName, handleSelectionEvent);
     return () => {

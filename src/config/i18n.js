@@ -1,4 +1,3 @@
-import { TOUCH_I18N } from "./i18n.touch";
 /**
  * @file i18n.js
  * @description 国际化本地化字典文件，包含支持的界面语言和多语言文案对照。
@@ -49,7 +48,18 @@ async ({ res, ...args }) => {
   return { translations, modelMsg };
 }`;
 export const I18N = {
-  ...TOUCH_I18N,
+  paragraph_translate: {
+    zh: "段落翻译",
+    en: "Paragraph translation",
+  },
+  paragraph_settings_description: {
+    zh: "配置鼠标悬停与按键触发的段落翻译",
+    en: "Configure mouse hover and shortcuts for paragraph translation",
+  },
+  mouse_controls: {
+    zh: "鼠标操作",
+    en: "Mouse controls",
+  },
   ...SETTINGS_I18N,
   ...RULE_EDITOR_I18N,
   app_name: {
@@ -1140,38 +1150,6 @@ export const I18N = {
     zh: `原文`,
     en: `Original Text`,
   },
-  touch_translate_shortcut: {
-    zh: `触屏翻译快捷方式 (支持多选)`,
-    en: `Touch Translate Shortcut (multiple supported)`,
-  },
-  touch_tap_0: {
-    zh: `禁用`,
-    en: `Disable`,
-  },
-  touch_tap_2: {
-    zh: `双指轻触`,
-    en: `Two finger tap`,
-  },
-  touch_tap_3: {
-    zh: `三指轻触`,
-    en: `Three finger tap`,
-  },
-  touch_tap_4: {
-    zh: `四指轻触`,
-    en: `Four finger tap`,
-  },
-  touch_tap_5: {
-    zh: `单指双击`,
-    en: `Double-click`,
-  },
-  touch_tap_6: {
-    zh: `单指三击`,
-    en: `Triple-click`,
-  },
-  touch_tap_7: {
-    zh: `双指双击`,
-    en: `Two-finger double-click`,
-  },
   translate_blacklist: {
     zh: `禁用翻译名单`,
     en: `Translate Blacklist`,
@@ -2255,10 +2233,6 @@ export const I18N = {
   show_translation_dot: {
     zh: `显示翻译圆点`,
     en: `Show Translation Dot`,
-  },
-  show_dot_mobile: {
-    zh: `仅移动端`,
-    en: `Mobile Only`,
   },
   show_dot_always: {
     zh: `总是显示`,

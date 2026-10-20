@@ -160,18 +160,18 @@ describe("settings layout boundaries", () => {
     }
   );
 
-  test("keeps the sticky mobile header opaque without glass support", () => {
-    const mobileBody = getCssAtRuleBodies(
+  test("keeps the sticky compact header opaque without glass support", () => {
+    const compactBody = getCssAtRuleBodies(
       OPTIONS_STYLES,
       "@media (max-width: 1179px)"
     )[0];
-    const headerRule = mobileBody.match(
-      /\.kt-options-mobile-header\s*\{([^}]*)\}/
+    const headerRule = compactBody.match(
+      /\.kt-options-compact-header\s*\{([^}]*)\}/
     )?.[1];
     expect(headerRule).toContain("background: var(--kt-sf0)");
     expect(headerRule).not.toContain("backdrop-filter");
     expect(headerRule).not.toContain("color-mix");
-    expect(mobileBody).not.toContain(
+    expect(compactBody).not.toContain(
       "color-mix(in srgb, var(--kt-bg) 92%, transparent)"
     );
   });

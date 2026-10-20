@@ -61,8 +61,3 @@ export const EVENT_KISS_TRANSLATOR = "immertranslate"; // 暴露给网页环境�
 // --- 视频与字幕翻译特定消息类型 ---
 export const MSG_XHR_DATA_YOUTUBE = "IMMERTRANSLATE_XHR_DATA_YOUTUBE"; // 传递 YouTube 拦截到的字幕 XHR 数据
 export const MSG_SHADOW_ROOT_CREATED = "IMMERTRANSLATE_SHADOW_ROOT_CREATED"; // 页面里新建 Shadow Root
-
-// --- 字幕菜单控制状态类型 ---
-
-export const MSG_TOUCH_TRANSLATE_MODE_SET = "touch_translate_mode_set";
-export const MSG_TOUCH_TRANSLATE_STATE = "touch_translate_state";

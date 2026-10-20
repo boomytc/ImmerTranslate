@@ -772,7 +772,6 @@ export default function TranForm({
                   setDictTab(value);
                 }}
                 variant="scrollable"
-                allowScrollButtonsMobile
                 aria-label={i18n("default_dict", "Dictionary")}
                 sx={{ minHeight: 36, mb: 1 }}
               >

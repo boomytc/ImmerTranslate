@@ -143,7 +143,6 @@ export default function M3Theme({
                 color: color.onSurfaceVariant,
                 "&:hover": {
                   backgroundColor: color.surfaceContainer,
-                  "@media (hover: none)": { backgroundColor: "transparent" },
                 },
               }),
               transition: hoverMotion,
@@ -169,9 +168,6 @@ export default function M3Theme({
               transition: `border-color ${motion}, box-shadow ${motion}`,
               "&:not(.Mui-disabled, .Mui-focused):hover": {
                 backgroundColor: color.surfaceHigh,
-                "@media (hover: none)": {
-                  backgroundColor: color.surfaceContainer,
-                },
               },
               "&.Mui-focused": {
                 borderColor: color.primary,
@@ -267,9 +263,6 @@ export default function M3Theme({
               transition: hoverMotion,
               "&:hover": {
                 backgroundColor: color.surfaceContainer,
-                "@media (hover: none)": {
-                  backgroundColor: "transparent",
-                },
               },
               "&.Mui-selected": {
                 backgroundColor: color.secondaryContainer,
@@ -298,7 +291,6 @@ export default function M3Theme({
               transition: hoverMotion,
               "&:hover": {
                 backgroundColor: color.surfaceContainer,
-                "@media (hover: none)": { backgroundColor: "transparent" },
               },
               "&.Mui-selected": {
                 backgroundColor: color.secondaryContainer,
@@ -399,7 +391,8 @@ export default function M3Theme({
               borderRadius: M3_RADIUS_XL,
               backgroundColor: `var(--kt-liquid, ${glassSurface})`,
               boxShadow: "var(--kt-shadow-menu)",
-              WebkitBackdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
+              WebkitBackdropFilter:
+                "var(--kt-liquid-blur, var(--kt-glass-blur))",
               backdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
             },
           },
@@ -415,7 +408,8 @@ export default function M3Theme({
               borderRadius: M3_RADIUS_XL,
               backgroundColor: `var(--kt-liquid, ${glassSurface})`,
               boxShadow: "var(--kt-shadow-menu)",
-              WebkitBackdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
+              WebkitBackdropFilter:
+                "var(--kt-liquid-blur, var(--kt-glass-blur))",
               backdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
             },
             root: {

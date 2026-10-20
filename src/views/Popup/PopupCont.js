@@ -1,4 +1,3 @@
-import TouchTranslateControl from "../../components/TouchTranslateControl";
 import {
   useCallback,
   useEffect,
@@ -37,8 +36,6 @@ import {
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
   MSG_SAVE_RULE,
-  MSG_TOUCH_TRANSLATE_MODE_SET,
-  MSG_TOUCH_TRANSLATE_STATE,
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
   OPT_TRANS_QWENMT,
@@ -110,10 +107,6 @@ const uniqueModels = (values) => {
   });
   return models;
 };
-
-const isTouchAction = (action) =>
-  action === MSG_TOUCH_TRANSLATE_STATE ||
-  action === MSG_TOUCH_TRANSLATE_MODE_SET;
 
 // Save 只带 popup 控件的当前值：语言、服务、样式和高级开关。
 // 站点策略 transOpen 不在这份数据里，只由策略下拉 / writeSiteTransOpen 写入。
@@ -207,7 +200,6 @@ export default function PopupCont({
   const ruleRef = useRef(rule);
   const activeRef = useRef(true);
   const visibleRef = useRef(isVisible);
-  const touchActivityRef = useRef(0);
   const pageActionSequenceRef = useRef(0);
   const hasTargetTab = targetTab != null;
   const targetTabUrl = targetTab?.url;
@@ -252,8 +244,7 @@ export default function PopupCont({
   }, [rule]);
   useLayoutEffect(() => {
     visibleRef.current = isVisible;
-    touchActivityRef.current += 1;
-  }, [isVisible, targetTab?.id, documentInfo?.token]);
+  }, [isVisible]);
 
   const handleAddToBlacklist = useCallback(async () => {
     if (!selectedDomain) return;
@@ -296,15 +287,6 @@ export default function PopupCont({
   const sendPageMessage = useCallback(
     (action, args, topFrame = false) => {
       if (targetTab?.id !== undefined) {
-        if (isTouchAction(action) && documentInfo?.token) {
-          return sendTabMsg(
-            action,
-            args,
-            { frameId: documentInfo.frameId },
-            targetTab.id,
-            documentInfo.token
-          );
-        }
         return topFrame
           ? documentInfo?.frameId === 0
             ? sendTopFrameMsg(action, args, targetTab.id, documentInfo.token)
@@ -370,9 +352,7 @@ export default function PopupCont({
         onPageUnavailable?.();
       }
       if (response?.error) throw new Error(response.error);
-      // Touch state is returned by its own command, after verifying that the
-      // document which produced it still owns this popup's page controls.
-      return isTouchAction(action) && response != null ? result : response;
+      return response;
     },
     [
       onPageUnavailable,
@@ -380,38 +360,6 @@ export default function PopupCont({
       sendPageMessage,
       targetTab?.id,
       documentInfo,
-    ]
-  );
-
-  const dispatchTouchAction = useCallback(
-    async ({ action, args }) => {
-      if (
-        !processActions &&
-        (!Number.isInteger(targetTab?.id) || !documentInfo?.token)
-      ) {
-        throw new Error("The popup document is not ready.");
-      }
-      if (!isVisible || !activeRef.current || !visibleRef.current) {
-        throw new Error("The popup page controls are no longer active.");
-      }
-      const activity = touchActivityRef.current;
-      const response = await dispatchPageAction(action, args);
-      // A late reply must not persist a preference after navigation or unmount.
-      if (
-        !activeRef.current ||
-        !visibleRef.current ||
-        activity !== touchActivityRef.current
-      ) {
-        throw new Error("The popup page controls are no longer active.");
-      }
-      return response;
-    },
-    [
-      dispatchPageAction,
-      documentInfo?.token,
-      isVisible,
-      processActions,
-      targetTab?.id,
     ]
   );
 
@@ -1292,7 +1240,6 @@ export default function PopupCont({
         </div>
       )}
 
-      <TouchTranslateControl processActions={dispatchTouchAction} />
       <div className="kt-popup-site">
         <div className="kt-popup-site__top">
           <select

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { limitNumber } from "../libs/utils";
-import { isMobile } from "../libs/mobile";
 import { debouncePutTranBox, getTranBox } from "../libs/storage";
 import { isIframe } from "../libs/iframe";
 import {
@@ -53,17 +52,17 @@ export default function useTranBoxState(tranboxSetting) {
     boxOffsetY = 10,
   } = tranboxSetting;
 
-  // 根据当前分辨率和极简模式风格，计算初始理想宽度。若为极简/移动端则采用 400，否则在 400 ~ 800 之间取当前窗口宽度的合适范围。
+  // 根据当前分辨率和极简模式风格，计算初始理想宽度。若为极简模式则采用 400，否则在 400 ~ 800 之间取当前窗口宽度的合适范围。
   const maxBoxWidth = getMaxTranBoxContentWidth();
-  const defaultBoxWidth =
-    isMobile || initSimpleStyle
-      ? 400
-      : limitNumber(window.innerWidth, 400, 800);
+  const defaultBoxWidth = initSimpleStyle
+    ? 400
+    : limitNumber(window.innerWidth, 400, 800);
   const boxWidth = Math.min(defaultBoxWidth, maxBoxWidth);
-  // 计算初始理想高度。若为极简/移动端则采用 200，否则在 200 ~ 600 之间取当前窗口高度的合适范围。
+  // 计算初始理想高度。若为极简模式则采用 200，否则在 200 ~ 600 之间取当前窗口高度的合适范围。
   const maxBoxHeight = getMaxTranBoxContentHeight();
-  const defaultBoxHeight =
-    isMobile || initSimpleStyle ? 200 : limitNumber(maxBoxHeight, 200, 600);
+  const defaultBoxHeight = initSimpleStyle
+    ? 200
+    : limitNumber(maxBoxHeight, 200, 600);
   const boxHeight = Math.min(defaultBoxHeight, maxBoxHeight);
   const initialBoxSizeRef = useRef({
     w: boxWidth,

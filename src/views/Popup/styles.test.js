@@ -228,7 +228,6 @@ describe("separate translation window layout", () => {
   });
 
   test("measures full height against the dynamic viewport", () => {
-    // Dynamic units account for the mobile browser toolbar.
     expect(windowShellRule).toContain("min-height: 100dvh");
     expect(windowShellRule).not.toContain("min-height: 100vh");
   });

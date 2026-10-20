@@ -19,7 +19,7 @@ export default function Layout() {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const navigationTriggerRef = useRef(null);
   const backgroundRef = useRef(null);
-  const isMobile = useMediaQueryMatch("(max-width: 1179px)");
+  const compact = useMediaQueryMatch("(max-width: 1179px)");
   const isWidePage = isWideOptionsPage(pathname);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function Layout() {
   }, [location.pathname]);
 
   useLayoutEffect(() => {
-    if (!isMobile || !navigationOpen) return undefined;
+    if (!compact || !navigationOpen) return undefined;
     const navigation = document.getElementById("kt-options-navigation");
     if (!navigation) return undefined;
     const scrollStyles = [
@@ -117,7 +117,7 @@ export default function Layout() {
       });
       navigationTriggerRef.current?.focus({ preventScroll: true });
     };
-  }, [isMobile, navigationOpen]);
+  }, [compact, navigationOpen]);
 
   const page = useMemo(() => {
     const pages = {
@@ -135,8 +135,8 @@ export default function Layout() {
         i18n("options_selection_description"),
       ],
       "/mousehover": [
-        i18n("touch_paragraph"),
-        i18n("touch_settings_description"),
+        i18n("paragraph_translate"),
+        i18n("paragraph_settings_description"),
       ],
       "/input": [i18n("input_translate"), i18n("options_input_description")],
       "/subtitle": [
@@ -169,7 +169,7 @@ export default function Layout() {
           }}
         />
         <div className="kt-options-layout">
-          {!isMobile && <Navigator open={false} isMobile={false} />}
+          {!compact && <Navigator open={false} compact={false} />}
           <main className="kt-options-main">
             <div
               className={`kt-options-main__inner ${
@@ -187,7 +187,7 @@ export default function Layout() {
           </main>
         </div>
       </div>
-      {isMobile && navigationOpen && (
+      {compact && navigationOpen && (
         <>
           <button
             type="button"
@@ -196,7 +196,7 @@ export default function Layout() {
             aria-hidden="true"
             onClick={() => setNavigationOpen(false)}
           />
-          <Navigator open isMobile onClose={() => setNavigationOpen(false)} />
+          <Navigator open compact onClose={() => setNavigationOpen(false)} />
         </>
       )}
     </div>

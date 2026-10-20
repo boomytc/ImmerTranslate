@@ -187,7 +187,6 @@ export default function FloatingPanel({
               gap: 1,
               borderRadius: "8px",
               cursor: "grab",
-              touchAction: "none",
               userSelect: "none",
               "&:active": { cursor: "grabbing" },
               "&&.Mui-focusVisible": {

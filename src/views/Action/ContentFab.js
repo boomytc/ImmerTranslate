@@ -1,5 +1,3 @@
-import { supportsTouch } from "../../libs/touchCapability";
-import TouchTranslateControl from "../../components/TouchTranslateControl";
 import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
@@ -137,7 +135,6 @@ export function ContentFabContent({
   const windowSize = useWindowSize();
   const [moved, setMoved] = useState(false); // Track whether a drag occurred.
   const [showFab, setShowFab] = useState(true);
-  const [touchOpen, setTouchOpen] = useState(false);
   const [open, setOpen] = useState(false); // Action menu visibility.
   const [pageRule, setPageRule] = useState(null);
   const [undoToast, setUndoToast] = useState({ open: false, domain: "" });
@@ -357,40 +354,18 @@ export function ContentFabContent({
     if (!opensMenu || !open) return;
 
     const ownerDocument = anchorRef.current.ownerDocument;
-    let touchMoved = false;
     // Draggable surfaces stop bubbling events. Capture native events and use
     // their composed paths to identify the menu and FAB across shadow roots.
     const handleClickAway = (event) => {
       const path = event.composedPath();
-      if (
-        path.includes(menuRef.current) ||
-        path.includes(anchorRef.current) ||
-        path.some((node) => node.hasAttribute?.("data-kiss-touch-ui"))
-      ) {
+      if (path.includes(menuRef.current) || path.includes(anchorRef.current)) {
         return;
       }
       closeMenu();
     };
-    const handleTouchStart = () => {
-      touchMoved = false;
-    };
-    const handleTouchMove = () => {
-      touchMoved = true;
-    };
-    const handleTouchEnd = (event) => {
-      if (!touchMoved) handleClickAway(event);
-      touchMoved = false;
-    };
-
     ownerDocument.addEventListener("click", handleClickAway, true);
-    ownerDocument.addEventListener("touchstart", handleTouchStart, true);
-    ownerDocument.addEventListener("touchmove", handleTouchMove, true);
-    ownerDocument.addEventListener("touchend", handleTouchEnd, true);
     return () => {
       ownerDocument.removeEventListener("click", handleClickAway, true);
-      ownerDocument.removeEventListener("touchstart", handleTouchStart, true);
-      ownerDocument.removeEventListener("touchmove", handleTouchMove, true);
-      ownerDocument.removeEventListener("touchend", handleTouchEnd, true);
     };
   }, [closeMenu, open, opensMenu]);
 
@@ -498,13 +473,7 @@ export function ContentFabContent({
       icon: SettingsRoundedIcon,
       action: openSettings,
     },
-    {
-      label: i18n("touch_paragraph"),
-      icon: TranslateRoundedIcon,
-      action: () => setTouchOpen((value) => !value),
-      hidden: !supportsTouch(),
-    },
-  ].filter((item) => !item.hidden);
+  ];
 
   return (
     <>
@@ -562,11 +531,7 @@ export function ContentFabContent({
                 ({ label, icon: Icon, action, disabled, pressed }, index) => (
                   <MenuItem
                     className={`kt-content-fab-menu__item ${
-                      index === 0
-                        ? "kt-content-fab-menu__item--hero"
-                        : index === 5
-                          ? "kt-content-fab-menu__item--touch"
-                          : ""
+                      index === 0 ? "kt-content-fab-menu__item--hero" : ""
                     }`}
                     disabled={disabled}
                     aria-pressed={pressed}
@@ -589,9 +554,6 @@ export function ContentFabContent({
               currentFabSize={fabSize}
               onChangeFabSize={handleSizeChange}
             />
-            {touchOpen && (
-              <TouchTranslateControl processActions={processActions} />
-            )}
           </Paper>
         </Popper>
       </Draggable>

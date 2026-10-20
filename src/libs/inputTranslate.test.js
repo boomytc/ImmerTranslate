@@ -18,8 +18,6 @@ jest.mock("../config/prompt", () => ({
   resolveApiPromptSettings: jest.fn(),
 }));
 
-jest.mock("./mobile", () => ({ isMobile: false }));
-
 jest.mock("./utils", () => ({
   genEventName: jest.fn(() => "event"),
   removeEndchar: jest.fn((text) => text),
@@ -173,13 +171,9 @@ describe("InputTranslator input button", () => {
   });
 
   test.each([
-    ["mobile-only", "mobile"],
+    ["legacy mobile-only", "mobile"],
     ["disabled", "-"],
-  ])("hides the dot on desktop for a %s rule", (_label, showDot) => {
-    Object.defineProperty(navigator, "maxTouchPoints", {
-      configurable: true,
-      value: 0,
-    });
+  ])("hides the dot for a %s rule", (_label, showDot) => {
     translator.disable();
     translator = new InputTranslator({
       inputRule: {

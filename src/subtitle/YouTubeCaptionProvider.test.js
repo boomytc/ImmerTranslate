@@ -16,7 +16,6 @@ jest.mock("../config", () => ({
   API_SPE_TYPES: { ai: new Set(["openai"]) },
   OPT_ENHANCE_ON: "on",
   OPT_ENHANCE_OFF: "off",
-  OPT_ENHANCE_MOBILE_OFF: "mobile_off",
   newI18n: () => (key) => key,
 }));
 

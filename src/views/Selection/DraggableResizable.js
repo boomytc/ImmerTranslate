@@ -1,6 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
-import { isMobile } from "../../libs/mobile";
 import TranslationPanelSurface from "../../components/TranslationPanel/Surface";
 import { limitNumber } from "../../libs/utils";
 import {
@@ -39,7 +38,7 @@ function Pointer({
   // Store the pointer coordinates, position, and size at the start of a drag or resize.
   const [origin, setOrigin] = useState(null);
 
-  // Handle pointer or touch start.
+  // Handle pointer start.
   function handlePointerDown(e) {
     // The header contains buttons and an overflow menu as well as the drag area.
     // Pressing a control must not start a drag. Clear origin too, so the next move
@@ -49,11 +48,10 @@ function Pointer({
       return;
     }
 
-    // Capture desktop pointers to keep receiving events outside the element.
-    !isMobile && e.target.setPointerCapture(e.pointerId);
+    // Capture the pointer to keep receiving events outside the element.
+    e.target.setPointerCapture(e.pointerId);
 
-    // Read the initial client coordinates, including mobile touch events.
-    const { clientX, clientY } = isMobile ? e.targetTouches[0] : e;
+    const { clientX, clientY } = e;
     setOrigin({
       x: position.x,
       y: position.y,
@@ -64,9 +62,9 @@ function Pointer({
     });
   }
 
-  // Handle pointer or touch movement.
+  // Handle pointer movement.
   function handlePointerMove(e) {
-    const { clientX, clientY } = isMobile ? e.targetTouches[0] : e;
+    const { clientX, clientY } = e;
     if (origin) {
       // Calculate the displacement.
       const dx = clientX - origin.clientX;
@@ -152,33 +150,23 @@ function Pointer({
     }
   }
 
-  // Handle pointer or touch end.
+  // Handle pointer end.
   function handlePointerUp(e) {
     e.stopPropagation();
     setOrigin(null);
   }
 
-  // REVIEW: handlePointerDown reads TouchEvent.targetTouches[0] on mobile and PointerEvent elsewhere. Using PointerEvent consistently could improve hybrid touch/mouse support and avoid conflicts between touch and pointer listeners.
-  // Browsers do not emit pointerup / touchend after pointercancel / touchcancel,
-  // so cancellation must call handlePointerUp to clear origin.
-  // Otherwise, a system gesture such as scrolling or pinching leaves a stale origin,
-  // and moving over the header resumes dragging without any button pressed.
-  const touchProps = isMobile
-    ? {
-        onTouchStart: handlePointerDown,
-        onTouchMove: handlePointerMove,
-        onTouchEnd: handlePointerUp,
-        onTouchCancel: handlePointerUp,
-      }
-    : {
-        onPointerDown: handlePointerDown,
-        onPointerMove: handlePointerMove,
-        onPointerUp: handlePointerUp,
-        onPointerCancel: handlePointerUp,
-      };
+  // Browsers do not emit pointerup after pointercancel, so cancellation must
+  // clear origin or the next hover over the header resumes a stale drag.
+  const pointerProps = {
+    onPointerDown: handlePointerDown,
+    onPointerMove: handlePointerMove,
+    onPointerUp: handlePointerUp,
+    onPointerCancel: handlePointerUp,
+  };
 
   return (
-    <div {...props} {...touchProps}>
+    <div {...props} {...pointerProps}>
       {children}
     </div>
   );
@@ -265,7 +253,6 @@ export default function DraggableResizable({
       ref={containerRef}
       className="KT-draggable"
       style={{
-        touchAction: "none", // Disable default touch gestures.
         position: "fixed",
         left: position.x,
         top: position.y,

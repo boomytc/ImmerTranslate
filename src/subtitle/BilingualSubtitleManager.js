@@ -249,15 +249,14 @@ export class BilingualSubtitleManager {
 
     const onDragStart = (e) => {
       // 限制仅允许鼠标左键拖拽
-      if (e.type === "mousedown" && e.button !== 0) return;
+      if (e.button !== 0) return;
 
       e.preventDefault();
 
       isDragging = true;
       hasDragged = false;
       handleElement.style.cursor = "grabbing";
-      // 兼容触屏端拖拽
-      startY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
+      startY = e.clientY;
 
       // 记录开始拖动时，字幕框底部与包裹容器底部的绝对间距数值 (bottom)
       initialBottom =
@@ -266,14 +265,9 @@ export class BilingualSubtitleManager {
 
       dragElementHeight = dragElement.offsetHeight;
 
-      // 全局捕获鼠标与触控事件，防止拖拽过快导致指针移出把手时拖拽中断
+      // 全局捕获鼠标事件，防止拖拽过快导致指针移出把手时拖拽中断
       document.addEventListener("mousemove", onDragMove, { capture: true });
-      document.addEventListener("touchmove", onDragMove, {
-        capture: true,
-        passive: false,
-      });
       document.addEventListener("mouseup", onDragEnd, { capture: true });
-      document.addEventListener("touchend", onDragEnd, { capture: true });
     };
 
     const onDragMove = (e) => {
@@ -281,9 +275,7 @@ export class BilingualSubtitleManager {
 
       e.preventDefault();
 
-      const currentY =
-        e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
-      const deltaY = currentY - startY; // 垂直位移差值
+      const deltaY = e.clientY - startY; // 垂直位移差值
       let newBottom = initialBottom - deltaY;
 
       // 进行物理视口边界约束计算，防止将字幕框拉出视频范围之外
@@ -308,9 +300,7 @@ export class BilingualSubtitleManager {
 
       // 卸载全局移动监听，避免内存泄漏与事件漂移
       document.removeEventListener("mousemove", onDragMove, { capture: true });
-      document.removeEventListener("touchmove", onDragMove, { capture: true });
       document.removeEventListener("mouseup", onDragEnd, { capture: true });
-      document.removeEventListener("touchend", onDragEnd, { capture: true });
 
       if (
         hasDragged &&
@@ -325,9 +315,6 @@ export class BilingualSubtitleManager {
     };
 
     handleElement.addEventListener("mousedown", onDragStart);
-    handleElement.addEventListener("touchstart", onDragStart, {
-      passive: false,
-    });
   }
 
   /**

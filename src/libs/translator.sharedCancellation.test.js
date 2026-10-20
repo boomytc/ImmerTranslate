@@ -26,10 +26,6 @@ jest.mock("./detect", () => ({
   tryDetectLang: jest.fn(async () => "en"),
 }));
 
-jest.mock("../components/TouchTranslateControl", () => ({
-  TouchTranslateStatus: () => null,
-}));
-
 jest.mock("./tranbox", () => ({
   TransboxManager: class {
     isEnabled() {
@@ -406,7 +402,6 @@ describe("translator cancellation leaves other callers running", () => {
         transInterval: 0,
         rootMargin: 0,
         minLength: 0,
-        touchModes: [],
         contextMenuType: 0,
         tranboxSetting: { transOpen: false },
         inputRule: { transOpen: false },

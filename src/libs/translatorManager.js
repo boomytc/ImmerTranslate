@@ -1,11 +1,3 @@
-import { supportsTouch } from "./touchCapability";
-import ShadowDomManager from "./shadowDomManager";
-import { TouchTranslateStatus } from "../components/TouchTranslateControl";
-import { isInBlacklist } from "./blacklist";
-import {
-  MSG_TOUCH_TRANSLATE_MODE_SET,
-  MSG_TOUCH_TRANSLATE_STATE,
-} from "../config";
 import { browser } from "./browser";
 import { acceptsFrameMessage } from "./msg";
 import { Translator } from "./translator";
@@ -18,7 +10,6 @@ import {
   MSG_HOVERNODE_TOGGLE,
   MSG_INPUT_TRANSLATE,
 } from "../config";
-import { touchTapListener } from "./touch";
 import { PopupManager } from "./popupManager";
 import { FabManager } from "./fabManager";
 import { RuleEditorManager } from "./ruleEditorManager";
@@ -61,9 +52,6 @@ import { PAGE_SWITCH } from "./pageSwitch";
  */
 export default class TranslatorManager {
   // 全局注册项的清理句柄；这些只随 start/stop 注册，restart 时不重复注册。
-  #touchMode = "off";
-  #touchStatus = null;
-  #clearTouchListeners = [];
   #isActive = false;
 
   // 初始配置快照。restart 会用运行期状态刷新这些快照，再重建子模块。
@@ -160,10 +148,6 @@ export default class TranslatorManager {
     this.#initializeDocumentInfo();
     this.#setupMessageListeners();
     if (!this.#transboxOnly) {
-      this.#setupTouchOperations();
-    }
-
-    if (!this.#transboxOnly) {
       this.#setupSpaListeners();
     }
     this.#subscribeFabStorage();
@@ -177,7 +161,7 @@ export default class TranslatorManager {
   /**
    * 重启运行期子模块，用于 SPA 替换 body/html 后重新挂载。
    *
-   * restart 不会重新注册全局消息监听或触屏手势。
+   * restart 不会重新注册全局消息监听。
    * 它只快照当前运行期状态，销毁挂 DOM 的子模块，再用快照创建新实例。
    * 这能保留用户当前的翻译开关、划词翻译开关和输入框翻译开关。
    */
@@ -203,7 +187,7 @@ export default class TranslatorManager {
   /**
    * 停止前台翻译业务并释放所有注册项。
    *
-   * stop 会清理 SPA timer/observer、全局通信监听、触屏手势和运行期子模块。
+   * stop 会清理 SPA timer/observer、全局通信监听和运行期子模块。
    * stop 后 body/html 变化不应再触发 restart。
    */
   stop() {
@@ -223,9 +207,6 @@ export default class TranslatorManager {
     if (this.#isIframe) {
       window.removeEventListener("message", this.#innerMessageHandler);
     }
-
-    this.#clearTouchListeners.forEach((clear) => clear());
-    this.#clearTouchListeners = [];
 
     this.#unsubscribeFabStorage?.();
     this.#unsubscribeFabStorage = null;
@@ -390,21 +371,12 @@ export default class TranslatorManager {
       isIframe: this.#isIframe,
     });
 
-    this.#touchMode = this._translator.setTouchMode?.(this.#touchMode) || "off";
-
     this._transboxManager = new TransboxManager(
       this.#cloneConfig(this.#setting)
     );
 
     // Frames keep page, selection, and hover translation, but no top-level UI.
     if (!this.#isIframe) {
-      this.#touchStatus = new ShadowDomManager({
-        id: "kiss-touch-status",
-        className: "notranslate",
-        reactComponent: TouchTranslateStatus,
-        props: { processActions: this.#processActions.bind(this) },
-      });
-      this.#touchStatus.show();
       this._inputTranslator = new InputTranslator(
         this.#cloneConfig(this.#setting)
       );
@@ -422,7 +394,6 @@ export default class TranslatorManager {
           return () => {
             if (selectionEnabled) this._transboxManager?.enable();
             if (inputEnabled) this._inputTranslator?.enable();
-            this.#notifyTouchState();
           };
         },
       });
@@ -441,8 +412,6 @@ export default class TranslatorManager {
    * restart 只调用本方法，避免重复注册全局入口。
    */
   #destroyRuntimeModules() {
-    this.#touchStatus?.destroy();
-    this.#touchStatus = null;
     this._ruleEditorManager?.destroy();
     this._ruleEditorManager = null;
     this._popupManager?.destroy();
@@ -712,7 +681,6 @@ export default class TranslatorManager {
       }
 
       this._translator?.rescan();
-      this.#notifyTouchState();
       logger.info(`TranslatorManager rescanned: ${refreshReason}`);
     }, 0);
   }
@@ -751,48 +719,6 @@ export default class TranslatorManager {
     }
 
     window.addEventListener(EVENT_KISS_TRANSLATOR, this.#windowMessageHandler);
-  }
-
-  /**
-   * 根据设置注册触屏手势。
-   */
-  #setupTouchOperations() {
-    if (this.#isIframe) return;
-
-    const { touchModes = [2] } = this._translator.setting;
-    if (touchModes.length === 0) {
-      return;
-    }
-
-    const handleTap = () => {
-      this.#processActions({ action: MSG_TRANS_TOGGLE });
-    };
-
-    const handleListener = (mode) => {
-      let options = null;
-      switch (mode) {
-        case 2:
-        case 3:
-        case 4:
-          options = { taps: 1, fingers: mode };
-          break;
-        case 5:
-          options = { taps: 2, fingers: 1 };
-          break;
-        case 6:
-          options = { taps: 3, fingers: 1 };
-          break;
-        case 7:
-          options = { taps: 2, fingers: 2 };
-          break;
-        default:
-      }
-      if (options) {
-        this.#clearTouchListeners.push(touchTapListener(handleTap, options));
-      }
-    };
-
-    touchModes.forEach((mode) => handleListener(mode));
   }
 
   /**
@@ -897,33 +823,6 @@ export default class TranslatorManager {
    * 顶层页面发起的动作会同步广播给 iframe；来自扩展 background 的动作
    * 已经是统一入口，不再二次广播，避免 iframe 收到重复指令。
    */
-  #notifyTouchState() {
-    document.dispatchEvent(
-      new CustomEvent(EVENT_KISS_INNER, {
-        detail: {
-          action: MSG_TOUCH_TRANSLATE_STATE,
-          touchTranslate: this.#getTouchState(),
-        },
-      })
-    );
-  }
-
-  #getTouchState() {
-    return {
-      mode: this._translator?.touchMode ?? this.#touchMode,
-      supported: supportsTouch(),
-      direction:
-        this._translator?.setting?.mouseHoverSetting?.touchDirection || "right",
-      blocked:
-        this.#pageSwitch === PAGE_SWITCH.PAUSED ||
-        this.#pageSwitch === PAGE_SWITCH.OFF ||
-        isInBlacklist(
-          window.location.href,
-          this._translator?.setting?.mouseHoverSetting?.blacklist
-        ),
-    };
-  }
-
   #processActions(
     { action, args, expectedDocumentToken } = {},
     fromExt = false
@@ -938,19 +837,6 @@ export default class TranslatorManager {
         code: "STALE_DOCUMENT",
       };
     }
-    if (action === MSG_TOUCH_TRANSLATE_STATE)
-      return { touchTranslate: this.#getTouchState() };
-    if (action === MSG_TOUCH_TRANSLATE_MODE_SET) {
-      if (
-        (!this._ruleEditorManager?.session || args?.mode === "off") &&
-        ["off", "tap", "swipe"].includes(args?.mode)
-      ) {
-        this.#touchMode = this._translator?.setTouchMode(args.mode) || "off";
-      }
-      const touchTranslate = this.#getTouchState();
-      this.#notifyTouchState();
-      return { touchTranslate };
-    }
     // Editing belongs to this frame. Never broadcast the editor or its changes.
     if (action === MSG_RULE_EDITOR) {
       if (!this._ruleEditorManager) {
@@ -964,7 +850,6 @@ export default class TranslatorManager {
         return { error: "The rule editor could not be opened." };
       }
       this._popupManager?.hide();
-      this.#notifyTouchState();
       return { ...this.#getRuntimeResponse(), ruleEditorOpened: true };
     }
     if (this._ruleEditorManager?.session && action !== MSG_TRANS_GETRULE) {

@@ -52,10 +52,9 @@ describe("MUI switch alignment", () => {
       styles.switchBase["&.Mui-checked"]["&:not(.Mui-disabled):hover"]
         .backgroundColor
     ).toContain("#06f");
-    expect(
-      styles.switchBase["&:not(.Mui-disabled):hover"]["@media (hover: none)"]
-        .backgroundColor
-    ).toBe("transparent");
+    expect(styles.switchBase["&:not(.Mui-disabled):hover"]).not.toHaveProperty([
+      "@media (hover: none)",
+    ]);
     expect(styles.switchBase["&:hover"]).toBeUndefined();
     expect(styles.switchBase["&.Mui-checked"]["&:hover"]).toBeUndefined();
     expect(styles.switchBase["&.Mui-focusVisible"]).toMatchObject({

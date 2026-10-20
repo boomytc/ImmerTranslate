@@ -68,7 +68,7 @@ describe("settings navigator semantics", () => {
     }
   );
 
-  test("exposes dialog semantics only for the open mobile navigator", () => {
+  test("exposes dialog semantics only for the open compact navigator", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -77,7 +77,7 @@ describe("settings navigator semantics", () => {
     act(() =>
       root.render(
         <MemoryRouter>
-          <Navigator open isMobile onClose={handleClose} />
+          <Navigator open compact onClose={handleClose} />
         </MemoryRouter>
       )
     );
@@ -102,7 +102,7 @@ describe("settings navigator semantics", () => {
     act(() =>
       root.render(
         <MemoryRouter>
-          <Navigator open={false} isMobile={false} />
+          <Navigator open={false} compact={false} />
         </MemoryRouter>
       )
     );

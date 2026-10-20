@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import {
   CURRENT_SETTINGS_VERSION,
   DEFAULT_SETTING,
-  OPT_INPUT_DOT_MOBILE,
+  OPT_INPUT_DOT_DISABLE,
 } from "../config";
 import { SettingProvider, useSetting } from "./Setting";
 
@@ -87,24 +87,21 @@ describe("settings persistence results", () => {
     expect(previous.tranboxSetting).toEqual({ width: 600 });
   });
 
-  test("persists a mobile input dot choice", () => {
+  test("persists a hidden input dot choice", () => {
     mockSetting = {
       ...DEFAULT_SETTING,
-      inputRule: {
-        ...DEFAULT_SETTING.inputRule,
-        showDot: OPT_INPUT_DOT_MOBILE,
-      },
+      inputRule: DEFAULT_SETTING.inputRule,
     };
     mountProvider();
     mockUpdate.mockReturnValueOnce(Promise.resolve({ changed: true }));
 
     settings.updateChild("inputRule")({
-      showDot: OPT_INPUT_DOT_MOBILE,
+      showDot: OPT_INPUT_DOT_DISABLE,
     });
     const reduce = mockUpdate.mock.calls[0][0];
 
     expect(reduce(mockSetting).inputRule).toMatchObject({
-      showDot: OPT_INPUT_DOT_MOBILE,
+      showDot: OPT_INPUT_DOT_DISABLE,
     });
   });
 });
