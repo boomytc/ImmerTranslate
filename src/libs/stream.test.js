@@ -79,6 +79,24 @@ describe("createRealtimeStreamParser", () => {
     expect(parser.write('{"translations":[{"text":"orphan')).toEqual([]);
     expect(parser.write('","id":0}]}')).toEqual([]);
   });
+
+  test("keeps XML format when the translated text contains JSON braces", () => {
+    const parser = createRealtimeStreamParser();
+
+    expect(parser.write('<t id="0">Hello {name}')).toEqual([
+      { id: 0, partialText: "Hello {name}", isComplete: false },
+    ]);
+    expect(parser.getFormat()).toBe("xml");
+  });
+
+  test("keeps line format when the translated text contains JSON braces", () => {
+    const parser = createRealtimeStreamParser();
+
+    expect(parser.write("0 | Hello {name}")).toEqual([
+      { id: 0, partialText: "Hello {name}", isComplete: false },
+    ]);
+    expect(parser.getFormat()).toBe("line");
+  });
 });
 
 describe("createSSEParser", () => {

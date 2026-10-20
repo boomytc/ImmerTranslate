@@ -435,33 +435,29 @@ export function createStreamingSubtitleParser(
  * 启发式检测大模型当前响应流的格式类型 (JSON / XML / 行协议)
  * 通过判断最先出现的格式特征符（“{” 或 “<t” 或 “ID|”）进行确认。
  * @param {string} content 首批累积的流内容
- * @returns {{ isJson: boolean, detected: boolean }} 是否是 JSON，以及是否判定成功
+ * @returns {{ type: "json"|"xml"|"line"|null, isJson: boolean, detected: boolean }} 格式类型、是否是 JSON，以及是否判定成功
  */
 export function detectStreamFormat(content) {
   const stripped = content.trim();
 
-  // 查找各个特征标志符的索引
-  const jsonStart = stripped.search(/[{[]/);
-  const xmlStart = stripped.search(/<(t|item|seg)\s/i);
-  const lineStart = stripped.search(/^\d+\s*\|/m);
-
-  if (jsonStart === -1 && xmlStart === -1 && lineStart === -1) {
-    return { isJson: false, detected: false };
-  }
-
-  // 找出索引值最小且有效（即最先出现）的格式特征
+  // 必须比较各特征符的首次出现位置，不能按 JSON 优先判断：
+  // 译文正文里出现 "{" 或 "[" 时，XML/行协议的标志符仍可能在更早的位置。
   const positions = [
-    { type: "json", pos: jsonStart },
-    { type: "xml", pos: xmlStart },
-    { type: "line", pos: lineStart },
+    { type: "json", pos: stripped.search(/[{[]/) },
+    { type: "xml", pos: stripped.search(/<(t|item|seg)\s/i) },
+    { type: "line", pos: stripped.search(/^\d+\s*\|/m) },
   ].filter((p) => p.pos !== -1);
 
   if (positions.length === 0) {
-    return { isJson: false, detected: false };
+    return { type: null, isJson: false, detected: false };
   }
 
   const first = positions.reduce((a, b) => (a.pos < b.pos ? a : b));
-  return { isJson: first.type === "json", detected: true };
+  return {
+    type: first.type,
+    isJson: first.type === "json",
+    detected: true,
+  };
 }
 
 /**
@@ -513,13 +509,7 @@ export function createRealtimeStreamParser() {
   jsonParser.onError = () => {};
 
   // 辅助判定流格式
-  const detect = (content) => {
-    const stripped = content.trim();
-    if (stripped.search(/[{[]/) !== -1) return "json";
-    if (stripped.search(/<(t|item|seg)\s/i) !== -1) return "xml";
-    if (stripped.search(/^\d+\s*\|/m) !== -1) return "line";
-    return null;
-  };
+  const detect = (content) => detectStreamFormat(content).type;
 
   // 实时增量解析 XML 标签内容
   const parseXml = (content) => {
