@@ -12,8 +12,8 @@ const loadChromeDetect = (detectResults) => {
     create: jest.fn(() => Promise.resolve({ detect })),
   };
 
-  const { chromeDetect } = require("./builtinAI");
-  return { chromeDetect, detect };
+  const { chromeDetect, chromeTranslate } = require("./builtinAI");
+  return { chromeDetect, chromeTranslate, detect };
 };
 
 describe("chromeDetect", () => {
@@ -75,5 +75,24 @@ describe("chromeDetect", () => {
     await expect(chromeDetect({ text: "first" })).resolves.toEqual(["en", ""]);
     await expect(chromeDetect({ text: "second" })).resolves.toEqual(["de", ""]);
     await expect(chromeDetect({ text: "third" })).resolves.toEqual(["de", ""]);
+  });
+});
+
+describe("chromeTranslate", () => {
+  afterEach(() => {
+    delete global.LanguageDetector;
+    delete global.Translator;
+    jest.resetModules();
+    jest.clearAllMocks();
+  });
+
+  test("returns the source text when the detected language matches the target", async () => {
+    const { chromeTranslate } = loadChromeDetect([
+      [{ detectedLanguage: "en", confidence: 0.9 }],
+    ]);
+
+    await expect(
+      chromeTranslate({ text: "hello", from: "auto", to: "en" })
+    ).resolves.toEqual(["hello", "en", ""]);
   });
 });

@@ -174,7 +174,9 @@ class ChromeTranslator {
       }
 
       if (finalSourceLanguage === targetLanguage) {
-        return ["", finalSourceLanguage, "Same lang"];
+        // 源语言与目标语言一致时返回原文，由上层 isSame 判定跳过写入；
+        // 这里不能上报 error，否则会被当作翻译失败弹提示。
+        return [text, finalSourceLanguage, ""];
       }
 
       const translator = await this.#createTranslator(
