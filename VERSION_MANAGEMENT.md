@@ -16,7 +16,9 @@ GitHub CLI 使用本机 `gh auth login` 的认证。发布需要目标仓库的 
 
 ## 本地检查与发布准备
 
-开发和版本升级通过分支、PR 合入 `main`，不直接向 `main` 推送发布提交。更新版本使用现有命令，不会自动创建 Git 标签：
+日常开发和版本升级均在 `dev`，阶段性闭环后先推送远端 `dev`，再将 `dev` 同步到 `main`。`main` 承接稳定提交并作为发布入口，默认不另建任务或发布分支；需要额外分支时先取得用户授权。main 上的热修应同步回 dev，保持两条分支的历史兼容。
+
+更新版本使用现有命令，不会自动创建 Git 标签：
 
 ```bash
 pnpm version:patch          # Bug / 安全修复
@@ -31,12 +33,24 @@ pnpm version:set -- 1.2.2   # 明确指定稳定版本
 
 ```bash
 pnpm check                 # 检查当前改动及未跟踪文件的格式
-pnpm check -- origin/main  # PR 分支检查相对 main 的全部改动
+pnpm check -- origin/main  # dev 检查相对 main 的全部改动
 ```
 
 该命令依次运行格式检查、版本与 CHANGELOG 校验、发布脚本测试、产品测试、Chrome/Edge 构建及 ZIP 打包、包内版本与 SHA-256 来源清单校验。它允许检查尚未提交的改动，但会拒绝检查或构建对源文件产生新的修改。`CI=true` 只启用非交互测试和严格构建，不调用远端服务。普通开发构建仍可单独运行 `pnpm build`。
 
-创建目标为 `main` 的 PR，在描述中记录本机检查结果，检查通过后再合并。若仓库仍有旧 Actions 的 required checks，应先清理失效的分支保护项，不能等待已停用的任务。
+提交、推送、同步分支分别按用户授权执行。已授权同步时，检查通过后按以下顺序操作，默认使用快进并保持两条分支的提交历史一致：
+
+```bash
+git switch dev
+git push -u origin dev
+git switch main
+git pull --ff-only origin main
+git merge --ff-only dev
+git push origin main
+git switch dev
+```
+
+出现分叉时先核对原因，不强推或 squash。若远端分支保护要求 PR，就使用 `dev` → `main` 的 PR；旧 Actions 的 required checks 应先清理，不能等待已停用的任务。
 
 ## 本机发布
 
@@ -73,6 +87,6 @@ pnpm release
 
 ## 发布验收
 
-确认标签对应 main 历史中的发布提交、Release 已正式发布、Chrome/Edge ZIP 与来源清单齐全且包内版本正确。报告发布 PR、main 提交 SHA、标签、Release URL、本机检查结果和最终分支状态。
+确认标签对应 main 历史中的发布提交、Release 已正式发布、Chrome/Edge ZIP 与来源清单齐全且包内版本正确。报告 dev/main 同步状态、main 提交 SHA、标签、Release URL、本机检查结果和最终分支状态；使用了 PR 时附上链接。
 
 浏览器加载新版本后验证个人选择器规则、双语字幕、模型及接口切换、停止翻译等关键行为。静态测试和构建成功不能替代浏览器实际升级验证。
