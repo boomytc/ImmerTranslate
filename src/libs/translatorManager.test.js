@@ -404,10 +404,8 @@ function loadContextMenuClick() {
     path.join(__dirname, "../background.js"),
     "utf8"
   );
-  const start = source.indexOf(
-    "browser?.contextMenus?.onClicked?.addListener?.("
-  );
-  const end = source.indexOf("async function handleStreamFetch");
+  const start = source.indexOf("const contextMenuActions = {");
+  const end = source.indexOf("async function updateCspRules(");
   if (start < 0 || end < start) {
     throw new Error("context menu listener was not found");
   }
@@ -1698,8 +1696,15 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(harness.broadcastTranslateToggle).toHaveBeenCalledTimes(1);
     expect(harness.sendTabMsg).not.toHaveBeenCalled();
     harness.click({ menuItemId: harness.real.CMD_TOGGLE_TRANBOX });
+    expect(harness.sendTabMsg).not.toHaveBeenCalled();
+    harness.click({
+      menuItemId: harness.real.CMD_OPEN_TRANBOX,
+      selectionText: "selected words",
+    });
+    expect(harness.sendTabMsg).toHaveBeenCalledTimes(1);
     expect(harness.sendTabMsg).toHaveBeenCalledWith(
-      harness.real.MSG_TRANSBOX_TOGGLE
+      harness.real.MSG_OPEN_TRANBOX,
+      { text: "selected words" }
     );
   });
 
