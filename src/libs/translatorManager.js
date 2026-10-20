@@ -260,6 +260,8 @@ export default class TranslatorManager {
     if (setting) this.#applyFoldedSetting(setting);
     const nextRule = this.#cloneConfig(target.rule);
     this.#rule = nextRule;
+    // SPA 路由可只改变 URL，不触发 FAB 配置存储更新或容器重建。
+    this.#applyFabVisibility();
     if (!this._translator) {
       if (target.state === "paused") this.pause();
       else if (this.#paused) this.resume();
