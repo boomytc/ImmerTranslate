@@ -3,10 +3,17 @@ import path from "path";
 import vm from "vm";
 import {
   CMD_OPEN_OPTIONS,
+  CMD_OPEN_SEPARATE_WINDOW,
   CMD_OPEN_TRANBOX,
   CMD_TOGGLE_STYLE,
+  CMD_TOGGLE_TRANBOX,
   CMD_TOGGLE_TRANSLATE,
   CMD_TOGGLE_TRANSLATE_ONLY,
+  MSG_OPEN_SEPARATE_WINDOW,
+  MSG_OPEN_TRANBOX,
+  MSG_TRANS_TOGGLE_ONLY,
+  MSG_TRANS_TOGGLE_STYLE,
+  MSG_TRANSBOX_TOGGLE,
 } from "./config/msg";
 
 // Run the production rebuild path without starting the service worker.
@@ -15,6 +22,19 @@ const menuCode = source.slice(
   source.indexOf("let contextMenusQueue = Promise.resolve();"),
   source.indexOf("async function updateCspRules(")
 );
+const commandCode = sliceBetween(
+  "browser.commands?.onCommand?.addListener?.(",
+  "async function handleStreamFetch"
+);
+
+function sliceBetween(startMarker, endMarker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker);
+  if (start < 0 || end < start) {
+    throw new Error(`missing source slice: ${startMarker}`);
+  }
+  return source.slice(start, end);
+}
 
 const SIMPLE_MENUS = [
   {
@@ -62,6 +82,23 @@ const FULL_MENUS = [
   },
 ];
 
+const MENU_CLICKS = {
+  [CMD_TOGGLE_TRANSLATE]: { broadcastTranslateToggle: [] },
+  [CMD_TOGGLE_TRANSLATE_ONLY]: { sendTabMsg: [MSG_TRANS_TOGGLE_ONLY] },
+  [CMD_TOGGLE_STYLE]: { sendTabMsg: [MSG_TRANS_TOGGLE_STYLE] },
+  [CMD_OPEN_TRANBOX]: {
+    sendTabMsg: [MSG_OPEN_TRANBOX, { text: "selected words" }],
+  },
+  [CMD_OPEN_OPTIONS]: { openOptionsPage: [] },
+  options_separator: {},
+};
+
+const MENU_EFFECTS = [
+  "broadcastTranslateToggle",
+  "sendTabMsg",
+  "openOptionsPage",
+];
+
 /**
  * contextMenus.create commits on a later turn and returns the id immediately.
  * removeAll does not cancel a create that has not committed.
@@ -72,7 +109,11 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
   const failedIds = new Set(failIds);
   let removeCount = 0;
   let itemsAtSecondRemove = null;
+  let clickListener = null;
   const runtime = { lastError: undefined };
+  const sendTabMsg = jest.fn();
+  const broadcastTranslateToggle = jest.fn();
+  const openOptionsPage = jest.fn();
 
   const browser = {
     i18n: {
@@ -80,6 +121,11 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
     },
     runtime,
     contextMenus: {
+      onClicked: {
+        addListener(listener) {
+          clickListener = listener;
+        },
+      },
       removeAll: () =>
         enqueue(jobs, () => {
           removeCount += 1;
@@ -121,17 +167,29 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
     browser,
     chrome: { runtime },
     kissLog: jest.fn(),
+    sendTabMsg,
+    broadcastTranslateToggle,
+    openOptionsPage,
     CMD_TOGGLE_TRANSLATE,
     CMD_TOGGLE_TRANSLATE_ONLY,
     CMD_TOGGLE_STYLE,
     CMD_OPEN_TRANBOX,
     CMD_OPEN_OPTIONS,
+    MSG_TRANS_TOGGLE_ONLY,
+    MSG_TRANS_TOGGLE_STYLE,
+    MSG_OPEN_TRANBOX,
   });
   vm.runInContext(menuCode, context);
+  if (typeof clickListener !== "function") {
+    throw new Error("context menu click listener was not registered");
+  }
 
   return {
     items,
     kissLog: context.kissLog,
+    sendTabMsg,
+    broadcastTranslateToggle,
+    openOptionsPage,
     get itemsAtSecondRemove() {
       return itemsAtSecondRemove;
     },
@@ -149,7 +207,72 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
         type === undefined ? "addContextMenus()" : `addContextMenus(${type})`;
       return vm.runInContext(call, context);
     },
+    click(info) {
+      clickListener(info);
+    },
+    clearEffects() {
+      for (const name of MENU_EFFECTS) this[name].mockClear();
+    },
+    actionIds() {
+      return vm.runInContext("Object.keys(contextMenuActions)", context);
+    },
   };
+}
+
+function expectMenuClick(harness, id) {
+  const expected = MENU_CLICKS[id];
+  if (!expected) throw new Error(`missing click expectation for ${id}`);
+  for (const name of MENU_EFFECTS) {
+    if (Object.prototype.hasOwnProperty.call(expected, name)) {
+      expect(harness[name]).toHaveBeenCalledTimes(1);
+      expect(harness[name]).toHaveBeenCalledWith(...expected[name]);
+    } else {
+      expect(harness[name]).not.toHaveBeenCalled();
+    }
+  }
+}
+
+function expectNoMenuMessage(harness) {
+  for (const name of MENU_EFFECTS) {
+    expect(harness[name]).not.toHaveBeenCalled();
+  }
+}
+
+function loadCommandListener() {
+  const sendTabMsg = jest.fn();
+  let listener;
+  const context = vm.createContext({
+    sendTabMsg,
+    broadcastTranslateToggle: jest.fn(),
+    openOptionsPage: jest.fn(),
+    messageHandlers: {},
+    CMD_TOGGLE_TRANSLATE,
+    CMD_TOGGLE_TRANSLATE_ONLY,
+    CMD_OPEN_TRANBOX,
+    CMD_TOGGLE_TRANBOX,
+    CMD_TOGGLE_STYLE,
+    CMD_OPEN_OPTIONS,
+    CMD_OPEN_SEPARATE_WINDOW,
+    MSG_TRANS_TOGGLE_ONLY,
+    MSG_OPEN_TRANBOX,
+    MSG_TRANSBOX_TOGGLE,
+    MSG_TRANS_TOGGLE_STYLE,
+    MSG_OPEN_SEPARATE_WINDOW,
+    browser: {
+      commands: {
+        onCommand: {
+          addListener(fn) {
+            listener = fn;
+          },
+        },
+      },
+    },
+  });
+  vm.runInContext(commandCode, context);
+  if (typeof listener !== "function") {
+    throw new Error("command listener was not registered");
+  }
+  return { sendTabMsg, listener };
 }
 
 function menuItem(props) {
@@ -295,5 +418,48 @@ describe("context menu registration", () => {
     expect(source).toContain(
       "async function addContextMenus(contextMenuType = 1)"
     );
+  });
+});
+
+describe("context menu clicks", () => {
+  test("every created menu id sends its message in both modes", async () => {
+    const created = new Set();
+    for (const type of [1, 2]) {
+      const harness = createHarness();
+      await drain(harness, harness.add(type));
+
+      for (const item of harness.items) {
+        if (item.type !== "separator") created.add(item.id);
+        harness.clearEffects();
+        harness.click({
+          menuItemId: item.id,
+          selectionText: "selected words",
+        });
+        expectMenuClick(harness, item.id);
+      }
+    }
+
+    const harness = createHarness();
+    expect(harness.actionIds().sort()).toEqual([...created].sort());
+  });
+
+  test("onClicked ignores CMD_TOGGLE_TRANBOX", () => {
+    const harness = createHarness();
+    harness.click({
+      menuItemId: CMD_TOGGLE_TRANBOX,
+      selectionText: "selected words",
+    });
+    expectNoMenuMessage(harness);
+  });
+});
+
+describe("tranbox shortcut", () => {
+  test("CMD_TOGGLE_TRANBOX still sends MSG_TRANSBOX_TOGGLE", () => {
+    const { sendTabMsg, listener } = loadCommandListener();
+
+    listener(CMD_TOGGLE_TRANBOX);
+
+    expect(sendTabMsg).toHaveBeenCalledTimes(1);
+    expect(sendTabMsg).toHaveBeenCalledWith(MSG_TRANSBOX_TOGGLE);
   });
 });
