@@ -417,16 +417,16 @@ export const I18N = {
     en: `Subscribe URL`,
   },
   rules_warn_1: {
-    zh: `1、规则生效的优先级依次为：个人规则 > 订阅规则 > 全局规则。"全局规则"相当于兜底规则。`,
-    en: `1. The priority of rules is: personal rules > subscription rules > global rules. "Global rules" are like a fallback rule.`,
+    zh: `1、规则生效的优先级依次为：个人规则 > 内置网站规则 > 全局规则。"全局规则"相当于兜底规则。`,
+    en: `1. Rule priority: personal rules > built-in site rules > global rules. Global rules provide the fallback.`,
   },
   rules_warn_2: {
-    zh: `2、“订阅规则”选择注入后才会生效。`,
-    en: `2. "Subscription rules" will take effect only after injection is selected.`,
+    zh: `2、内置网站规则自动匹配当前页面，个人规则可覆盖对应设置。`,
+    en: `2. Built-in site rules automatically match the current page. Personal rules can override their settings.`,
   },
   rules_warn_3: {
-    zh: `3、关于规则填写：输入框留空或下拉框选“*”表示采用全局规则。CSS选择器支持 + 号前缀表示在全局规则基础上追加，- 号表示剔除。`,
-    en: `3. Regarding filling in the rules: Leave the input box blank or select "*" in the drop-down box to use global rule. CSS selectors support prefixes: "+" means add to the global rules, "-" means exclude.`,
+    zh: `3、关于规则填写：输入框留空或下拉框选“*”表示继承下一级规则。CSS 选择器支持 + 号前缀表示在继承结果上追加，- 号表示剔除。`,
+    en: `3. Leave an input blank or select "*" to inherit lower-priority rules. For CSS selectors, "+" adds to the inherited result and "-" removes from it.`,
   },
   sync_warn: {
     zh: `1、涉及隐私数据的同步请谨慎选择第三方同步服务，建议自行搭建 WebDAV 服务。`,
@@ -1441,8 +1441,8 @@ export const I18N = {
     en: `Configure input translation languages, shortcuts, and submission`,
   },
   options_subtitle_description: {
-    zh: `配置双语字幕、断句、显示顺序与学习功能`,
-    en: `Configure bilingual captions, segmentation, order, and learning tools`,
+    zh: `配置双语字幕、断句与显示顺序`,
+    en: `Configure bilingual captions, segmentation, and display order`,
   },
   options_prompts_description: {
     zh: `管理 AI 翻译、断句与词典提示词`,

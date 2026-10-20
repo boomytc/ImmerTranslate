@@ -34,10 +34,12 @@
 | Input box          | Write in an input box and translate it into the target language in place.                                            |
 | Video subtitles    | Bilingual subtitles for YouTube.                                                                                     |
 | Floating ball      | Switch between bilingual and translation-only, change service and model, and set how the current site is translated. |
-| Rules and glossary | Save translation rules per site, subscribe to rule lists, and use a glossary.                                        |
-| Sync               | Encrypted settings can be synced, for example over WebDAV.                                                           |
+| Rules and glossary | Use built-in site rules, personal selector rules, and a glossary.                                                    |
+| Sync               | Sync encrypted settings, with WebDAV as the default.                                                                 |
 
 Interface languages: English, 简体中文.
+
+Version 1.2.0 focuses on Chrome and Edge. Rule subscriptions, rule scripts, translation hooks, vocabulary lists, and subtitle learning extras have been removed. YouTube bilingual subtitles remain available.
 
 ## Translation services
 
@@ -57,6 +59,8 @@ The extension is not on the browser stores yet. Download the package for your br
 
 Click the toolbar icon to start. On first run you can try a free service straight away.
 
+To update, download and unzip the new package, then reload its directory on the extension management page. Unpacked installations do not update automatically.
+
 ## Build from source
 
 Requires Node.js 24 and pnpm.
@@ -68,7 +72,7 @@ pnpm install
 pnpm build:chrome
 ```
 
-The output is in `build/chrome`; load it as described above. `pnpm build` builds every client at once and `pnpm test` runs the unit tests. See [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+The output is in `build/chrome`; load it as described above. `pnpm build` builds the Chrome and Edge clients and `pnpm test` runs the unit tests. See [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ## License
 
