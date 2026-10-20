@@ -1483,6 +1483,54 @@ describe("TranslatorManager SPA lifecycle", () => {
     );
   });
 
+  test.each([
+    ["on", false],
+    ["off", false],
+    ["paused", false],
+    ["on", true],
+    ["off", true],
+    ["paused", true],
+  ])(
+    "SPA route refreshes FAB exceptions with page state %s and global hidden %s",
+    (state, isHide) => {
+      const originalUrl = window.location.href;
+      window.history.replaceState({}, "", "/fab-visible");
+      const manager = createManager();
+      manager.start();
+      const initialFab = mockFabInstances.at(-1);
+      const config = {
+        isHide,
+        hiddenSites: isHide ? "" : window.location.origin + "/fab-hidden",
+        shownSites: isHide ? window.location.origin + "/fab-visible" : "",
+      };
+      mockFabStorage.listeners.at(-1)({ data: config });
+      const body = document.body;
+      const target = {
+        state,
+        rule: { transOpen: state === "on" ? "true" : "false" },
+        setting: storedSetting({}),
+      };
+
+      try {
+        window.history.pushState({}, "", "/fab-hidden");
+        manager.applyTarget(target);
+        expect(document.body).toBe(body);
+        expect(initialFab.destroy).toHaveBeenCalledTimes(1);
+        expect(manager._fabManager).toBeNull();
+
+        window.history.replaceState({}, "", "/fab-visible");
+        manager.applyTarget(target);
+        expect(document.body).toBe(body);
+        expect(manager._fabManager).not.toBeNull();
+        expect(mockFabInstances.at(-1).show).toHaveBeenCalledWith({
+          fabConfig: expect.objectContaining(config),
+        });
+      } finally {
+        window.history.replaceState({}, "", originalUrl);
+      }
+    }
+  );
+
   test("applyTarget turns translation off and back on with the matched rule", () => {
     const manager = createManager({
       rule: { transOpen: "false" },
@@ -2104,3 +2152,4 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(() => createManager({ setting: { bad: () => 0 } })).toThrow();
   });
 });
+
