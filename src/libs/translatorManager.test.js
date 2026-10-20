@@ -2152,4 +2152,3 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(() => createManager({ setting: { bad: () => 0 } })).toThrow();
   });
 });
-

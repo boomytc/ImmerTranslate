@@ -1148,4 +1148,3 @@ export default class TranslatorManager {
     return response;
   }
 }
-
