@@ -8,6 +8,7 @@ export * from "./rules";
 export * from "./api";
 export * from "./prompt";
 export * from "./setting";
+export * from "./inputDot";
 export * from "./i18n";
 export * from "./storage";
 export * from "./fab";

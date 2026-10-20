@@ -46,8 +46,14 @@ import {
   STOKEY_RULES,
   DEFAULT_RULES,
   DEFAULT_TRANBOX_SETTING,
+  DEFAULT_INPUT_RULE,
   MSG_TRANSBOX_TOGGLE,
 } from "../../config";
+import {
+  OPT_INPUT_DOT_ALWAYS,
+  OPT_INPUT_DOT_DISABLE,
+  isInputDotShown,
+} from "../../config/inputDot";
 import { getPresetModels } from "../../config/presetModels";
 import { fetchModelCatalog } from "../../libs/modelList";
 import {
@@ -981,6 +987,34 @@ export default function PopupCont({
     ]
   );
 
+  const activeInputRule =
+    contextSetting?.inputRule || setting?.inputRule || DEFAULT_INPUT_RULE;
+  const inputBlockedOnSite = Boolean(
+    currentHref && isInBlacklist(currentHref, activeInputRule?.blacklist || "")
+  );
+  const inputDotVisible =
+    activeInputRule?.transOpen !== false &&
+    isInputDotShown(activeInputRule?.showDot);
+
+  // 关掉只藏图标，快捷键和结尾符号仍可触发；打开要让图标真的出现。
+  const handleToggleInputDot = useCallback(
+    async (visible) => {
+      try {
+        await updateSetting((prev) => ({
+          ...prev,
+          inputRule: {
+            ...(prev?.inputRule || DEFAULT_INPUT_RULE),
+            ...(visible ? { transOpen: true } : {}),
+            showDot: visible ? OPT_INPUT_DOT_ALWAYS : OPT_INPUT_DOT_DISABLE,
+          },
+        }));
+      } catch (error) {
+        reportFabFailure(error);
+      }
+    },
+    [reportFabFailure, updateSetting]
+  );
+
   const { data: rulesData, isLoading: rulesLoading } = useStorage(
     STOKEY_RULES,
     DEFAULT_RULES
@@ -1404,6 +1438,20 @@ export default function PopupCont({
                 void handleToggleSelectionTranslate(checked)
               }
               inputProps={{ "aria-label": i18n("selection_translate") }}
+            />
+          </div>
+          <div className="kt-popup-fab-control__global">
+            <span>
+              {i18n("input_dot_switch")}
+              {inputBlockedOnSite
+                ? ` · ${i18n("selection_translate_site_blocked")}`
+                : ""}
+            </span>
+            <Switch
+              size="small"
+              checked={inputDotVisible}
+              onChange={(_event, checked) => void handleToggleInputDot(checked)}
+              inputProps={{ "aria-label": i18n("input_dot_switch") }}
             />
           </div>
         </div>

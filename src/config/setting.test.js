@@ -4,8 +4,8 @@ import {
   DEFAULT_SETTING,
   DEFAULT_SUBTITLE_SETTING,
   DEFAULT_TRANBOX_SETTING,
-  OPT_INPUT_DOT_ALWAYS,
 } from "./setting";
+import { OPT_INPUT_DOT_ALWAYS } from "./inputDot";
 import { DEFAULT_API_LIST, OPT_TRANS_MICROSOFT } from "./api";
 import { BUILTIN_RULES, GLOBAL_KEY } from "./rules";
 

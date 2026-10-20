@@ -11,8 +11,7 @@ jest.mock("../config", () => ({
   DEFAULT_INPUT_SHORTCUT: ["AltLeft", "KeyI"],
   OPT_LANGS_LIST: [],
   DEFAULT_API_SETTING: {},
-  OPT_INPUT_DOT_DISABLE: "-",
-  OPT_INPUT_DOT_MOBILE: "mobile",
+  isInputDotShown: jest.requireActual("../config/inputDot").isInputDotShown,
 }));
 
 jest.mock("../config/prompt", () => ({

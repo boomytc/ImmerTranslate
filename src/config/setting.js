@@ -4,6 +4,7 @@
  */
 
 import { LogLevel } from "../libs/log";
+import { OPT_INPUT_DOT_ALWAYS } from "./inputDot";
 import {
   OPT_DICT_BING,
   OPT_SUG_YOUDAO,
@@ -67,11 +68,6 @@ export const DEFAULT_SYNC = {
   syncMeta: {}, // 存储同步的元信息 (如文件 ETag/修改时间等)
   dataCaches: {}, // 各类缓存项的最近同步时间
 };
-
-// --- 输入框即时翻译图标(点)的显示策略 ---
-export const OPT_INPUT_DOT_DISABLE = "-"; // 彻底不显示图标
-export const OPT_INPUT_DOT_MOBILE = "mobile"; // 仅在移动端浏览器中显示
-export const OPT_INPUT_DOT_ALWAYS = "always"; // 始终显示在输入框边缘
 
 // --- 输入框即时翻译配置 ---
 export const OPT_INPUT_TRANS_SIGNS = ["/", "//", "\\", "\\\\", ">", ">>"]; // 支持的触发翻译符号

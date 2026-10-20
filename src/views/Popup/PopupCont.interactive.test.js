@@ -458,6 +458,68 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       view.cleanup();
     });
 
+    test("input dot switch hides only the icon and showing it re-enables input translation", async () => {
+      mockContextSetting = {
+        blacklist: "",
+        inputRule: { transOpen: false, showDot: "always", toLang: "ja" },
+      };
+      const view = renderPopup();
+      await flushEffects();
+
+      const dotSwitch = view.container.querySelector(
+        'input[aria-label="input_dot_switch"]'
+      );
+      expect(dotSwitch.checked).toBe(false);
+
+      await act(async () => {
+        dotSwitch.click();
+      });
+      const show = mockUpdateSetting.mock.calls.at(-1)[0];
+      expect(show(mockContextSetting).inputRule).toEqual({
+        transOpen: true,
+        showDot: "always",
+        toLang: "ja",
+      });
+      view.cleanup();
+
+      mockContextSetting = {
+        blacklist: "",
+        inputRule: { transOpen: true, showDot: "always" },
+      };
+      const shown = renderPopup();
+      await flushEffects();
+      const shownSwitch = shown.container.querySelector(
+        'input[aria-label="input_dot_switch"]'
+      );
+      expect(shownSwitch.checked).toBe(true);
+
+      await act(async () => {
+        shownSwitch.click();
+      });
+      const hide = mockUpdateSetting.mock.calls.at(-1)[0];
+      expect(hide(mockContextSetting).inputRule).toEqual({
+        transOpen: true,
+        showDot: "-",
+      });
+      shown.cleanup();
+    });
+
+    test("input dot switch notes when input translation is blocked on the site", async () => {
+      mockContextSetting = {
+        blacklist: "",
+        inputRule: { transOpen: true, blacklist: "example.com" },
+      };
+      const view = renderPopup();
+      await flushEffects();
+
+      const label = view.container
+        .querySelector('input[aria-label="input_dot_switch"]')
+        .closest(".kt-popup-fab-control__global");
+      expect(label.textContent).toContain("selection_translate_site_blocked");
+
+      view.cleanup();
+    });
+
     test("when global FAB is hidden, site exception button enables FAB for this site", async () => {
       // Set storage to global hidden
       await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({

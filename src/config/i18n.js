@@ -1016,6 +1016,10 @@ export const I18N = {
     zh: `此站已禁用`,
     en: `Disabled on this site`,
   },
+  input_dot_switch: {
+    zh: `输入框翻译图标`,
+    en: `Input Translation Icon`,
+  },
   fab_click_action: {
     zh: `单击悬浮按钮动作`,
     en: `Single Click Fab Action`,
