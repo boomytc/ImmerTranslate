@@ -72,7 +72,7 @@ pnpm install
 pnpm build:chrome
 ```
 
-The output is in `build/chrome`; load it as described above. `pnpm build` builds the Chrome and Edge clients and `pnpm test` runs the unit tests. See [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+The output is in `build/chrome`; load it as described above. Run `pnpm check` locally for checks, tests, and Chrome/Edge packaging. Use `pnpm release -- --dry-run` to verify release artifacts, then `pnpm release` to tag and publish to GitHub Releases. This repository does not use GitHub Actions. See [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ## License
 

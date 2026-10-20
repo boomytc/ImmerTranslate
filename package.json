@@ -41,10 +41,12 @@
     "build+zip": "cross-env CI=true pnpm build && pnpm zip",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
+    "check": "node src/scripts/check.mjs",
+    "release": "node src/scripts/local-release.mjs",
     "format:check": "node src/scripts/check-format.mjs",
     "release:check": "node src/scripts/check-release.mjs",
     "release:artifacts": "node src/scripts/prepare-release-artifacts.mjs",
-    "test:release": "node --test src/scripts/release.test.mjs"
+    "test:release": "node --test src/scripts/release.test.mjs src/scripts/local-release.test.mjs"
   },
   "eslintConfig": {
     "extends": [

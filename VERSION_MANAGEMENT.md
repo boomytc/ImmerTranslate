@@ -1,104 +1,78 @@
 # 版本号管理与发布指南
 
-## 版本与工具链
+## 发布原则与工具链
 
-`package.json` 是唯一版本源。`.env` 的 `REACT_APP_VERSION` 和 `public/manifest.json` 由 `pnpm sync-version` 同步，禁止手工分别改号。同步前会校验所有文件与版本字段；文件缺失、字段重复或版本无效都会返回非零，阻断后续构建。
+GitHub 只用于代码、PR、版本标签和 Releases。仓库不使用 GitHub Actions；检查、测试、构建和发布均在本机执行。`pnpm check` 会拒绝重新引入 `.github/workflows/*.yml` 或 `*.yaml`。推送分支或标签不会自动构建、发布，也不部署 gh-pages。
 
-仓库通过 `packageManager` 和 `.pnpm-version` 固定 pnpm 9.14.4，CI 使用 Node.js 24。推荐使用 Corepack，安装依赖时保留锁文件：
+`package.json` 是唯一版本源。`.env` 的 `REACT_APP_VERSION` 和 `public/manifest.json` 由 `pnpm sync-version` 同步，禁止手工分别改号。同步前会校验所有文件与版本字段；文件缺失、字段重复或版本无效都会阻断构建。Chrome、Edge 仍共用同一个稳定版本。
+
+推荐使用 Node.js 24，仓库通过 `packageManager` 和 `.pnpm-version` 固定 pnpm 9.14.4。安装依赖保留锁文件：
 
 ```bash
 corepack pnpm@9.14.4 install --frozen-lockfile
 ```
 
-更新版本使用现有命令，不会自动创建 Git 标签：
+GitHub CLI 使用本机 `gh auth login` 的认证。发布需要目标仓库的 push 权限，以便同时查询草稿和正式 Release；凭证无需写入仓库或 GitHub Actions secrets。
+
+## 本地检查与发布准备
+
+开发和版本升级通过分支、PR 合入 `main`，不直接向 `main` 推送发布提交。更新版本使用现有命令，不会自动创建 Git 标签：
 
 ```bash
-pnpm version:patch          # Bug / 安全修复，例如 1.1.0 -> 1.1.1
+pnpm version:patch          # Bug / 安全修复
 pnpm version:minor          # 新功能
 pnpm version:major          # 不兼容的大版本
-pnpm version:set -- 1.1.1   # 明确指定稳定版本
+pnpm version:set -- 1.2.2   # 明确指定稳定版本
 ```
 
-## 发布准备：最新 main → 发布分支 → PR
+在 CHANGELOG 顶部添加唯一、非空的 `## v<目标版本>` 节，用中文说明用户可见变化，保留历史条目。格式化仅处理本次变更，不混入全仓格式差异。
 
-所有开发和发布通过 PR 合入 `main`，禁止直接向 `main` 推送发布提交。开始前要求工作区干净、`main` 与最新 `origin/main` 一致、GitHub 认证有效、目标标签不存在，且没有冲突的发布 PR。
+提交、推送和合并前在本机运行：
 
 ```bash
-git fetch origin --prune --tags
-git status --short --branch
-git rev-list --left-right --count main...origin/main
-gh auth status
-git switch main
-git pull --ff-only origin main
-git switch -c codex/release-v1.1.1
-pnpm version:patch
+pnpm check                 # 检查当前改动及未跟踪文件的格式
+pnpm check -- origin/main  # PR 分支检查相对 main 的全部改动
 ```
 
-在 CHANGELOG 顶部添加唯一、非空的 `## v1.1.1` 节，使用中文说明用户可见变化；历史条目保持不变。功能移除或行为变化应明确说明。版本号、标签和 CHANGELOG 首节必须一致。
+该命令依次运行格式检查、版本与 CHANGELOG 校验、发布脚本测试、产品测试、Chrome/Edge 构建及 ZIP 打包、包内版本与 SHA-256 来源清单校验。它允许检查尚未提交的改动，但会拒绝检查或构建对源文件产生新的修改。`CI=true` 只启用非交互测试和严格构建，不调用远端服务。普通开发构建仍可单独运行 `pnpm build`。
 
-格式化仅处理本次变更文件，然后检查完整差异。`pnpm format:check` 默认检查相对 HEAD 的变更及未跟踪文件；PR CI 使用 `pnpm format:check origin/main` 检查该 PR。不要把已有的全仓格式差异混入发布提交。
+创建目标为 `main` 的 PR，在描述中记录本机检查结果，检查通过后再合并。若仓库仍有旧 Actions 的 required checks，应先清理失效的分支保护项，不能等待已停用的任务。
 
-```bash
-pnpm format:check
-pnpm release:check
-pnpm test:release
-CI=true pnpm run test --watchAll=false --runInBand
-pnpm build+zip
-git diff --check
-git diff
-```
+## 本机发布
 
-`pnpm build` 会同步版本、清理旧 build，并只构建 Chrome 与 Edge。不再自动格式化源码。压缩使用锁文件中已安装的 bestzip，不临时下载工具。检查这两个 ZIP 内的 manifest，版本都应为目标版本。
-
-只暂存经过审查的发布文件，提交并推送发布分支，创建标题为 `Release v1.1.1`、目标为 main 的 PR。等待 `release checks / checks` 及其他要求的检查全部通过，再通过 PR 合并；失败时先修复，不绕过检查。仓库工作流提供检查，但分支保护中是否将其设为 required 由仓库设置控制。
-
-## 标签与自动发布
-
-合并后同步 main，核对实际落地提交、所有版本和 CHANGELOG，再检查目标标签仍不存在。创建新的注解标签，禁止覆盖已发布标签或用旧版本号上传新的补丁包。
+合并后同步 `main`，版本文件和 CHANGELOG 均须为目标版本：
 
 ```bash
 git switch main
 git pull --ff-only origin main
-pnpm release:check
-git tag -a v1.1.1 -m "Release version 1.1.1"
-git push origin v1.1.1
+pnpm release -- --dry-run
+pnpm release
 ```
 
-标签触发 `.github/workflows/release.yml`，流程为：
+`pnpm release` 会：
 
-1. 校验稳定版本、CHANGELOG 和标签提交位于 main 历史中。
-2. 运行发布脚本测试、产品测试、完整构建，确认构建没有修改受控文件。
-3. 校验 Chrome 与 Edge 两个 ZIP，生成包含源 SHA、ZIP 大小及 SHA-256 的 `release-manifest.json`，保存原构建 artifact 90 天。不再构建或发布 web，CI 也不再更新 gh-pages。
-4. 用 GitHub CLI 创建 draft，先上传来源清单，再上传两个 ZIP。全部上传并校验后才正式发布。按 tag 的 REST 接口仅返回已发布 Release；草稿通过有 push 权限的 release-state job 分页查询，构建 job 保持只读权限。
+1. 要求工作区干净、当前为 `main` 且等于最新 `origin/main`，核对 origin 和 GitHub push 权限，查询草稿与正式 Release。认证失败会直接停止。
+2. 从准确的源提交创建临时 worktree，使用 `pnpm install --frozen-lockfile` 安装依赖，再运行全部本地检查。格式覆盖上个稳定标签以来的改动。工作目录中的旧 build、本机环境覆盖文件和未提交修改不会进入发布包。
+3. 校验 Chrome/Edge ZIP 内的版本、源 SHA、大小和 SHA-256，把原始构建保存到 `dist-release/v<版本>-<完整SHA>/build/`。此目录被 Git 忽略，必须保留以便恢复。
+4. 复核源提交及远端状态后，创建并推送注解标签，再通过 GitHub CLI 创建草稿。先上传来源清单，再上传两个 ZIP；全部资产校验通过后才正式发布。
 
-下载包命名为 `immer-translate_v1.1.1_<client>.zip`，client 为 chrome、edge；另有 `immer-translate_v1.1.1_manifest.json` 用于检查来源和摘要。
+`--dry-run` 执行到产物验证与保存为止，不创建或推送标签、不创建 Release。随后正式发布会复用并校验同一份产物，避免再次构建。发布命令不会提交或推送分支。
 
-发布 job 显式使用 `contents: write`，构建 job 仅使用读权限。认证错误、版本错误或产物摘要冲突都会停止，不能被解释为“版本不存在”。
+下载文件仍为 `immer-translate_v<版本>_chrome.zip`、`immer-translate_v<版本>_edge.zip` 和 `immer-translate_v<版本>_manifest.json`。本地 `pnpm check` 的 `build/` 只是开发验证产物；正式发布只接受隔离构建并保存在 `dist-release/` 的原始包。
 
-## 失败恢复与重复运行
+## 失败恢复
 
-GitHub 的 Re-run 使用原事件 SHA 和 ref，不能通过重跑 v1.1.0 带入 main 的新安全修复；新修复应发布 v1.1.1。
+- 检查或构建失败、尚未打标签：修复原因后重新运行。临时 worktree 和发布锁会被清理。
+- 标签推送或上传中断：保留本地 `dist-release/` 和远端草稿，再运行 `pnpm release`；仅补传缺失文件，不覆盖已上传资产。
+- main 已继续开发：使用 `pnpm release -- --tag v<原版本>`。命令从原标签检出源码、校验 main 历史关系及原产物，只恢复该版本，不移动标签。
+- Release 已发布：重复执行只核对原资产，不重复发布、不修补缺失的已发布资产。
+- 原始产物缺失、摘要冲突或已有标签指向其他提交：停止，不重建替代历史资产，不使用 `--clobber`，不删除重打标签。历史 Actions 产物可从原运行手动下载到对应的本地 `build/` 位置后校验恢复；不再重跑旧工作流。
+- 进程被强制终止后若留下 `dist-release/.release.lock`，先确认没有发布进程运行，再删除锁文件并重试。不要清理原始构建目录。
 
-- 构建或测试失败、尚未创建 Release：修复原因后按发布门禁继续。
-- 上传失败：保留 draft、已上传资产及原构建 artifact。重跑同一运行时复用原 artifact，验证已上传文件后只补传缺失文件。
-- Release 已完整发布：重跑只校验资产，不删除、不覆盖、不重复发布。当前工作流不再更新 gh-pages。
-- 已发布资产冲突、缺少来源清单、原 artifact 缺失或过期：停止自动恢复，保留已发布历史。不要使用 `--clobber`、删旧标签或重新构建不同字节的包替换历史资产。
-- 历史标签上的旧工作流仍可能包含 Pages job。不要重跑那些 job 去改 gh-pages。main 中的新 YAML 不会替换历史运行所用的 YAML，当前发布也不再部署站点。
-
-也可从 main 的 Actions 页面手动运行发布工作流，指定已有稳定标签和原发布运行 ID：
-
-```bash
-gh workflow run release.yml --ref main \
-  -f tag=v1.1.1 \
-  -f artifact_run_id=<原发布运行ID>
-```
-
-手动恢复使用本次工作流提交中的发布工具，但源码检出到原 tag，校验和发布只读取原 tag 的版本、CHANGELOG 与原 artifact。发布工具通过 `RELEASE_ROOT` 指向该源码目录，核对 tag/SHA/版本/原始摘要，不移动标签。这样 main 上的发布工具修复可用于旧 tag，无需重打标签或重建产物。没有原 artifact 时不自动重建部分发布。
-
-仓库默认 `GITHUB_TOKEN` 权限设为 read；新版发布前状态查询、发布和部署 job 显式申请所需写权限。历史工作流未显式申请写权限时，无法再创建 Release 或覆盖 gh-pages。
+修复已发布版本时发布新的补丁版本。原始产物和来源清单用于恢复字节一致性，不应重新构建不同字节的包替换历史版本。
 
 ## 发布验收
 
-确认标签对应 main 中的发布提交、工作流的状态查询、构建、发布三个 job 成功，Chrome 与 Edge ZIP 和来源清单齐全，包内版本正确。浏览器加载新版本后验证已移除的订阅和脚本入口不再出现、个人选择器规则与双语字幕仍可用、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
+确认标签对应 main 历史中的发布提交、Release 已正式发布、Chrome/Edge ZIP 与来源清单齐全且包内版本正确。报告发布 PR、main 提交 SHA、标签、Release URL、本机检查结果和最终分支状态。
 
-报告发布 PR、main 提交 SHA、标签、Release URL、工作流结果和最终分支状态。静态测试及构建通过不能替代浏览器实际升级验证。
+浏览器加载新版本后验证个人选择器规则、双语字幕、模型及接口切换、停止翻译等关键行为。静态测试和构建成功不能替代浏览器实际升级验证。

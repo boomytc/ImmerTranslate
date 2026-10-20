@@ -1,92 +1,28 @@
 ---
 name: release-immer-translate
-description: Safely automate a complete ImmerTranslate release using the repository's version scripts, Chinese CHANGELOG convention, pull requests into main, annotated version tags, and GitHub Actions release workflow. Use when asked to bump the project version, prepare a release, update release notes, create and merge the release PR, publish a version tag, or complete the end-to-end ImmerTranslate release process without intermediate confirmations.
+description: Prepare and publish an ImmerTranslate version using the existing version scripts, Chinese CHANGELOG, a PR into main, and the local pnpm release command. Use for version bumps, release preparation, publication, or recovery. The repository does not use GitHub Actions.
 ---
 
 # Release ImmerTranslate
 
-Follow the version-script sections of `VERSION_MANAGEMENT.md` and the repository's current scripts and workflow files. This repository integrates and publishes on `main`. Ignore any `dev` → `master` procedure still written in `VERSION_MANAGEMENT.md`. Treat `package.json` as the only version source. Never perform only part of a requested full release silently: report the exact completed stage and any remaining gate.
+Read `VERSION_MANAGEMENT.md`, `package.json`, the top of `CHANGELOG.md`, and `src/scripts/local-release.mjs`. Treat `package.json` as the only version source; Chrome and Edge use stable versions. GitHub hosts code, PRs, tags, and Releases; checks and publication run locally.
 
-## Safety rules
+A request to complete a release authorizes its release PR merge and `pnpm release` after checks pass; do not ask for intermediate confirmations. A request only to prepare a release or change tooling does not authorize publication. Never force-push, overwrite tags/assets, absorb unrelated edits, or push release commits directly to main.
 
-- Treat a request to complete a release as authorization to merge the release PR into `main` and create and push the release tag after every required check passes. Do not pause for confirmation at either step.
-- Never push commits directly to `main`, force-push, overwrite a tag, bypass a failed check, or merge a release PR before all required checks pass.
-- Stop on a dirty worktree, a base other than the latest `origin/main`, divergent local/remote `main`, invalid GitHub authentication, an existing target tag, version disagreement, unexpected formatted files, failed checks, or failed builds.
-- Do not stash, reset, discard, or absorb unrelated user changes. Do not repair authentication or change repository settings without a separate request.
-- Use the repository's existing `pnpm version:*` commands. Do not manually edit `.env` or manifest versions.
+## Prepare
 
-## 1. Inspect and choose the release
+1. Require a clean worktree, valid GitHub authentication, and local main equal to the latest `origin/main`. Fetch tags and inspect open release PRs before choosing the target. Ask for patch/minor/major or an exact stable version when unspecified; do not infer the bump from commits.
+2. Create `codex/release-v<target>` from current main. Run the matching `pnpm version:patch`, `version:minor`, `version:major`, or `version:set -- <version>` command. Do not edit `.env` or manifest versions separately.
+3. Review changes since the previous version and prepend a nonempty Chinese `## v<target>` CHANGELOG section describing user-visible behavior. Preserve historical entries. Confirm all version files agree and the target tag and Release do not exist locally or remotely.
+4. Format only reviewed files, run `pnpm check -- origin/main`, and inspect the complete diff. Stop on failed checks, version disagreement, source changes caused by the build, or unrelated formatting.
+5. Commit only reviewed release files as `chore: bump version to <target>`, push the release branch, and create or reuse the release PR into main. Attach the PR to the current chat using the available app tool. Record local check results in its description. There is no Actions run to wait for; report blocking branch protections rather than bypassing them or changing settings without authorization.
 
-1. Read `VERSION_MANAGEMENT.md` for the version source and `pnpm version:*` commands, `package.json`, the top of `CHANGELOG.md`, `src/scripts/update-version.mjs`, `src/scripts/sync-version.mjs`, and `.github/workflows/release.yml`. Current repository files override examples in this skill. The `main` branch model in this skill overrides any `dev` / `master` instructions.
-2. Run read-only preflight checks:
+## Publish
 
-   ```bash
-   git status --short --branch
-   git branch --show-current
-   git fetch origin --prune --tags
-   git rev-list --left-right --count main...origin/main
-   gh auth status
-   git tag --sort=-version:refname
-   ```
+After checks pass, merge the PR using the repository's normal merge method. Synchronize main and record its landed SHA. Run `pnpm release -- --dry-run`, then `pnpm release`. The command enforces clean main, current remote state, isolated builds, versions and checksums, preserved original artifacts, annotated tags, and verified draft publication. Do not manually tag as a substitute or reintroduce workflows.
 
-3. Require a clean worktree and `main...origin/main` equal to `0 0`. Check out `main` only when the worktree is clean, run `git pull --ff-only origin main`, and recheck.
-4. If the user did not specify the bump, ask them to choose `patch`, `minor`, `major`, or an exact SemVer version. Do not infer the release class from commits.
-5. Compute the target version before changing files. Verify that `v<target>` does not exist locally or remotely and that no open pull request into `main` conflicts with this release.
+Verify `gh release view v<target>` and its Chrome/Edge ZIPs plus `immer-translate_v<target>_manifest.json`. Report PR, source SHA, tag, Release URL, local checks, and final branch state. Distinguish automated checks from actual browser upgrade validation.
 
-## 2. Prepare the release from main
+## Recover
 
-1. From the updated `main`, create a release branch. Do not commit the version bump on `main`:
-
-   ```bash
-   git checkout -b codex/release-v<target>
-   ```
-
-2. Run exactly one matching command:
-
-   ```bash
-   pnpm version:patch
-   pnpm version:minor
-   pnpm version:major
-   pnpm version:set -- <version>
-   ```
-
-3. Confirm `package.json`, `.env`, and `public/manifest.json` all contain the target version.
-4. Find the latest version tag with `git tag --sort=-version:refname`. When a tag exists, review `git log --oneline --no-merges <latest-tag>..HEAD`. When none exists, review commits since the current top `CHANGELOG.md` heading. Then prepend one `## v<target>` section to `CHANGELOG.md`:
-   - Write concise Chinese bullets describing user-visible changes.
-   - Summarize behavior rather than copying commit messages mechanically.
-   - Exclude merges, formatting-only work, and internal implementation detail unless release-relevant.
-   - Preserve UTF-8 and every existing historical entry unchanged.
-5. Format only reviewed changed files, then run `pnpm format:check origin/main`, `pnpm release:check`, `pnpm test:release` and `CI=true pnpm run test --watchAll=false --runInBand`. Inspect the complete diff and stop on unrelated formatting. `pnpm build` must not format source files.
-6. Run `pnpm build+zip`, then recheck all version values, the top CHANGELOG heading, `git diff --check`, and the complete diff.
-7. Stage only the reviewed release files. Commit as `chore: bump version to <target>` and push the release branch with `git push -u origin codex/release-v<target>`. Do not use `git add .`. Do not push this commit to `main`.
-
-## 3. Create and merge the release PR
-
-1. Create or reuse the single open pull request into `main` titled `Release v<target>`. Include the new CHANGELOG section in its body.
-2. Watch all required checks to completion. If any check fails, stop and report it; do not merge.
-3. Present the PR URL, target version, checks, and release-note summary as a progress update without pausing.
-4. After all required checks pass, merge into `main` using the repository's current pull-request merge method. Verify the PR is merged and record the commit that landed on `main`.
-
-## 4. Publish the tag
-
-1. Synchronize `main` without writing the release commit directly to it:
-
-   ```bash
-   git checkout main
-   git pull --ff-only origin main
-   ```
-
-2. Verify `main` contains the recorded release commit, the target version in every version file, and `## v<target>` as the first CHANGELOG section. Recheck that `v<target>` does not exist locally or remotely.
-3. Report the exact tag command and explain that pushing an annotated `v*` tag triggers `.github/workflows/release.yml`, then continue without pausing.
-4. After every verification passes, run automatically:
-
-   ```bash
-   git tag -a v<target> -m "Release version <target>"
-   git push origin v<target>
-   ```
-
-5. Find the tag-triggered `release.yml` run, watch it to completion, and verify `gh release view v<target>`. Confirm the Chrome and Edge `immer-translate_v<target>_<client>.zip` assets and `immer-translate_v<target>_manifest.json` are present. The workflow no longer builds or publishes web, and it does not update gh-pages. For a failed upload, use the original run artifact with the documented guarded recovery workflow; never clobber assets or rebuild replacements. Report failures without retrying destructive or publication steps automatically.
-
-## 5. Report
-
-Report the released version, PR URL, the commit on `main`, tag, workflow result, GitHub Release URL, and final branch state. If a step fails after the tag or Release exists, leave published history untouched and report the exact recovery point.
+Preserve `dist-release/v<version>-<sourceSHA>/build/` and any remote draft. Re-run `pnpm release` to resume missing uploads; if main has advanced, run `pnpm release -- --tag v<original-version>`. Recovery uses the original tag source and byte-identical local artifacts. Missing original artifacts, provenance conflicts, or incomplete published Releases stop recovery; never clobber, retag, or rebuild replacements. See `VERSION_MANAGEMENT.md` for recovering historical downloaded artifacts and interrupted local locks.

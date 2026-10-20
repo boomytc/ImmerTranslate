@@ -29,7 +29,6 @@ import {
 } from "./release-artifacts.mjs";
 import { publishRelease } from "./publish-release.mjs";
 import { shouldDeployPages } from "./pages-guard.mjs";
-import { selectOriginalArtifact } from "./find-release-artifact.mjs";
 import { getGithubRelease } from "./github-release.mjs";
 import { verifyPagesDeployment } from "./verify-pages-deployment.mjs";
 
@@ -530,87 +529,6 @@ test("Pages build errors and stale site versions fail deployment verification", 
     verifyPagesDeployment({ client, sha, version: "1.1.1", attempts: 2 }),
     /did not serve/
   );
-});
-
-test("recovery accepts only the original unexpired release artifact", () => {
-  const args = {
-    run: { path: ".github/workflows/release.yml", event: "push" },
-    artifacts: [],
-    name: "build-v1.1.1-sha",
-    runId: "10",
-    currentRunId: "10",
-  };
-  assert.equal(selectOriginalArtifact(args), false);
-  assert.throws(
-    () => selectOriginalArtifact({ ...args, currentRunId: "11" }),
-    /missing or expired/
-  );
-  const artifact = { name: args.name, expired: false };
-  assert.equal(
-    selectOriginalArtifact({
-      ...args,
-      artifacts: [artifact],
-      currentRunId: "11",
-    }),
-    true
-  );
-  assert.throws(
-    () =>
-      selectOriginalArtifact({
-        ...args,
-        artifacts: [{ ...artifact, expired: true }],
-        currentRunId: "11",
-      }),
-    /expired/
-  );
-  assert.throws(
-    () =>
-      selectOriginalArtifact({
-        ...args,
-        run: { ...args.run, event: "pull_request" },
-      }),
-    /original release/
-  );
-  assert.throws(
-    () => selectOriginalArtifact({ ...args, artifacts: [artifact, artifact] }),
-    /Ambiguous/
-  );
-});
-
-test("artifact finder refuses to rebuild when a draft exists or state is unknown", async (t) => {
-  const root = await fixture(t);
-  await writeFile(
-    path.join(root, "original-run.json"),
-    JSON.stringify({
-      path: ".github/workflows/release.yml",
-      event: "push",
-    })
-  );
-  await writeFile(
-    path.join(root, "original-artifacts.json"),
-    '{"artifacts":[]}'
-  );
-  const output = path.join(root, "output");
-  for (const exists of ["true", "", "false"]) {
-    const result = spawnSync(
-      process.execPath,
-      [path.join(repository, "src/scripts/find-release-artifact.mjs")],
-      {
-        env: {
-          ...process.env,
-          RUNNER_TEMP: root,
-          RELEASE_EXISTS: exists,
-          ARTIFACT_NAME: "original",
-          ARTIFACT_RUN_ID: "10",
-          GITHUB_RUN_ID: "10",
-          GITHUB_OUTPUT: output,
-        },
-        encoding: "utf8",
-      }
-    );
-    assert.equal(result.status, exists === "false" ? 0 : 1, result.stderr);
-  }
-  assert.equal(await readFile(output, "utf8"), "found=false\nrun_id=10\n");
 });
 
 test("archive script creates Chrome and Edge packages without invoking npx", async (t) => {
