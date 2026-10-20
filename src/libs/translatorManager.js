@@ -697,10 +697,6 @@ export default class TranslatorManager {
       this.#pendingSpaRefreshReason = reason;
     }
 
-    if (type === "restart") {
-      this.#pendingSpaRefreshReason = reason;
-    }
-
     this.#spaRefreshTimer = setTimeout(() => {
       const refreshType = this.#pendingSpaRefresh;
       const refreshReason = this.#pendingSpaRefreshReason;

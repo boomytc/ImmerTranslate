@@ -67,6 +67,7 @@ const PROMPT_CACHE_SCOPE_NOBATCH = "nobatch";
 const PROMPT_CACHE_SCOPE_DICT = "dict";
 const PROMPT_CACHE_SCOPE_PLAIN = "plain";
 const PROMPT_CACHE_SCOPE_QWEN_MT = "qwen-mt";
+const SUBTITLE_CACHE_VERSION = 4;
 
 const isGenericChineseLanguageCode = (code) =>
   typeof code === "string" && /^zh$/i.test(code.trim());
@@ -648,7 +649,6 @@ export const apiTranslate = async ({
   translateVariants = true,
   textFormat = "text",
   signal,
-  capture,
 }) => {
   if (!text) {
     throw new Error("The text cannot be empty.");
@@ -755,7 +755,6 @@ export const apiTranslate = async ({
         onStreamChunk,
         docInfo,
         signal,
-        capture,
       });
     } else {
       // 2.3 不支持批量翻译、需要单个请求执行的 API (如某些流式大模型 API)
@@ -772,7 +771,6 @@ export const apiTranslate = async ({
         docInfo,
         onStreamChunk,
         signal,
-        capture,
       });
 
       for await (const item of generator) {
@@ -965,10 +963,7 @@ export const apiSubtitle = async ({
   signal,
 }) => {
   if (!events?.length) return [];
-  const formattedEvents = formatIndexSubtitleEvents(
-    events,
-    apiSetting.subtitlePrompt
-  );
+  const formattedEvents = formatIndexSubtitleEvents(events);
   // chunk 哈希同时包含 AI 输入和内部时间轴，避免相同首尾时间误命中旧字幕。
   const chunkHash = (
     await getCacheDigest(
@@ -981,7 +976,7 @@ export const apiSubtitle = async ({
           item.pauseMs || 0,
         ])
       ),
-      "subtitle-chunk-v4"
+      `subtitle-chunk-v${SUBTITLE_CACHE_VERSION}`
     )
   ).slice(0, 16);
   // 对完成变量替换的最终提示词签名，动态视频上下文无需再维护独立 contextSig。
@@ -1004,7 +999,7 @@ export const apiSubtitle = async ({
     chunkHash,
     fromLang,
     toLang,
-    segVer: 4,
+    segVer: SUBTITLE_CACHE_VERSION,
     promptSig: (await getCacheDigest(renderedPrompt, PROMPT_CACHE_SALT)).slice(
       0,
       16

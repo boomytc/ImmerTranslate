@@ -20,7 +20,6 @@ import {
   PROMPT_CATEGORY_DICTIONARY,
   PROMPT_MODE_FOLLOW_API,
   findPromptBySlug,
-  EVENT_ADD_WORD,
 } from "../../config";
 import {
   useId,
@@ -241,16 +240,6 @@ export default function TranForm({
     const len = input.value.length;
     input.setSelectionRange(len, len);
   }, [autoFocusInput, simpleStyle]);
-
-  // Notify listeners, such as the vocabulary list, when selected or entered text is a valid English word.
-  useEffect(() => {
-    if (isValidWord(text)) {
-      const event = new CustomEvent(EVENT_ADD_WORD, {
-        detail: { word: text },
-      });
-      document.dispatchEvent(event);
-    }
-  }, [text]);
 
   // Synchronize the selected APIs from the outer state.
   useEffect(() => {

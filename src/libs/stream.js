@@ -5,25 +5,9 @@
 
 import { JSONParser } from "@streamparser/json";
 import {
-  OPT_TRANS_OPENAI,
-  OPT_TRANS_DEEPSEEK,
-  OPT_TRANS_OPENCODEGO,
-  OPT_TRANS_SILICONFLOW,
-  OPT_TRANS_XIAOMIMIMO,
-  OPT_TRANS_ALIYUNBAILIAN,
-  OPT_TRANS_MODELSCOPE,
-  OPT_TRANS_MODELBEST,
-  OPT_TRANS_CEREBRAS,
-  OPT_TRANS_ZAI,
+  OPENAI_COMPAT_TYPES,
   OPT_TRANS_GEMINI,
-  OPT_TRANS_GEMINI_2,
-  OPT_TRANS_OPENROUTER,
-  OPT_TRANS_ORCAROUTER,
-  OPT_TRANS_REQUESTY,
-  OPT_TRANS_OLLAMA,
   OPT_TRANS_CLAUDE,
-  OPT_TRANS_EPHONEAI,
-  OPT_TRANS_APIMART,
 } from "../config";
 import {
   normalizeTranslationItem,
@@ -133,26 +117,12 @@ export const createAsyncQueue = () => {
  * @returns {string} 字符增量，无增量则返回空字符串 ""
  */
 export function getStreamDelta(json, apiType) {
+  if (OPENAI_COMPAT_TYPES.has(apiType)) {
+    // OpenAI 兼容协议的大模型 delta 提取逻辑
+    return json.choices?.[0]?.delta?.content || "";
+  }
+
   switch (apiType) {
-    case OPT_TRANS_OPENAI:
-    case OPT_TRANS_DEEPSEEK:
-    case OPT_TRANS_OPENCODEGO:
-    case OPT_TRANS_SILICONFLOW:
-    case OPT_TRANS_XIAOMIMIMO:
-    case OPT_TRANS_ALIYUNBAILIAN:
-    case OPT_TRANS_MODELSCOPE:
-    case OPT_TRANS_MODELBEST:
-    case OPT_TRANS_CEREBRAS:
-    case OPT_TRANS_ZAI:
-    case OPT_TRANS_GEMINI_2:
-    case OPT_TRANS_OPENROUTER:
-    case OPT_TRANS_ORCAROUTER:
-    case OPT_TRANS_REQUESTY:
-    case OPT_TRANS_OLLAMA:
-    case OPT_TRANS_EPHONEAI:
-    case OPT_TRANS_APIMART:
-      // OpenAI 兼容协议的大模型 delta 提取逻辑
-      return json.choices?.[0]?.delta?.content || "";
     case OPT_TRANS_GEMINI: {
       // 两套 Gemini 协议共用同一接口类型：Interactions 带事件类型，generateContent 返回 candidates。
       const eventType = json.event_type || json.type;

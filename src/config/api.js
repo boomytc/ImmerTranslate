@@ -353,6 +353,27 @@ export const API_SPE_TYPES = {
   ]),
 };
 
+// 使用 OpenAI 兼容聊天协议（choices[0].message / delta）的翻译引擎
+export const OPENAI_COMPAT_TYPES = new Set([
+  OPT_TRANS_EPHONEAI,
+  OPT_TRANS_APIMART,
+  OPT_TRANS_OPENAI,
+  OPT_TRANS_DEEPSEEK,
+  OPT_TRANS_OPENCODEGO,
+  OPT_TRANS_SILICONFLOW,
+  OPT_TRANS_XIAOMIMIMO,
+  OPT_TRANS_ALIYUNBAILIAN,
+  OPT_TRANS_MODELSCOPE,
+  OPT_TRANS_MODELBEST,
+  OPT_TRANS_CEREBRAS,
+  OPT_TRANS_ZAI,
+  OPT_TRANS_GEMINI_2,
+  OPT_TRANS_OPENROUTER,
+  OPT_TRANS_ORCAROUTER,
+  OPT_TRANS_REQUESTY,
+  OPT_TRANS_OLLAMA,
+]);
+
 const THINKING_EFFORT_LABELS = {
   max: "Max",
   xhigh: "X-High",
@@ -1902,13 +1923,6 @@ export function getApiDisplayName(api = {}) {
     [api.apiName, api.apiType, api.apiSlug]
       .find((value) => typeof value === "string" && value.trim())
       ?.trim() || "";
-
-  const isGoogle =
-    api.apiType === OPT_TRANS_GOOGLE || api.apiSlug === OPT_TRANS_GOOGLE;
-
-  if (isGoogle && (!rawName || rawName === "Google")) {
-    return DEFAULT_API_NAME_GOOGLE;
-  }
 
   const isGemini2 =
     api.apiType === OPT_TRANS_GEMINI_2 || api.apiSlug === OPT_TRANS_GEMINI_2;

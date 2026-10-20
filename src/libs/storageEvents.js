@@ -56,8 +56,7 @@ function watchPlatformEvents() {
 /** Notify readers of external changes without writing or waiting for a reload. */
 export function subscribeStorageInvalidation(key, listener) {
   if (!invalidationListeners.has(key)) {
-    const subscription = { listeners: new Set(), stop: undefined };
-    invalidationListeners.set(key, subscription);
+    invalidationListeners.set(key, { listeners: new Set() });
   }
   const subscription = invalidationListeners.get(key);
   subscription.listeners.add(listener);
@@ -68,7 +67,6 @@ export function subscribeStorageInvalidation(key, listener) {
     active = false;
     subscription.listeners.delete(listener);
     if (!subscription.listeners.size) {
-      subscription.stop?.();
       invalidationListeners.delete(key);
     }
     if (!invalidationListeners.size) {

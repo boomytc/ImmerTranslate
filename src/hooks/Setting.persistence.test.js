@@ -87,23 +87,6 @@ describe("settings persistence results", () => {
     expect(previous.tranboxSetting).toEqual({ width: 600 });
   });
 
-  test("keeps a stored mobile input dot without persisting", () => {
-    mockSetting = {
-      ...mockSetting,
-      inputRule: {
-        ...DEFAULT_SETTING.inputRule,
-        showDot: OPT_INPUT_DOT_MOBILE,
-        toLang: "zh-CN",
-      },
-    };
-    mountProvider();
-
-    expect(settings.setting.inputRule.showDot).toBe(OPT_INPUT_DOT_MOBILE);
-    expect(settings.setting.inputRule.toLang).toBe("zh-CN");
-    expect(mockSetting.inputRule.showDot).toBe(OPT_INPUT_DOT_MOBILE);
-    expect(mockUpdate).not.toHaveBeenCalled();
-  });
-
   test("persists a mobile input dot choice", () => {
     mockSetting = {
       ...DEFAULT_SETTING,

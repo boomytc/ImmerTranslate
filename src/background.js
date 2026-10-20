@@ -894,9 +894,7 @@ browser.commands?.onCommand?.addListener?.((command) => {
       openOptionsPage();
       break;
     case CMD_OPEN_SEPARATE_WINDOW:
-      if (messageHandlers[MSG_OPEN_SEPARATE_WINDOW]) {
-        messageHandlers[MSG_OPEN_SEPARATE_WINDOW]();
-      }
+      messageHandlers[MSG_OPEN_SEPARATE_WINDOW]();
       break;
     default:
   }

@@ -143,13 +143,12 @@ function setCache(key, value) {
 export const detectLangFast = async (text) => {
   if (typeof text !== "string" || !text.trim()) return "";
 
-  const key =
+  const sample =
     text.length <= MAX_DETECT_TEXT_LEN
       ? text
       : text.slice(0, MAX_DETECT_TEXT_LEN);
-  if (detectCache.has(key)) return detectCache.get(key);
+  if (detectCache.has(sample)) return detectCache.get(sample);
 
-  const sample = text.slice(0, MAX_DETECT_TEXT_LEN);
   let lang = quickDetectLang(sample);
 
   if (!lang) {
@@ -173,6 +172,6 @@ export const detectLangFast = async (text) => {
     }
   }
 
-  setCache(key, lang || "");
+  setCache(sample, lang || "");
   return lang || "";
 };

@@ -21,8 +21,7 @@ export async function isCurrentPopupDocument(tabId, documentInfo) {
     !Number.isInteger(tabId) ||
     !Number.isInteger(documentInfo?.frameId) ||
     !documentInfo?.token ||
-    (typeof browser?.scripting?.executeScript !== "function" &&
-      typeof browser?.tabs?.executeScript !== "function")
+    typeof browser?.scripting?.executeScript !== "function"
   ) {
     return false;
   }
@@ -30,27 +29,15 @@ export async function isCurrentPopupDocument(tabId, documentInfo) {
     const tab = await browser.tabs.get(tabId);
     // Before a navigation commits, the old document can still execute scripts.
     if (tab.pendingUrl) return false;
-    if (typeof browser?.scripting?.executeScript === "function") {
-      const results = await browser.scripting.executeScript({
-        target: { tabId, frameIds: [documentInfo.frameId] },
-        injectImmediately: true,
-        func: getPopupDocumentIdentity,
-      });
-      return results.some(
-        ({ frameId, result }) =>
-          frameId === documentInfo.frameId &&
-          result?.token === documentInfo.token
-      );
-    }
-    // Thunderbird 78-101 and older MV2 hosts expose the same isolated-world
-    // injection through tabs.executeScript. Still verify the exact frame token.
-    const [result] = await browser.tabs.executeScript(tabId, {
-      frameId: documentInfo.frameId,
-      matchAboutBlank: true,
-      runAt: "document_start",
-      code: `(${getPopupDocumentIdentity.toString()})()`,
+    const results = await browser.scripting.executeScript({
+      target: { tabId, frameIds: [documentInfo.frameId] },
+      injectImmediately: true,
+      func: getPopupDocumentIdentity,
     });
-    return result?.token === documentInfo.token;
+    return results.some(
+      ({ frameId, result }) =>
+        frameId === documentInfo.frameId && result?.token === documentInfo.token
+    );
   } catch {
     // Navigation, a removed frame, and restricted documents can reject injection.
     // Never fall back to accepting a snapshot whose document was not verified.

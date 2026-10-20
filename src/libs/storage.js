@@ -450,14 +450,8 @@ const mergeSettingWithDefault = (setting) => {
   };
 };
 
-export const normalizeStoredSetting = (rawSetting) => {
-  if (!rawSetting) {
-    // 新安装同样通过统一入口得到最终思考设置，避免默认配置绕过归一化。
-    return mergeSettingWithDefault(DEFAULT_SETTING);
-  }
-
-  return mergeSettingWithDefault(rawSetting);
-};
+export const normalizeStoredSetting = (rawSetting) =>
+  mergeSettingWithDefault(rawSetting);
 export const getSettingWithDefault = async () =>
   normalizeStoredSetting(await getSetting());
 export const setSetting = async (val) => setObj(STOKEY_SETTING, val);

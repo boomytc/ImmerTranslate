@@ -10,7 +10,6 @@ import {
   fetchModelCatalog,
   parseDashscopeModelsPage,
   parseModelCatalogResponse,
-  parseModelListResponse,
   resolveOpenAIChatCompletionsUrl,
   resolveOpenAIModelListUrl,
 } from "./modelList";
@@ -26,20 +25,20 @@ import {
 describe("modelList", () => {
   test("parses OpenAI-compatible model lists", () => {
     expect(
-      parseModelListResponse({
+      parseModelCatalogResponse({
         data: [
           { id: "gpt-4o" },
           { id: "gpt-4o" },
           { id: "deepseek-chat" },
           { id: "" },
         ],
-      })
+      }).models
     ).toEqual(["gpt-4o", "deepseek-chat"]);
   });
 
   test("uses OpenRouter model IDs instead of also listing display names", () => {
     expect(
-      parseModelListResponse({
+      parseModelCatalogResponse({
         data: [
           {
             id: "qwen/qwen3.7-flash",
@@ -50,7 +49,7 @@ describe("modelList", () => {
             name: "Claude Opus 5 (Fast)",
           },
         ],
-      })
+      }).models
     ).toEqual(["qwen/qwen3.7-flash", "anthropic/claude-opus-5-fast"]);
   });
 
@@ -85,26 +84,26 @@ describe("modelList", () => {
 
   test("parses Gemini model lists", () => {
     expect(
-      parseModelListResponse({
+      parseModelCatalogResponse({
         models: [
           { name: "models/gemini-2.5-flash" },
           { baseModelId: "gemini-2.5-pro" },
         ],
-      })
+      }).models
     ).toEqual(["gemini-2.5-flash", "gemini-2.5-pro"]);
   });
 
   test("parses Ollama-style model lists", () => {
     expect(
-      parseModelListResponse({
+      parseModelCatalogResponse({
         models: [{ name: "llama3.1" }, { name: "qwen2.5:7b" }],
-      })
+      }).models
     ).toEqual(["llama3.1", "qwen2.5:7b"]);
   });
 
   test("returns an empty list for invalid responses", () => {
-    expect(parseModelListResponse(null)).toEqual([]);
-    expect(parseModelListResponse({ data: "invalid" })).toEqual([]);
+    expect(parseModelCatalogResponse(null).models).toEqual([]);
+    expect(parseModelCatalogResponse({ data: "invalid" }).models).toEqual([]);
   });
 
   test("builds bearer auth requests by default", () => {

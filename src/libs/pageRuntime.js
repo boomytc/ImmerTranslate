@@ -61,16 +61,6 @@ function subscribeStorage(key, defaultValue, onData) {
   });
 }
 
-/** 全局规则缺 transOpen，或值不是 `"true"`，读侧都当成 `"false"`。 */
-function globalTransOpenOf(rules) {
-  const value = (rules || []).find(
-    (rule) => rule?.pattern === SITE_TRANS_OPEN.FOLLOW_GLOBAL
-  )?.transOpen;
-  return value === SITE_TRANS_OPEN.AUTO_TRANSLATE
-    ? SITE_TRANS_OPEN.AUTO_TRANSLATE
-    : SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE;
-}
-
 export class PageRuntime {
   #started = false;
   #generation = 0;
@@ -228,7 +218,9 @@ export class PageRuntime {
       policy,
       href,
       blacklistHit,
-      globalTransOpen: globalTransOpenOf(this.#rules),
+      globalTransOpen: this.#rules?.find(
+        (rule) => rule?.pattern === SITE_TRANS_OPEN.FOLLOW_GLOBAL
+      )?.transOpen,
       setting,
     };
     this.#rule = context.rule;

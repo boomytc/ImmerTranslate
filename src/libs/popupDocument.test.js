@@ -8,7 +8,7 @@ import {
 
 jest.mock("./browser", () => ({
   browser: {
-    tabs: { get: jest.fn(), executeScript: jest.fn() },
+    tabs: { get: jest.fn() },
     scripting: { executeScript: jest.fn() },
   },
 }));
@@ -23,7 +23,6 @@ describe("popup document identity", () => {
     browser.scripting.executeScript
       .mockReset()
       .mockResolvedValue([{ frameId: 7, result: { token: "document-one" } }]);
-    browser.tabs.executeScript.mockReset();
   });
 
   test("the injected function is self-contained and creates one token per document", () => {
@@ -71,48 +70,11 @@ describe("popup document identity", () => {
       new Error("Cannot access frame")
     );
     await expect(isCurrentPopupDocument(17, documentInfo)).resolves.toBe(false);
-    expect(browser.tabs.executeScript).not.toHaveBeenCalled();
   });
 
-  test("verifies the same token through the legacy MV2 injection API", async () => {
+  test("does not trust a snapshot when script injection is unavailable", async () => {
     const scripting = browser.scripting.executeScript;
     browser.scripting.executeScript = undefined;
-    browser.tabs.executeScript.mockImplementation(async (_tabId, options) => {
-      if (!options.matchAboutBlank) {
-        throw new Error("Missing host permission for the blank frame");
-      }
-      return [{ token: "document-one" }];
-    });
-    try {
-      await expect(isCurrentPopupDocument(17, documentInfo)).resolves.toBe(
-        true
-      );
-      expect(browser.tabs.executeScript).toHaveBeenCalledWith(17, {
-        frameId: 7,
-        matchAboutBlank: true,
-        runAt: "document_start",
-        code: expect.stringContaining("__IMMERTRANSLATE_DOCUMENT_TOKEN__"),
-      });
-      browser.tabs.executeScript.mockResolvedValue([{ token: "replacement" }]);
-      await expect(isCurrentPopupDocument(17, documentInfo)).resolves.toBe(
-        false
-      );
-      browser.tabs.executeScript.mockRejectedValue(
-        new Error("Frame unavailable")
-      );
-      await expect(isCurrentPopupDocument(17, documentInfo)).resolves.toBe(
-        false
-      );
-    } finally {
-      browser.scripting.executeScript = scripting;
-    }
-  });
-
-  test("does not trust a snapshot when neither injection API is available", async () => {
-    const scripting = browser.scripting.executeScript;
-    const legacy = browser.tabs.executeScript;
-    browser.scripting.executeScript = undefined;
-    browser.tabs.executeScript = undefined;
     try {
       await expect(isCurrentPopupDocument(17, documentInfo)).resolves.toBe(
         false
@@ -120,7 +82,6 @@ describe("popup document identity", () => {
       expect(browser.tabs.get).not.toHaveBeenCalled();
     } finally {
       browser.scripting.executeScript = scripting;
-      browser.tabs.executeScript = legacy;
     }
   });
 

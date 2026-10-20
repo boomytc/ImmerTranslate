@@ -38,6 +38,7 @@ import {
   OPT_TRANS_REQUESTY,
   OPT_TRANS_CUSTOMIZE,
   API_SPE_TYPES,
+  OPENAI_COMPAT_TYPES,
   INPUT_PLACE_FROM,
   INPUT_PLACE_TO,
   INPUT_PLACE_TEXT,
@@ -217,6 +218,19 @@ const renderBlockPlaceholder = (
   );
 };
 
+// 按固定顺序替换所有块级占位符，批量与单句模板共用同一套顺序。
+const renderBlockPlaceholders = (template, blocks) =>
+  blocks.reduce(
+    (compiled, [placeholder, blockContent, inlineContent]) =>
+      renderBlockPlaceholder(
+        compiled,
+        placeholder,
+        blockContent,
+        inlineContent
+      ),
+    template
+  );
+
 const genUserPrompt = ({
   nobatchUserPrompt,
   batchUserPrompt,
@@ -285,42 +299,14 @@ const genUserPrompt = ({
       let compiled = String(batchUserPrompt);
 
       // 智能替换块级占位符（上下文各个独立字段、术语、语气）
-      compiled = renderBlockPlaceholder(
-        compiled,
-        INPUT_PLACE_TITLE,
-        titleBlock,
-        title
-      );
-      compiled = renderBlockPlaceholder(
-        compiled,
-        INPUT_PLACE_DESCRIPTION,
-        descriptionBlock,
-        description
-      );
-      compiled = renderBlockPlaceholder(
-        compiled,
-        INPUT_PLACE_SUMMARY,
-        summaryBlock,
-        summary
-      );
-      compiled = renderBlockPlaceholder(
-        compiled,
-        INPUT_PLACE_CONTEXT,
-        contextBlock,
-        context
-      );
-      compiled = renderBlockPlaceholder(
-        compiled,
-        INPUT_PLACE_GLOSSARY,
-        glossaryBlock,
-        glossaryStr
-      );
-      compiled = renderBlockPlaceholder(
-        compiled,
-        INPUT_PLACE_TONE,
-        toneBlock,
-        tone
-      );
+      compiled = renderBlockPlaceholders(compiled, [
+        [INPUT_PLACE_TITLE, titleBlock, title],
+        [INPUT_PLACE_DESCRIPTION, descriptionBlock, description],
+        [INPUT_PLACE_SUMMARY, summaryBlock, summary],
+        [INPUT_PLACE_CONTEXT, contextBlock, context],
+        [INPUT_PLACE_GLOSSARY, glossaryBlock, glossaryStr],
+        [INPUT_PLACE_TONE, toneBlock, tone],
+      ]);
 
       // 替换其他常规文本占位符
       compiled = compiled
@@ -385,42 +371,14 @@ const genUserPrompt = ({
   let compiled = String(nobatchUserPrompt || "");
 
   // 智能替换块级占位符（上下文各个独立字段、术语、语气）
-  compiled = renderBlockPlaceholder(
-    compiled,
-    INPUT_PLACE_TITLE,
-    titleBlock,
-    title
-  );
-  compiled = renderBlockPlaceholder(
-    compiled,
-    INPUT_PLACE_DESCRIPTION,
-    descriptionBlock,
-    description
-  );
-  compiled = renderBlockPlaceholder(
-    compiled,
-    INPUT_PLACE_SUMMARY,
-    summaryBlock,
-    summary
-  );
-  compiled = renderBlockPlaceholder(
-    compiled,
-    INPUT_PLACE_CONTEXT,
-    contextBlock,
-    context
-  );
-  compiled = renderBlockPlaceholder(
-    compiled,
-    INPUT_PLACE_GLOSSARY,
-    glossaryBlock,
-    glossaryStr
-  );
-  compiled = renderBlockPlaceholder(
-    compiled,
-    INPUT_PLACE_TONE,
-    toneBlock,
-    tone
-  );
+  compiled = renderBlockPlaceholders(compiled, [
+    [INPUT_PLACE_TITLE, titleBlock, title],
+    [INPUT_PLACE_DESCRIPTION, descriptionBlock, description],
+    [INPUT_PLACE_SUMMARY, summaryBlock, summary],
+    [INPUT_PLACE_CONTEXT, contextBlock, context],
+    [INPUT_PLACE_GLOSSARY, glossaryBlock, glossaryStr],
+    [INPUT_PLACE_TONE, toneBlock, tone],
+  ]);
 
   compiled = compiled
     .replaceAll(INPUT_PLACE_FROM, from)
@@ -1574,19 +1532,23 @@ const genOpenRouter = ({
   return { url, body, headers, userMsg };
 };
 
-const genOrcaRouter = ({
-  url,
-  key,
-  systemPrompt,
-  userPrompt,
-  model,
-  temperature,
-  maxTokens,
-  hisMsgs = [],
-  useStream = false,
-  thinkingMode,
-  thinkingEffort,
-}) => {
+// OrcaRouter 与 Requesty 的请求体、鉴权与来源标识完全一致，只差思考参数的引擎类型。
+const genGatewayOpenAI = (
+  {
+    url,
+    key,
+    systemPrompt,
+    userPrompt,
+    model,
+    temperature,
+    maxTokens,
+    hisMsgs = [],
+    useStream = false,
+    thinkingMode,
+    thinkingEffort,
+  },
+  apiType
+) => {
   const userMsg = {
     role: "user",
     content: userPrompt,
@@ -1603,7 +1565,7 @@ const genOrcaRouter = ({
   if (isGPT6Astra(model)) delete body.temperature;
 
   applyThinkingParameters(body, {
-    apiType: OPT_TRANS_ORCAROUTER,
+    apiType,
     url,
     model,
     thinkingMode,
@@ -1613,7 +1575,7 @@ const genOrcaRouter = ({
   const headers = {
     "Content-type": "application/json",
     Authorization: `Bearer ${key}`,
-    // 聚合网关的调用来源标识，便于在 OrcaRouter 控制台区分本扩展的用量
+    // 聚合网关的调用来源标识，便于在控制台区分本扩展的用量
     "HTTP-Referer": "https://github.com/boomytc/ImmerTranslate",
     "X-Title": "ImmerTranslate",
   };
@@ -1621,52 +1583,9 @@ const genOrcaRouter = ({
   return { url, body, headers, userMsg };
 };
 
-const genRequesty = ({
-  url,
-  key,
-  systemPrompt,
-  userPrompt,
-  model,
-  temperature,
-  maxTokens,
-  hisMsgs = [],
-  useStream = false,
-  thinkingMode,
-  thinkingEffort,
-}) => {
-  const userMsg = {
-    role: "user",
-    content: userPrompt,
-  };
-  const body = {
-    model,
-    messages: [...buildSystemRoleMessages(systemPrompt), ...hisMsgs, userMsg],
-    temperature,
-    max_completion_tokens: maxTokens,
-    stream: useStream,
-  };
+const genOrcaRouter = (args) => genGatewayOpenAI(args, OPT_TRANS_ORCAROUTER);
 
-  // 与 OpenAI 直连保持一致，Astra 不发送自动生成的温度参数。
-  if (isGPT6Astra(model)) delete body.temperature;
-
-  applyThinkingParameters(body, {
-    apiType: OPT_TRANS_REQUESTY,
-    url,
-    model,
-    thinkingMode,
-    thinkingEffort,
-  });
-
-  const headers = {
-    "Content-type": "application/json",
-    Authorization: `Bearer ${key}`,
-    // 聚合网关的调用来源标识，便于在 Requesty 控制台区分本扩展的用量
-    "HTTP-Referer": "https://github.com/boomytc/ImmerTranslate",
-    "X-Title": "ImmerTranslate",
-  };
-
-  return { url, body, headers, userMsg };
-};
+const genRequesty = (args) => genGatewayOpenAI(args, OPT_TRANS_REQUESTY);
 
 const genOllama = ({
   url,
@@ -1877,7 +1796,6 @@ export const genTransReq = async ({ reqHook, ...args }) => {
           to,
           fromLang,
           toLang,
-          texts,
           docInfo,
           tone,
           aiTerms,
@@ -2051,6 +1969,15 @@ export const parseTransRes = async (
 
   let modelMsg = "";
 
+  if (OPENAI_COMPAT_TYPES.has(apiType)) {
+    modelMsg = res?.choices?.[0]?.message;
+    if (history && userMsg) {
+      // 成对写入与轮次截断守卫统一内聚在 addPair：空正文/非 assistant role 整对不写
+      history.addPair(userMsg, modelMsg);
+    }
+    return parseAIRes(modelMsg?.content, useBatchFetch);
+  }
+
   // todo: 根据结果抛出实际异常信息
   switch (apiType) {
     case OPT_TRANS_GOOGLE:
@@ -2127,28 +2054,6 @@ export const parseTransRes = async (
       const content = res?.choices?.[0]?.message?.content;
       return typeof content === "string" ? [[content]] : [];
     }
-    case OPT_TRANS_EPHONEAI:
-    case OPT_TRANS_APIMART:
-    case OPT_TRANS_OPENAI:
-    case OPT_TRANS_DEEPSEEK:
-    case OPT_TRANS_OPENCODEGO:
-    case OPT_TRANS_SILICONFLOW:
-    case OPT_TRANS_XIAOMIMIMO:
-    case OPT_TRANS_ALIYUNBAILIAN:
-    case OPT_TRANS_MODELSCOPE:
-    case OPT_TRANS_MODELBEST:
-    case OPT_TRANS_CEREBRAS:
-    case OPT_TRANS_ZAI:
-    case OPT_TRANS_GEMINI_2:
-    case OPT_TRANS_OPENROUTER:
-    case OPT_TRANS_ORCAROUTER:
-    case OPT_TRANS_REQUESTY:
-      modelMsg = res?.choices?.[0]?.message;
-      if (history && userMsg) {
-        // 成对写入与轮次截断守卫统一内聚在 addPair：空正文/非 assistant role 整对不写
-        history.addPair(userMsg, modelMsg);
-      }
-      return parseAIRes(modelMsg?.content, useBatchFetch);
     case OPT_TRANS_GEMINI:
       // Gemini Interactions steps may include thought items.
       // Their context replay semantics are outside this history-correctness fix.
@@ -2197,13 +2102,6 @@ export const parseTransRes = async (
     }
     case OPT_TRANS_CLOUDFLAREAI:
       return [[res?.result?.translated_text]];
-    case OPT_TRANS_OLLAMA:
-      modelMsg = res?.choices?.[0]?.message;
-
-      if (history && userMsg) {
-        history.addPair(userMsg, modelMsg);
-      }
-      return parseAIRes(modelMsg?.content, useBatchFetch);
     case OPT_TRANS_CUSTOMIZE:
       if (useBatchFetch) {
         return (res?.translations ?? res)?.map((item) => [item.text, item.src]);
@@ -2226,25 +2124,11 @@ export const parseTransRes = async (
  * @returns {string} 模型生成的 Markdown 内容
  */
 function parseDictRes(res, apiType) {
+  if (OPENAI_COMPAT_TYPES.has(apiType)) {
+    return res?.choices?.[0]?.message?.content || "";
+  }
+
   switch (apiType) {
-    case OPT_TRANS_EPHONEAI:
-    case OPT_TRANS_APIMART:
-    case OPT_TRANS_OPENAI:
-    case OPT_TRANS_DEEPSEEK:
-    case OPT_TRANS_OPENCODEGO:
-    case OPT_TRANS_SILICONFLOW:
-    case OPT_TRANS_XIAOMIMIMO:
-    case OPT_TRANS_ALIYUNBAILIAN:
-    case OPT_TRANS_MODELSCOPE:
-    case OPT_TRANS_MODELBEST:
-    case OPT_TRANS_CEREBRAS:
-    case OPT_TRANS_ZAI:
-    case OPT_TRANS_GEMINI_2:
-    case OPT_TRANS_OPENROUTER:
-    case OPT_TRANS_ORCAROUTER:
-    case OPT_TRANS_REQUESTY:
-    case OPT_TRANS_OLLAMA:
-      return res?.choices?.[0]?.message?.content || "";
     case OPT_TRANS_GEMINI:
       return geminiResponseText(res);
     case OPT_TRANS_CLAUDE:
@@ -2452,7 +2336,6 @@ export async function* handleTranslate(
     docInfo,
     textFormat = "text",
     signal,
-    capture,
   }
 ) {
   if (signal?.aborted) return;
@@ -2538,12 +2421,10 @@ export async function* handleTranslate(
         chunk,
         { ...apiSetting, key: "", _useGoogleT: true }
       );
-      capture?.onRequest?.(chunkInput, chunkInit, chunkUserMsg);
       const response = await fetchData(chunkInput, chunkInit, fetchOpts);
       if (!response) {
         throw new Error("translate got empty response");
       }
-      capture?.onResponse?.(response);
       const parsed = await parseGoogleResponse(
         response,
         chunk,
@@ -2618,7 +2499,6 @@ export async function* handleTranslate(
             _useGooglePa: true,
           }
         );
-        capture?.onRequest?.(fallbackInput, fallbackInit, fallbackUserMsg);
         response = await fetchData(fallbackInput, fallbackInit, fetchOpts);
         if (!response) {
           throw new Error("translate got empty response on fallback");
@@ -2629,7 +2509,6 @@ export async function* handleTranslate(
         throw err;
       }
     }
-    capture?.onResponse?.(response);
 
     const result = await parseGoogleResponse(
       response,
@@ -2648,7 +2527,6 @@ export async function* handleTranslate(
   };
 
   const [input, init, userMsg] = await getRequest(enableStream);
-  capture?.onRequest?.(input, init, userMsg);
 
   if (enableStream) {
     const yieldedIds = new Set();
@@ -2959,29 +2837,11 @@ export const handleSubtitle = async ({
     return [];
   }
 
+  if (OPENAI_COMPAT_TYPES.has(apiType)) {
+    return parseSTRes(res?.choices?.[0]?.message?.content ?? "", events, from);
+  }
+
   switch (apiType) {
-    case OPT_TRANS_EPHONEAI:
-    case OPT_TRANS_APIMART:
-    case OPT_TRANS_OPENAI:
-    case OPT_TRANS_DEEPSEEK:
-    case OPT_TRANS_OPENCODEGO:
-    case OPT_TRANS_SILICONFLOW:
-    case OPT_TRANS_XIAOMIMIMO:
-    case OPT_TRANS_ALIYUNBAILIAN:
-    case OPT_TRANS_MODELSCOPE:
-    case OPT_TRANS_MODELBEST:
-    case OPT_TRANS_CEREBRAS:
-    case OPT_TRANS_ZAI:
-    case OPT_TRANS_GEMINI_2:
-    case OPT_TRANS_OPENROUTER:
-    case OPT_TRANS_ORCAROUTER:
-    case OPT_TRANS_REQUESTY:
-    case OPT_TRANS_OLLAMA:
-      return parseSTRes(
-        res?.choices?.[0]?.message?.content ?? "",
-        events,
-        from
-      );
     case OPT_TRANS_GEMINI: {
       const { thinkingMode } = apiSetting;
       const thinkingWasOn =
@@ -3177,25 +3037,11 @@ export const handleSummarize = async ({
 
   if (!res) return "";
 
+  if (OPENAI_COMPAT_TYPES.has(apiType)) {
+    return res?.choices?.[0]?.message?.content?.trim() || "";
+  }
+
   switch (apiType) {
-    case OPT_TRANS_EPHONEAI:
-    case OPT_TRANS_APIMART:
-    case OPT_TRANS_OPENAI:
-    case OPT_TRANS_DEEPSEEK:
-    case OPT_TRANS_OPENCODEGO:
-    case OPT_TRANS_SILICONFLOW:
-    case OPT_TRANS_XIAOMIMIMO:
-    case OPT_TRANS_ALIYUNBAILIAN:
-    case OPT_TRANS_MODELSCOPE:
-    case OPT_TRANS_MODELBEST:
-    case OPT_TRANS_CEREBRAS:
-    case OPT_TRANS_ZAI:
-    case OPT_TRANS_GEMINI_2:
-    case OPT_TRANS_OPENROUTER:
-    case OPT_TRANS_ORCAROUTER:
-    case OPT_TRANS_REQUESTY:
-    case OPT_TRANS_OLLAMA:
-      return res?.choices?.[0]?.message?.content?.trim() || "";
     case OPT_TRANS_GEMINI:
       return geminiResponseText(res).trim() || "";
     case OPT_TRANS_CLAUDE:

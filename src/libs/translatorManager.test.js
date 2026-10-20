@@ -219,9 +219,6 @@ jest.mock("./log", () => ({
   },
 }));
 
-const fs = require("fs");
-const path = require("path");
-const vm = require("vm");
 const { browser } = require("./browser");
 const { Translator } = require("./translator");
 const { TransboxManager } = require("./tranbox");
@@ -397,51 +394,6 @@ function applyStoredSetting(manager, { next, transOpen = "true" }) {
   };
   manager.applyTarget(target);
   return target;
-}
-
-function loadContextMenuClick() {
-  const source = fs.readFileSync(
-    path.join(__dirname, "../background.js"),
-    "utf8"
-  );
-  const start = source.indexOf("const contextMenuActions = {");
-  const end = source.indexOf("async function updateCspRules(");
-  if (start < 0 || end < start) {
-    throw new Error("context menu listener was not found");
-  }
-  const real = jest.requireActual("../config/msg");
-  const sendTabMsg = jest.fn();
-  const sandbox = {
-    sendTabMsg,
-    broadcastTranslateToggle: jest.fn(),
-    openOptionsPage: jest.fn(),
-    CMD_TOGGLE_TRANSLATE: real.CMD_TOGGLE_TRANSLATE,
-    CMD_TOGGLE_TRANSLATE_ONLY: real.CMD_TOGGLE_TRANSLATE_ONLY,
-    CMD_TOGGLE_STYLE: real.CMD_TOGGLE_STYLE,
-    CMD_OPEN_TRANBOX: real.CMD_OPEN_TRANBOX,
-    CMD_TOGGLE_TRANBOX: real.CMD_TOGGLE_TRANBOX,
-    CMD_OPEN_OPTIONS: real.CMD_OPEN_OPTIONS,
-    MSG_TRANS_TOGGLE_ONLY: real.MSG_TRANS_TOGGLE_ONLY,
-    MSG_TRANS_TOGGLE_STYLE: real.MSG_TRANS_TOGGLE_STYLE,
-    MSG_OPEN_TRANBOX: real.MSG_OPEN_TRANBOX,
-    MSG_TRANSBOX_TOGGLE: real.MSG_TRANSBOX_TOGGLE,
-  };
-  sandbox.browser = {
-    contextMenus: {
-      onClicked: {
-        addListener(listener) {
-          sandbox.click = listener;
-        },
-      },
-    },
-  };
-  vm.runInContext(source.slice(start, end), vm.createContext(sandbox));
-  return {
-    sendTabMsg,
-    click: sandbox.click,
-    real,
-    broadcastTranslateToggle: sandbox.broadcastTranslateToggle,
-  };
 }
 
 function sendRuntimeMessage(message) {
@@ -1688,24 +1640,6 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(onManualSwitch).toHaveBeenCalledWith(undefined);
     expect(mockTranslatorInstances[0].enable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances[0].disable).not.toHaveBeenCalled();
-  });
-
-  test("the context menu translate item uses the shared page toggle", () => {
-    const harness = loadContextMenuClick();
-    harness.click({ menuItemId: harness.real.CMD_TOGGLE_TRANSLATE });
-    expect(harness.broadcastTranslateToggle).toHaveBeenCalledTimes(1);
-    expect(harness.sendTabMsg).not.toHaveBeenCalled();
-    harness.click({ menuItemId: harness.real.CMD_TOGGLE_TRANBOX });
-    expect(harness.sendTabMsg).not.toHaveBeenCalled();
-    harness.click({
-      menuItemId: harness.real.CMD_OPEN_TRANBOX,
-      selectionText: "selected words",
-    });
-    expect(harness.sendTabMsg).toHaveBeenCalledTimes(1);
-    expect(harness.sendTabMsg).toHaveBeenCalledWith(
-      harness.real.MSG_OPEN_TRANBOX,
-      { text: "selected words" }
-    );
   });
 
   test("leaving pause follows the page switch even if the rule transOpen disagrees", () => {

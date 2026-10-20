@@ -57,7 +57,6 @@ export const MSG_UPDATE_ICON = "update_icon"; // 通知后台脚本更新扩展�
 // --- 用于 Window.postMessage 与自定义事件通信的事件名称 ---
 export const EVENT_KISS_INNER = "immertranslate_inner"; // 插件沙箱/内容脚本内部事件
 export const EVENT_KISS_TRANSLATOR = "immertranslate"; // 暴露给网页环境的外部交互事件
-export const EVENT_ADD_WORD = "immertranslate-add-word"; // 划词或字幕收录生词
 
 // --- 视频与字幕翻译特定消息类型 ---
 export const MSG_XHR_DATA_YOUTUBE = "IMMERTRANSLATE_XHR_DATA_YOUTUBE"; // 传递 YouTube 拦截到的字幕 XHR 数据

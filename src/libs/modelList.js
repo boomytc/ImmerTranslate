@@ -177,10 +177,6 @@ export function parseModelCatalogResponse(data) {
   return { models, thinkingCapabilities };
 }
 
-export function parseModelListResponse(data) {
-  return parseModelCatalogResponse(data).models;
-}
-
 /**
  * 给 URL 追加或覆盖一个 query 参数。
  *

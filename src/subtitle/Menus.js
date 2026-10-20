@@ -279,17 +279,8 @@ export function Menus({
     [enabledApis]
   );
 
-  // 构造 AI 智能断句服务下拉列表选项 (若没有启用的 AI 接口，则下拉项仅有禁用)
-  const segOptions = useMemo(() => {
-    const options = [{ value: "-", label: i18n("disable", "禁用") }];
-    aiEnabledApis.forEach((api) => {
-      options.push({ value: api.apiSlug, label: api.apiName });
-    });
-    return options;
-  }, [aiEnabledApis, i18n]);
-
-  // 构造 AI 视频上下文增强服务下拉列表选项 (若没有启用的 AI 接口，则下拉项仅有禁用)
-  const aiContextOptions = useMemo(() => {
+  // AI 智能断句与视频上下文增强共用同一份启用接口选项
+  const aiServiceOptions = useMemo(() => {
     const options = [{ value: "-", label: i18n("disable", "禁用") }];
     aiEnabledApis.forEach((api) => {
       options.push({ value: api.apiSlug, label: api.apiName });
@@ -348,18 +339,18 @@ export function Menus({
         onChange={handleChange}
         name="segSlug"
         value={segSlug || "-"}
-        options={segOptions}
+        options={aiServiceOptions}
         label={i18n("ai_segmentation")}
-        disabled={segOptions.length <= 1}
+        disabled={aiServiceOptions.length <= 1}
       />
       {/* 视频上下文增强下拉项：通过 AI 预分析视频内容，帮助更准确地进行专业词汇翻译 */}
       <Select
         onChange={handleChange}
         name="aiContextSlug"
         value={aiContextSlug || "-"}
-        options={aiContextOptions}
+        options={aiServiceOptions}
         label={i18n("ai_enhanced_context")}
-        disabled={aiContextOptions.length <= 1}
+        disabled={aiServiceOptions.length <= 1}
       />
       {/* 双语对照显示开关 */}
       <Switch
