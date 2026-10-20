@@ -2,7 +2,7 @@
 
 ## 版本与工具链
 
-`package.json` 是唯一版本源。`.env` 的 `REACT_APP_VERSION` 和三个 `public/manifest*.json` 由 `pnpm sync-version` 同步，禁止手工分别改号。同步前会校验所有文件与版本字段；文件缺失、字段重复或版本无效都会返回非零，阻断后续构建。
+`package.json` 是唯一版本源。`.env` 的 `REACT_APP_VERSION` 和 `public/manifest.json` 由 `pnpm sync-version` 同步，禁止手工分别改号。同步前会校验所有文件与版本字段；文件缺失、字段重复或版本无效都会返回非零，阻断后续构建。
 
 仓库通过 `packageManager` 和 `.pnpm-version` 固定 pnpm 9.14.4，CI 使用 Node.js 24。推荐使用 Corepack，安装依赖时保留锁文件：
 
@@ -34,7 +34,7 @@ git switch -c codex/release-v1.1.1
 pnpm version:patch
 ```
 
-在 CHANGELOG 顶部添加唯一、非空的 `## v1.1.1` 节，使用中文说明用户可见变化；历史条目保持不变。安全补丁还应交代个人规则钩子的兼容性变化。版本号、标签和 CHANGELOG 首节必须一致。
+在 CHANGELOG 顶部添加唯一、非空的 `## v1.1.1` 节，使用中文说明用户可见变化；历史条目保持不变。功能移除或行为变化应明确说明。版本号、标签和 CHANGELOG 首节必须一致。
 
 格式化仅处理本次变更文件，然后检查完整差异。`pnpm format:check` 默认检查相对 HEAD 的变更及未跟踪文件；PR CI 使用 `pnpm format:check origin/main` 检查该 PR。不要把已有的全仓格式差异混入发布提交。
 
@@ -99,6 +99,6 @@ gh workflow run release.yml --ref main \
 
 ## 发布验收
 
-确认标签对应 main 中的发布提交、工作流的状态查询、构建、发布三个 job 成功，Chrome 与 Edge ZIP 和来源清单齐全，包内版本正确。浏览器升级后验证订阅脚本不执行、个人规则仍可运行且看不到密钥、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
+确认标签对应 main 中的发布提交、工作流的状态查询、构建、发布三个 job 成功，Chrome 与 Edge ZIP 和来源清单齐全，包内版本正确。浏览器加载新版本后验证已移除的订阅和脚本入口不再出现、个人选择器规则与双语字幕仍可用、切换模型或接口地址不混用缓存、停止翻译后没有残留重试或错误提示。
 
 报告发布 PR、main 提交 SHA、标签、Release URL、工作流结果和最终分支状态。静态测试及构建通过不能替代浏览器实际升级验证。

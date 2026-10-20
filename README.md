@@ -34,10 +34,12 @@
 | 输入框翻译 | 在输入框里写完，直接译成目标语言。                       |
 | 视频字幕   | 支持 YouTube 字幕的双语显示。                            |
 | 悬浮球     | 切换双语或仅译文、换翻译服务和模型、设置当前站点怎么翻。 |
-| 规则与术语 | 按网站保存翻译规则，可订阅规则列表，支持术语表。         |
-| 同步       | 设置可加密后经 WebDAV 等方式同步。                       |
+| 规则与术语 | 使用内置网站规则、个人选择器规则和术语表。               |
+| 同步       | 设置可加密同步，默认使用 WebDAV。                        |
 
 界面语言：English、简体中文。
+
+1.2.0 聚焦 Chrome 与 Edge，已移除规则订阅、规则脚本和翻译钩子，以及生词本、字幕学习附带功能；YouTube 双语字幕继续保留。
 
 ## 翻译服务
 
@@ -57,6 +59,8 @@
 
 装好后点击工具栏图标即可开始；第一次可以直接用免钥服务试一下。
 
+更新时下载新版本压缩包，解压后在扩展管理页重新加载对应目录。当前解压加载方式不会自动升级。
+
 ## 从源码构建
 
 需要 Node.js 24 与 pnpm。
@@ -68,7 +72,7 @@ pnpm install
 pnpm build:chrome
 ```
 
-构建结果在 `build/chrome`，按上面的方法加载即可。`pnpm build` 会一次生成所有客户端，`pnpm test` 运行单元测试。版本与发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+构建结果在 `build/chrome`，按上面的方法加载即可。`pnpm build` 会一次生成 Chrome 与 Edge 客户端，`pnpm test` 运行单元测试。版本与发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 
