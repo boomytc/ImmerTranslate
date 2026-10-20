@@ -109,6 +109,32 @@ const isTouchAction = (action) =>
   action === MSG_TOUCH_TRANSLATE_STATE ||
   action === MSG_TOUCH_TRANSLATE_MODE_SET;
 
+// Save 只带 popup 控件的当前值：语言、服务、样式和高级开关。
+// 站点策略 transOpen 不在这份数据里，只由策略下拉 / writeSiteTransOpen 写入。
+// 折叠规则上的选择器、术语、注入样式、enabled 等也不在这里。
+const POPUP_SAVED_RULE_FIELDS = [
+  "apiSlug",
+  "fromLang",
+  "toLang",
+  "textStyle",
+  "transOnly",
+  "hasRichText",
+  "scanAll",
+  "isPlainText",
+  "autoScan",
+];
+
+function popupSavedRule(rule, pattern) {
+  const source = rule && typeof rule === "object" ? rule : {};
+  const saved = { pattern };
+  for (const key of POPUP_SAVED_RULE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      saved[key] = source[key];
+    }
+  }
+  return saved;
+}
+
 export function resolvePopupTextStyles(
   allTextStyles,
   activeStyleSlug,
@@ -569,7 +595,7 @@ export default function PopupCont({
   const handleSaveRule = useCallback(async () => {
     if (!selectedDomain) return;
     try {
-      const currentRule = { ...ruleRef.current, pattern: selectedDomain };
+      const currentRule = popupSavedRule(ruleRef.current, selectedDomain);
       const response =
         isExt && isContent
           ? await sendBgMsg(MSG_SAVE_RULE, currentRule)
