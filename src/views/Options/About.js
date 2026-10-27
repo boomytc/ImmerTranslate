@@ -1,6 +1,9 @@
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import { useI18n, useI18nMd } from "../../hooks/I18n";
 import Button from "@mui/material/Button";
 import Logo from "../../components/Logo";
@@ -18,7 +21,17 @@ function AboutDetails() {
       <CircularProgress size={24} />
     </div>
   ) : (
-    <ReactMarkdown>{error ? i18n("about_md_local") : data}</ReactMarkdown>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw, rehypeSanitize]}
+      components={{
+        a: ({ node, ...props }) => (
+          <a {...props} target="_blank" rel="noreferrer" />
+        ),
+      }}
+    >
+      {error ? i18n("about_md_local") : data}
+    </ReactMarkdown>
   );
 }
 

@@ -80,6 +80,12 @@ describe("settings layout boundaries", () => {
     expect(OPTIONS_STYLES).not.toMatch(/\.kt-options-page ul/);
     expect(OPTIONS_STYLES).toMatch(/\.kt-about-markdown ul/);
     expect(OPTIONS_STYLES).toMatch(
+      /\.kt-about-markdown table \{[^}]*min-width: 100%;/
+    );
+    expect(OPTIONS_STYLES).toMatch(
+      /\.kt-about-markdown th,\s*\.kt-about-markdown td \{[^}]*text-align: start;/
+    );
+    expect(OPTIONS_STYLES).toMatch(
       /\.kt-settings-card\s*\{[^}]*list-style:\s*none;/
     );
     expect(OPTIONS_STYLES).toMatch(
