@@ -73,18 +73,11 @@ describe("settings layout boundaries", () => {
     ).toBe(true);
   });
 
-  test("keeps layout grids flat and scopes prose list spacing", () => {
+  test("keeps layout grids flat and avoids global list spacing", () => {
     expect(OPTIONS_STYLES).not.toMatch(
       /\.kt-options-page \.MuiGrid-container\s*\{[^}]*border/
     );
     expect(OPTIONS_STYLES).not.toMatch(/\.kt-options-page ul/);
-    expect(OPTIONS_STYLES).toMatch(/\.kt-about-markdown ul/);
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-about-markdown table \{[^}]*min-width: 100%;/
-    );
-    expect(OPTIONS_STYLES).toMatch(
-      /\.kt-about-markdown th,\s*\.kt-about-markdown td \{[^}]*text-align: start;/
-    );
     expect(OPTIONS_STYLES).toMatch(
       /\.kt-settings-card\s*\{[^}]*list-style:\s*none;/
     );
@@ -128,9 +121,19 @@ describe("settings layout boundaries", () => {
     expect(shellRule).toContain("margin-top: 18px");
     expect(accordionRule).toContain("margin: 0");
     expect(contentRule).not.toContain("!important");
+  });
+
+  test("centers about content within the available page area", () => {
     expect(OPTIONS_STYLES).toMatch(
-      /\.kt-about-details \.kt-settings-advanced \.kt-settings-advanced__content\s*\{[^}]*padding:\s*0;/
+      /\.kt-options-main__inner--about \{[^}]*min-height: calc\(100vh - 118px\);[^}]*display: flex;/
     );
+    expect(OPTIONS_STYLES).toMatch(
+      /\.kt-options-main__inner--about \.kt-options-page \{[^}]*flex: 1;/
+    );
+    expect(OPTIONS_STYLES).toMatch(
+      /\.kt-about-hero \{[^}]*align-items: center;[^}]*justify-content: center;/
+    );
+    expect(OPTIONS_STYLES).toContain("min-height: calc(100vh - 148px)");
   });
 
   test("uses the wider drawer breakpoint and container-driven narrow layout", () => {

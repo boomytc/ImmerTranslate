@@ -174,7 +174,7 @@ export default function Layout() {
             <div
               className={`kt-options-main__inner ${
                 isWidePage ? "kt-options-main__inner--wide" : ""
-              }`.trim()}
+              } ${pathname === "/about" ? "kt-options-main__inner--about" : ""}`.trim()}
             >
               <header className="kt-options-page-header">
                 <h1>{page[0]}</h1>

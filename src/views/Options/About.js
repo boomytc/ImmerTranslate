@@ -1,40 +1,7 @@
 import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
-import { useI18n, useI18nMd } from "../../hooks/I18n";
+import { useI18n } from "../../hooks/I18n";
 import Button from "@mui/material/Button";
 import Logo from "../../components/Logo";
-import { SettingsAdvanced } from "./SettingsCard";
-
-/**
- * Render the localized project details in Markdown.
- */
-function AboutDetails() {
-  const i18n = useI18n();
-  const { data, loading, error } = useI18nMd("about_md");
-
-  return loading ? (
-    <div className="kt-about-loading">
-      <CircularProgress size={24} />
-    </div>
-  ) : (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw, rehypeSanitize]}
-      components={{
-        a: ({ node, ...props }) => (
-          <a {...props} target="_blank" rel="noreferrer" />
-        ),
-      }}
-    >
-      {error ? i18n("about_md_local") : data}
-    </ReactMarkdown>
-  );
-}
-
 export default function About() {
   const i18n = useI18n();
 
@@ -69,15 +36,6 @@ export default function About() {
           </Button>
         </div>
       </section>
-
-      <SettingsAdvanced
-        className="kt-about-details"
-        label={i18n("settings_project_details")}
-      >
-        <div className="kt-about-markdown">
-          <AboutDetails />
-        </div>
-      </SettingsAdvanced>
     </Box>
   );
 }

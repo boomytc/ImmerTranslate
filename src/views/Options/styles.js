@@ -77,6 +77,10 @@ export const OPTIONS_STYLES = String.raw`
 .kt-options-main { min-width: 0; padding: 38px clamp(24px, 5vw, 72px) 80px; container-name: options-main; container-type: inline-size; }
 .kt-options-main__inner { width: min(790px, 100%); margin: 0 auto; }
 .kt-options-main__inner--wide { width: min(1120px, 100%); }
+.kt-options-main__inner--about { min-height: calc(100vh - 118px); display: flex; flex-direction: column; }
+.kt-options-main__inner--about .kt-options-page { display: flex; flex: 1; }
+.kt-about-page { display: flex; flex: 1; }
+.kt-about-page .kt-about-hero { flex: 1; }
 .kt-options-page-header { margin: 0 0 26px; }
 .kt-options-page-header h1 { margin: 0; color: var(--kt-on); font-size: clamp(27px, 3vw, 31px); font-weight: 650; letter-spacing: -.035em; line-height: 1.2; }
 .kt-options-page-header p { margin: 8px 0 0; color: var(--kt-onv); font-size: 13.5px; line-height: 1.5; }
@@ -120,22 +124,6 @@ export const OPTIONS_STYLES = String.raw`
 .kt-options-page pre { padding: 14px; border-radius: var(--kt-radius-md, 12px); background: var(--kt-sf1); }
 .kt-options-page code,
 .kt-options-page a { overflow-wrap: anywhere; }
-.kt-about-markdown ul,
-.kt-about-markdown ol { max-width: 100%; margin-inline: 0; padding-inline-start: 24px; }
-.kt-about-markdown li { min-width: 0; overflow-wrap: anywhere; }
-.kt-about-markdown h1,
-.kt-about-markdown h2,
-.kt-about-markdown h3 { margin: 22px 0 10px; color: var(--kt-on); line-height: 1.35; }
-.kt-about-markdown h1 { font-size: 22px; }
-.kt-about-markdown h2 { font-size: 18px; }
-.kt-about-markdown h3 { font-size: 15px; }
-.kt-about-markdown p,
-.kt-about-markdown li { color: var(--kt-on); font-size: 14px; line-height: 1.65; }
-.kt-about-markdown table { width: max-content; min-width: 100%; border-collapse: collapse; }
-.kt-about-markdown th,
-.kt-about-markdown td { padding: 10px 12px; border-bottom: 1px solid var(--kt-border, var(--kt-linev)); text-align: start; vertical-align: top; }
-.kt-about-markdown th { color: var(--kt-onv); font-size: 12px; font-weight: 700; }
-.kt-about-markdown code { padding: 1px 4px; border-radius: 5px; background: var(--kt-sf2); font-family: ui-monospace, monospace; font-size: .92em; }
 .kt-options-page pre > code { min-width: 100%; display: block; overflow-wrap: normal; }
 .kt-options-section-title { margin: 0 0 10px !important; color: var(--kt-onv); font-size: 11px !important; font-weight: 700 !important; letter-spacing: .08em !important; text-transform: uppercase; }
 .kt-settings-section { margin-top: 26px; }
@@ -303,12 +291,6 @@ export const OPTIONS_STYLES = String.raw`
 .kt-about-hero p { max-width: 390px; margin: 13px 0 0; color: var(--kt-onv); font-size: 13px; line-height: 1.55; }
 .kt-about-hero small { margin-top: 5px; color: var(--kt-onv); font-size: 11px; }
 .kt-about-hero__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 19px; }
-.kt-about-details { margin-top: 0; }
-.kt-about-details .kt-settings-advanced .kt-settings-advanced__content { padding: 0; }
-.kt-about-loading { min-height: 120px; display: grid; place-items: center; }
-.kt-about-markdown { min-width: 0; padding: 20px; }
-.kt-about-markdown > :first-child { margin-top: 0; }
-.kt-about-markdown > :last-child { margin-bottom: 0; }
 
 @media (max-width: 1179px) {
   .kt-options-layout { display: block; }
@@ -320,6 +302,7 @@ export const OPTIONS_STYLES = String.raw`
   .kt-options-overlay { display: block; position: fixed; inset: 0; z-index: 15; border: 0; background: rgb(23 24 28 / 0.28); opacity: 0; pointer-events: none; transition: opacity var(--kt-dur, .15s) var(--kt-ease, ease-out); }
   .kt-options-overlay--open { opacity: 1; pointer-events: auto; }
   .kt-options-main { padding: 26px 18px 60px; }
+  .kt-options-main__inner--about { min-height: calc(100vh - 148px); }
 }
 
 @media (max-width: 620px) {

@@ -89,6 +89,20 @@ test.each([
   act(() => root.unmount());
 });
 
+test("applies the centered layout only to the about page", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  mockPathname = "/about/";
+  act(() => root.render(<Layout />));
+  expect(
+    container.querySelector(".kt-options-main__inner--about")
+  ).not.toBeNull();
+  mockPathname = "/rules";
+  act(() => root.render(<Layout />));
+  expect(container.querySelector(".kt-options-main__inner--about")).toBeNull();
+  act(() => root.unmount());
+});
+
 describe("compact settings navigation", () => {
   let mediaQuery;
   let mediaQueryListeners;

@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { useSetting } from "./Setting";
-import { I18N, URL_RAW_PREFIX, normalizeUiLang } from "../config";
-import { useGet } from "./Fetch";
+import { I18N, normalizeUiLang } from "../config";
 
 /**
  * 获取多语言文本的工具函数
@@ -33,17 +32,4 @@ export const useI18n = () => {
     setting: { uiLang },
   } = useSetting();
   return useLangMap(uiLang);
-};
-
-/**
- * 获取翻译相关的 Markdown 异步静态文档内容自定义 Hook
- * @param {string} key 文档文件名键值
- * @returns {object} fetch 异步加载状态
- */
-export const useI18nMd = (key) => {
-  const i18n = useI18n();
-  const fileName = i18n(key, "");
-  // 从指定的 CDN 或是仓库根路径下载对应的 md 文件
-  const url = fileName ? `${URL_RAW_PREFIX}/${fileName}` : "";
-  return useGet(url);
 };

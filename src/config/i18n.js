@@ -106,14 +106,6 @@ export const I18N = {
     zh: `关于`,
     en: `About`,
   },
-  about_md: {
-    zh: `README.md`,
-    en: `README.en.md`,
-  },
-  about_md_local: {
-    zh: `请 [点击这里](${process.env.REACT_APP_HOMEPAGE}) 查看详情。`,
-    en: `Please [click here](${process.env.REACT_APP_HOMEPAGE}) for details.`,
-  },
   ui_lang: {
     zh: `界面语言`,
     en: `Interface language`,
@@ -1529,10 +1521,6 @@ export const I18N = {
   settings_project_website: {
     zh: `项目网站`,
     en: `Website`,
-  },
-  settings_project_details: {
-    zh: `项目详情与使用说明`,
-    en: `Project details and usage guide`,
   },
   options_no_results: {
     zh: `没有匹配的设置`,
