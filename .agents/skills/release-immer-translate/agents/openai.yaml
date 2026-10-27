@@ -1,4 +1,0 @@
-interface:
-  display_name: "ImmerTranslate 版本发布"
-  short_description: "通过本机检查、构建和发布命令完成 ImmerTranslate 版本升级"
-  default_prompt: "使用 $release-immer-translate 全自动完成一次 ImmerTranslate 版本升级与发布。"
