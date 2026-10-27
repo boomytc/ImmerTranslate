@@ -116,7 +116,7 @@ export const I18N = {
   },
   ui_lang: {
     zh: `界面语言`,
-    en: `Interface Language`,
+    en: `Interface language`,
   },
   popup_default_view: {
     zh: `工具栏弹窗默认界面`,
@@ -1399,8 +1399,8 @@ export const I18N = {
     en: `Global defaults and general settings`,
   },
   options_appearance_description: {
-    zh: `界面主题与译文视觉呈现`,
-    en: `Interface theme and translation presentation`,
+    zh: `界面语言、主题与译文视觉呈现`,
+    en: `Interface language, theme, and translation presentation`,
   },
   options_web_description: {
     zh: `网页扫描、译文呈现与站点规则`,

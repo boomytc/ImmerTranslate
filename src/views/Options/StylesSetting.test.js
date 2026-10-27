@@ -30,24 +30,25 @@ jest.mock("../../hooks/I18n", () => ({
   useI18n: () => (key) => key,
 }));
 
-jest.mock("../../hooks/Setting", () => {
-  const setting = {
-    uiLang: "en",
-    darkMode: "auto",
-    customStyles: [
-      {
-        styleSlug: "custom-dangerous",
-        styleName: "Custom Dangerous",
-        styleCode: "position: fixed; inset: 0; z-index: 2147483647;",
-      },
-    ],
-  };
-  const updateSetting = jest.fn();
+const mockUpdateSetting = jest.fn();
+const mockAppearanceSetting = {
+  uiLang: "en",
+  darkMode: "auto",
+  customStyles: [
+    {
+      styleSlug: "custom-dangerous",
+      styleName: "Custom Dangerous",
+      styleCode: "position: fixed; inset: 0; z-index: 2147483647;",
+    },
+  ],
+};
 
-  return {
-    useSetting: () => ({ setting, updateSetting }),
-  };
-});
+jest.mock("../../hooks/Setting", () => ({
+  useSetting: () => ({
+    setting: mockAppearanceSetting,
+    updateSetting: mockUpdateSetting,
+  }),
+}));
 
 jest.mock("../../hooks/Confirm", () => ({
   useConfirm: () => jest.fn(async () => true),
@@ -114,9 +115,20 @@ function getSummaryTranslation(container) {
   ).find((span) => span.textContent === "style_preview_translation");
 }
 
+function interfaceLanguageRadios(container) {
+  return Array.from(
+    container
+      .querySelector('[aria-label="ui_lang"]')
+      .querySelectorAll('[role="radio"]')
+  );
+}
+
 describe("StylesSetting style previews", () => {
   beforeEach(() => {
     mockCss.mockClear();
+    mockUpdateSetting.mockClear();
+    mockAppearanceSetting.uiLang = "en";
+    mockAppearanceSetting.darkMode = "auto";
   });
 
   afterEach(() => {
@@ -254,6 +266,37 @@ describe("StylesSetting style previews", () => {
     expect(manager.hidden).toBe(false);
     expect(manager.querySelector('input[name="styleName"]')).toBe(nameInput);
     expect(nameInput.value).toBe("Unsaved style draft");
+
+    view.cleanup();
+  });
+
+  test("switches the interface language with fixed Chinese and English labels", () => {
+    const view = renderStylesSetting();
+    const radios = interfaceLanguageRadios(view.container);
+
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+      "中文",
+      "English",
+    ]);
+    expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual([
+      "false",
+      "true",
+    ]);
+
+    act(() => radios[0].click());
+    expect(mockUpdateSetting).toHaveBeenCalledWith({ uiLang: "zh" });
+
+    view.cleanup();
+  });
+
+  test("shows a Chinese locale tag as the Chinese option", () => {
+    mockAppearanceSetting.uiLang = "zh-CN";
+    const view = renderStylesSetting();
+    const radios = interfaceLanguageRadios(view.container);
+
+    expect(radios[0].getAttribute("aria-checked")).toBe("true");
+    act(() => radios[1].click());
+    expect(mockUpdateSetting).toHaveBeenCalledWith({ uiLang: "en" });
 
     view.cleanup();
   });

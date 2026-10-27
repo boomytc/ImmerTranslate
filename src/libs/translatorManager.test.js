@@ -1608,6 +1608,9 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(transbox.isEnabled()).toBe(false);
     expect(translator.setting.tranboxSetting.transOpen).toBe(false);
     expect(translator.setting.uiLang).toBe("zh");
+    expect(transbox.update).toHaveBeenCalledWith(
+      expect.objectContaining({ uiLang: "zh" })
+    );
   });
 
   test("continues checking queued controls after a verification rejects", async () => {

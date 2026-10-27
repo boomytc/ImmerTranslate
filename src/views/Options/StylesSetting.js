@@ -19,6 +19,7 @@ import {
   useStyleList,
 } from "../../hooks/CustomStyles";
 import { css } from "@emotion/css";
+import { normalizeUiLang } from "../../config/i18n";
 import { useSetting } from "../../hooks/Setting";
 import {
   SettingsCard,
@@ -28,6 +29,10 @@ import {
 } from "./SettingsCard";
 
 const STYLE_PREVIEW_SAMPLE = "这是一段用于预览译文样式的中文。";
+const UI_LANGUAGE_OPTIONS = [
+  { value: "zh", label: "中文" },
+  { value: "en", label: "English" },
+];
 
 /**
  * 单个自定义 CSS 样式编辑表单区域
@@ -236,11 +241,20 @@ export default function StylesSetting() {
   };
 
   const darkMode = setting.darkMode || "auto";
+  const uiLang = normalizeUiLang(setting.uiLang);
 
   return (
     <Box>
       <SettingsSection title={i18n("settings_interface_theme")}>
         <SettingsCard>
+          <SettingsRow label={i18n("ui_lang")}>
+            <SettingsSegmented
+              value={uiLang}
+              label={i18n("ui_lang")}
+              onChange={(value) => updateSetting({ uiLang: value })}
+              items={UI_LANGUAGE_OPTIONS}
+            />
+          </SettingsRow>
           <SettingsRow label={i18n("settings_appearance_mode")}>
             <SettingsSegmented
               value={darkMode}

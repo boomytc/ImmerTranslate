@@ -280,6 +280,7 @@ export default class TranslatorManager {
     if (typeof this._transboxManager?.update === "function") {
       this._transboxManager.update({
         tranboxSetting: this.#cloneConfig(stored.tranboxSetting),
+        uiLang: stored.uiLang,
       });
     }
     if (this._transboxManager) {
