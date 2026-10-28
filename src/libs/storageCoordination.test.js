@@ -119,22 +119,7 @@ const loadCoordinator = ({
 };
 
 describe("storage transaction coordination", () => {
-  let originalLocks;
-
-  beforeEach(() => {
-    originalLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
-    Object.defineProperty(navigator, "locks", {
-      configurable: true,
-      value: undefined,
-    });
-  });
-
   afterEach(() => {
-    if (originalLocks) {
-      Object.defineProperty(navigator, "locks", originalLocks);
-    } else {
-      delete navigator.locks;
-    }
     jest.dontMock("./client");
     jest.dontMock("./browser");
   });
@@ -523,25 +508,47 @@ describe("storage transaction coordination", () => {
     );
   });
 
-  test("uses the browser lock manager to coordinate web pages", async () => {
-    const permitted = deferred();
-    const request = jest.fn(async (_name, operation) => {
-      await permitted.promise;
-      return operation();
+  test("preserves metadata updates from independent extension pages sharing storage", async () => {
+    const { STOKEY_SYNC, KV_SETTING_KEY, KV_RULES_KEY } = require("../config");
+    const runtime = createRuntime();
+    let backgroundStorage;
+    jest.isolateModules(() => {
+      jest.doMock("./client", () => ({ isExt: true }));
+      jest.doMock("./browser", () => ({
+        browser: { runtime, storage: runtime.storage },
+        isBg: () => true,
+      }));
+      require("./storageCoordination").installStorageCoordinator();
+      backgroundStorage = require("./storage");
     });
-    Object.defineProperty(navigator, "locks", {
-      configurable: true,
-      value: { request },
-    });
-    const webPage = loadCoordinator({ extension: false });
-    const operation = jest.fn(() => "web complete");
-    const result = webPage.withStorageLock(operation);
-    await flushPromises();
+    const loadPageStorage = () => {
+      let pageStorage;
+      jest.isolateModules(() => {
+        jest.doMock("./client", () => ({ isExt: true }));
+        jest.doMock("./browser", () => ({
+          browser: { runtime, storage: runtime.storage },
+          isBg: () => false,
+        }));
+        pageStorage = require("./storage");
+      });
+      return pageStorage;
+    };
+    const first = loadPageStorage();
+    const second = loadPageStorage();
+    await backgroundStorage.storage.setObj(STOKEY_SYNC, { syncMeta: {} });
 
-    expect(request).toHaveBeenCalledWith(LOCK_NAME, expect.any(Function));
-    expect(operation).not.toHaveBeenCalled();
-    permitted.resolve();
-    await expect(result).resolves.toBe("web complete");
+    await Promise.all([
+      first.putSync({
+        syncMeta: { [KV_SETTING_KEY]: { updateAt: 1 } },
+      }),
+      second.putSync({
+        syncMeta: { [KV_RULES_KEY]: { updateAt: 2 } },
+      }),
+    ]);
+
+    expect(
+      Object.keys((await first.getSyncWithDefault()).syncMeta).sort()
+    ).toEqual([KV_SETTING_KEY, KV_RULES_KEY].sort());
   });
 
   test("keeps its fallback queue usable after an operation fails", async () => {

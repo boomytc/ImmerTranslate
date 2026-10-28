@@ -119,12 +119,7 @@ export function writeSiteRule({
     }
     throw new Error("rule-conflict");
   };
-  // Non-extension pages on the same origin coordinate through Web Locks.
-  const result = writeQueue.then(() =>
-    !isExt && globalThis.navigator?.locks
-      ? navigator.locks.request("kiss-rule-editor-write", write)
-      : write()
-  );
+  const result = writeQueue.then(write);
   writeQueue = result.catch(() => {});
   return result;
 }

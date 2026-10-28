@@ -5,7 +5,6 @@ import { kissLog } from "./log";
 const LOCK_NAME = "kiss-storage-transaction";
 export const STORAGE_LOCK_HOLD_TIMEOUT_MS = 10000;
 let queue = Promise.resolve();
-let databasePromise;
 let installed = false;
 let backgroundHold = 0;
 // Each extension page loads this module in its own window, so pagehide only
@@ -207,86 +206,6 @@ function withBackgroundLock(operation, markSettled) {
   });
 }
 
-function getLockDatabase() {
-  if (!databasePromise) {
-    const pending = new Promise((resolve, reject) => {
-      const request = indexedDB.open(LOCK_NAME, 1);
-      request.onupgradeneeded = () => request.result.createObjectStore("lock");
-      request.onsuccess = () => {
-        const database = request.result;
-        const invalidate = () => {
-          if (databasePromise === pending) databasePromise = undefined;
-          database.close();
-        };
-        database.onclose = invalidate;
-        database.onversionchange = invalidate;
-        resolve({ database, invalidate });
-      };
-      request.onerror = () => reject(request.error);
-    }).catch((error) => {
-      if (databasePromise === pending) databasePromise = undefined;
-      throw error;
-    });
-    databasePromise = pending;
-  }
-  return databasePromise;
-}
-
-/** Keep one IndexedDB transaction alive as an origin-wide mutex. */
-async function withIndexedDbLock(operation, reopened = false) {
-  const { database, invalidate } = await getLockDatabase();
-  let transaction;
-  try {
-    transaction = database.transaction("lock", "readwrite");
-  } catch (error) {
-    if (error?.name !== "InvalidStateError") throw error;
-    invalidate();
-    // A forced close can precede its close event. Retry only before work starts.
-    if (!reopened) return withIndexedDbLock(operation, true);
-    throw error;
-  }
-  return new Promise((resolve, reject) => {
-    const store = transaction.objectStore("lock");
-    let started = false;
-    let completed = false;
-    let result;
-    let failure;
-    let failed = false;
-    const keepAlive = () => {
-      const request = store.get("owner");
-      request.onsuccess = () => {
-        if (!started) {
-          started = true;
-          Promise.resolve()
-            .then(operation)
-            .then(
-              (value) => {
-                result = value;
-                completed = true;
-              },
-              (error) => {
-                failure = error;
-                failed = true;
-                completed = true;
-              }
-            );
-        }
-        if (!completed) keepAlive();
-      };
-    };
-    transaction.oncomplete = () => (failed ? reject(failure) : resolve(result));
-    transaction.onabort = () =>
-      reject(
-        storageFailure(
-          transaction.error || new Error("Storage coordination aborted"),
-          started ? "unknown" : "not-committed"
-        )
-      );
-    transaction.onerror = () => {};
-    keepAlive();
-  });
-}
-
 /** Only short storage operations belong here; network requests must run outside. */
 export function withStorageLock(operation) {
   // Reject only while this background turn is already inside the lock. A second
@@ -334,10 +253,6 @@ export function withStorageLock(operation) {
         throw error;
       }
     }
-    if (globalThis.navigator?.locks?.request) {
-      return navigator.locks.request(LOCK_NAME, operation);
-    }
-    if (typeof indexedDB !== "undefined") return withIndexedDbLock(operation);
     // jsdom has no cross-document storage or browser lock primitives.
     if (process.env.NODE_ENV === "test") return operation();
     throw new Error("Cross-page storage coordination is unavailable");

@@ -19,12 +19,12 @@ encrypted envelopes; a value that is not the current envelope is rejected.
 
 ## Ownership
 
-| Layer | Responsibility |
-| --- | --- |
+| Layer                                  | Responsibility                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
 | `storage` and the platform coordinator | Ordered persistence, edit timestamps, destination metadata, and compensation |
-| `storageState` | Confirmed page value, pending edit intents, projected UI value, and recovery |
-| `storageSyncController` and `sync` | Network synchronization and guarded acceptance of remote results |
-| React hooks | Subscription, rendering, and forwarding user operations |
+| `storageState`                         | Confirmed page value, pending edit intents, projected UI value, and recovery |
+| `storageSyncController` and `sync`     | Network synchronization and guarded acceptance of remote results             |
+| React hooks                            | Subscription, rendering, and forwarding user operations                      |
 
 `revision` invalidates asynchronous work when the visible scope changes.
 `editVersion` advances when a user queues an intent, including before that intent
@@ -84,12 +84,6 @@ Extensions use the background coordinator. An accepted storage commit completes
 before a subsequent writer receives the lock. Disconnect fencing is retained;
 there is no fixed-time lease that releases an in-flight write.
 
-Ordinary Web pages use Web Locks, with an IndexedDB mutex fallback. The fallback
-is kept alive only for short storage work. Its performance is not claimed to
-have been measured by unit tests.
-
-Userscript storage retains its original keys and JSON values. Per-context
-ordering, latest-value reads, compensation, and optional GM change listeners
-improve sequential editing and refresh. They do not provide a global transaction
-across arbitrary origins or legacy writers. A stronger guarantee requires a
-shared write authority or a different persistence protocol.
+In unit tests without an extension coordinator Port, an in-memory local fallback
+is retained so isolated suites can exercise storage and React hooks without
+booting a background service worker.
