@@ -558,3 +558,110 @@ test("archive script creates Chrome and Edge packages without invoking npx", asy
   );
   await writeArtifactManifest(root, tag, sha);
 });
+
+test("build task rejects invalid CLI arguments before touching files and preserves Chrome/Edge build flow", async (t) => {
+  const root = await fixture(t);
+  const sentinelFile = path.join(root, "sentinel/keep.txt");
+  const existingChromeFile = path.join(root, "build/chrome/keep.txt");
+  const existingEdgeFile = path.join(root, "build/edge/keep.txt");
+  await mkdir(path.dirname(sentinelFile), { recursive: true });
+  await mkdir(path.dirname(existingChromeFile), { recursive: true });
+  await mkdir(path.dirname(existingEdgeFile), { recursive: true });
+  await writeFile(sentinelFile, "sentinel intact");
+  await writeFile(existingChromeFile, "chrome intact");
+  await writeFile(existingEdgeFile, "edge intact");
+
+  const zxBin = path.join(repository, "node_modules/.bin/zx");
+  const scriptPath = path.join(repository, "src/scripts/build-task.mjs");
+  const runBuildTask = (args, extraEnv = {}) =>
+    spawnSync(zxBin, [scriptPath, ...args], {
+      cwd: root,
+      env: { ...process.env, ...extraEnv },
+      encoding: "utf8",
+    });
+
+  for (const invalidArgs of [
+    [],
+    ["--target"],
+    ["--target="],
+    ["chrome"],
+    ["--target=chrome", "extra"],
+    ["--target=chrome", "--unknown"],
+    ["--no-target", "--target=chrome"],
+    ["--target=chrome", "--target=edge"],
+    ["--target=chrome", "--target=chrome"],
+    ["--target", "chrome", "--target", "chrome"],
+    ["--target=firefox"],
+    ["--target=../sentinel"],
+    ["--target", "../sentinel"],
+    ["--target=chrome/../sentinel"],
+  ]) {
+    const result = runBuildTask(invalidArgs);
+    assert.notEqual(
+      result.status,
+      0,
+      `expected nonzero exit for ${JSON.stringify(invalidArgs)}`
+    );
+    assert.equal(await readFile(sentinelFile, "utf8"), "sentinel intact");
+    assert.equal(await readFile(existingChromeFile, "utf8"), "chrome intact");
+    assert.equal(await readFile(existingEdgeFile, "utf8"), "edge intact");
+  }
+
+  await rm(path.join(root, "build/chrome"), { recursive: true, force: true });
+  const missingChromeEdgeResult = runBuildTask(["--target=edge"]);
+  assert.notEqual(missingChromeEdgeResult.status, 0);
+  assert.equal(await readFile(existingEdgeFile, "utf8"), "edge intact");
+  await mkdir(path.dirname(existingChromeFile), { recursive: true });
+  await writeFile(existingChromeFile, "chrome intact");
+
+  const fakeBin = path.join(root, "fake-bin");
+  const rewiredLog = path.join(root, "rewired-calls.log");
+  await mkdir(fakeBin);
+  await writeFile(
+    path.join(fakeBin, "react-app-rewired"),
+    `#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+fs.appendFileSync(${JSON.stringify(rewiredLog)}, JSON.stringify({
+  args: process.argv.slice(2),
+  client: process.env.REACT_APP_CLIENT,
+  buildPath: process.env.BUILD_PATH,
+}) + "\\n");
+const outDir = path.resolve(process.env.BUILD_PATH);
+fs.mkdirSync(outDir, { recursive: true });
+fs.writeFileSync(path.join(outDir, "manifest.json"), '{"version":"1.1.1"}');
+fs.writeFileSync(path.join(outDir, "content.html"), "<html></html>");
+`,
+    { mode: 0o755 }
+  );
+  const envWithFakeRewired = {
+    PATH: `${fakeBin}:${path.join(repository, "node_modules/.bin")}:${process.env.PATH}`,
+  };
+
+  const chromeResult = runBuildTask(["--target=chrome"], envWithFakeRewired);
+  assert.equal(chromeResult.status, 0, chromeResult.stderr);
+  assert.equal(
+    await readFile(path.join(root, "build/chrome/manifest.json"), "utf8"),
+    '{"version":"1.1.1"}'
+  );
+  await assert.rejects(
+    readFile(path.join(root, "build/chrome/content.html"), "utf8"),
+    /ENOENT/
+  );
+  await assert.rejects(readFile(existingChromeFile, "utf8"), /ENOENT/);
+
+  const edgeResult = runBuildTask(["--target=edge"], envWithFakeRewired);
+  assert.equal(edgeResult.status, 0, edgeResult.stderr);
+  assert.equal(
+    await readFile(path.join(root, "build/edge/manifest.json"), "utf8"),
+    '{"version":"1.1.1"}'
+  );
+  const calls = (await readFile(rewiredLog, "utf8")).trim().split("\n");
+  assert.equal(calls.length, 1);
+  assert.deepEqual(JSON.parse(calls[0]), {
+    args: ["build"],
+    client: "chrome",
+    buildPath: "./build/chrome",
+  });
+  assert.equal(await readFile(sentinelFile, "utf8"), "sentinel intact");
+});
