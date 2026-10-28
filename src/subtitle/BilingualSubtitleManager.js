@@ -21,6 +21,7 @@ export class BilingualSubtitleManager {
   #seekSyncRafId = null; // 控制进度 seek 完毕后强制同步的 requestAnimationFrame ID
   #translationSessionId = 0; // 当前翻译会话版本 ID，用于防竞态过滤过期异步请求
   #abortController = null; // 用于在实例销毁时中止所有尚未返回的网络请求
+  #inflightSubtitles = new Map(); // 当前实例拥有的在途翻译字幕对象 -> runToken
   #playerControlBarObserver = null; // 监听播放器底部控制条显隐突变的 MutationObserver
   #syncPaperBottomAfterDrag = null; // 拖拽结束后按当前控制条状态修正字幕位置
   #syncPaperPosition = null; // 按当前播放器尺寸和控制条状态重算字幕位置
@@ -64,6 +65,13 @@ export class BilingualSubtitleManager {
     this.onTimeUpdate(); // 3. 触发一次初始化同步渲染
   }
 
+  #releaseInflightSubtitles() {
+    for (const subtitle of this.#inflightSubtitles.keys()) {
+      subtitle.isTranslating = false;
+    }
+    this.#inflightSubtitles.clear();
+  }
+
   /**
    * 销毁当前实例，全面清理 DOM 元素、未决请求、事件监听以及轮询定时器，防止内存泄漏
    */
@@ -72,6 +80,7 @@ export class BilingualSubtitleManager {
     this.#translationSessionId += 1; // 递增会话 ID，使当前在途的异步请求回调全部失效
     this.#abortController?.abort(); // 中止未返回的底层请求
     this.#abortController = null;
+    this.#releaseInflightSubtitles();
     this.onSubtitleUpdate = null;
     this.#removeEventListeners(); // 解绑视频播放监听
     this.#throttledTriggerTranslations?.cancel(); // 取消节流触发器
@@ -351,6 +360,7 @@ export class BilingualSubtitleManager {
     this.#translationSessionId += 1;
     this.#abortController?.abort();
     this.#abortController = new AbortController();
+    this.#releaseInflightSubtitles();
     // 强制高亮展示对应处的字幕，且不在此触发翻译
     this.#syncToCurrentTime({ forceRender: true, triggerTranslations: false });
   }
@@ -361,9 +371,7 @@ export class BilingualSubtitleManager {
   onSeek() {
     this.#throttledTriggerTranslations.cancel();
     // 拖动期间被中止的字幕请求不会走到自身 finally，这里统一解除标记，允许新位置重新翻译。
-    for (const sub of this.#formattedSubtitles) {
-      if (sub.isTranslating) sub.isTranslating = false;
-    }
+    this.#releaseInflightSubtitles();
     this.#syncToCurrentTime({ forceRender: true });
     this.#scheduleSeekSettledSync(); // 调度下一帧做一次确认位置同步
   }
@@ -546,19 +554,27 @@ export class BilingualSubtitleManager {
     const signal = this.#abortController?.signal;
     if (signal?.aborted) return;
 
+    const runToken = Symbol("subtitle-translate");
+    const isCurrentRun = () =>
+      sessionId === this.#translationSessionId &&
+      !signal?.aborted &&
+      this.#inflightSubtitles.get(subtitle) === runToken;
+
     const normalizeStreamText = (text) =>
       Array.isArray(text) ? text[0] || "" : text || "";
 
-    const updateSubtitleTranslation = (translation) => {
-      if (!translation || sessionId !== this.#translationSessionId) return;
-      if (signal?.aborted) return;
+    const updateSubtitleTranslation = (
+      translation,
+      { isDraft = false } = {}
+    ) => {
+      if (!translation || !isCurrentRun()) return;
 
       // 字幕以纯文本渲染，开启后将模型输出的行内 LaTeX 转成可读的 Unicode。
       const decoded = decodeHTMLEntities(translation);
       subtitle.translation = this.#setting.parseLatex
         ? parseMathInText(decoded)
         : decoded;
-      subtitle._isDraftTranslation = false;
+      subtitle._isDraftTranslation = isDraft;
 
       const currentSubtitleIndexNow = this.#findSubtitleIndexForTime(
         this.#videoEl.currentTime * 1000
@@ -577,6 +593,7 @@ export class BilingualSubtitleManager {
       }
     };
 
+    this.#inflightSubtitles.set(subtitle, runToken);
     subtitle.isTranslating = true;
     try {
       const {
@@ -602,16 +619,18 @@ export class BilingualSubtitleManager {
         docInfo,
         translateVariants,
         signal,
-        onStreamChunk: ({ text }) => {
+        onStreamChunk: ({ text, isComplete }) => {
           // 字幕单句翻译的流式 chunk 只更新当前字幕对象，不改时间轴结构。
-          updateSubtitleTranslation(normalizeStreamText(text));
+          updateSubtitleTranslation(normalizeStreamText(text), {
+            isDraft: isComplete === false,
+          });
         },
       });
       // 竞态校验：如翻译异步返回时会话 ID 已过时，丢弃结果防止脏数据覆盖
-      if (sessionId !== this.#translationSessionId) return;
-      updateSubtitleTranslation(trText);
+      if (!isCurrentRun()) return;
+      updateSubtitleTranslation(trText, { isDraft: false });
     } catch (error) {
-      if (sessionId !== this.#translationSessionId) return;
+      if (!isCurrentRun()) return;
       if (error?.name === "AbortError") return; // 属于 Abort 中止，静默退出
       logger.info("Translation failed for:", subtitle.text, error);
       if (
@@ -622,11 +641,12 @@ export class BilingualSubtitleManager {
       }
       subtitle._isDraftTranslation = false;
     } finally {
-      if (sessionId !== this.#translationSessionId) return;
+      if (!isCurrentRun()) return;
       subtitle.isTranslating = false;
 
       // 发布最终状态更新事件；流式阶段已经推送过部分译文，这里保证失败态或最终态也同步给侧栏。
-      updateSubtitleTranslation(subtitle.translation);
+      updateSubtitleTranslation(subtitle.translation, { isDraft: false });
+      this.#inflightSubtitles.delete(subtitle);
     }
   }
 

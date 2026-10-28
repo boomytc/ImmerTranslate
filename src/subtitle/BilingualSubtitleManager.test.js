@@ -641,4 +641,119 @@ describe("BilingualSubtitleManager", () => {
 
     manager.destroy();
   });
+
+  test("destroying a manager releases its in-flight isTranslating flags on a shared array without letting late settle corrupt the next instance", async () => {
+    const firstPending = createDeferred();
+    const firstRejectPending = createDeferred();
+    const secondPending = createDeferred();
+    const secondRejectPending = createDeferred();
+
+    let callIndex = 0;
+    const signals = [];
+    apiTranslate.mockImplementation(({ text, signal, onStreamChunk }) => {
+      signals.push(signal);
+      callIndex += 1;
+      if (callIndex === 1) {
+        onStreamChunk?.({ text: "旧实例半截流式译文", isComplete: false });
+        return firstPending.promise;
+      }
+      if (callIndex === 2) {
+        return firstRejectPending.promise;
+      }
+      if (callIndex === 3) {
+        return secondPending.promise;
+      }
+      return secondRejectPending.promise;
+    });
+
+    const sharedSubtitles = [
+      {
+        start: 0,
+        end: 1000,
+        text: "already done",
+        translation: "已完成译文",
+      },
+      {
+        start: 1000,
+        end: 2000,
+        text: "pending resolve",
+        translation: "",
+      },
+      {
+        start: 2000,
+        end: 3000,
+        text: "pending reject",
+        translation: "",
+      },
+    ];
+
+    const videoEl = createVideoElement();
+    const manager1 = new BilingualSubtitleManager({
+      videoEl,
+      formattedSubtitles: sharedSubtitles,
+      setting,
+    });
+
+    manager1.start();
+    await Promise.resolve();
+
+    expect(apiTranslate).toHaveBeenCalledTimes(2);
+    expect(sharedSubtitles[0].translation).toBe("已完成译文");
+    expect(sharedSubtitles[1].isTranslating).toBe(true);
+    expect(sharedSubtitles[2].isTranslating).toBe(true);
+
+    // Destroy manager1 while both requests are in flight (e.g. YouTube CC toggled off)
+    manager1.destroy();
+
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(true);
+    expect(sharedSubtitles[0].translation).toBe("已完成译文");
+    expect(sharedSubtitles[1].isTranslating).toBe(false);
+    expect(sharedSubtitles[2].isTranslating).toBe(false);
+
+    // Recreate manager2 with the exact same sharedSubtitles array without seeking
+    const manager2 = new BilingualSubtitleManager({
+      videoEl,
+      formattedSubtitles: sharedSubtitles,
+      setting,
+    });
+    manager2.onSubtitleUpdate = jest.fn();
+    manager2.start();
+    await Promise.resolve();
+
+    // Completed cue [0] is not re-requested; interrupted cues [1] and [2] are re-requested
+    expect(apiTranslate).toHaveBeenCalledTimes(4);
+    expect(sharedSubtitles[1].isTranslating).toBe(true);
+    expect(sharedSubtitles[2].isTranslating).toBe(true);
+
+    // Old manager1 requests settle (one resolves, one rejects) while manager2 is in flight
+    firstPending.resolve({ trText: "旧实例晚到成功译文" });
+    firstRejectPending.reject(new Error("old instance network error"));
+    await firstPending.promise;
+    await firstRejectPending.promise.catch(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Old results must not write back and old finally must not clear manager2's isTranslating
+    expect(sharedSubtitles[1].translation).not.toBe("旧实例晚到成功译文");
+    expect(sharedSubtitles[2].translation).not.toBe("[Translation failed]");
+    expect(sharedSubtitles[1].isTranslating).toBe(true);
+    expect(sharedSubtitles[2].isTranslating).toBe(true);
+
+    // Now manager2's own requests finish
+    secondPending.resolve({ trText: "新实例译文一" });
+    secondRejectPending.resolve({ trText: "新实例译文二" });
+    await secondPending.promise;
+    await secondRejectPending.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(sharedSubtitles[0].translation).toBe("已完成译文");
+    expect(sharedSubtitles[1].translation).toBe("新实例译文一");
+    expect(sharedSubtitles[2].translation).toBe("新实例译文二");
+    expect(sharedSubtitles[1].isTranslating).toBe(false);
+    expect(sharedSubtitles[2].isTranslating).toBe(false);
+
+    manager2.destroy();
+  });
 });
