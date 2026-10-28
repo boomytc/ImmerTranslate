@@ -16,6 +16,7 @@ import { DEFAULT_FAB, applyFabSitePolicy } from "../../config/fab";
 import * as storageStateModule from "../../libs/storageState";
 import { getStorageState } from "../../libs/storageState";
 import { saveRule } from "../../libs/rules";
+import { fetchModelCatalog } from "../../libs/modelList";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -200,6 +201,11 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
   beforeEach(async () => {
     jest.clearAllMocks();
     mockGetCurTab.mockResolvedValue({ url: "https://example.com/test" });
+    mockUpdateSetting.mockResolvedValue({ changed: true });
+    fetchModelCatalog.mockResolvedValue({
+      models: ["gpt-4o", "gpt-4o-mini", "custom-model"],
+      thinkingCapabilities: {},
+    });
     mockContextSetting = { blacklist: "" };
     const fabState = getStorageState(STOKEY_FAB, DEFAULT_FAB);
     await fabState.save({
@@ -279,6 +285,116 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
         args: { apiSlug: "qwenmt", model: "qwen-mt-plus" },
       });
       expect(mockUpdateSetting).toHaveBeenCalled();
+
+      view.cleanup();
+    });
+
+    test("rolls back model selection and shows error feedback when the page rejects MSG_TRANS_SET_MODEL or persistence fails", async () => {
+      const processActions = jest.fn(async (message) => {
+        if (message?.action === MSG_TRANS_SET_MODEL) {
+          return { error: "Page rejected model switch" };
+        }
+        return pageReply(message);
+      });
+      const view = renderPopup({ processActions });
+      await flushEffects();
+
+      const modelSelect = view.container.querySelector(
+        ".kt-popup-model-select"
+      );
+      expect(modelSelect.value).toBe("gpt-4o");
+
+      await act(async () => {
+        modelSelect.value = "gpt-4o-mini";
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await flushEffects();
+
+      // Page rejected: must roll back UI selection, skip settings persistence, and show error alert
+      expect(modelSelect.value).toBe("gpt-4o");
+      expect(mockUpdateSetting).not.toHaveBeenCalled();
+      expect(
+        view.container.querySelector('[role="alert"]')?.textContent
+      ).toContain("popup_action_failed");
+
+      // Now page accepts, but updateSetting rejects (persistence failure)
+      processActions.mockImplementation(async (message) => pageReply(message));
+      mockUpdateSetting.mockRejectedValueOnce(
+        new Error("Storage write failed")
+      );
+
+      await act(async () => {
+        modelSelect.value = "custom-model";
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await flushEffects();
+
+      expect(modelSelect.value).toBe("gpt-4o");
+      expect(processActions).toHaveBeenLastCalledWith({
+        action: MSG_TRANS_SET_MODEL,
+        args: { apiSlug: "openai", model: "gpt-4o" },
+      });
+      expect(
+        view.container.querySelector('[role="alert"]')?.textContent
+      ).toContain("popup_action_failed");
+
+      view.cleanup();
+    });
+
+    test("consecutive model switches keep the latest confirmed model and ignore late superseded responses", async () => {
+      const pendingPageConfirmations = [];
+      const processActions = jest.fn((message) => {
+        if (message?.action === MSG_TRANS_SET_MODEL) {
+          return new Promise((resolve) => {
+            pendingPageConfirmations.push({
+              model: message.args.model,
+              resolve,
+            });
+          });
+        }
+        return Promise.resolve(pageReply(message));
+      });
+
+      const view = renderPopup({ processActions });
+      await flushEffects();
+
+      const modelSelect = view.container.querySelector(
+        ".kt-popup-model-select"
+      );
+      expect(modelSelect.value).toBe("gpt-4o");
+
+      // Switch to gpt-4o-mini (req 1), then immediately to custom-model (req 2)
+      await act(async () => {
+        modelSelect.value = "gpt-4o-mini";
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await act(async () => {
+        modelSelect.value = "custom-model";
+        modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      expect(modelSelect.value).toBe("custom-model");
+      expect(pendingPageConfirmations).toHaveLength(2);
+
+      // Resolve req 2 first, then req 1 late
+      await act(async () => {
+        pendingPageConfirmations[1].resolve({ ok: true });
+        await Promise.resolve();
+      });
+      await flushEffects();
+
+      await act(async () => {
+        pendingPageConfirmations[0].resolve({ ok: true });
+        await Promise.resolve();
+      });
+      await flushEffects();
+
+      expect(modelSelect.value).toBe("custom-model");
+      expect(mockUpdateSetting).toHaveBeenCalledTimes(1);
+      const updater = mockUpdateSetting.mock.calls[0][0];
+      const updated = updater({
+        transApis: [{ apiSlug: "openai", model: "gpt-4o" }],
+      });
+      expect(updated.transApis[0].model).toBe("custom-model");
 
       view.cleanup();
     });

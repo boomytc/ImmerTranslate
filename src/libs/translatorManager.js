@@ -932,7 +932,14 @@ export default class TranslatorManager {
         publishRule = true;
         break;
       case MSG_TRANS_SET_MODEL:
-        this._translator?.updateApiModel?.(args?.apiSlug, args?.model);
+        if (
+          this._translator?.updateApiModel?.(args?.apiSlug, args?.model) ===
+          false
+        ) {
+          return {
+            error: `Failed to update model for service: ${args?.apiSlug || ""}`,
+          };
+        }
         break;
       case MSG_OPEN_TRANBOX:
         document.dispatchEvent(

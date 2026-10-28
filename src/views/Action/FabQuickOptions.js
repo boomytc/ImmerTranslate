@@ -147,6 +147,7 @@ export default function FabQuickOptions({
   }, [rule?.apiSlug]);
 
   useEffect(() => {
+    setCatalogModels([]);
     if (!supportsModel || !listUrl || !String(activeApi?.key || "").trim()) {
       return undefined;
     }

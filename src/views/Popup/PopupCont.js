@@ -617,6 +617,9 @@ export default function PopupCont({
   );
   const [modelOverride, setModelOverride] = useState(null);
   const [catalogModels, setCatalogModels] = useState([]);
+  const confirmedModelRef = useRef({});
+  const pendingModelRef = useRef({});
+  const modelSwitchSeqRef = useRef(0);
 
   const supportsModel = Boolean(
     activeApiSetting &&
@@ -624,7 +627,11 @@ export default function PopupCont({
         activeApiSetting.apiType === OPT_TRANS_QWENMT)
   );
   const listUrl = String(activeApiSetting?.url || "").trim();
-  const selectedModel = modelOverride ?? activeApiSetting?.model ?? "";
+  const overrideForActiveSlug =
+    modelOverride && modelOverride.apiSlug === apiSlug
+      ? modelOverride.model
+      : undefined;
+  const selectedModel = overrideForActiveSlug ?? activeApiSetting?.model ?? "";
   const modelOptions = useMemo(
     () =>
       uniqueModels([
@@ -635,12 +642,20 @@ export default function PopupCont({
     [activeApiSetting?.apiType, catalogModels, selectedModel]
   );
 
-  useEffect(() => {
-    setModelOverride(null);
-    setCatalogModels([]);
-  }, [apiSlug]);
+  useLayoutEffect(() => {
+    if (!apiSlug || pendingModelRef.current[apiSlug]) return;
+    if (activeApiSetting?.model !== undefined) {
+      confirmedModelRef.current[apiSlug] = activeApiSetting.model;
+    }
+    setModelOverride((current) => {
+      if (!current || current.apiSlug !== apiSlug) return null;
+      if (current.model === activeApiSetting?.model) return null;
+      return current;
+    });
+  }, [activeApiSetting?.model, apiSlug]);
 
   useEffect(() => {
+    setCatalogModels([]);
     if (
       !supportsModel ||
       !listUrl ||
@@ -670,6 +685,7 @@ export default function PopupCont({
       active = false;
     };
   }, [
+    activeApiSetting?.apiSlug,
     activeApiSetting?.apiType,
     activeApiSetting?.key,
     listUrl,
@@ -677,34 +693,88 @@ export default function PopupCont({
   ]);
 
   const handleSelectModel = useCallback(
-    (model) => {
+    async (model) => {
       if (!model || model === selectedModel || !activeApiSetting) return;
-      setModelOverride(model);
-      if (canTranslatePage) {
-        void Promise.resolve(
-          processActions
-            ? processActions({
-                action: MSG_TRANS_SET_MODEL,
-                args: { apiSlug: activeApiSetting.apiSlug, model },
-              })
-            : sendPageMessage(MSG_TRANS_SET_MODEL, {
-                apiSlug: activeApiSetting.apiSlug,
-                model,
-              })
-        ).catch((err) => kissLog("apply model to page", err));
+      const targetSlug = activeApiSetting.apiSlug;
+      if (confirmedModelRef.current[targetSlug] === undefined) {
+        confirmedModelRef.current[targetSlug] = activeApiSetting.model ?? "";
       }
-      void updateSetting((previous) => ({
-        ...previous,
-        transApis: (previous?.transApis || setting?.transApis || []).map(
-          (api) =>
-            api.apiSlug === activeApiSetting.apiSlug ? { ...api, model } : api
-        ),
-      }));
+      const requestId = ++modelSwitchSeqRef.current;
+      pendingModelRef.current[targetSlug] = { requestId, model };
+      setModelOverride({ apiSlug: targetSlug, model, requestId });
+
+      const sendToPage = (nextModel) => {
+        const args = { apiSlug: targetSlug, model: nextModel };
+        return processActions
+          ? processActions({ action: MSG_TRANS_SET_MODEL, args })
+          : sendPageMessage(MSG_TRANS_SET_MODEL, args);
+      };
+      const persistModel = (nextModel) =>
+        updateSetting((previous) => ({
+          ...previous,
+          transApis: (previous?.transApis || setting?.transApis || []).map(
+            (api) =>
+              api.apiSlug === targetSlug ? { ...api, model: nextModel } : api
+          ),
+        }));
+
+      let pageConfirmed = false;
+      try {
+        if (canTranslatePage) {
+          const response = await sendToPage(model);
+          if (!response || response.error || response.code === "NO_RECEIVER") {
+            throw new Error(
+              response?.error || "The page did not confirm the model change."
+            );
+          }
+          const pageApis = response?.setting?.transApis;
+          if (Array.isArray(pageApis)) {
+            const matched = pageApis.find((api) => api?.apiSlug === targetSlug);
+            if (!matched || matched.model !== model) {
+              throw new Error("The page did not confirm the model change.");
+            }
+          }
+          pageConfirmed = true;
+        }
+        if (pendingModelRef.current[targetSlug]?.requestId !== requestId) {
+          return;
+        }
+        await persistModel(model);
+        if (pendingModelRef.current[targetSlug]?.requestId === requestId) {
+          confirmedModelRef.current[targetSlug] = model;
+          delete pendingModelRef.current[targetSlug];
+          if (activeRef.current) {
+            setModelOverride({ apiSlug: targetSlug, model, requestId });
+          }
+        }
+      } catch (error) {
+        if (pendingModelRef.current[targetSlug]?.requestId === requestId) {
+          delete pendingModelRef.current[targetSlug];
+          const fallbackModel =
+            confirmedModelRef.current[targetSlug] ??
+            activeApiSetting.model ??
+            "";
+          if (activeRef.current) {
+            setModelOverride({
+              apiSlug: targetSlug,
+              model: fallbackModel,
+              requestId,
+            });
+          }
+          if (pageConfirmed && canTranslatePage) {
+            void Promise.resolve(sendToPage(fallbackModel)).catch((err) =>
+              kissLog("rollback model on page", err)
+            );
+          }
+          reportActionFailure(error);
+        }
+      }
     },
     [
       activeApiSetting,
       canTranslatePage,
       processActions,
+      reportActionFailure,
       selectedModel,
       sendPageMessage,
       setting?.transApis,

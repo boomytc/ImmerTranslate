@@ -310,6 +310,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
   const [connectionResult, setConnectionResult] = useState(null);
   const [connectionLoading, setConnectionLoading] = useState(false);
   const requestedModelListKeyRef = useRef("");
+  const modelListRequestIdRef = useRef(0);
   const lastSyncedApiRef = useRef(api);
   const pendingOpenRouterResolutionRef = useRef(false);
   const confirm = useConfirm();
@@ -348,6 +349,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
   }, [api, apiSlug]);
 
   useLayoutEffect(() => {
+    modelListRequestIdRef.current += 1;
     setShowMore(false);
     setModelOptions([]);
     setModelThinkingCapabilities({});
@@ -358,6 +360,13 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     requestedModelListKeyRef.current = "";
     pendingOpenRouterResolutionRef.current = false;
   }, [apiSlug]);
+
+  useEffect(
+    () => () => {
+      modelListRequestIdRef.current += 1;
+    },
+    []
+  );
 
   const activeFormData = useMemo(
     () => (formData?.apiSlug === apiSlug ? formData : api || {}),
@@ -623,6 +632,8 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     useContext && API_SPE_TYPES.context.has(apiType);
 
   useEffect(() => {
+    modelListRequestIdRef.current += 1;
+    setModelOptions([]);
     setModelListStatus("idle");
     setModelListError("");
     setModelThinkingCapabilities({});
@@ -777,19 +788,29 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
         // The model catalog includes OpenRouter capabilities used for normalization.
         pendingOpenRouterResolutionRef.current = true;
       }
-      if (modelListStatus === "loading") return;
-
       const listUrl = (url || "").trim();
       const requestKey = `${apiSlug}|${listUrl}|${key}`;
-      if (!force && requestedModelListKeyRef.current === requestKey) return;
+      if (
+        !force &&
+        (modelListStatus === "loading" ||
+          requestedModelListKeyRef.current === requestKey)
+      ) {
+        return;
+      }
 
       // 缺 Key 或地址时不发请求，但把失败显示在 Model 下方；模型 ID 仍可手填。
       if (!listUrl || !key?.trim()) {
+        modelListRequestIdRef.current += 1;
+        requestedModelListKeyRef.current = "";
+        setModelOptions([]);
+        setModelThinkingCapabilities({});
+        modelThinkingCapabilitiesRef.current = {};
         setModelListStatus("error");
         setModelListError(i18n("model_list_missing_key"));
         return;
       }
 
+      const requestId = ++modelListRequestIdRef.current;
       requestedModelListKeyRef.current = requestKey;
       setModelListStatus("loading");
       setModelListError("");
@@ -801,16 +822,26 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
           key,
           httpTimeout,
         });
-        // Ignore stale successes after the URL or key changes.
-        if (requestedModelListKeyRef.current !== requestKey) return;
+        // Ignore stale successes after the URL, key, or request generation changes.
+        if (
+          modelListRequestIdRef.current !== requestId ||
+          requestedModelListKeyRef.current !== requestKey
+        ) {
+          return;
+        }
         const nextModelOptions = catalog.models;
         setModelOptions(nextModelOptions);
         modelThinkingCapabilitiesRef.current = catalog.thinkingCapabilities;
         setModelThinkingCapabilities(catalog.thinkingCapabilities);
         setModelListStatus(nextModelOptions.length > 0 ? "success" : "empty");
       } catch (err) {
-        // Ignore stale failures after the URL or key changes.
-        if (requestedModelListKeyRef.current !== requestKey) return;
+        // Ignore stale failures after the URL, key, or request generation changes.
+        if (
+          modelListRequestIdRef.current !== requestId ||
+          requestedModelListKeyRef.current !== requestKey
+        ) {
+          return;
+        }
         requestedModelListKeyRef.current = "";
         pendingOpenRouterResolutionRef.current = false;
         setModelListStatus("error");

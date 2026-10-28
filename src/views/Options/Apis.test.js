@@ -1096,6 +1096,114 @@ describe("Apis model list", () => {
     view.unmount();
   });
 
+  test("ignores out-of-order A->B->A catalog responses and clears stale fetched models when key is cleared", async () => {
+    let resolveA1;
+    let resolveB;
+    let resolveA2;
+    fetchModelCatalog
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveA1 = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveB = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveA2 = resolve;
+          })
+      );
+
+    const view = await renderApis(
+      createApi({
+        url: "https://api.openai.com/v1/chat/completions",
+        key: "key-A",
+      })
+    );
+
+    const changeKey = async (nextKey) => {
+      const keyField = view.container.querySelector('[name="key"]');
+      await act(async () => {
+        Simulate.focus(keyField);
+      });
+      await act(async () => {
+        Simulate.change(keyField, {
+          target: { name: "key", value: nextKey },
+        });
+        Simulate.blur(keyField);
+        await Promise.resolve();
+      });
+      await flushEffects();
+    };
+
+    // 1. Trigger request A1 for key-A
+    await act(async () => {
+      Simulate.focus(getInput(view.container, "model"));
+      await Promise.resolve();
+    });
+
+    // 2. Switch to key-B and trigger request B
+    await changeKey("key-B");
+    await act(async () => {
+      Simulate.focus(getInput(view.container, "model"));
+      await Promise.resolve();
+    });
+
+    // 3. Switch back to key-A and trigger request A2
+    await changeKey("key-A");
+    await act(async () => {
+      Simulate.focus(getInput(view.container, "model"));
+      await Promise.resolve();
+    });
+
+    // A2 resolves first
+    await act(async () => {
+      resolveA2({
+        models: ["fresh-a2-model"],
+        thinkingCapabilities: {},
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Then B and A1 resolve out of order
+    await act(async () => {
+      resolveB({
+        models: ["stale-b-model"],
+        thinkingCapabilities: {},
+      });
+      resolveA1({
+        models: ["stale-a1-model"],
+        thinkingCapabilities: {},
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const optionsAfterA2 = getInput(view.container, "model").getAttribute(
+      "data-options"
+    );
+    expect(optionsAfterA2).toContain("fresh-a2-model");
+    expect(optionsAfterA2).not.toContain("stale-b-model");
+    expect(optionsAfterA2).not.toContain("stale-a1-model");
+
+    // Clearing the key must remove fetched catalog models so stale models do not linger
+    await changeKey("");
+
+    const optionsAfterClear = getInput(view.container, "model").getAttribute(
+      "data-options"
+    );
+    expect(optionsAfterClear).not.toContain("fresh-a2-model");
+
+    view.unmount();
+  });
+
   test("resets model list error when url or key changes", async () => {
     fetchModelCatalog.mockRejectedValue(new Error("network failed"));
     const view = await renderApis();
