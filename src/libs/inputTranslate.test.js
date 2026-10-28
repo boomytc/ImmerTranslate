@@ -57,6 +57,7 @@ const { apiTranslate } = require("../apis");
 const { createLoadingSVG } = require("./svg");
 const { I18N } = require("../config/i18n");
 const { logger } = require("./log");
+const { sleep } = require("./utils");
 
 function makeRect({ top = 100, right = 200, width = 100, height = 30 } = {}) {
   return {
@@ -428,6 +429,10 @@ describe("InputTranslator failure copy", () => {
     stepShortcutRegister.mockReturnValue(mockUnregisterShortcut);
     logger.error.mockClear();
     apiTranslate.mockReset();
+    resolveApiPromptSettings.mockReturnValue({ apiSlug: "test" });
+    createLoadingSVG.mockImplementation(() =>
+      document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    );
     translator = new InputTranslator({
       uiLang: "zh",
       inputRule: {
@@ -445,6 +450,7 @@ describe("InputTranslator failure copy", () => {
   });
 
   afterEach(() => {
+    sleep.mockImplementation(() => Promise.resolve());
     translator.disable();
     document.body.innerHTML = "";
     jest.useRealTimers();
@@ -731,5 +737,206 @@ describe("InputTranslator failure copy", () => {
     expect(document.body.textContent).not.toContain("Failed to fetch");
     expect(document.body.textContent).not.toContain("TypeError");
     expect(document.body.textContent).not.toContain("at translate");
+  });
+
+  describe("lifecycle and concurrency races", () => {
+    const createDeferred = () => {
+      let resolve;
+      let reject;
+      const promise = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    };
+
+    test("disabling while a request is pending prevents late success or failure from touching DOM or focus", async () => {
+      const pendingSuccess = createDeferred();
+      apiTranslate.mockReturnValueOnce(pendingSuccess.promise);
+      const firstInput = prepareInput(translator, "Original text");
+      const otherInput = document.createElement("input");
+      document.body.appendChild(otherInput);
+
+      const translatePromise = translator.handleTranslate({
+        isBtnTrigger: true,
+      });
+      expect(apiTranslate).toHaveBeenCalledTimes(1);
+      const firstSignal = apiTranslate.mock.calls[0][0].signal;
+      expect(firstSignal).toBeInstanceOf(AbortSignal);
+
+      translator.disable();
+      expect(firstSignal.aborted).toBe(true);
+      otherInput.focus();
+
+      pendingSuccess.resolve({ trText: "Stale translation", isSame: false });
+      await translatePromise;
+
+      expect(firstInput.value).toBe("Original text");
+      expect(document.activeElement).toBe(otherInput);
+      expect(document.querySelector('[role="alert"]')).toBeNull();
+
+      // Re-enable, start another request, disable, and reject late
+      translator.enable();
+      firstInput.focus();
+      translator.handleFocusIn();
+      const pendingFailure = createDeferred();
+      apiTranslate.mockReturnValueOnce(pendingFailure.promise);
+
+      const failPromise = translator.handleTranslate({ isBtnTrigger: true });
+      translator.disable();
+      pendingFailure.reject(new TypeError("Failed to fetch"));
+      await failPromise;
+
+      expect(document.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    test("out-of-order responses keep the newer translation and ignore late earlier results", async () => {
+      const firstReq = createDeferred();
+      const secondReq = createDeferred();
+      apiTranslate
+        .mockReturnValueOnce(firstReq.promise)
+        .mockReturnValueOnce(secondReq.promise);
+
+      const target = prepareInput(translator, "First draft");
+      const firstTask = translator.handleTranslate({ isBtnTrigger: true });
+      const firstSignal = apiTranslate.mock.calls[0][0].signal;
+
+      target.value = "Second draft";
+      const secondTask = translator.handleTranslate({ isBtnTrigger: true });
+      expect(firstSignal.aborted).toBe(true);
+
+      secondReq.resolve({ trText: "第二版译文", isSame: false });
+      await secondTask;
+      expect(target.value).toBe("第二版译文");
+
+      firstReq.resolve({ trText: "第一版过期译文", isSame: false });
+      await firstTask;
+      expect(target.value).toBe("第二版译文");
+      expect(document.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    test("editing the input or switching focus during request prevents stale overwrite and focus steal", async () => {
+      const editReq = createDeferred();
+      apiTranslate.mockReturnValueOnce(editReq.promise);
+      const target = prepareInput(translator, "Before edit");
+
+      const editTask = translator.handleTranslate({ isBtnTrigger: true });
+      target.value = "Before edit - user kept typing";
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+
+      editReq.resolve({ trText: "旧文本译文", isSame: false });
+      await editTask;
+      expect(target.value).toBe("Before edit - user kept typing");
+
+      const focusReq = createDeferred();
+      apiTranslate.mockReturnValueOnce(focusReq.promise);
+      target.value = "Switch focus text";
+      target.focus();
+      const secondInput = document.createElement("input");
+      secondInput.value = "Second input";
+      document.body.appendChild(secondInput);
+
+      const focusTask = translator.handleTranslate({ isBtnTrigger: true });
+      secondInput.focus();
+      translator.handleFocusIn();
+
+      focusReq.resolve({ trText: "不应写回或抢焦点的译文", isSame: false });
+      await focusTask;
+
+      expect(target.value).toBe("Switch focus text");
+      expect(secondInput.value).toBe("Second input");
+      expect(document.activeElement).toBe(secondInput);
+    });
+
+    test("lifecycle change inside smartReplaceText sleep aborts replacement for both textarea and contenteditable", async () => {
+      const sleepGates = [];
+      sleep.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            sleepGates.push(resolve);
+          })
+      );
+
+      apiTranslate.mockResolvedValueOnce({
+        trText: "Textarea translated",
+        isSame: false,
+      });
+      const target = prepareInput(translator, "Textarea original");
+      const secondInput = document.createElement("input");
+      document.body.appendChild(secondInput);
+
+      const task = translator.handleTranslate({ isBtnTrigger: true });
+      for (let i = 0; i < 6; i++) await Promise.resolve();
+      expect(sleepGates.length).toBeGreaterThan(0);
+
+      // User switches focus while smartReplaceText is waiting on sleep
+      secondInput.focus();
+      while (sleepGates.length > 0) {
+        sleepGates.shift()();
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+      }
+      await task;
+
+      expect(target.value).toBe("Textarea original");
+      expect(document.activeElement).toBe(secondInput);
+
+      // Rich editor (contenteditable) disabled during smartReplaceText sleep
+      const rich = document.createElement("div");
+      rich.tabIndex = 0;
+      rich.setAttribute("contenteditable", "true");
+      rich.textContent = "Rich original";
+      focusTarget(translator, rich);
+
+      apiTranslate.mockResolvedValueOnce({
+        trText: "Rich translated",
+        isSame: false,
+      });
+      const richTask = translator.handleTranslate({ isBtnTrigger: true });
+      for (let i = 0; i < 6; i++) await Promise.resolve();
+      expect(sleepGates.length).toBeGreaterThan(0);
+
+      translator.disable();
+      while (sleepGates.length > 0) {
+        sleepGates.shift()();
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+      }
+      await richTask;
+
+      expect(rich.textContent).toBe("Rich original");
+      sleep.mockImplementation(() => Promise.resolve());
+    });
+
+    test("preserves one-shot handleTranslate command when resident input translation is disabled", async () => {
+      translator.disable();
+      const oneShotTranslator = new InputTranslator({
+        uiLang: "zh",
+        inputRule: {
+          transOpen: false,
+          triggerShortcut: ["AltLeft", "KeyI"],
+          triggerCount: 1,
+          triggerTime: 200,
+          showDot: "always",
+          apiSlug: "test",
+          fromLang: "auto",
+          toLang: "zh-CN",
+        },
+        transApis: [{ apiSlug: "test" }],
+      });
+      resolveApiPromptSettings.mockReturnValue({ apiSlug: "test" });
+      apiTranslate.mockResolvedValueOnce({
+        trText: "单次命令译文",
+        isSame: false,
+      });
+
+      const target = document.createElement("textarea");
+      target.value = "One-shot command text";
+      document.body.appendChild(target);
+      target.focus();
+
+      await oneShotTranslator.handleTranslate();
+
+      expect(target.value).toBe("单次命令译文");
+      expect(getFloatButton(target)).toBeUndefined();
+    });
   });
 });

@@ -109,9 +109,15 @@ function setNativeValue(element, value) {
  * @param {string} newText - 翻译回填文本
  * @returns {Promise<boolean>} 是否成功替换
  */
-async function smartReplaceText(node, newText) {
+async function smartReplaceText(
+  node,
+  newText,
+  { shouldContinue = () => true, onMutationPhase } = {}
+) {
+  if (!shouldContinue({ beforeMutation: true })) return false;
   node.focus();
   await sleep(10);
+  if (!shouldContinue({ beforeMutation: true })) return false;
 
   // 判断是否为富文本编辑器 (X.com, Discord, Slack 等通常是 contenteditable 的 div/span)
   const isRichEditor =
@@ -137,6 +143,7 @@ async function smartReplaceText(node, newText) {
   };
   performSelectAll();
   await sleep(50);
+  if (!shouldContinue({ beforeMutation: true })) return false;
 
   // ------------------------------------------------
   // 步骤 2: 针对富文本编辑器的优先策略 (Clipboard Paste)
@@ -153,12 +160,19 @@ async function smartReplaceText(node, newText) {
         composed: true,
         view: window,
       });
-      node.dispatchEvent(pasteEvt);
+      onMutationPhase?.(true);
+      try {
+        node.dispatchEvent(pasteEvt);
+      } finally {
+        onMutationPhase?.(false);
+      }
 
       // 给 React 一点时间去处理 Paste 事件
       await sleep(100);
+      if (!shouldContinue()) return false;
 
       if (checkSuccess(node, newText)) return true;
+      if (!shouldContinue({ beforeMutation: true })) return false;
     } catch (e) {
       logger.debug("Strategy Paste failed", e);
     }
@@ -167,20 +181,35 @@ async function smartReplaceText(node, newText) {
   // ------------------------------------------------
   // 步骤 3: 原有的 execCommand 策略 (降级 / 普通输入框)
   // ------------------------------------------------
+  if (!shouldContinue({ beforeMutation: true })) return false;
   try {
-    const success = document.execCommand("insertText", false, newText);
+    onMutationPhase?.(true);
+    let success = false;
+    try {
+      success = document.execCommand("insertText", false, newText);
+    } finally {
+      onMutationPhase?.(false);
+    }
     if (success) {
       await sleep(20);
+      if (!shouldContinue()) return false;
       if (checkSuccess(node, newText)) return true;
+      if (!shouldContinue({ beforeMutation: true })) return false;
     }
   } catch (e) {
     logger.debug("Strategy 1 (insertText) failed", e);
   }
 
   // === 策略 2: 标准 Input 处理 (React/Vue 兼容) ===
+  if (!shouldContinue({ beforeMutation: true })) return false;
   if (node.nodeName === "INPUT" || node.nodeName === "TEXTAREA") {
     try {
-      setNativeValue(node, newText);
+      onMutationPhase?.(true);
+      try {
+        setNativeValue(node, newText);
+      } finally {
+        onMutationPhase?.(false);
+      }
       return true;
     } catch (e) {
       logger.debug("Strategy 2 (Input Value) failed", e);
@@ -226,6 +255,7 @@ function addLoading(node, loadingId) {
         background: transparent;
     `;
   document.body.appendChild(div);
+  return div;
 }
 
 function removeLoading(loadingId) {
@@ -418,7 +448,9 @@ export class InputTranslator {
   #blurTimer = null; // 存储失焦隐藏的定时器 ID
   #failureNotice = null; // 输入框旁的失败提示
   #failureTimer = null; // 失败提示自动消失的定时器
-  #translateRunId = 0; // 用来丢弃过期的失败提示
+  #translateRunId = 0; // 用来作废过期的进行中翻译与失败提示
+  #translateController = null; // 当前进行中翻译请求的 AbortController
+  #activeLoadingEl = null; // 当前进行中翻译挂载的 loading 节点
   #queuedFailure = null; // 等悬浮点恢复后再摆放的失败
   #uiLang = "zh";
 
@@ -495,7 +527,27 @@ export class InputTranslator {
     logger.info("Input Translator enabled.");
   }
 
+  #cancelInFlightTranslate() {
+    this.#translateRunId += 1;
+    this.#queuedFailure = null;
+    if (this.#translateController) {
+      this.#translateController.abort();
+      this.#translateController = null;
+    }
+    if (this.#activeLoadingEl) {
+      this.#activeLoadingEl.remove();
+      this.#activeLoadingEl = null;
+    }
+  }
+
   disable() {
+    this.#cancelInFlightTranslate();
+    this.#clearFailureNotice();
+    if (this.#blurTimer) {
+      clearTimeout(this.#blurTimer);
+      this.#blurTimer = null;
+    }
+
     if (!this.#isEnabled) return;
 
     // 1. 移除快捷键
@@ -518,7 +570,6 @@ export class InputTranslator {
     // 3. 清理 UI 和 观察器
     // [修复问题2-A]：彻底销毁 DOM，防止僵尸状态
     this.removeFloatButton();
-    this.#clearFailureNotice();
 
     if (this.#resizeObserver) {
       this.#resizeObserver.disconnect();
@@ -725,7 +776,8 @@ export class InputTranslator {
     let { fromLang, toLang } = this.#config.inputRule;
 
     // 3. 获取文本
-    let initText = getNodeText(node);
+    const initialNodeText = getNodeText(node);
+    let initText = initialNodeText;
 
     // 4. 处理触发字符逻辑
     // 修改：仅当非按钮触发（即键盘快捷键触发）时，才移除末尾的触发符
@@ -743,9 +795,37 @@ export class InputTranslator {
 
     if (!initText.trim()) return;
 
-    const runId = ++this.#translateRunId;
-    this.#queuedFailure = null;
+    this.#cancelInFlightTranslate();
+    const runId = this.#translateRunId;
+    const controller = new AbortController();
+    this.#translateController = controller;
     this.#clearFailureNotice();
+
+    let mutationPhase = false;
+    let userEditedDuringRun = false;
+    let expectedText = null;
+    const onTargetInput = () => {
+      if (
+        !mutationPhase &&
+        (!expectedText || !checkSuccess(node, expectedText))
+      ) {
+        userEditedDuringRun = true;
+      }
+    };
+    node.addEventListener("input", onTargetInput);
+
+    const shouldContinue = ({ beforeMutation = false } = {}) => {
+      if (runId !== this.#translateRunId || controller.signal.aborted) {
+        return false;
+      }
+      if (userEditedDuringRun) return false;
+      if (!node.isConnected || !isEditableTarget(node)) return false;
+      if (getDeepActiveElement() !== node) return false;
+      if (beforeMutation && getNodeText(node) !== initialNodeText) {
+        return false;
+      }
+      return true;
+    };
 
     // 5. 解析语言指令 (例如 "en:你好")
     let text = initText;
@@ -786,10 +866,11 @@ export class InputTranslator {
       !matchedApi || matchedApi.isDisabled || apiSetting?.isDisabled;
 
     const loadingId = "kiss-loading-" + genEventName();
+    let loadingEl = null;
 
     try {
       if (serviceUnavailable) {
-        if (runId === this.#translateRunId) {
+        if (shouldContinue({ beforeMutation: true })) {
           this.#queuedFailure = {
             node,
             error: new Error("translator is disabled"),
@@ -800,7 +881,8 @@ export class InputTranslator {
           };
         }
       } else {
-        addLoading(node, loadingId);
+        loadingEl = addLoading(node, loadingId);
+        this.#activeLoadingEl = loadingEl;
         this.hideFloatButton(); // 翻译期间隐藏按钮
 
         // 调用翻译 API
@@ -811,7 +893,10 @@ export class InputTranslator {
           apiSetting,
           textFormat: "text",
           translateVariants: this.#config.translateVariants,
+          signal: controller.signal,
         });
+
+        if (!shouldContinue({ beforeMutation: true })) return;
 
         // 输入框写回纯文本，开启后将模型输出的行内 LaTeX 转成可读的 Unicode
         const trimmedText = trText?.trim() || "";
@@ -820,9 +905,16 @@ export class InputTranslator {
           : trimmedText;
         if (!newText || isSame) return;
 
+        expectedText = newText;
+
         // 6. 执行替换 (使用新的智能替换函数)
-        const success = await smartReplaceText(node, newText);
-        if (!success) {
+        const success = await smartReplaceText(node, newText, {
+          shouldContinue,
+          onMutationPhase: (active) => {
+            mutationPhase = active;
+          },
+        });
+        if (!success && shouldContinue()) {
           logger.warn("Text replacement failed after all strategies.");
         }
       }
@@ -833,19 +925,38 @@ export class InputTranslator {
       }
       // 只把可行动文案放到输入框旁；原始异常留在日志里。
       logger.error("Translate input error:", err);
-      if (runId === this.#translateRunId) {
+      if (shouldContinue({ beforeMutation: true })) {
         this.#queuedFailure = { node, error: err, apiSetting };
       }
     } finally {
-      removeLoading(loadingId);
-      // 恢复显示按钮后再摆放提示，避免盖住「译」点。
-      if (this.#activeInput === node) {
-        this.showFloatButton(node);
+      node.removeEventListener("input", onTargetInput);
+      if (loadingEl) {
+        loadingEl.remove();
+        if (this.#activeLoadingEl === loadingEl) {
+          this.#activeLoadingEl = null;
+        }
+      } else {
+        removeLoading(loadingId);
       }
-      if (runId === this.#translateRunId && this.#queuedFailure) {
-        const queued = this.#queuedFailure;
-        this.#queuedFailure = null;
-        this.#showFailureNotice(queued.node, queued.error, queued.apiSetting);
+      if (this.#translateController === controller) {
+        this.#translateController = null;
+      }
+      if (runId === this.#translateRunId) {
+        // 恢复显示按钮后再摆放提示，避免盖住「译」点。
+        if (this.#activeInput === node && getDeepActiveElement() === node) {
+          this.showFloatButton(node);
+        }
+        if (this.#queuedFailure) {
+          const queued = this.#queuedFailure;
+          this.#queuedFailure = null;
+          if (shouldContinue({ beforeMutation: true })) {
+            this.#showFailureNotice(
+              queued.node,
+              queued.error,
+              queued.apiSetting
+            );
+          }
+        }
       }
     }
   }
