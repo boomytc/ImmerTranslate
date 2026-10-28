@@ -361,7 +361,7 @@ export class RuleEditorSession {
     const inherited = splitSelectorList(this.context?.inherited[field] || "");
     if (!inherited.includes(selector)) return "personal";
     const global = splitSelectorList(this.context?.global[field] || "");
-    return global.includes(selector) ? "global" : "subscription";
+    return global.includes(selector) ? "global" : "builtin";
   }
   classify(elements) {
     const rule = this.context.effective;

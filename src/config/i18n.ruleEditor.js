@@ -23,7 +23,7 @@ const messages = {
   pagePreview: ["页面预览", "Page preview"],
   pagePreviewHelp: ["综合当前网站的全部规则", "Uses all rules for this site"],
   personal: ["个人规则", "Personal rule"],
-  subscription: ["订阅规则", "Subscription rule"],
+  builtin: ["内置网站规则", "Built-in site rule"],
   global: ["全局规则", "Global rule"],
   none: ["未匹配", "None matched"],
   sourceHelp: [
@@ -59,8 +59,8 @@ const messages = {
   inherit: ["恢复此组继承", "Restore group inheritance"],
   clear: ["清空此组", "Clear group"],
   inheritHelp: [
-    "恢复继承使用订阅／全局值；清空使用显式空范围。根容器清空时不扫描页面。",
-    "Inheritance uses subscription/global values; clearing explicitly matches nothing. Empty scan roots disable page scanning.",
+    "恢复继承使用内置网站规则／全局值；清空使用显式空范围。根容器清空时不扫描页面。",
+    "Inheritance uses built-in site/global values; clearing explicitly matches nothing. Empty scan roots disable page scanning.",
   ],
   undo: ["撤销", "Undo"],
   redo: ["重做", "Redo"],

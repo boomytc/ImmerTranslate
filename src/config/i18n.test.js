@@ -116,3 +116,21 @@ test("provides default text when key is not found", () => {
   expect(i18n("nonexistent_key", "")).toBe("");
   expect(i18n("app_name")).not.toBe("app_name");
 });
+
+test("describes sync and built-in site rule inheritance without claiming vocabulary or subscription rules", () => {
+  expect(I18N.options_sync_description.zh).toBe("跨设备同步设置与规则");
+  expect(I18N.options_sync_description.en).toBe(
+    "Sync settings and rules across devices"
+  );
+  expect(I18N.options_sync_description.zh).not.toContain("生词本");
+  expect(I18N.options_sync_description.en).not.toMatch(/vocabulary/i);
+
+  expect(I18N.rule_editor_builtin.zh).toBe("内置网站规则");
+  expect(I18N.rule_editor_builtin.en).toBe("Built-in site rule");
+  expect(I18N.rule_editor_inheritHelp.zh).toContain("内置网站规则／全局值");
+  expect(I18N.rule_editor_inheritHelp.zh).not.toContain("订阅");
+  expect(I18N.rule_editor_inheritHelp.en).toContain(
+    "built-in site/global values"
+  );
+  expect(I18N.rule_editor_inheritHelp.en).not.toMatch(/subscription/i);
+});

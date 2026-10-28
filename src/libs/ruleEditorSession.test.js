@@ -101,6 +101,41 @@ test.each([null, { ...DEFAULT_RULE, pattern: "localhost", autoScan: "true" }])(
   }
 );
 
+test("attributes inherited non-global selectors to builtin site rules", async () => {
+  session.dispose();
+  context = {
+    effective: {
+      ...GLOBLA_RULE,
+      selector: ".global-item, .builtin-site-item, .personal-item",
+    },
+    inherited: {
+      ...GLOBLA_RULE,
+      selector: ".global-item, .builtin-site-item",
+    },
+    personal: {
+      ...DEFAULT_RULE,
+      pattern: "localhost",
+      selector: "+ .personal-item",
+    },
+    site: {
+      ...DEFAULT_RULE,
+      pattern: "localhost",
+      selector: "+ .personal-item",
+    },
+    global: {
+      ...GLOBLA_RULE,
+      selector: ".global-item",
+    },
+  };
+  resolveRuleContext.mockResolvedValue(context);
+  session = new RuleEditorSession({ translator, onExit: jest.fn() });
+  await session.start();
+
+  expect(session.source(".personal-item")).toBe("personal");
+  expect(session.source(".builtin-site-item")).toBe("builtin");
+  expect(session.source(".global-item")).toBe("global");
+});
+
 test("adds selectors to the draft and persists only on explicit save", async () => {
   expect(session.state.field).toBe("selector");
   expect(saveSiteRule).not.toHaveBeenCalled();

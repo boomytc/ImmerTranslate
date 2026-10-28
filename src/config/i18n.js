@@ -1403,8 +1403,8 @@ export const I18N = {
     en: `Manage translation APIs and AI models`,
   },
   options_sync_description: {
-    zh: `跨设备同步配置、规则与生词本`,
-    en: `Sync settings, rules, and vocabulary across devices`,
+    zh: `跨设备同步设置与规则`,
+    en: `Sync settings and rules across devices`,
   },
   options_selection_description: {
     zh: `控制划词后的翻译面板、词典与触发方式`,
