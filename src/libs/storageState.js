@@ -256,6 +256,28 @@ export function getStorageState(key, defaultValue) {
     while (!initialized) await (readPromise || load());
   };
 
+  const recover = async (error) => {
+    const cancelled = new Error(
+      "An earlier storage edit failed; reload and retry"
+    );
+    cancelled.cause = error;
+    for (const item of pending) item.cancelled = cancelled;
+    pending = [];
+    recovering = true;
+    dirty = false;
+    lastError = error;
+    revision += 1;
+    cancelSync();
+    publish();
+    try {
+      await readCurrent();
+    } catch {
+      // Remain blocked until a coordinator-protected read succeeds.
+      recovering = true;
+      publish();
+    }
+  };
+
   const submit = (kind, valueOrFn) => {
     if (recovering) {
       const error = new Error("Reload storage before saving another edit");
@@ -307,25 +329,7 @@ export function getStorageState(key, defaultValue) {
         return { ...receipt, revision, editVersion: intent.version };
       } catch (error) {
         // Rejection does not prove absence of a commit. Never replay a toggle.
-        const cancelled = new Error(
-          "An earlier storage edit failed; reload and retry"
-        );
-        cancelled.cause = error;
-        for (const item of pending) item.cancelled = cancelled;
-        pending = [];
-        recovering = true;
-        dirty = false;
-        lastError = error;
-        revision += 1;
-        cancelSync();
-        publish();
-        try {
-          await readCurrent();
-        } catch {
-          // Remain blocked until a coordinator-protected read succeeds.
-          recovering = true;
-          publish();
-        }
+        await recover(error);
         throw error;
       }
     });
@@ -389,6 +393,7 @@ export function getStorageState(key, defaultValue) {
     },
     ensureLoaded,
     load,
+    recover,
     save,
     remove: () => submit("remove"),
     enqueueWrite,

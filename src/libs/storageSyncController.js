@@ -15,6 +15,7 @@ export function syncStorageState(key, syncKey, state, revision, value) {
       !state.hasPendingEdits &&
       !state.isRecovering;
     if (!isCurrent() || !state.dirty) return;
+    let recoveredInWriteQueue = false;
     try {
       const request = await storage.withTransaction(async (transaction) => ({
         value: await transaction.getObj(key),
@@ -33,29 +34,43 @@ export function syncStorageState(key, syncKey, state, revision, value) {
       });
       if (!result) return;
       const accepted = await state.enqueueWrite(async () => {
-        const committed = await result.commit({
-          applyValue: async (transaction) => {
-            if (result.isNew) await transaction.setObj(key, result.value);
-          },
-          isCurrent,
-          shouldRetry: () =>
-            state.snapshot.data !== null &&
-            state.committedEditVersion !== committedVersion,
-          getRetryTimestamp: () => state.editTimestamp,
-        });
-        // Accept the receipt before queued invalidation reads can run.
-        if (committed && isCurrent()) {
-          if (result.isNew) state.acceptValue(result.value);
-          else state.markSynced(revision);
+        try {
+          const committed = await result.commit({
+            applyValue: async (transaction) => {
+              if (result.isNew) await transaction.setObj(key, result.value);
+            },
+            isCurrent,
+            shouldRetry: () =>
+              state.snapshot.data !== null &&
+              state.committedEditVersion !== committedVersion,
+            getRetryTimestamp: () => state.editTimestamp,
+          });
+          // Accept the receipt before queued invalidation reads can run.
+          if (committed && isCurrent()) {
+            if (result.isNew) state.acceptValue(result.value);
+            else state.markSynced(revision);
+          }
+          return committed;
+        } catch (error) {
+          if (
+            error?.storageRecoveryFailed ||
+            error?.storageOutcome === "unknown"
+          ) {
+            recoveredInWriteQueue = true;
+            await state.recover(error);
+          }
+          throw error;
         }
-        return committed;
       });
       if (!accepted && state.dirty) state.scheduleSync();
     } catch (error) {
       kissLog("Sync failed", syncKey, error);
-      if (error.storageRecoveryFailed || error.storageOutcome === "unknown") {
+      if (
+        !recoveredInWriteQueue &&
+        (error?.storageRecoveryFailed || error?.storageOutcome === "unknown")
+      ) {
         await state
-          .load()
+          .enqueueWrite(() => state.recover(error))
           .catch((readError) =>
             kissLog("Reload after sync failure", readError)
           );

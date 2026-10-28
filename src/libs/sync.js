@@ -618,46 +618,58 @@ function syncStoredValue(key, storageKey, options = {}) {
         ? commitState.enqueueWrite
         : (operation) => enqueueStorageWrite(storageKey, operation);
       const accepted = await enqueueCommit(async () => {
-        const committed = await result.commit({
-          applyValue: async (transaction) => {
+        try {
+          const committed = await result.commit({
+            applyValue: async (transaction) => {
+              if (result.isNew) {
+                const storedValue =
+                  storageKey === STOKEY_RULES
+                    ? checkRules(result.value)
+                    : result.value;
+                await transaction.setObj(storageKey, storedValue);
+              }
+            },
+            isCurrent,
+            onCheckDestination: expectedConfig
+              ? (current) => {
+                  destinationValid = isSameRotationConfig(
+                    current,
+                    expectedConfig
+                  );
+                  return destinationValid;
+                }
+              : undefined,
+            shouldRetry: hasCommittedEdit,
+            getRetryTimestamp: () =>
+              Math.max(
+                originalState?.editTimestamp || 0,
+                findStorageState(storageKey)?.editTimestamp || 0
+              ),
+          });
+          const currentState = findStorageState(storageKey);
+          if (committed && currentState && isCurrent()) {
             if (result.isNew) {
-              const storedValue =
+              currentState.acceptValue(
                 storageKey === STOKEY_RULES
                   ? checkRules(result.value)
-                  : result.value;
-              await transaction.setObj(storageKey, storedValue);
+                  : result.value
+              );
+            } else if (options.persistMeta !== false) {
+              currentState.markSynced(currentState.revision);
             }
-          },
-          isCurrent,
-          onCheckDestination: expectedConfig
-            ? (current) => {
-                destinationValid = isSameRotationConfig(
-                  current,
-                  expectedConfig
-                );
-                return destinationValid;
-              }
-            : undefined,
-          shouldRetry: hasCommittedEdit,
-          getRetryTimestamp: () =>
-            Math.max(
-              originalState?.editTimestamp || 0,
-              findStorageState(storageKey)?.editTimestamp || 0
-            ),
-        });
-        const currentState = findStorageState(storageKey);
-        if (committed && currentState && isCurrent()) {
-          if (result.isNew) {
-            currentState.acceptValue(
-              storageKey === STOKEY_RULES
-                ? checkRules(result.value)
-                : result.value
-            );
-          } else if (options.persistMeta !== false) {
-            currentState.markSynced(currentState.revision);
           }
+          return committed;
+        } catch (error) {
+          const currentState = findStorageState(storageKey);
+          if (
+            currentState &&
+            (error?.storageRecoveryFailed ||
+              error?.storageOutcome === "unknown")
+          ) {
+            await currentState.recover(error);
+          }
+          throw error;
         }
-        return committed;
       });
       if (!destinationValid) {
         throw new Error("Sync destination changed during the request");

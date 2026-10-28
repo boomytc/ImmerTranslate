@@ -1,8 +1,33 @@
-import { STOKEY_RULES, STOKEY_SYNC, KV_RULES_KEY } from "../config";
+import {
+  STOKEY_RULES,
+  STOKEY_SYNC,
+  KV_RULES_KEY,
+  OPT_SYNCTYPE_WEBDAV,
+} from "../config";
+import { createClient } from "webdav";
 
 jest.mock("./log", () => ({
   ...jest.requireActual("./log"),
   kissLog: jest.fn(),
+}));
+jest.mock("./fetch", () => ({ fetchPatcher: jest.fn() }));
+jest.mock("webdav", () => ({
+  createClient: jest.fn(),
+  getPatcher: () => ({ patch: jest.fn() }),
+}));
+jest.mock("../apis", () => ({
+  apiCreateGist: jest.fn(),
+  apiListGists: jest.fn(),
+  apiGetGist: jest.fn(),
+  apiUpdateGistFile: jest.fn(),
+  apiFetchText: jest.fn(),
+}));
+jest.mock("./syncCrypto", () => ({
+  encryptSyncValue: async (value) => `cipher:${value}`,
+  decryptSyncValue: async (value) => ({
+    value: value.slice(7),
+    encrypted: true,
+  }),
 }));
 function createEvent() {
   const listeners = new Set();
@@ -95,6 +120,7 @@ function loadContext(runtime, background = false) {
       ...require("./storageCoordination"),
       ...require("./storage"),
       ...require("./storageState"),
+      ...require("./storageSyncController"),
     };
   });
   return context;
@@ -345,4 +371,125 @@ test("hydration waits for a replacement read when an event invalidates its first
   await hydrated;
   expect(state.snapshot.isLoading).toBe(false);
   expect(state.snapshot.data).toEqual({ latest: {} });
+});
+
+test("unknown sync commit outcome enters recovering state, cancels dependent edits, waits for accepted commit via coordinator, and stays blocked if recovery fails", async () => {
+  const { runtime, first } = await setup();
+  runtime.pauseEvents = true;
+  const initialRules = [{ pattern: "local.example", transOpen: "true" }];
+  const remoteRules = [{ pattern: "remote.example", transOpen: "true" }];
+  runtime.values[STOKEY_RULES] = JSON.stringify(initialRules);
+  runtime.values[STOKEY_SYNC] = JSON.stringify({
+    syncType: OPT_SYNCTYPE_WEBDAV,
+    syncUrl: "https://sync.example.invalid",
+    syncUser: "user",
+    syncKey: "token",
+    syncEncryptKey: "passphrase",
+    syncMeta: {
+      [KV_RULES_KEY]: { updateAt: 100, syncAt: 50 },
+    },
+  });
+
+  createClient.mockReturnValue({
+    exists: jest.fn(async () => true),
+    getFileContents: jest.fn(async () =>
+      JSON.stringify({
+        key: KV_RULES_KEY,
+        value: `cipher:${JSON.stringify(remoteRules)}`,
+        updateAt: 500,
+      })
+    ),
+    putFileContents: jest.fn(),
+  });
+
+  const state = first.getStorageState(STOKEY_RULES, []);
+  state.configureSync(KV_RULES_KEY, (targetState, rev, val) =>
+    first.syncStorageState(STOKEY_RULES, KV_RULES_KEY, targetState, rev, val)
+  );
+  cleanups.push(state.subscribe(() => {}));
+  await state.ensureLoaded();
+
+  // Make state dirty so syncStorageState runs
+  await state.save(initialRules);
+  await state.save([
+    ...initialRules,
+    { pattern: "dirty.example", transOpen: "true" },
+  ]);
+  const dirtyValue = state.snapshot.data;
+  const dirtyRevision = state.revision;
+
+  const commitWriteStarted = deferred();
+  const commitWriteGate = deferred();
+  const baseSet = runtime.storage.local.set.getMockImplementation();
+  runtime.storage.local.set.mockImplementationOnce(async (entries) => {
+    commitWriteStarted.resolve();
+    await commitWriteGate.promise;
+    return baseSet(entries);
+  });
+
+  const syncPromise = first.syncStorageState(
+    STOKEY_RULES,
+    KV_RULES_KEY,
+    state,
+    dirtyRevision,
+    dirtyValue
+  );
+  await commitWriteStarted.promise;
+
+  // Queue a dependent edit while the sync commit is in flight in the background
+  const dependentReducer = jest.fn((prev) => [
+    ...prev,
+    { pattern: "dependent.example", transOpen: "true" },
+  ]);
+  const dependentEdit = state.save(dependentReducer);
+  const dependentExpectation = expect(dependentEdit).rejects.toThrow(
+    /earlier storage edit failed/i
+  );
+
+  const readsBeforeDisconnect = runtime.storage.local.get.mock.calls.length;
+  // Disconnect the active sync commit port before the background replies "committed"
+  runtime.ports[runtime.ports.length - 1].front.disconnect();
+  for (let step = 0; step < 30; step += 1) await Promise.resolve();
+
+  // Must enter recovering immediately and wait for the accepted background commit instead of doing an unlocked get
+  expect(state.isRecovering).toBe(true);
+  expect(runtime.storage.local.get.mock.calls.length).toBe(
+    readsBeforeDisconnect
+  );
+
+  // New edits while recovering must be rejected immediately
+  await expect(
+    state.save([{ pattern: "blocked.example", transOpen: "true" }])
+  ).rejects.toMatchObject({
+    storageOutcome: "unknown",
+  });
+
+  // First let the recovery read fail to verify writes remain blocked when recovery fails
+  const setCallsBeforeResolve = runtime.storage.local.set.mock.calls.length;
+  runtime.storage.local.get.mockRejectedValueOnce(
+    new Error("Transient recovery read failure")
+  );
+  commitWriteGate.resolve();
+  await syncPromise;
+  await dependentExpectation;
+  expect(runtime.storage.local.set.mock.calls.length).toBe(
+    setCallsBeforeResolve
+  );
+  expect(JSON.parse(runtime.values[STOKEY_RULES])).toEqual(remoteRules);
+
+  // Recovery failed -> must remain in recovering state and continue blocking edits
+  expect(state.isRecovering).toBe(true);
+  expect(state.dirty).toBe(false);
+  await expect(
+    state.save([{ pattern: "still-blocked.example", transOpen: "true" }])
+  ).rejects.toMatchObject({
+    storageOutcome: "unknown",
+  });
+
+  // Subsequent load succeeds through coordinator and adopts authoritative value + sync metadata
+  await state.load();
+  expect(state.isRecovering).toBe(false);
+  expect(state.snapshot.data).toEqual(remoteRules);
+  expect(state.editTimestamp).toBe(500);
+  expect(state.dirty).toBe(false);
 });
