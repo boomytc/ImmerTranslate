@@ -208,11 +208,13 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
     });
     mockContextSetting = { blacklist: "" };
     const fabState = getStorageState(STOKEY_FAB, DEFAULT_FAB);
-    await fabState.save({
-      ...DEFAULT_FAB,
-      isHide: false,
-      hiddenSites: "",
-      shownSites: "",
+    await act(async () => {
+      await fabState.save({
+        ...DEFAULT_FAB,
+        isHide: false,
+        hiddenSites: "",
+        shownSites: "",
+      });
     });
   });
 
@@ -638,10 +640,12 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
 
     test("when global FAB is hidden, site exception button enables FAB for this site", async () => {
       // Set storage to global hidden
-      await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
-        isHide: true,
-        hiddenSites: "",
-        shownSites: "",
+      await act(async () => {
+        await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
+          isHide: true,
+          hiddenSites: "",
+          shownSites: "",
+        });
       });
 
       const processActions = jest.fn(pageReply);
@@ -672,19 +676,23 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       expect(siteBtn.textContent).toBe("hide_fab_on_site");
 
       // Reset storage back
-      await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
-        isHide: false,
-        hiddenSites: "",
-        shownSites: "",
+      await act(async () => {
+        await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
+          isHide: false,
+          hiddenSites: "",
+          shownSites: "",
+        });
       });
       view.cleanup();
     });
 
     test("when hiddenSites contains a wildcard matching the current site, the site button shows the FAB and removes that entry", async () => {
-      await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
-        isHide: false,
-        hiddenSites: "*.example.com",
-        shownSites: "",
+      await act(async () => {
+        await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
+          isHide: false,
+          hiddenSites: "*.example.com",
+          shownSites: "",
+        });
       });
 
       const processActions = jest.fn(pageReply);
@@ -718,10 +726,12 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       expect(siteBtn.textContent).toBe("hide_fab_on_site");
 
       // Reset storage back
-      await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
-        isHide: false,
-        hiddenSites: "",
-        shownSites: "",
+      await act(async () => {
+        await getStorageState(STOKEY_FAB, DEFAULT_FAB).save({
+          isHide: false,
+          hiddenSites: "",
+          shownSites: "",
+        });
       });
       view.cleanup();
     });
@@ -1036,11 +1046,13 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
 
     test("switching the domain dropdown highlights that domain and writes the click there", async () => {
       const rulesState = getStorageState(STOKEY_RULES, DEFAULT_RULES);
-      await rulesState.save([
-        { pattern: "*", transOpen: "false" },
-        { pattern: "example.com", transOpen: "false" },
-        { pattern: "*.example.com", transOpen: "true" },
-      ]);
+      await act(async () => {
+        await rulesState.save([
+          { pattern: "*", transOpen: "false" },
+          { pattern: "example.com", transOpen: "false" },
+          { pattern: "*.example.com", transOpen: "true" },
+        ]);
+      });
       const view = renderPopup({
         targetTab: { id: 1, url: "https://example.com/page" },
       });
@@ -1222,6 +1234,9 @@ describe("PopupCont Extensions: Model Switcher, FAB Controls, Site Policy, and F
       })
     );
     const view = renderPopup({ targetTab: undefined });
+    await act(async () => {
+      await Promise.resolve();
+    });
     const globalSwitch = view.container.querySelector(
       'input[aria-label="fab_global_switch"]'
     );
