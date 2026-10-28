@@ -133,16 +133,29 @@ describe("Subtitle style persistence", () => {
     view.unmount();
 
     expect(view.updateSubtitle).toHaveBeenCalledTimes(1);
+    expect(view.updateSubtitle).toHaveBeenCalledWith({
+      originStyle: "font-size: clamp(2.50rem, 5cqw, 7.50rem);",
+    });
   });
 
-  test("coalesces rapid style edits into a single write", () => {
+  test("coalesces rapid style edits across multiple properties into the final persisted values", () => {
     jest.useFakeTimers();
     const view = renderSubtitle();
     const slider = view.container.querySelector(".MuiSlider-root input");
+    const colorInput = view.container.querySelector(
+      'input[type="color"][aria-label="origin_styles font_color"]'
+    );
 
-    setSliderValue(slider, 20);
-    setSliderValue(slider, 22);
-    setSliderValue(slider, 24);
+    setSliderValue(slider, 2.0);
+    setSliderValue(slider, 2.2);
+    setSliderValue(slider, 2.4);
+    act(() => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      ).set.call(colorInput, "#ff0000");
+      colorInput.dispatchEvent(new Event("change", { bubbles: true }));
+    });
 
     act(() => {
       jest.advanceTimersByTime(199);
@@ -153,8 +166,87 @@ describe("Subtitle style persistence", () => {
       jest.advanceTimersByTime(1);
     });
     expect(view.updateSubtitle).toHaveBeenCalledTimes(1);
+    expect(view.updateSubtitle).toHaveBeenCalledWith({
+      originStyle:
+        "font-size: clamp(1.20rem, 2.4cqw, 3.60rem);\ncolor: #ff0000;",
+    });
 
     view.unmount();
+  });
+
+  test("applies hyphenated, !important, and custom CSS declarations to the preview DOM without React style warnings and matches runtime cssText semantics", () => {
+    const errorSpy = jest.spyOn(console, "error");
+    try {
+      const view = renderSubtitle({
+        windowStyle:
+          "--caption-bg: rgba(10, 20, 30, 0.8); background-color: rgba(10, 20, 30, 0.8) !important; line-height: 1.6;",
+        originStyle: "font-size: 24px !important; color: rgb(255, 0, 0);",
+        translationStyle: "font-size: 18px; color: rgb(0, 255, 0);",
+      });
+
+      const styleWarnings = errorSpy.mock.calls.filter(([msg]) =>
+        String(msg).includes("Unsupported style property")
+      );
+      expect(styleWarnings).toEqual([]);
+
+      const originPreview = view.container.querySelector(
+        '[data-testid="subtitle-preview-origin"]'
+      );
+      const transPreview = view.container.querySelector(
+        '[data-testid="subtitle-preview-translation"]'
+      );
+      const windowPreview = view.container.querySelector(
+        '[data-testid="subtitle-preview-window"]'
+      );
+
+      expect(originPreview.style.fontSize).toBe("24px");
+      expect(originPreview.style.getPropertyPriority("font-size")).toBe(
+        "important"
+      );
+      expect(originPreview.style.color).toBe("rgb(255, 0, 0)");
+      expect(originPreview.style.margin).toBe("0px");
+
+      expect(transPreview.style.fontSize).toBe("18px");
+      expect(transPreview.style.color).toBe("rgb(0, 255, 0)");
+      expect(transPreview.style.margin).toBe("0px");
+
+      expect(windowPreview.style.getPropertyValue("--caption-bg").trim()).toBe(
+        "rgba(10, 20, 30, 0.8)"
+      );
+      expect(windowPreview.style.backgroundColor).toBe("rgba(10, 20, 30, 0.8)");
+      expect(windowPreview.style.getPropertyPriority("background-color")).toBe(
+        "important"
+      );
+      expect(windowPreview.style.lineHeight).toBe("1.6");
+      expect(windowPreview.style.textAlign).toBe("center");
+
+      // Clearing a style via the advanced editor removes old properties from the preview DOM
+      act(() => {
+        const summaries = view.container.querySelectorAll(
+          ".MuiAccordionSummary-root"
+        );
+        summaries[summaries.length - 1].click();
+      });
+      const originTextarea = view.container.querySelector(
+        'textarea[name="originStyle"]'
+      );
+      act(() => {
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        ).set.call(originTextarea, "");
+        originTextarea.dispatchEvent(new Event("input", { bubbles: true }));
+        originTextarea.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+
+      expect(originPreview.style.fontSize).toBe("");
+      expect(originPreview.style.color).toBe("");
+      expect(originPreview.style.margin).toBe("0px");
+
+      view.unmount();
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   test("preserves the background color when editing opacity after an unquoted URL", () => {

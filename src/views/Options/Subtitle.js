@@ -27,7 +27,14 @@ import { useSubtitle } from "../../hooks/Subtitle";
 import { useApiList } from "../../hooks/Api";
 import { usePromptList } from "../../hooks/Prompt";
 import ValidationInput from "../../hooks/ValidationInput";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   SettingsAdvanced,
   SettingsCard,
@@ -338,18 +345,32 @@ function SubtitleStylePreview({
   displayOrder,
 }) {
   const i18n = useI18n();
+  const windowRef = useRef(null);
+  const originRef = useRef(null);
+  const transRef = useRef(null);
 
-  const windowCss = useMemo(() => parseCssToObject(windowStyle), [windowStyle]);
-  const originCss = useMemo(() => parseCssToObject(originStyle), [originStyle]);
-  const transCss = useMemo(
-    () => parseCssToObject(translationStyle),
-    [translationStyle]
-  );
+  useLayoutEffect(() => {
+    if (windowRef.current) {
+      windowRef.current.style.cssText = windowStyle || "";
+      windowRef.current.style.textAlign = "center";
+    }
+    if (originRef.current) {
+      originRef.current.style.cssText = originStyle || "";
+      originRef.current.style.margin = "0";
+    }
+    if (transRef.current) {
+      transRef.current.style.cssText = translationStyle || "";
+      transRef.current.style.margin = "0";
+    }
+  }, [displayOrder, originStyle, translationStyle, windowStyle]);
+
   const originPreview = (
-    <p style={{ ...originCss, margin: 0 }}>This is an example subtitle</p>
+    <p ref={originRef} data-testid="subtitle-preview-origin">
+      This is an example subtitle
+    </p>
   );
   const translationPreview = (
-    <p style={{ ...transCss, margin: 0 }}>
+    <p ref={transRef} data-testid="subtitle-preview-translation">
       {i18n("subtitle_preview_sample", "这是示例字幕文本")}
     </p>
   );
@@ -381,7 +402,7 @@ function SubtitleStylePreview({
           }}
         >
           {/* 渲染模拟网页上的字幕窗格 */}
-          <div style={{ ...windowCss, textAlign: "center" }}>
+          <div ref={windowRef} data-testid="subtitle-preview-window">
             {displayOrder === "translation-first" ? (
               <>
                 {translationPreview}
@@ -419,6 +440,20 @@ export default function SubtitleSetting() {
   const handleChange = (e) => {
     e.preventDefault();
     let { name, value } = e.target;
+    const pending = debounceTimers.current[name];
+    if (pending) {
+      clearTimeout(pending.timer);
+      delete debounceTimers.current[name];
+    }
+    const rafKey = {
+      originStyle: "origin",
+      translationStyle: "trans",
+      windowStyle: "window",
+    }[name];
+    if (rafKey && rafIds.current[rafKey]) {
+      cancelAnimationFrame(rafIds.current[rafKey]);
+      rafIds.current[rafKey] = 0;
+    }
     updateSubtitle({
       [name]: value,
     });
