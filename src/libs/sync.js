@@ -12,8 +12,6 @@ import {
   putSync,
   getSettingWithDefault,
   getRulesWithDefault,
-  setSetting,
-  setRules,
   updateSyncState,
   storage,
 } from "./storage";
@@ -230,15 +228,56 @@ const syncByType = async (syncType, data, args, options) => {
   throw new Error(`unsupported sync type: ${syncType}`);
 };
 
+const isSameRotationConfig = (current, expected) => {
+  if (!current || !expected) return false;
+  if (
+    (current.destinationRevision || 0) !== (expected.destinationRevision || 0)
+  ) {
+    return false;
+  }
+  if ((current.syncEncryptKey || "") !== (expected.syncEncryptKey || "")) {
+    return false;
+  }
+  if (
+    current.syncType !== expected.syncType ||
+    (current.syncUser || "") !== (expected.syncUser || "") ||
+    (current.syncKey || "") !== (expected.syncKey || "")
+  ) {
+    return false;
+  }
+  if (expected.syncUrl && current.syncUrl !== expected.syncUrl) {
+    return false;
+  }
+  return true;
+};
+
 /**
  * 修改同步加密口令时强制用指定口令回写某一类个人同步数据。
  *
  * @param {string} key 同步文件键名
- * @param {*} value 当前本地业务数据
+ * @param {string} storageKey 本地存储键名
  * @param {string} syncEncryptKey 新同步加密口令
+ * @param {Object} [expectedSyncConfig] 口令轮换开始时的同步配置快照
  * @returns {Promise<void>}
  */
-const forceSyncDataWithEncryptKey = async (key, value, syncEncryptKey) => {
+const forceSyncDataWithEncryptKey = async (
+  key,
+  storageKey,
+  syncEncryptKey,
+  expectedSyncConfig
+) => {
+  const snapshot = await enqueueStorageWrite(storageKey, async () => {
+    const loaded = await storage.readSyncSnapshot(storageKey);
+    if (loaded?.syncConfig) return loaded;
+    return {
+      value:
+        storageKey === STOKEY_SETTING
+          ? await getSettingWithDefault()
+          : await getRulesWithDefault(),
+      syncConfig: await getSyncWithDefault(),
+    };
+  });
+  const { value, syncConfig } = snapshot;
   const {
     syncType,
     syncUrl,
@@ -246,7 +285,14 @@ const forceSyncDataWithEncryptKey = async (key, value, syncEncryptKey) => {
     syncKey,
     syncMeta = {},
     destinationRevision = 0,
-  } = await getSyncWithDefault();
+  } = syncConfig || {};
+
+  if (
+    expectedSyncConfig &&
+    !isSameRotationConfig(syncConfig, expectedSyncConfig)
+  ) {
+    throw new Error("Sync destination changed during the request");
+  }
 
   if (
     !syncKey ||
@@ -257,8 +303,9 @@ const forceSyncDataWithEncryptKey = async (key, value, syncEncryptKey) => {
     throw new Error("sync setting is incomplete");
   }
 
+  const originalKeyMeta = { ...(syncMeta[key] || {}) };
   // 口令轮换会改变密文内容，必须提升 updateAt 让其他设备感知新版本。
-  const updateAt = Date.now();
+  const updateAt = Math.max(Date.now(), originalKeyMeta.updateAt || 0);
   const args = {
     syncUrl,
     syncUser,
@@ -279,11 +326,45 @@ const forceSyncDataWithEncryptKey = async (key, value, syncEncryptKey) => {
     throw new Error("sync data got err", key);
   }
 
-  syncMeta[key] = {
-    updateAt,
-    syncAt: Date.now(),
-  };
-  await putSync({ syncMeta });
+  let committed = false;
+  await updateSyncState(
+    (current) => {
+      if (
+        expectedSyncConfig &&
+        !isSameRotationConfig(current, expectedSyncConfig)
+      ) {
+        return undefined;
+      }
+      if ((current.destinationRevision || 0) !== destinationRevision) {
+        return undefined;
+      }
+      committed = true;
+      const currentKeyMeta = current.syncMeta?.[key] || {};
+      const concurrentEdit =
+        (currentKeyMeta.updateAt || 0) !== (originalKeyMeta.updateAt || 0);
+      return {
+        ...current,
+        syncMeta: {
+          ...current.syncMeta,
+          [key]: concurrentEdit
+            ? {
+                ...currentKeyMeta,
+                updateAt: Math.max(currentKeyMeta.updateAt || 0, updateAt),
+                syncAt: Date.now(),
+                pendingUpload: true,
+              }
+            : {
+                updateAt,
+                syncAt: Date.now(),
+              },
+        },
+      };
+    },
+    { preserveDestination: true }
+  );
+  if (!committed) {
+    throw new Error("Sync destination changed during the request");
+  }
 };
 
 /**
@@ -421,6 +502,7 @@ export const syncData = async (
   const commit = async ({
     applyValue = async () => {},
     isCurrent = () => true,
+    onCheckDestination,
     shouldRetry = () => false,
     getRetryTimestamp = () => 0,
   } = {}) => {
@@ -443,8 +525,10 @@ export const syncData = async (
           }
         : undefined;
     await updateSyncState(async (current, transaction) => {
-      if ((current.destinationRevision || 0) !== destinationRevision)
-        return undefined;
+      const destinationValid = onCheckDestination
+        ? onCheckDestination(current)
+        : (current.destinationRevision || 0) === destinationRevision;
+      if (!destinationValid) return undefined;
       const currentMeta = current.syncMeta?.[key] || {};
       if (
         !isCurrent() ||
@@ -527,45 +611,69 @@ function syncStoredValue(key, storageKey, options = {}) {
       if (result || !hasNewEdit()) break;
     } while (true);
     if (!result) return result;
-    // Key rotation intentionally validates every remote file before applying any.
-    if (options.applyRemote === false && options.persistMeta === false) {
-      return { value: result.value, isNew: result.isNew };
-    }
-    const commitState = findStorageState(storageKey);
-    const enqueueCommit = commitState
-      ? commitState.enqueueWrite
-      : (operation) => enqueueStorageWrite(storageKey, operation);
-    const accepted = await enqueueCommit(async () => {
-      const committed = await result.commit({
-        applyValue: async (transaction) => {
-          if (result.isNew && options.applyRemote !== false) {
-            const storedValue =
+    const commitDownloadedValue = async ({ expectedConfig } = {}) => {
+      let destinationValid = true;
+      const commitState = findStorageState(storageKey);
+      const enqueueCommit = commitState
+        ? commitState.enqueueWrite
+        : (operation) => enqueueStorageWrite(storageKey, operation);
+      const accepted = await enqueueCommit(async () => {
+        const committed = await result.commit({
+          applyValue: async (transaction) => {
+            if (result.isNew) {
+              const storedValue =
+                storageKey === STOKEY_RULES
+                  ? checkRules(result.value)
+                  : result.value;
+              await transaction.setObj(storageKey, storedValue);
+            }
+          },
+          isCurrent,
+          onCheckDestination: expectedConfig
+            ? (current) => {
+                destinationValid = isSameRotationConfig(
+                  current,
+                  expectedConfig
+                );
+                return destinationValid;
+              }
+            : undefined,
+          shouldRetry: hasCommittedEdit,
+          getRetryTimestamp: () =>
+            Math.max(
+              originalState?.editTimestamp || 0,
+              findStorageState(storageKey)?.editTimestamp || 0
+            ),
+        });
+        const currentState = findStorageState(storageKey);
+        if (committed && currentState && isCurrent()) {
+          if (result.isNew) {
+            currentState.acceptValue(
               storageKey === STOKEY_RULES
                 ? checkRules(result.value)
-                : result.value;
-            await transaction.setObj(storageKey, storedValue);
+                : result.value
+            );
+          } else if (options.persistMeta !== false) {
+            currentState.markSynced(currentState.revision);
           }
-        },
-        isCurrent,
-        shouldRetry: hasCommittedEdit,
-        getRetryTimestamp: () =>
-          Math.max(
-            originalState?.editTimestamp || 0,
-            findStorageState(storageKey)?.editTimestamp || 0
-          ),
+        }
+        return committed;
       });
-      const currentState = findStorageState(storageKey);
-      if (committed && currentState && isCurrent()) {
-        if (result.isNew && options.applyRemote !== false) {
-          currentState.acceptValue(
-            storageKey === STOKEY_RULES
-              ? checkRules(result.value)
-              : result.value
-          );
-        } else currentState.markSynced(currentState.revision);
+      if (!destinationValid) {
+        throw new Error("Sync destination changed during the request");
       }
-      return committed;
-    });
+      return accepted;
+    };
+    // Key rotation intentionally validates every remote file before applying any.
+    if (options.applyRemote === false && options.persistMeta === false) {
+      return {
+        value: result.value,
+        isNew: result.isNew,
+        syncConfig: requestConfig,
+        apply: commitDownloadedValue,
+      };
+    }
+    const accepted = await commitDownloadedValue();
     return accepted
       ? { value: result.value, isNew: result.isNew }
       : { value, isNew: false };
@@ -638,24 +746,38 @@ export const changeSyncEncryptKey = async ({
     applyRemote: false,
   });
 
-  // 远端设置和规则都通过旧口令校验后，才把较新的版本写入本地并开始重加密。
-  if (synced.setting?.isNew) await setSetting(synced.setting.value);
-  if (synced.rules?.isNew) await setRules(checkRules(synced.rules.value));
+  if (!synced.setting || !synced.rules) {
+    throw new Error("sync setting is incomplete");
+  }
+  const expectedConfig = synced.setting.syncConfig;
+  if (!isSameRotationConfig(synced.rules.syncConfig, expectedConfig)) {
+    throw new Error("Sync destination changed during the request");
+  }
+
+  // 远端设置和规则都通过旧口令校验后，按原快照守卫提交较新版本，防止覆盖并发新编辑。
+  await synced.setting.apply({ expectedConfig });
+  await synced.rules.apply({ expectedConfig });
 
   await forceSyncDataWithEncryptKey(
     KV_SETTING_KEY,
-    await getSettingWithDefault(),
-    newEncryptKey
+    STOKEY_SETTING,
+    newEncryptKey,
+    expectedConfig
   );
   await forceSyncDataWithEncryptKey(
     KV_RULES_KEY,
-    await getRulesWithDefault(),
-    newEncryptKey
+    STOKEY_RULES,
+    newEncryptKey,
+    expectedConfig
   );
 
   await putSync(
     { syncEncryptKey: newEncryptKey },
-    { preserveDestination: true }
+    {
+      preserveDestination: true,
+      expectedDestinationRevision: expectedConfig.destinationRevision || 0,
+      expectedSyncEncryptKey: expectedConfig.syncEncryptKey || "",
+    }
   );
 };
 

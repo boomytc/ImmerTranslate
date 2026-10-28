@@ -485,6 +485,12 @@ export const putSync = (obj, options) =>
     ) {
       throw new Error("Sync destination changed during the request");
     }
+    if (
+      options?.expectedSyncEncryptKey !== undefined &&
+      (current.syncEncryptKey || "") !== options.expectedSyncEncryptKey
+    ) {
+      throw new Error("Sync destination changed during the request");
+    }
     return {
       ...current,
       ...obj,

@@ -575,7 +575,7 @@ describe("GitHub Gist sync", () => {
       {
         syncEncryptKey: NEW_SYNC_ENCRYPT_KEY,
       },
-      { preserveDestination: true }
+      expect.objectContaining({ preserveDestination: true })
     );
   });
 
@@ -627,7 +627,8 @@ describe("GitHub Gist sync", () => {
     }
   );
 
-  test("keeps old encryption passphrase when re-encryption fails", async () => {
+  test("keeps old encryption passphrase when re-encryption fails on the second file upload", async () => {
+    const rulesFilename = `sync-rules_${RULES_KEY}`;
     getSyncWithDefault.mockResolvedValue({
       syncType: "GitHub Gist",
       syncUrl: "existing-gist",
@@ -638,22 +639,57 @@ describe("GitHub Gist sync", () => {
           updateAt: 200,
           syncAt: 1,
         },
+        [RULES_KEY]: {
+          updateAt: 201,
+          syncAt: 1,
+        },
       },
     });
     getSettingWithDefault.mockResolvedValue({ setting: true });
-    apiGetGist.mockResolvedValue({ files: {} });
-    apiUpdateGistFile.mockRejectedValue(new Error("upload failed"));
+    getRulesWithDefault.mockResolvedValue([{ pattern: "*" }]);
+    apiGetGist.mockResolvedValue({
+      files: {
+        [SETTING_KEY]: {
+          content: encryptedGistFileContent({ setting: true }, 50),
+        },
+        [rulesFilename]: {
+          content: JSON.stringify({
+            key: RULES_KEY,
+            value: `cipher:${Buffer.from(
+              JSON.stringify([{ pattern: "*" }])
+            ).toString("base64")}`,
+            updateAt: 50,
+          }),
+        },
+      },
+    });
+    apiUpdateGistFile
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error("upload failed on second file"));
 
     await expect(
       changeSyncEncryptKey({
         oldEncryptKey: SYNC_ENCRYPT_KEY,
         newEncryptKey: NEW_SYNC_ENCRYPT_KEY,
       })
-    ).rejects.toThrow("upload failed");
+    ).rejects.toThrow("upload failed on second file");
 
-    expect(putSync).not.toHaveBeenCalledWith({
-      syncEncryptKey: NEW_SYNC_ENCRYPT_KEY,
-    });
+    // Pre-read must not have uploaded; both apiUpdateGistFile calls belong to newEncryptKey re-encryption
+    expect(apiUpdateGistFile).toHaveBeenCalledTimes(2);
+    expect(encryptSyncValue).toHaveBeenCalledWith(
+      JSON.stringify({ setting: true }),
+      NEW_SYNC_ENCRYPT_KEY
+    );
+    expect(encryptSyncValue).toHaveBeenCalledWith(
+      JSON.stringify([{ pattern: "*" }]),
+      NEW_SYNC_ENCRYPT_KEY
+    );
+    expect(putSync).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncEncryptKey: NEW_SYNC_ENCRYPT_KEY,
+      }),
+      expect.anything()
+    );
   });
 
   test("uses the supplied old passphrase instead of a stale local passphrase", async () => {
