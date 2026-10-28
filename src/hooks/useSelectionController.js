@@ -301,6 +301,14 @@ export default function useSelectionController({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const selectionRootRef = useRef(document);
   const pendingSelectionRef = useRef(null);
+  const selectionTaskIdRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      selectionTaskIdRef.current += 1;
+    },
+    []
+  );
 
   const getActiveSelection = useCallback(
     () => selectionRootRef.current?.getSelection?.() || window.getSelection(),
@@ -326,9 +334,15 @@ export default function useSelectionController({
     };
   }, [effectiveBtnSize, showBtn]);
 
+  const updateShowBox = useCallback((next) => {
+    selectionTaskIdRef.current += 1;
+    setShowBox(next);
+  }, []);
+
   const commitSelectionSnapshot = useCallback((snapshot) => {
     if (!snapshot?.text) return;
 
+    selectionTaskIdRef.current += 1;
     pendingSelectionRef.current = snapshot;
     setSelText(snapshot.text);
     setTextContext(snapshot.context);
@@ -400,7 +414,8 @@ export default function useSelectionController({
   );
 
   const processSelectionSnapshot = useCallback(
-    async (snapshot) => {
+    async (snapshot, taskId = ++selectionTaskIdRef.current) => {
+      if (taskId !== selectionTaskIdRef.current) return;
       if (!snapshot?.text) {
         setShowBtn(false);
         return;
@@ -410,7 +425,9 @@ export default function useSelectionController({
       setSelText(snapshot.text);
 
       // 目标语言/纯数字命中时，统一禁用划词按钮与翻译框弹出
-      if (await shouldSuppressSelection(snapshot.text)) {
+      const suppressed = await shouldSuppressSelection(snapshot.text);
+      if (taskId !== selectionTaskIdRef.current) return;
+      if (suppressed) {
         setShowBtn(false);
         setShowBox(false);
         return;
@@ -502,7 +519,9 @@ export default function useSelectionController({
         : document;
 
       const pointerPosition = getPointerPosition(e);
+      const taskId = ++selectionTaskIdRef.current;
       await sleep(isFromTranbox ? 0 : 200);
+      if (taskId !== selectionTaskIdRef.current) return;
 
       selectionRootRef.current = selectionRoot;
 
@@ -516,7 +535,7 @@ export default function useSelectionController({
         target
       );
 
-      await processSelectionSnapshot(snapshot);
+      await processSelectionSnapshot(snapshot, taskId);
     },
     [createSelectionSnapshot, processSelectionSnapshot]
   );
@@ -540,6 +559,7 @@ export default function useSelectionController({
     }
 
     if (!snapshot?.text) {
+      selectionTaskIdRef.current += 1;
       setShowBox((pre) => !pre);
       return;
     }
@@ -633,7 +653,7 @@ export default function useSelectionController({
 
   return {
     showBox,
-    setShowBox,
+    setShowBox: updateShowBox,
     showBtn,
     setShowBtn,
     selectedText,

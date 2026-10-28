@@ -909,4 +909,109 @@ describe("useSelectionController", () => {
       controller.root.unmount();
     });
   });
+
+  test("stale async language detection from selection A cannot close or overwrite a manually opened selection B", async () => {
+    let resolveDetectA;
+    detectLangFast.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDetectA = resolve;
+        })
+    );
+
+    const controller = renderController({
+      triggerMode: "select",
+      followSelection: true,
+      skipLangs: ["en"],
+    });
+    const paragraphA = createParagraph("Context for selection A.");
+    const paragraphB = createParagraph("Context for selection B.");
+
+    currentSelection = makeSelection("selection text A", paragraphA, {
+      left: 10,
+      right: 50,
+      top: 20,
+      bottom: 40,
+      width: 40,
+      height: 20,
+    });
+    await dispatchWindowMouseup();
+    expect(detectLangFast).toHaveBeenCalledWith("selection text A");
+
+    // While A's language detection is pending, user selects B and manually opens the panel via shortcut/toggle
+    currentSelection = makeSelection("selection text B", paragraphB, {
+      left: 120,
+      right: 200,
+      top: 100,
+      bottom: 130,
+      width: 80,
+      height: 30,
+    });
+    act(() => {
+      controller.state.handleToggleTranbox();
+    });
+
+    expect(controller.state.showBox).toBe(true);
+    expect(controller.state.text).toBe("selection text B");
+    expect(controller.state.selectedText).toBe("selection text B");
+    expect(controller.state.textContext).toBe("Context for selection B.");
+    const boxPosAfterB =
+      controller.setBoxPosition.mock.calls[
+        controller.setBoxPosition.mock.calls.length - 1
+      ][0];
+
+    // A resolves as a skipped language ("en") - must not close B's panel
+    await act(async () => {
+      resolveDetectA("en");
+      await Promise.resolve();
+    });
+
+    expect(controller.state.showBox).toBe(true);
+    expect(controller.state.text).toBe("selection text B");
+    expect(controller.state.selectedText).toBe("selection text B");
+    expect(controller.state.textContext).toBe("Context for selection B.");
+    expect(controller.setBoxPosition).toHaveBeenLastCalledWith(boxPosAfterB);
+
+    // Repeat when A resolves as a non-skipped language ("fr") after manual handleOpenTranbox("manual B")
+    let resolveDetectA2;
+    detectLangFast.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDetectA2 = resolve;
+        })
+    );
+
+    currentSelection = makeSelection("selection text A2", paragraphA, {
+      left: 10,
+      right: 50,
+      top: 20,
+      bottom: 40,
+      width: 40,
+      height: 20,
+    });
+    await dispatchWindowMouseup();
+
+    act(() => {
+      controller.state.handleOpenTranbox("manual text B2");
+    });
+    expect(controller.state.showBox).toBe(true);
+    expect(controller.state.text).toBe("manual text B2");
+    expect(controller.state.selectedText).toBe("manual text B2");
+    expect(controller.state.textContext).toBe("");
+
+    await act(async () => {
+      resolveDetectA2("fr");
+      await Promise.resolve();
+    });
+
+    expect(controller.state.showBox).toBe(true);
+    expect(controller.state.text).toBe("manual text B2");
+    expect(controller.state.selectedText).toBe("manual text B2");
+    expect(controller.state.textContext).toBe("");
+    expect(controller.setBoxPosition).toHaveBeenLastCalledWith(boxPosAfterB);
+
+    act(() => {
+      controller.root.unmount();
+    });
+  });
 });
