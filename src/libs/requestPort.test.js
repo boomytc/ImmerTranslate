@@ -7,6 +7,8 @@ jest.mock("./msg", () => ({ sendBgMsg: jest.fn() }));
 jest.mock("./storage", () => ({ getSettingWithDefault: jest.fn() }));
 jest.mock("./log", () => ({ kissLog: jest.fn() }));
 jest.mock("../config", () => ({
+  DEFAULT_FETCH_INTERVAL: 0,
+  DEFAULT_FETCH_LIMIT: 1,
   DEFAULT_HTTP_TIMEOUT: 30,
   MSG_FETCH: "immertranslate_fetch",
   PORT_REQUEST_FETCH: "immertranslate_request_fetch",
@@ -14,7 +16,8 @@ jest.mock("../config", () => ({
 
 import { browser } from "./browser";
 import { sendBgMsg } from "./msg";
-import { fnPolyfill } from "./request";
+import { getFetchPool } from "./pool";
+import { attachPoolSignal, fetchHandle, fnPolyfill } from "./request";
 import { handleRequestPort } from "./requestPort";
 
 const event = () => {
@@ -251,5 +254,165 @@ describe("ordinary extension request port lifecycle", () => {
     complete({ ok: true });
     await expect(pending).resolves.toEqual({ ok: true });
     expectClean();
+  });
+
+  describe("HTTP status preservation across port and TaskPool retry", () => {
+    let baseTime = Date.now();
+
+    beforeEach(() => {
+      baseTime += 10000;
+      jest.useFakeTimers();
+      jest.setSystemTime(baseTime);
+      getFetchPool(0, 1).clear();
+      browser.runtime.connect.mockImplementation(() => {
+        pair = ports();
+        handleRequestPort(pair.server, fetchHandle);
+        return pair.client;
+      });
+    });
+
+    afterEach(() => {
+      getFetchPool(0, 1).clear();
+      jest.clearAllTimers();
+      jest.useRealTimers();
+    });
+
+    const flushAsync = async () => {
+      for (let i = 0; i < 25; i++) await Promise.resolve();
+    };
+    const advancePool = async (ms = 1000) => {
+      jest.advanceTimersByTime(ms);
+      await flushAsync();
+    };
+    const pooledFetch = (input, init, opts = {}) =>
+      getFetchPool(0, 1).push(
+        (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
+        { fn: fetchHandle, input, init, opts }
+      );
+
+    test.each([429, 503])(
+      "preserves HTTP %s from real Response across port so TaskPool retries",
+      async (status) => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce(
+            new Response(JSON.stringify({ error: "service busy" }), {
+              status,
+              statusText: "Busy",
+              headers: { "Content-Type": "application/json" },
+            })
+          )
+          .mockResolvedValueOnce(
+            new Response(JSON.stringify({ translated: "retried-ok" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            })
+          );
+
+        const pending = pooledFetch("https://example.test/translate", {
+          method: "POST",
+        });
+
+        await advancePool();
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        await advancePool();
+        await advancePool();
+
+        await expect(pending).resolves.toEqual({ translated: "retried-ok" });
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+      }
+    );
+
+    test.each([400, 401])(
+      "preserves HTTP %s across port so network-like error body is not retried",
+      async (status) => {
+        global.fetch = jest.fn(() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                error: "upstream network error and timeout hint",
+              }),
+              {
+                status,
+                statusText: "Client Error",
+                headers: { "Content-Type": "application/json" },
+              }
+            )
+          )
+        );
+
+        const pending = pooledFetch("https://example.test/translate", {
+          method: "POST",
+        });
+        const expectation = expect(pending).rejects.toMatchObject({
+          status,
+          message: expect.stringContaining("network error"),
+        });
+
+        await advancePool();
+        await expectation;
+        jest.advanceTimersByTime(5000);
+        await flush();
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    test("does not retry AbortError across port", async () => {
+      const controller = new AbortController();
+      global.fetch = jest.fn(
+        (_input, init) =>
+          new Promise((_resolve, reject) => {
+            init.signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true }
+            );
+          })
+      );
+
+      const pending = pooledFetch(
+        "https://example.test/translate",
+        { method: "POST" },
+        { signal: controller.signal }
+      );
+      const expectation = expect(pending).rejects.toMatchObject({
+        name: "AbortError",
+      });
+
+      await advancePool();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      controller.abort();
+      await expectation;
+
+      jest.advanceTimersByTime(5000);
+      await flush();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    test("keeps error semantics when error has no valid HTTP status", async () => {
+      const invalidStatusError = new Error("application failure");
+      invalidStatusError.status = "503";
+      browser.runtime.connect.mockImplementation(() => {
+        pair = ports();
+        handleRequestPort(
+          pair.server,
+          jest.fn().mockRejectedValueOnce(invalidStatusError)
+        );
+        return pair.client;
+      });
+
+      const pending = pooledFetch("https://example.test/translate", {
+        method: "POST",
+      });
+      const caughtPromise = pending.catch((err) => err);
+
+      await advancePool();
+      const caught = await caughtPromise;
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught.message).toBe("application failure");
+      expect(caught.status).toBeUndefined();
+      expect("status" in caught).toBe(false);
+    });
   });
 });

@@ -4,6 +4,14 @@ import { PORT_REQUEST_FETCH } from "../config";
 const aborted = () =>
   new DOMException("The operation was aborted.", "AbortError");
 
+const validHttpStatus = (status) =>
+  typeof status === "number" &&
+  Number.isInteger(status) &&
+  status >= 100 &&
+  status <= 599
+    ? status
+    : undefined;
+
 /** A dedicated port binds one ordinary request to its caller's lifetime. */
 export function requestThroughPort(args, signal) {
   return new Promise((resolve, reject) => {
@@ -43,6 +51,10 @@ export function requestThroughPort(args, signal) {
           message.error?.message || "Background request failed."
         );
         error.name = message.error?.name || "Error";
+        const status = validHttpStatus(message.error?.status);
+        if (status !== undefined) {
+          error.status = status;
+        }
         finish(reject, error);
       }
     };
@@ -96,9 +108,14 @@ export function handleRequestPort(port, execute) {
       });
       post({ type: "result", data });
     } catch (error) {
+      const status = validHttpStatus(error?.status);
       post({
         type: "error",
-        error: { name: error.name, message: error.message },
+        error: {
+          name: error?.name,
+          message: error?.message,
+          ...(status !== undefined ? { status } : {}),
+        },
       });
     } finally {
       cleanup();
