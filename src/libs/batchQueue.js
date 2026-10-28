@@ -6,7 +6,6 @@ import {
 
 const abortError = () =>
   new DOMException("The operation was aborted.", "AbortError");
-const destroyedError = () => new Error("Queue instance was destroyed.");
 
 export const normalizeBatchConcurrency = (batchConcurrency) => {
   const configuredConcurrency = Number(batchConcurrency);
@@ -29,7 +28,6 @@ const BatchQueue = (
   const activeBatches = new Set();
   const concurrency = normalizeBatchConcurrency(batchConcurrency);
   let timer = null;
-  let destroyed = false;
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -66,7 +64,6 @@ const BatchQueue = (
 
   const scheduleProcessing = (delay = batchInterval) => {
     if (
-      destroyed ||
       timer !== null ||
       activeBatches.size >= concurrency ||
       queue.length === 0
@@ -78,7 +75,7 @@ const BatchQueue = (
 
   const processQueue = async () => {
     clearTimer();
-    if (destroyed || queue.length === 0 || activeBatches.size >= concurrency) {
+    if (queue.length === 0 || activeBatches.size >= concurrency) {
       return;
     }
 
@@ -169,7 +166,6 @@ const BatchQueue = (
   };
 
   const addTask = (payload, args) => {
-    if (destroyed) return Promise.reject(destroyedError());
     if (args?.signal?.aborted) return Promise.reject(abortError());
 
     return new Promise((resolve, reject) => {
@@ -198,17 +194,7 @@ const BatchQueue = (
     });
   };
 
-  const destroy = () => {
-    destroyed = true;
-    clearTimer();
-    queue.splice(0).forEach((task) => settle(task, "reject", destroyedError()));
-    for (const batch of activeBatches) {
-      batch.tasks.forEach((task) => settle(task, "reject", destroyedError()));
-      batch.controller.abort();
-    }
-  };
-
-  return { addTask, destroy };
+  return { addTask };
 };
 
 const queueMap = new Map();

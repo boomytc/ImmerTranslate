@@ -17,7 +17,7 @@ const { getFetchPool } = require("./pool");
 const { getBatchQueue } = require("./batchQueue");
 
 const translators = [];
-let inputQueue;
+let inputController;
 
 beforeEach(() => {
   document.documentElement.innerHTML = "<head></head><body></body>";
@@ -64,8 +64,8 @@ function createTranslator() {
 describe("Translator.pausePage", () => {
   afterEach(() => {
     translators.splice(0).forEach((translator) => translator.stop());
-    inputQueue?.destroy();
-    inputQueue = null;
+    inputController?.abort();
+    inputController = null;
     document.body.innerHTML = "";
   });
 
@@ -79,10 +79,18 @@ describe("Translator.pausePage", () => {
       return "selection";
     });
     let inputSettled = false;
-    inputQueue = getBatchQueue("pause-page-input", async () => ["input"], {
-      batchInterval: 60000,
-    });
-    const input = inputQueue.addTask({ text: "input box" });
+    inputController = new AbortController();
+    const inputQueue = getBatchQueue(
+      "pause-page-input",
+      async () => ["input"],
+      {
+        batchInterval: 60000,
+      }
+    );
+    const input = inputQueue.addTask(
+      { text: "input box" },
+      { signal: inputController.signal }
+    );
     input.then(
       () => {
         inputSettled = true;

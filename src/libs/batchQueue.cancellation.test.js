@@ -1,4 +1,5 @@
-let getBatchQueue;
+import { getBatchQueue } from "./batchQueue";
+
 let queueId = 0;
 const makeQueue = (fn, options) =>
   getBatchQueue(`cancellation-${queueId++}`, fn, options);
@@ -21,11 +22,6 @@ const flush = async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await Promise.resolve();
 };
-
-beforeEach(() => {
-  jest.resetModules();
-  ({ getBatchQueue } = require("./batchQueue"));
-});
 
 afterEach(() => {
   jest.useRealTimers();
@@ -226,42 +222,3 @@ test.each(["success", "rejection", "missing", "stream-missing"])(
     expect(remove).toHaveBeenCalledWith("abort", add.mock.calls[0][1]);
   }
 );
-
-test("clearing settles queued and running callers, suppresses late chunks, and allows a new queue", async () => {
-  const gate = deferred();
-  const callback = jest.fn();
-  const controller = new AbortController();
-  const fn = jest.fn(async function* () {
-    await gate.promise;
-    yield { id: 0, result: ["late", "en"] };
-  });
-  const key = `clear-cancellation-${queueId++}`;
-  const oldQueue = getBatchQueue(key, fn, {
-    batchSize: 1,
-    batchConcurrency: 1,
-  });
-  const running = observe(
-    oldQueue.addTask("running", {
-      signal: controller.signal,
-      onStreamChunk: callback,
-    })
-  );
-  const waiting = observe(oldQueue.addTask("waiting"));
-  oldQueue.destroy();
-  jest.resetModules();
-  ({ getBatchQueue } = require("./batchQueue"));
-  expect((await running).error.message).toBe("Queue instance was destroyed.");
-  expect((await waiting).error.message).toBe("Queue instance was destroyed.");
-  expect(fn.mock.calls[0][1].signal.aborted).toBe(true);
-  await expect(oldQueue.addTask("stale reference")).rejects.toThrow(
-    "destroyed"
-  );
-  const newFn = jest.fn(async () => [["new", "en"]]);
-  const newQueue = getBatchQueue(key, newFn, { batchSize: 1 });
-  await expect(newQueue.addTask("new")).resolves.toEqual(["new", "en"]);
-  gate.resolve();
-  await flush();
-  expect(callback).not.toHaveBeenCalled();
-  expect(fn).toHaveBeenCalledTimes(1);
-  expect(newFn).toHaveBeenCalledTimes(1);
-});
