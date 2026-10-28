@@ -44,6 +44,10 @@ export async function* fetchStreamNative(input, init = {}, opts = {}) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const parseSSE = createSSEParser();
+  const cancelOnAbort = () => {
+    void reader.cancel?.();
+  };
+  signal?.addEventListener?.("abort", cancelOnAbort, { once: true });
 
   try {
     while (true) {
@@ -55,6 +59,7 @@ export async function* fetchStreamNative(input, init = {}, opts = {}) {
       }
     }
   } finally {
+    signal?.removeEventListener?.("abort", cancelOnAbort);
     // 当调用方提前结束 async generator 时，主动释放 reader 锁并推动底层连接关闭。
     await reader.cancel?.();
   }
@@ -69,8 +74,14 @@ export async function* fetchStreamNative(input, init = {}, opts = {}) {
  * @returns {AsyncGenerator<string>} 逐条产出 background 推送的 SSE data 字段。
  */
 async function* fetchStreamViaPort(input, init, opts) {
+  const { signal: optSignal, ...serializableOpts } = opts || {};
+  const { signal: initSignal, ...serializableInit } = init || {};
+  const signal = mergeAbortSignals([initSignal, optSignal]);
+  if (signal?.aborted) {
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }
+
   const asyncQueue = createAsyncQueue();
-  const { signal, ...serializableOpts } = opts || {};
 
   let port;
   try {
@@ -78,6 +89,9 @@ async function* fetchStreamViaPort(input, init, opts) {
   } catch (e) {
     throw new Error("Failed to connect to background: " + e.message);
   }
+
+  let settled = false;
+  let cleanedUp = false;
   const disconnectPort = () => {
     try {
       port.disconnect();
@@ -85,56 +99,86 @@ async function* fetchStreamViaPort(input, init, opts) {
       // Port 可能已被对端关闭，重复断开不应覆盖真正的流式请求错误。
     }
   };
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    signal?.removeEventListener?.("abort", abortBySignal);
+    port.onMessage.removeListener?.(onMessage);
+    port.onDisconnect.removeListener?.(onDisconnect);
+  };
+  const settleDone = () => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    asyncQueue.finish();
+  };
+  const settleError = (error) => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    asyncQueue.error(error);
+  };
 
-  port.onMessage.addListener((message) => {
-    switch (message.type) {
+  const onMessage = (message) => {
+    if (settled) return;
+    switch (message?.type) {
       case "delta":
         asyncQueue.push(message.data);
         break;
       case "done":
-        asyncQueue.finish();
+        settleDone();
         break;
       case "error":
-        asyncQueue.error(new Error(message.error));
+        settleError(new Error(message.error || "Stream request failed."));
         break;
       default:
         break;
     }
-  });
+  };
 
-  port.onDisconnect.addListener(() => {
+  const onDisconnect = () => {
+    if (settled) return;
     const lastError = browser.runtime.lastError;
-    if (lastError) {
-      asyncQueue.error(new Error(lastError.message || "Port disconnected"));
-    }
-  });
+    settleError(
+      signal?.aborted
+        ? new DOMException("The operation was aborted.", "AbortError")
+        : new Error(lastError?.message || "Port disconnected")
+    );
+  };
 
   const abortBySignal = () => {
-    asyncQueue.error(
-      new DOMException("The operation was aborted.", "AbortError")
-    );
+    settleError(new DOMException("The operation was aborted.", "AbortError"));
     disconnectPort();
   };
 
-  const alreadyAborted = signal?.aborted;
-  if (alreadyAborted) {
+  port.onMessage.addListener(onMessage);
+  port.onDisconnect.addListener(onDisconnect);
+  signal?.addEventListener?.("abort", abortBySignal, { once: true });
+
+  if (signal?.aborted) {
     abortBySignal();
   } else {
-    signal?.addEventListener?.("abort", abortBySignal, { once: true });
-  }
-
-  if (!alreadyAborted) {
-    port.postMessage({
-      action: "start",
-      // AbortSignal 不能可靠穿过 Port 结构化克隆，background 端会为本次连接重新创建控制器。
-      args: { input, init, opts: serializableOpts },
-    });
+    try {
+      port.postMessage({
+        action: "start",
+        // AbortSignal 不能可靠穿过 Port 结构化克隆，background 端会为本次连接重新创建控制器。
+        args: {
+          input,
+          init: init ? serializableInit : init,
+          opts: serializableOpts,
+        },
+      });
+    } catch (error) {
+      settleError(error);
+      disconnectPort();
+    }
   }
 
   try {
     yield* asyncQueue.iterate();
   } finally {
-    signal?.removeEventListener?.("abort", abortBySignal);
+    settled = true;
+    cleanup();
     // 前台停止消费流时断开 Port，background 会据此 abort 底层 fetch，避免请求继续空跑。
     disconnectPort();
   }

@@ -952,10 +952,22 @@ browser.runtime.onConnect.addListener((port) => {
     return;
   }
   if (port.name === PORT_STREAM_FETCH) {
-    port.onMessage.addListener((message) => {
-      if (message.action === "start") {
+    let started = false;
+    const cleanup = () => {
+      port.onMessage.removeListener?.(onMessage);
+      port.onDisconnect.removeListener?.(onDisconnect);
+    };
+    const onDisconnect = () => {
+      cleanup();
+    };
+    const onMessage = (message) => {
+      if (!started && message.action === "start") {
+        started = true;
+        cleanup();
         handleStreamFetch(port, message.args);
       }
-    });
+    };
+    port.onDisconnect.addListener(onDisconnect);
+    port.onMessage.addListener(onMessage);
   }
 });

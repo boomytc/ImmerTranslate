@@ -67,31 +67,33 @@ export const createAsyncQueue = () => {
   let done = false;
   let error = null;
 
+  const wake = () => {
+    if (resolve) {
+      const next = resolve;
+      resolve = null;
+      next();
+    }
+  };
+
   return {
     // 将数据压入队列，并激活等待消费的 Promise
     push: (data) => {
+      if (done) return;
       queue.push(data);
-      if (resolve) {
-        resolve();
-        resolve = null;
-      }
+      wake();
     },
     // 标记队列写入完毕，通知消费者迭代结束
     finish: () => {
+      if (done) return;
       done = true;
-      if (resolve) {
-        resolve();
-        resolve = null;
-      }
+      wake();
     },
     // 标记出错，中途强行中断迭代
     error: (e) => {
+      if (done) return;
       error = e;
       done = true;
-      if (resolve) {
-        resolve();
-        resolve = null;
-      }
+      wake();
     },
     // 消费者调用的异步迭代器，可使用 for await (const item of queue.iterate()) 形式消费
     async *iterate() {
