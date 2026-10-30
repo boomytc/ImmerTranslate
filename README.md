@@ -72,7 +72,9 @@ pnpm install
 pnpm build:chrome
 ```
 
-构建结果在 `build/chrome`，按上面的方法加载即可。`pnpm check` 在本机完成检查、测试和 Chrome/Edge 打包，`pnpm release -- --dry-run` 验证发布产物，`pnpm release` 创建标签并发布到 GitHub Releases。仓库不使用 GitHub Actions。版本与发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+构建结果在 `build/chrome`，按上面的方法加载即可。开发以代码逻辑正确性为先，完成后只做必要验收，临时测试随即清除，通过真实使用反馈迭代。仓库不维护常驻测试套件；具体约定见 [AGENTS.md](AGENTS.md)。
+
+`pnpm check` 在本机检查测试残留、格式和版本，并完成 Chrome/Edge 构建、打包与产物校验。`pnpm release -- --dry-run` 验证发布产物，`pnpm release` 创建标签并发布到 GitHub Releases。仓库不使用 GitHub Actions。版本与发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 

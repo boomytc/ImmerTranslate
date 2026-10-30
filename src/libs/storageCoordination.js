@@ -8,19 +8,8 @@ let queue = Promise.resolve();
 let installed = false;
 let backgroundHold = 0;
 // Each extension page loads this module in its own window, so pagehide only
-// drops ports in the document that is entering the back/forward cache. Tests
-// substitute one event target per isolate before the module is evaluated.
-const pageEvents =
-  globalThis.__IMMER_STORAGE_PAGE_EVENTS ||
-  (typeof window !== "undefined" ? window : undefined);
-
-function usesExtensionCoordinator() {
-  return (
-    isExt &&
-    (process.env.NODE_ENV !== "test" ||
-      typeof browser?.runtime?.connect === "function")
-  );
-}
+// drops ports in the document that is entering the back/forward cache.
+const pageEvents = typeof window !== "undefined" ? window : undefined;
 
 function storageFailure(error, outcome = "not-committed") {
   const failure = error instanceof Error ? error : new Error(String(error));
@@ -210,12 +199,12 @@ function withBackgroundLock(operation, markSettled) {
 export function withStorageLock(operation) {
   // Reject only while this background turn is already inside the lock. A second
   // background call made before that turn starts still queues behind it.
-  if (usesExtensionCoordinator() && isBg?.() && backgroundHold > 0) {
+  if (isExt && isBg?.() && backgroundHold > 0) {
     return Promise.reject(
       storageFailure(new Error("Background storage lock cannot be re-entered"))
     );
   }
-  if (usesExtensionCoordinator() && !isBg?.()) {
+  if (isExt && !isBg?.()) {
     // The caller learns about a dropped port immediately. This page's queue
     // still waits until the in-flight operation finishes, so the next local
     // write cannot overlap it.
@@ -240,7 +229,7 @@ export function withStorageLock(operation) {
     });
   }
   return enqueue(() => {
-    if (usesExtensionCoordinator()) {
+    if (isExt) {
       backgroundHold += 1;
       try {
         return Promise.resolve(
@@ -253,8 +242,6 @@ export function withStorageLock(operation) {
         throw error;
       }
     }
-    // jsdom has no cross-document storage or browser lock primitives.
-    if (process.env.NODE_ENV === "test") return operation();
     throw new Error("Cross-page storage coordination is unavailable");
   }).catch((error) => {
     throw storageFailure(error);

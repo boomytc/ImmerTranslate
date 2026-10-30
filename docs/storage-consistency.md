@@ -84,6 +84,5 @@ Extensions use the background coordinator. An accepted storage commit completes
 before a subsequent writer receives the lock. Disconnect fencing is retained;
 there is no fixed-time lease that releases an in-flight write.
 
-In unit tests without an extension coordinator Port, an in-memory local fallback
-is retained so isolated suites can exercise storage and React hooks without
-booting a background service worker.
+Coordinated writes require the extension background. Environments without that
+coordinator report an unavailable error instead of bypassing serialization.

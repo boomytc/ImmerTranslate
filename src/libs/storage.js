@@ -68,7 +68,7 @@ function preserveNewerSyncMeta(current, incoming) {
 }
 
 /**
- * 扩展使用 browser.storage.local，测试和非扩展页面使用 localStorage。
+ * 扩展使用 browser.storage.local，非扩展页面使用 localStorage。
  * @param {string} key 键名
  * @param {*} val 待写入的字符串数据
  */

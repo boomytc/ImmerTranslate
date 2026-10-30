@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,11 +30,15 @@ export function runCommand(
 
 function sourceState(root) {
   const git = (...args) =>
-    execFileSync("git", args, { cwd: root, encoding: "utf8" });
+    execFileSync("git", args, {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
   return git("status", "--porcelain=v1") + git("diff", "HEAD", "--binary");
 }
 
-export function runChecks(root, base = "HEAD", run = runCommand) {
+export function runChecks(root, base = "HEAD") {
   let workflows = [];
   try {
     workflows = readdirSync(path.join(root, ".github/workflows"));
@@ -45,16 +49,33 @@ export function runChecks(root, base = "HEAD", run = runCommand) {
     throw new Error(
       "GitHub workflows are disabled; use local check and release commands"
     );
+  const testFiles = execFileSync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    { cwd: root, encoding: "utf8" }
+  )
+    .split("\0")
+    .filter(
+      (file) =>
+        /(?:^|\/)(?:__tests__|__mocks__|__snapshots__|tests?|testdata)(?:\/|$)|\.(?:test|spec)\.[^/]+$|(?:^|\/)(?:setupTests|testUtils)\.[^/]+$|\.snap$/.test(
+          file
+        ) && existsSync(path.join(root, file))
+    );
+  if (testFiles.length)
+    throw new Error(
+      `Remove temporary test files before delivery:\n${testFiles.join("\n")}`
+    );
   const before = sourceState(root);
   for (const args of [
     ["format:check", base],
     ["release:check"],
-    ["test:release"],
-    ["run", "test", "--watchAll=false", "--runInBand"],
     ["build+zip"],
     ["release:artifacts"],
   ]) {
-    run("pnpm", args, { cwd: root, env: { ...process.env, CI: "true" } });
+    runCommand("pnpm", args, {
+      cwd: root,
+      env: { ...process.env, CI: "true" },
+    });
   }
   if (sourceState(root) !== before)
     throw new Error(

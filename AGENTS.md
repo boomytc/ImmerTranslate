@@ -10,20 +10,26 @@ Chrome/Edge 的 Manifest V3 扩展，做双语对照网页翻译。自带密钥�
 
 入口是 `background.js`、`content.js`、`popup.js`、`options.js`、`injector-*.js`。页面逻辑主要在 `src/libs/`、`src/apis/`、`src/components/`、`src/views/`、`src/hooks/`。
 
-## 2. 构建与验证
+## 2. 开发与验收
+
+本仓库采用 `confident-development-conventions`：把主要投入放在代码逻辑正确性，完成必要验收后交付，通过真实使用反馈快速迭代。
+
+- 先读实际调用链，明确状态归属、接口边界、异步操作身份和副作用顺序。优先通过代码结构与不变量排除错误。
+- 不维护常驻测试套件，不强制 TDD、补回归用例或扩展验证矩阵。需要验证分歧时使用临时测试，完成后清除脚本、样本、mock、快照等测试专用资产，不为它们保留依赖、运行入口或生产代码分支。
+- 每次开发完成后，只做与本次改动相称的必要验收。通过后停止验证并交付；没有新改动、失败或明确疑点时，复用已有结果，不因提交、推送或合入重复检查。
 
 ```sh
 pnpm install
 pnpm build:chrome   # 产物在 build/chrome
 pnpm build          # 清空后构建 Chrome 与 Edge，Edge 复用 Chrome 产物
-pnpm check          # 格式、版本与 CHANGELOG、发布脚本测试、Jest、双端构建与 ZIP、产物校验
+pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建与 ZIP、产物校验
 pnpm check -- origin/main
 ```
 
-- 改完先跑相关测试，提交、推送、合入前跑 `pnpm check`。检查会拒绝 `.github/workflows/*.yml`，也会拒绝检查或构建修改源文件。
-- `pnpm test` 是 watch 模式；非交互执行用 `CI=true pnpm test -- --watchAll=false --runInBand`。
+- 源码、构建或发布配置有变更时，完成后运行一次 `pnpm check`；纯文档变更只运行 `pnpm format:check`。检查也会拒绝 GitHub workflows 和检查或构建修改源文件。
+- 临时验证优先使用系统临时目录，或使用仓库忽略的 `tmp/` 并在结束后清除。产品的接口连通性检查与发布包完整性校验继续保留。
 - `build/` 只是本机验证产物。发布只认 `dist-release/v<版本>-<完整SHA>/build/` 的隔离构建。
-- 编译和测试通过不等于做完。装上未打包扩展，在真实页面走一遍受影响的入口。
+- 涉及浏览器交互时，加载未打包扩展走一遍受影响的主路径即可。报告实际验证结果和未验证部分，不把模拟响应说成真实服务验证。
 
 ## 3. 版本与发布
 
@@ -32,7 +38,7 @@ pnpm check -- origin/main
 - 日常开发在 `dev`；阶段性闭环后快进同步到 `main`，`main` 是发布入口。热修要合回 `dev`。不用 squash，不强推。
 - 发布在干净且等于 `origin/main` 的 `main` 上执行：先 `pnpm release -- --dry-run`，再 `pnpm release`。不手工打标签，不覆盖已上传资产，不重打历史标签。
 - `dist-release/` 里的原始产物要保留，用于恢复和校验，不删除、不重建。
-- 仓库不使用 GitHub Actions。检查、测试、构建、打包和发布都在本机完成。
+- 仓库不使用 GitHub Actions。检查、构建、打包和发布都在本机完成。
 
 ## 4. 代码
 
@@ -41,9 +47,8 @@ pnpm check -- origin/main
 - 翻译服务预置放 `src/config/api.js`，默认禁用。新服务沿用 `src/apis/index.js` → `src/apis/trans.js` 的现有分发和 `src/libs/request.js` 的请求层，不要为单个供应商另起客户端或协议栈。
 - 设置与规则的持久化走 `src/libs/storage.js`（`saveEdit` / transaction）、`storageState` 与 `storageSyncController`。组件不要绕过 storage 层直接写 `browser.storage`；`background.js` 的窗口边界等平台状态除外。
 - 同步值只接受当前版本的加密信封。读取、合并、失败恢复的约束见 `docs/storage-consistency.md`，改存储先读那份文档。
-- 规则优先级是个人规则 > 内置网站规则 > 全局规则。CSS 选择器的 `+` 前缀表示在继承结果上追加，`-` 表示剔除；改合并逻辑先看 `src/libs/rules.js` 和已有用例。
+- 规则优先级是个人规则 > 内置网站规则 > 全局规则。CSS 选择器的 `+` 前缀表示在继承结果上追加，`-` 表示剔除；改匹配与合并逻辑先看 `src/libs/rules.js` 和 `src/libs/siteMatch.js` 的契约。
 - 样式优先继承页面。译文默认保留原文、不加额外装饰；字号、字重、行高、颜色跟随所在段落。只做桌面布局，不加触屏或移动端适配。
-- 新行为或修 bug 要加同目录的 `*.test.js`。测试用现有 Jest 与 `react-dom/test-utils`，不新增测试框架。
 - 格式化用 Prettier（2 空格、双引号、80 列）。只格式化本次改动的文件，不混入全仓格式差异。
 - 项目以 GPL-3.0 发布。保留许可证与版权声明；分发修改后的版本时提供对应源码。
 

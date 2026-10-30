@@ -72,7 +72,9 @@ pnpm install
 pnpm build:chrome
 ```
 
-The output is in `build/chrome`; load it as described above. Run `pnpm check` locally for checks, tests, and Chrome/Edge packaging. Use `pnpm release -- --dry-run` to verify release artifacts, then `pnpm release` to tag and publish to GitHub Releases. This repository does not use GitHub Actions. See [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+The output is in `build/chrome`; load it as described above. Development focuses on correct code logic, followed by the checks needed for the change. Remove temporary tests after verification and use real usage feedback to guide iteration. This repository does not maintain a permanent test suite. See [AGENTS.md](AGENTS.md) for the development conventions.
+
+Run `pnpm check` locally to reject leftover test files, check formatting and versions, and build, package, and verify the Chrome/Edge artifacts. Use `pnpm release -- --dry-run` to verify release artifacts, then `pnpm release` to tag and publish to GitHub Releases. This repository does not use GitHub Actions. See [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ## License
 

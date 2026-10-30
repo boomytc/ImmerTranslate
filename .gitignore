@@ -8,7 +8,7 @@
 .pnp.js
 .yarn
 
-# testing
+# temporary verification output
 /coverage
 /tmp/
 

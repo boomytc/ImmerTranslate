@@ -39,23 +39,24 @@ async function exists(file) {
   }
 }
 
-export async function saveArtifacts(build, output, copy = cp) {
+async function saveArtifacts(build, output) {
   const staging = await mkdtemp(path.join(path.dirname(output), ".staging-"));
   try {
-    await copy(build, path.join(staging, "build"), { recursive: true });
+    await cp(build, path.join(staging, "build"), { recursive: true });
     await rename(staging, output);
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
 }
 
-// Inject the command runner and build only for offline lifecycle tests.
-export async function releaseLocal(
-  { root, dryRun = false, tag: requestedTag },
-  { run = runCommand, check = runChecks } = {}
-) {
-  const git = (...args) => run("git", args, { cwd: root, capture: true });
-  const gh = (...args) => run("gh", args, { cwd: root, capture: true });
+export async function releaseLocal({
+  root,
+  dryRun = false,
+  tag: requestedTag,
+}) {
+  const git = (...args) =>
+    runCommand("git", args, { cwd: root, capture: true });
+  const gh = (...args) => runCommand("gh", args, { cwd: root, capture: true });
   const cleanMain = () => {
     if (git("branch", "--show-current") !== "main")
       throw new Error("Release from main");
@@ -143,13 +144,13 @@ export async function releaseLocal(
         recursive: true,
       });
     } else {
-      run("pnpm", ["install", "--frozen-lockfile"], { cwd: source });
+      runCommand("pnpm", ["install", "--frozen-lockfile"], { cwd: source });
       // Check every change since the previous release, including the first commit.
       const tags = git("tag", "--merged", sha, "--sort=-version:refname")
         .split("\n")
         .filter((value) => /^v\d+\.\d+\.\d+$/.test(value));
       const base = tags[0] || git("hash-object", "-t", "tree", "--stdin");
-      await check(source, base);
+      await runChecks(source, base);
       await verifyArtifactManifest(source, tag, sha);
       await saveArtifacts(path.join(source, "build"), output);
     }
@@ -177,15 +178,19 @@ export async function releaseLocal(
         git("tag", "-a", tag, "-m", `Release version ${version}`, sha);
       git("push", "origin", `refs/tags/${tag}`);
     }
-    run(process.execPath, [path.join(scripts, "publish-release-cli.mjs")], {
-      cwd: source,
-      env: {
-        ...process.env,
-        RELEASE_ROOT: source,
-        RELEASE_TAG: tag,
-        GITHUB_REPOSITORY: repository,
-      },
-    });
+    runCommand(
+      process.execPath,
+      [path.join(scripts, "publish-release-cli.mjs")],
+      {
+        cwd: source,
+        env: {
+          ...process.env,
+          RELEASE_ROOT: source,
+          RELEASE_TAG: tag,
+          GITHUB_REPOSITORY: repository,
+        },
+      }
+    );
     return output;
   } finally {
     try {

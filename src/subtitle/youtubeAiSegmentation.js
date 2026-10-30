@@ -589,7 +589,7 @@ export function createAiChunkScheduler({
      *
      * @param {number} currentTimeMs 播放器当前时间，单位毫秒。
      * @param {number} [preTrans=90] 复用字幕“提前翻译时长”的前瞻秒数。
-     * @returns {Promise<void>} 当前窗口内已触发 chunk 的处理 Promise；生产路径可忽略，测试可等待。
+     * @returns {Promise<void>} 当前窗口内已触发 chunk 的处理 Promise。
      */
     scheduleUntil(currentTimeMs, preTrans = 90) {
       latestWindow = {
