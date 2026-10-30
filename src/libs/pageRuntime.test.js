@@ -680,16 +680,26 @@ describe("PageRuntime", () => {
 
   test("an inserted iframe follows the top frame and is told to restore when it turns off", async () => {
     window.history.pushState({}, "", "/child-embed");
-    let parent = { transOpen: true, fabVisible: false };
+    let parent = {
+      transOpen: true,
+      fabVisible: false,
+      pagePatch: { apiSlug: "Google", toLang: "ja", selector: "#parent" },
+    };
     const harness = boot({
       isIframe: true,
       queryParent: async () => parent,
-      matchRule: async () => ({ transOpen: "false", apiSlug: "stored" }),
+      matchRule: async () => ({
+        transOpen: "false",
+        apiSlug: "stored",
+        selector: "article",
+      }),
     });
     await harness.runtime.start();
     expect(harness.created[0].rule).toMatchObject({
       transOpen: "true",
-      apiSlug: "stored",
+      apiSlug: "Google",
+      toLang: "ja",
+      selector: "article",
     });
     parent = { transOpen: false, fabVisible: true };
     harness.onRules({ data: [{ pattern: "*", transOpen: "false" }] });

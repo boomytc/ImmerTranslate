@@ -28,6 +28,63 @@ test("frame runtime state carries translation and fab visibility", () => {
   ).toEqual({ transOpen: "false" });
 });
 
+test("late frames inherit only temporary presentation fields, not selectors or settings", () => {
+  const pagePatch = {
+    apiSlug: "Google",
+    toLang: "ja",
+    textStyle: "highlight",
+    transOnly: "true",
+    selector: "#parent-only",
+    transOpen: "false",
+    transApis: [{ apiKey: "must-not-leave-the-runtime" }],
+  };
+  const state = frameRuntimeState({ transOpen: true, pagePatch });
+  expect(state.pagePatch).toEqual({
+    apiSlug: "Google",
+    toLang: "ja",
+    textStyle: "highlight",
+    transOnly: "true",
+  });
+  expect(
+    applyParentRuntime({ selector: "article", apiSlug: "Microsoft" }, state)
+  ).toEqual({
+    selector: "article",
+    apiSlug: "Google",
+    toLang: "ja",
+    textStyle: "highlight",
+    transOnly: "true",
+    transOpen: "true",
+  });
+});
+
+test("runtime replies from a sibling cannot satisfy a parent query", async () => {
+  const parent = { postMessage: jest.fn() };
+  const listeners = new Set();
+  const frame = {
+    top: parent,
+    parent,
+    setTimeout,
+    clearTimeout,
+    addEventListener: (_type, listener) => listeners.add(listener),
+    removeEventListener: (_type, listener) => listeners.delete(listener),
+  };
+  const pending = queryParentFrameRuntime(1000, frame);
+  const { requestId } = parent.postMessage.mock.calls[0][0];
+  const data = {
+    action: MSG_FRAME_RUNTIME_STATE,
+    requestId,
+    transOpen: true,
+    pagePatch: { apiSlug: "Google" },
+  };
+  listeners.forEach((listener) => listener({ data, source: {} }));
+  expect(listeners.size).toBe(1);
+  listeners.forEach((listener) => listener({ data, source: parent }));
+  await expect(pending).resolves.toMatchObject({
+    transOpen: true,
+    pagePatch: { apiSlug: "Google" },
+  });
+});
+
 test("the top frame replies with its current runtime", () => {
   const source = { postMessage: jest.fn() };
   expect(

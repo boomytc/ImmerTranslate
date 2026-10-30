@@ -543,6 +543,10 @@ export const I18N = {
     en: `URL pattern`,
   },
   pattern_helper: {
+    zh: `按网址文本匹配，支持星号(*)通配符；多个网址用换行或英文逗号分隔。精确限定主机时请写完整网址，例如 https://example.com/*。`,
+    en: `Matches URL text and supports the asterisk (*) wildcard. Separate URLs with newlines or commas. To restrict a host, use a full URL such as https://example.com/*.`,
+  },
+  rule_pattern_helper: {
     zh: `1、example.com 和 hostname:example.com 仅匹配该主机；*.example.com 包含该主机及其子域名。2、主机名可指定端口。3、多个网址用换行或英文逗号分隔；复杂网址支持星号(*)通配符。`,
     en: `1. example.com and hostname:example.com match only that host; *.example.com includes the host and its subdomains. 2. Hostnames can specify a port. 3. Separate URLs with newlines or commas; complex URL patterns support the asterisk (*) wildcard.`,
   },

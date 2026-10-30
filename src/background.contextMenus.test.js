@@ -11,6 +11,7 @@ import {
   CMD_TOGGLE_TRANSLATE_ONLY,
   MSG_OPEN_SEPARATE_WINDOW,
   MSG_OPEN_TRANBOX,
+  MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_ONLY,
   MSG_TRANS_TOGGLE_STYLE,
   MSG_TRANSBOX_TOGGLE,
@@ -83,9 +84,11 @@ const FULL_MENUS = [
 ];
 
 const MENU_CLICKS = {
-  [CMD_TOGGLE_TRANSLATE]: { broadcastTranslateToggle: [] },
-  [CMD_TOGGLE_TRANSLATE_ONLY]: { sendTabMsg: [MSG_TRANS_TOGGLE_ONLY] },
-  [CMD_TOGGLE_STYLE]: { sendTabMsg: [MSG_TRANS_TOGGLE_STYLE] },
+  [CMD_TOGGLE_TRANSLATE]: { broadcastPageCommand: [MSG_TRANS_TOGGLE] },
+  [CMD_TOGGLE_TRANSLATE_ONLY]: {
+    broadcastPageCommand: [MSG_TRANS_TOGGLE_ONLY],
+  },
+  [CMD_TOGGLE_STYLE]: { broadcastPageCommand: [MSG_TRANS_TOGGLE_STYLE] },
   [CMD_OPEN_TRANBOX]: {
     sendTabMsg: [MSG_OPEN_TRANBOX, { text: "selected words" }],
   },
@@ -93,11 +96,7 @@ const MENU_CLICKS = {
   options_separator: {},
 };
 
-const MENU_EFFECTS = [
-  "broadcastTranslateToggle",
-  "sendTabMsg",
-  "openOptionsPage",
-];
+const MENU_EFFECTS = ["broadcastPageCommand", "sendTabMsg", "openOptionsPage"];
 
 /**
  * contextMenus.create commits on a later turn and returns the id immediately.
@@ -112,7 +111,7 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
   let clickListener = null;
   const runtime = { lastError: undefined };
   const sendTabMsg = jest.fn();
-  const broadcastTranslateToggle = jest.fn();
+  const broadcastPageCommand = jest.fn();
   const openOptionsPage = jest.fn();
 
   const browser = {
@@ -168,13 +167,14 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
     chrome: { runtime },
     kissLog: jest.fn(),
     sendTabMsg,
-    broadcastTranslateToggle,
+    broadcastPageCommand,
     openOptionsPage,
     CMD_TOGGLE_TRANSLATE,
     CMD_TOGGLE_TRANSLATE_ONLY,
     CMD_TOGGLE_STYLE,
     CMD_OPEN_TRANBOX,
     CMD_OPEN_OPTIONS,
+    MSG_TRANS_TOGGLE,
     MSG_TRANS_TOGGLE_ONLY,
     MSG_TRANS_TOGGLE_STYLE,
     MSG_OPEN_TRANBOX,
@@ -188,7 +188,7 @@ function createHarness({ mode = "chrome", failIds = [] } = {}) {
     items,
     kissLog: context.kissLog,
     sendTabMsg,
-    broadcastTranslateToggle,
+    broadcastPageCommand,
     openOptionsPage,
     get itemsAtSecondRemove() {
       return itemsAtSecondRemove;
@@ -243,7 +243,7 @@ function loadCommandListener() {
   let listener;
   const context = vm.createContext({
     sendTabMsg,
-    broadcastTranslateToggle: jest.fn(),
+    broadcastPageCommand: jest.fn(),
     openOptionsPage: jest.fn(),
     messageHandlers: {},
     CMD_TOGGLE_TRANSLATE,
@@ -253,6 +253,7 @@ function loadCommandListener() {
     CMD_TOGGLE_STYLE,
     CMD_OPEN_OPTIONS,
     CMD_OPEN_SEPARATE_WINDOW,
+    MSG_TRANS_TOGGLE,
     MSG_TRANS_TOGGLE_ONLY,
     MSG_OPEN_TRANBOX,
     MSG_TRANSBOX_TOGGLE,
@@ -272,7 +273,11 @@ function loadCommandListener() {
   if (typeof listener !== "function") {
     throw new Error("command listener was not registered");
   }
-  return { sendTabMsg, listener };
+  return {
+    sendTabMsg,
+    broadcastPageCommand: context.broadcastPageCommand,
+    listener,
+  };
 }
 
 function menuItem(props) {
@@ -450,6 +455,21 @@ describe("context menu clicks", () => {
       selectionText: "selected words",
     });
     expectNoMenuMessage(harness);
+  });
+});
+
+describe("page command shortcuts", () => {
+  test.each([
+    [CMD_TOGGLE_TRANSLATE, MSG_TRANS_TOGGLE],
+    [CMD_TOGGLE_TRANSLATE_ONLY, MSG_TRANS_TOGGLE_ONLY],
+    [CMD_TOGGLE_STYLE, MSG_TRANS_TOGGLE_STYLE],
+  ])("%s lets the top frame decide before broadcasting", (command, action) => {
+    const { sendTabMsg, broadcastPageCommand, listener } =
+      loadCommandListener();
+    listener(command);
+    expect(broadcastPageCommand).toHaveBeenCalledTimes(1);
+    expect(broadcastPageCommand).toHaveBeenCalledWith(action);
+    expect(sendTabMsg).not.toHaveBeenCalled();
   });
 });
 

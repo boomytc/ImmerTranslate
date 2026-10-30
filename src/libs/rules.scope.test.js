@@ -250,6 +250,47 @@ test.each([
   }
 );
 
+test.each([
+  ["x.com", "x.com"],
+  ["hostname:x.com", "x.com"],
+  ["x.com", "hostname:x.com"],
+  ["*.x.com", "*.x.com"],
+  ["x.com:800", "x.com:800"],
+])(
+  "rejects quick saves to disabled %s through %s",
+  async (storedPattern, pattern) => {
+    const disabled = Object.freeze({
+      pattern: storedPattern,
+      enabled: false,
+      selector: "article",
+    });
+    const before = Object.freeze([disabled, Object.freeze({ ...GLOBLA_RULE })]);
+    mockStored.rules = before;
+    for (const patch of [
+      { transOpen: "true" },
+      { transOpen: "false" },
+      { transOpen: "*" },
+      { apiSlug: "Google" },
+    ]) {
+      const request = Object.freeze({ pattern, ...patch });
+      await expect(saveRule(request)).rejects.toThrow("rule-disabled");
+      await expect(saveRuleMessage(request)).resolves.toEqual({
+        error: "rule-disabled",
+      });
+      expect(mockStored.rules).toBe(before);
+      expect(mockStored.rules[0]).toEqual(disabled);
+    }
+    await expect(
+      writeSiteTransOpen("https://x.com/", "true", before, {
+        throughBackground: false,
+        pattern,
+      })
+    ).rejects.toThrow("rule-disabled");
+    expect(mockStored.rules).toBe(before);
+    expect(trySyncRules).not.toHaveBeenCalled();
+  }
+);
+
 test("a failed save reports an error once without scheduling synchronization", async () => {
   saveEdit.mockRejectedValueOnce(new Error("storage failed"));
   const before = mockStored.rules;

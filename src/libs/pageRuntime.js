@@ -409,6 +409,7 @@ export class PageRuntime {
         isIframe: Boolean(this.options.isIframe),
         transboxOnly: Boolean(this.options.transboxOnly),
         onManualSwitch: (enabled) => this.setManualSwitch(enabled),
+        getPageRulePatch: () => this.#pagePatch,
         onPageRuleChange: (patch) => {
           const href = this.options.getHref
             ? this.options.getHref()

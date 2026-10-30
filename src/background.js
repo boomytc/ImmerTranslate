@@ -5,6 +5,7 @@ import {
   PORT_REQUEST_FETCH,
   MSG_GET_HTTPCACHE,
   MSG_PUT_HTTPCACHE,
+  MSG_TRANS_TOGGLE,
   MSG_TRANS_TOGGLE_ONLY,
   MSG_OPEN_OPTIONS,
   MSG_SAVE_RULE,
@@ -45,7 +46,7 @@ import { trySyncSettingAndRules } from "./libs/sync";
 import { fetchHandle, fetchStreamNative } from "./libs/fetch";
 import { handleRequestPort } from "./libs/requestPort";
 import { tryClearCaches, getHttpCache, putHttpCache } from "./libs/cache";
-import { sendTabMsg, broadcastTranslateToggle } from "./libs/msg";
+import { sendTabMsg, broadcastPageCommand } from "./libs/msg";
 import { saveRuleMessage } from "./libs/rules";
 import { getCurTabId } from "./libs/msg";
 import { injectInlineJsBg, injectInternalCss } from "./libs/injector";
@@ -533,20 +534,20 @@ async function rebuildContextMenus(contextMenuType = 1) {
  */
 const contextMenuActions = {
   [CMD_TOGGLE_TRANSLATE]: {
-    handle: () => broadcastTranslateToggle(),
+    handle: () => broadcastPageCommand(MSG_TRANS_TOGGLE),
     modes: {
       1: { title: "toggle_translate", contexts: ["page"] },
       2: { title: "toggle_translate", contexts: ["page", "selection"] },
     },
   },
   [CMD_TOGGLE_TRANSLATE_ONLY]: {
-    handle: () => sendTabMsg(MSG_TRANS_TOGGLE_ONLY),
+    handle: () => broadcastPageCommand(MSG_TRANS_TOGGLE_ONLY),
     modes: {
       2: { title: "toggle_translate_only", contexts: ["page", "selection"] },
     },
   },
   [CMD_TOGGLE_STYLE]: {
-    handle: () => sendTabMsg(MSG_TRANS_TOGGLE_STYLE),
+    handle: () => broadcastPageCommand(MSG_TRANS_TOGGLE_STYLE),
     modes: {
       2: { title: "toggle_style", contexts: ["page", "selection"] },
     },
@@ -876,10 +877,10 @@ browser.runtime.onMessage.addListener(async ({ action, args }, sender) => {
 browser.commands?.onCommand?.addListener?.((command) => {
   switch (command) {
     case CMD_TOGGLE_TRANSLATE:
-      broadcastTranslateToggle();
+      broadcastPageCommand(MSG_TRANS_TOGGLE);
       break;
     case CMD_TOGGLE_TRANSLATE_ONLY:
-      sendTabMsg(MSG_TRANS_TOGGLE_ONLY);
+      broadcastPageCommand(MSG_TRANS_TOGGLE_ONLY);
       break;
     case CMD_OPEN_TRANBOX:
       sendTabMsg(MSG_OPEN_TRANBOX);
@@ -888,7 +889,7 @@ browser.commands?.onCommand?.addListener?.((command) => {
       sendTabMsg(MSG_TRANSBOX_TOGGLE);
       break;
     case CMD_TOGGLE_STYLE:
-      sendTabMsg(MSG_TRANS_TOGGLE_STYLE);
+      broadcastPageCommand(MSG_TRANS_TOGGLE_STYLE);
       break;
     case CMD_OPEN_OPTIONS:
       openOptionsPage();

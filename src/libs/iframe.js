@@ -24,9 +24,26 @@ export const MSG_FRAME_RUNTIME_QUERY = "frame_runtime_query";
 export const MSG_FRAME_RUNTIME_STATE = "frame_runtime_state";
 
 export function frameRuntimeState(state) {
+  const pagePatch = Object.fromEntries(
+    [
+      "apiSlug",
+      "fromLang",
+      "toLang",
+      "textStyle",
+      "originalTextStyle",
+      "wrapOriginal",
+      "transOnly",
+      "transOnlyRevert",
+      "transOnlyRevertDelay",
+      "transOrder",
+    ]
+      .filter((key) => typeof state?.pagePatch?.[key] === "string")
+      .map((key) => [key, state.pagePatch[key]])
+  );
   return {
     transOpen: state?.transOpen === true || state?.transOpen === "true",
     fabVisible: Boolean(state?.fabVisible),
+    ...(Object.keys(pagePatch).length ? { pagePatch } : {}),
   };
 }
 
@@ -34,7 +51,11 @@ export function frameRuntimeState(state) {
 export function applyParentRuntime(rule, state) {
   if (!rule || !state) return rule;
   const runtime = frameRuntimeState(state);
-  return { ...rule, transOpen: runtime.transOpen ? "true" : "false" };
+  return {
+    ...rule,
+    ...runtime.pagePatch,
+    transOpen: runtime.transOpen ? "true" : "false",
+  };
 }
 
 export function replyFrameRuntime(event, state) {
@@ -82,11 +103,16 @@ export function queryParentFrameRuntime(timeout = 300, frameWindow = window) {
         typeof data.args?.enabled === "boolean" &&
         (event.source === topWindow || event.source === frameWindow.parent)
       ) {
-        finish(frameRuntimeState({ transOpen: data.args.enabled }));
+        finish(
+          frameRuntimeState({
+            transOpen: data.args.enabled,
+            pagePatch: data.args.pagePatch,
+          })
+        );
         return;
       }
       if (!data || data.action !== MSG_FRAME_RUNTIME_STATE) return;
-      if (data.requestId !== requestId) return;
+      if (event.source !== topWindow || data.requestId !== requestId) return;
       finish(frameRuntimeState(data));
     };
     const timer = frameWindow.setTimeout(() => finish(null), timeout);

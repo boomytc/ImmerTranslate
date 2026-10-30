@@ -8,7 +8,7 @@ import { isMatch } from "./utils";
  * 翻译黑名单不走这里。
  */
 const HOST_ENTRY =
-  /^((?:\*\.)*)(\[[0-9a-f:.]+\]|[a-z0-9\u0080-\uffff-]+(?:\.[a-z0-9\u0080-\uffff-]+)*)(?::(\d+|\*))?$/i;
+  /^((?:\*\.)*)(\[[0-9a-f:.]+\]|[a-z0-9_\u0080-\uffff-]+(?:\.[a-z0-9_\u0080-\uffff-]+)*\.?)(?::(\d+|\*))?$/i;
 
 export function matchesSiteEntry(href, entry) {
   const pattern = typeof entry === "string" ? entry.trim() : "";
@@ -77,7 +77,12 @@ export function parseHostEntry(pattern) {
     wildcard: Boolean(match[1]),
     wildcards: match[1].length / 2,
     domain,
-    port: match[3] == null ? null : match[3],
+    port:
+      match[3] == null
+        ? null
+        : match[3] === "*"
+          ? "*"
+          : String(Number(match[3])),
   };
 }
 

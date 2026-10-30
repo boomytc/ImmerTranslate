@@ -1,5 +1,5 @@
 import { browser } from "./browser";
-import { acceptsFrameMessage } from "./msg";
+import { acceptsFrameMessage, getResolvedPageCommand } from "./msg";
 import { Translator } from "./translator";
 import { InputTranslator } from "./inputTranslate";
 import { TransboxManager } from "./tranbox";
@@ -89,6 +89,7 @@ export default class TranslatorManager {
   #pageSwitch = null;
   #onManualSwitch = null;
   #onPageRuleChange = null;
+  #getPageRulePatch = null;
   #dispatchingManualSwitch = false;
 
   // 运行期子模块实例。它们可能挂载 DOM，因此随 restart 销毁并重建。
@@ -114,6 +115,7 @@ export default class TranslatorManager {
     transboxOnly = false,
     onManualSwitch,
     onPageRuleChange,
+    getPageRulePatch,
     pageSwitch = null,
   }) {
     if (typeof onManualSwitch !== "function") {
@@ -126,6 +128,7 @@ export default class TranslatorManager {
     this.#transboxOnly = transboxOnly;
     this.#onManualSwitch = onManualSwitch;
     this.#onPageRuleChange = onPageRuleChange;
+    this.#getPageRulePatch = getPageRulePatch;
     this.#pageSwitch = pageSwitch;
 
     this.#innerMessageHandler = this.#handleInnerMessage.bind(this);
@@ -346,7 +349,8 @@ export default class TranslatorManager {
   #frameRuntimeState() {
     const href = window.location?.href || "";
     return {
-      transOpen: this._translator?.rule?.transOpen,
+      transOpen: this.#pageSwitch === PAGE_SWITCH.ON,
+      pagePatch: this.#getPageRulePatch?.() || {},
       fabVisible:
         !this.#isIframe &&
         !this.#transboxOnly &&
@@ -926,18 +930,6 @@ export default class TranslatorManager {
       return this.#getRuntimeResponse();
     }
 
-    // Keep shared translation commands in sync without forwarding top-only UI.
-    if (
-      !fromExt &&
-      !requiresInput &&
-      action !== MSG_POPUP_TOGGLE &&
-      action !== MSG_FAB_TOGGLE &&
-      action !== MSG_TRANS_TOGGLE &&
-      action !== MSG_TRANS_GETRULE
-    ) {
-      sendIframeMsg(action, args);
-    }
-
     logger.debug("process action:", action, args);
 
     let publishRule = false;
@@ -959,18 +951,19 @@ export default class TranslatorManager {
       }
       case MSG_TRANS_TOGGLE_ONLY: {
         const previous = this._translator.rule.transOnly;
-        if (this.#pageSwitch === PAGE_SWITCH.OFF) {
-          this.#applyManualSwitch(true);
-          if (this.#pageSwitch !== PAGE_SWITCH.ON) break;
-          if (this._translator.rule.transOnly !== "true")
-            this._translator.updateRule({ transOnly: "true" });
-        } else {
-          this._translator?.toggleTransOnly();
+        const transOnly = ["true", "false"].includes(args?.transOnly)
+          ? args.transOnly
+          : this.#pageSwitch === PAGE_SWITCH.OFF || previous !== "true"
+            ? "true"
+            : "false";
+        const enabled =
+          typeof args?.enabled === "boolean" ? args.enabled : true;
+        const switching = enabled !== (this.#pageSwitch === PAGE_SWITCH.ON);
+        if (transOnly !== previous) {
+          this.#onPageRuleChange?.({ transOnly });
+          if (!switching) this._translator.updateRule({ transOnly });
         }
-        if (this._translator.rule.transOnly !== previous)
-          this.#onPageRuleChange?.({
-            transOnly: this._translator.rule.transOnly,
-          });
+        if (switching) this.#applyManualSwitch(enabled);
         publishRule = true;
         break;
       }
@@ -1109,6 +1102,17 @@ export default class TranslatorManager {
         return { error: `Message action is unavailable: ${action}` };
     }
     const response = this.#getRuntimeResponse();
+    if (
+      !fromExt &&
+      !requiresInput &&
+      action !== MSG_POPUP_TOGGLE &&
+      action !== MSG_FAB_TOGGLE &&
+      action !== MSG_TRANS_TOGGLE &&
+      action !== MSG_TRANS_GETRULE
+    ) {
+      const command = getResolvedPageCommand(action, args, response);
+      if (command) sendIframeMsg(command.action, command.args);
+    }
     if (publishRule) publishPageRule(response);
     return response;
   }

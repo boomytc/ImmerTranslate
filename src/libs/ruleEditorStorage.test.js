@@ -269,18 +269,68 @@ test("rejects invalid and duplicate patterns without changing either existing ru
   }
 });
 
-test("rejects renaming a rule to an existing hostname alias", async () => {
-  rules = checkRules([
-    { pattern: "news.example.com", selector: ".current" },
-    { pattern: "hostname:other.example.com", selector: ".other" },
-  ]);
-  const expected = structuredCopy(rules[0]);
+test.each([
+  ["news.example.com", "hostname:news.example.com"],
+  ["hostname:news.example.com", "news.example.com"],
+])(
+  "allows selector edits to %s alongside its historical alias",
+  async (pattern, alias) => {
+    rules = checkRules([
+      { pattern, selector: ".current", apiSlug: "custom" },
+      { pattern: alias, selector: ".other" },
+    ]);
+    const other = structuredCopy(rules[1]);
+    for (const patch of [
+      { selector: ".new" },
+      { pattern, selector: ".next" },
+    ]) {
+      const loaded = await resolveRuleContext(href, {});
+      const saved = await writeSiteRule({ href, expected: loaded.site, patch });
+      expect(saved.site).toMatchObject({
+        pattern,
+        selector: patch.selector,
+        apiSlug: "custom",
+      });
+      expect(saved.effective.selector).toBe(patch.selector);
+      expect(rules).toHaveLength(2);
+      expect(rules[0].pattern).toBe(pattern);
+      expect(rules[1]).toEqual(other);
+    }
+  }
+);
+
+test.each([
+  ["news.example.com", "hostname:other.example.com", "other.example.com"],
+  [
+    "news.example.com",
+    "hostname:news.example.com",
+    "hostname:news.example.com",
+  ],
+  ["hostname:news.example.com", "news.example.com", "news.example.com"],
+])(
+  "rejects renaming %s to the existing pattern %s via %s",
+  async (current, existing, pattern) => {
+    rules = checkRules([
+      { pattern: current, selector: ".current" },
+      { pattern: existing, selector: ".other" },
+    ]);
+    const expected = structuredCopy(rules[0]);
+    const before = structuredCopy(rules);
+    await expect(
+      writeSiteRule({ href, expected, patch: { pattern } })
+    ).rejects.toThrow("duplicate-pattern");
+    expect(rules).toEqual(before);
+  }
+);
+
+test("rejects creating a rule with an existing pattern alias", async () => {
   const before = structuredCopy(rules);
   await expect(
     writeSiteRule({
       href,
-      expected,
-      patch: { pattern: "other.example.com" },
+      expected: null,
+      seed: rules[0],
+      patch: { pattern: "*.EXAMPLE.COM" },
     })
   ).rejects.toThrow("duplicate-pattern");
   expect(rules).toEqual(before);

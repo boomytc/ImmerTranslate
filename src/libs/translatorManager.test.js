@@ -1635,7 +1635,7 @@ describe("TranslatorManager SPA lifecycle", () => {
   });
 
   test("continues checking queued controls after a verification rejects", async () => {
-    createManager().start();
+    createManager({ pageSwitch: "on", rule: { transOnly: "false" } }).start();
     browser.runtime.sendMessage
       .mockRejectedValueOnce(new Error("Frame removed."))
       .mockResolvedValueOnce(true);
@@ -1651,7 +1651,10 @@ describe("TranslatorManager SPA lifecycle", () => {
     await expect(firstResponse).resolves.toEqual({ error: "Frame removed." });
     await secondResponse;
     expect(mockTranslatorInstances[0].toggle).not.toHaveBeenCalled();
-    expect(mockTranslatorInstances[0].toggleTransOnly).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledTimes(1);
+    expect(mockTranslatorInstances[0].updateRule).toHaveBeenCalledWith({
+      transOnly: "true",
+    });
   });
 
   test.each([true, false])(

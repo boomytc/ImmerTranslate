@@ -66,14 +66,15 @@ export function writeSiteRule({
             )
               throw new Error("rule-conflict");
             const index = rulePatternIndex(rules, previousPattern);
+            const current = index < 0 ? null : rules[index];
             if (
+              (!current || pattern !== current.pattern) &&
               rules.some(
                 (rule, i) =>
                   i !== index && sameRulePattern(rule.pattern, pattern)
               )
             )
               throw new Error("duplicate-pattern");
-            const current = index < 0 ? null : rules[index];
             const active = findMatchingRule(rules, href) || null;
             if (!current) {
               if (expected || !same(active, seed))

@@ -434,6 +434,8 @@ const applySavedRule = (rules, curRule) => {
 
   const remaining = rules.filter((_, ruleIndex) => ruleIndex !== index);
   const rule = rules[index];
+  // Quick saves cannot take effect while the selected rule is disabled.
+  if (rule?.enabled === false) throw new Error("rule-disabled");
   const next = { ...(rule || {}), pattern: rule?.pattern || curRule.pattern };
 
   // 只写调用方带来的字段。没给的键保持原样，不再铺成整份 DEFAULT_RULE。

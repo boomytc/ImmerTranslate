@@ -1,5 +1,10 @@
 import { browser } from "./browser";
-import { MSG_TRANS_TOGGLE } from "../config/msg";
+import {
+  MSG_TRANS_TOGGLE,
+  MSG_TRANS_TOGGLE_ONLY,
+  MSG_TRANS_TOGGLE_STYLE,
+  MSG_TRANS_PUTRULE,
+} from "../config/msg";
 import { PAGE_SWITCH } from "./pageSwitch";
 
 export const MSG_NO_RECEIVER = "NO_RECEIVER";
@@ -55,6 +60,38 @@ export const getCurTabId = async () => {
 export const sendBgMsg = (action, args) =>
   browser?.runtime.sendMessage({ action, args });
 
+// Receivers apply the source's result, never their own relative toggle.
+export function getResolvedPageCommand(action, args, response) {
+  if (response?.error) return null;
+  if (action === MSG_TRANS_TOGGLE || action === MSG_TRANS_TOGGLE_ONLY) {
+    const pageSwitch = response?.pageSwitch;
+    if (pageSwitch !== PAGE_SWITCH.ON && pageSwitch !== PAGE_SWITCH.OFF) {
+      return null;
+    }
+    const enabled = pageSwitch === PAGE_SWITCH.ON;
+    if (action === MSG_TRANS_TOGGLE) return { action, args: { enabled } };
+
+    const transOnly = response?.rule?.transOnly;
+    if (transOnly !== "true" && transOnly !== "false") return null;
+    return { action, args: { transOnly, enabled } };
+  }
+  if (action === MSG_TRANS_TOGGLE_STYLE) {
+    const textStyle = response?.rule?.textStyle;
+    if (typeof textStyle !== "string") return null;
+    return { action: MSG_TRANS_PUTRULE, args: { textStyle } };
+  }
+  return { action, args };
+}
+
+function hasValidDocument(document) {
+  return (
+    typeof document?.token === "string" &&
+    document.token !== "" &&
+    Number.isInteger(document.frameId) &&
+    document.frameId >= 0
+  );
+}
+
 /**
  * Send a message to a specific tab, or the active tab when no target is supplied.
  * @param {string} action Message action.
@@ -91,15 +128,15 @@ export const sendTabMsg = async (
   // verify that document again when they receive the subsequent broadcast.
   const response = await sendMessage(tabId, message);
   if (
-    response?.error ||
     response?.document?.token !== responseDocumentToken ||
-    !Number.isInteger(response?.document?.frameId)
+    !hasValidDocument(response?.document)
   ) {
     return response;
   }
+  const command = getResolvedPageCommand(action, args, response);
+  if (!command) return response;
   await sendMessage(tabId, {
-    action,
-    args,
+    ...command,
     sourceDocument: response.document,
   }).catch(() => undefined);
   // Optional recipients can disappear or leave no response channel. The
@@ -130,22 +167,18 @@ export function acceptsFrameMessage(message, { isIframe = false } = {}) {
   return true;
 }
 
-/**
- * 快捷键和右键菜单不知道各 frame 当前是否已开启翻译。
- * 先问顶层，顶层用 pageSwitchState 算出 paused/on/off，再把同一个 on/off 发给其余 frame。
- * 顶层仍是 paused 时不把折叠后的 transOpen false 再广播成关闭。
- */
-export async function broadcastTranslateToggle(targetTabId) {
-  const top = await sendTopFrameMsg(MSG_TRANS_TOGGLE, undefined, targetTabId);
-  const pageSwitch = top?.pageSwitch;
-  if (pageSwitch !== PAGE_SWITCH.ON && pageSwitch !== PAGE_SWITCH.OFF) {
-    return top;
-  }
-  await sendTabMsg(
-    MSG_TRANS_TOGGLE,
-    { enabled: pageSwitch === PAGE_SWITCH.ON },
-    undefined,
-    targetTabId
-  );
-  return top;
+// Keep the second delivery on the originating tab and exclude its document.
+export async function broadcastPageCommand(action, targetTabId) {
+  const tabId = targetTabId ?? (await getCurTabId());
+  if (tabId == null) return;
+
+  const response = await sendTopFrameMsg(action, undefined, tabId);
+  if (!hasValidDocument(response?.document)) return response;
+  const command = getResolvedPageCommand(action, undefined, response);
+  if (!command) return response;
+  await sendMessage(tabId, {
+    ...command,
+    sourceDocument: response.document,
+  }).catch(() => undefined);
+  return response;
 }

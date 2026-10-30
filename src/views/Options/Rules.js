@@ -147,8 +147,9 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     return JSON.stringify(initialFormValues) !== JSON.stringify(formValues);
   }, [initialFormValues, formValues]);
 
-  // 校验当前输入的 pattern 是否与已有的其他规则冲突（重复的域名规则）
+  // 仅新增或更改 pattern 时查重，允许保留历史别名的其他字段编辑。
   const hasSamePattern = (str) => {
+    if (str === rule?.pattern) return false;
     for (const item of rules.list) {
       if (
         sameRulePattern(item.pattern, str) &&
@@ -259,7 +260,7 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           size="small"
           label={i18n("pattern")}
           error={!!errors.pattern}
-          helperText={errors.pattern || i18n("pattern_helper")}
+          helperText={errors.pattern || i18n("rule_pattern_helper")}
           name="pattern"
           value={pattern}
           disabled={rule?.pattern === "*" || disabled}

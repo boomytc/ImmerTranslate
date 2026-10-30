@@ -17,7 +17,7 @@ jest.mock("./iframe", () => ({
   applyParentRuntime: (rule) => rule,
   queryParentFrameRuntime: jest.fn(async () => null),
   sendIframeMsg: jest.fn(),
-  installFrameRuntimeBridge: () => () => {},
+  installFrameRuntimeBridge: jest.fn(() => () => {}),
 }));
 jest.mock("./pageRuleSync", () => ({ publishPageRule: jest.fn() }));
 jest.mock("./popupDocument", () => ({
@@ -587,6 +587,72 @@ test("a confirmed site policy change synchronizes iframes once; a manual toggle 
   expect(sendIframeMsg).toHaveBeenCalledWith(MSG_TRANS_TOGGLE, {
     enabled: true,
   });
+});
+
+test("frame handshake uses the page switch and sparse patch, not editor preview state", async () => {
+  seed([{ ...GLOBLA_RULE, transOpen: "true" }]);
+  runtime = new PageRuntime({
+    setting: DEFAULT_SETTING,
+    getHref: () => "https://x.com/home",
+  });
+  await runtime.start();
+  response(MSG_TRANS_PUTRULE, { apiSlug: "Google", toLang: "ja" });
+  runtime.manager._translator.rule.transOpen = "false";
+  runtime.manager._translator.rule.selector = "#preview-only";
+  const { installFrameRuntimeBridge } = require("./iframe");
+  const getState = installFrameRuntimeBridge.mock.calls.at(-1)[0];
+  expect(getState()).toMatchObject({
+    transOpen: true,
+    pagePatch: { apiSlug: "Google", toLang: "ja" },
+  });
+  expect(getState().pagePatch).not.toHaveProperty("selector");
+});
+
+test("ONLY records its patch before enabling and forwards a fixed result", async () => {
+  seed([{ ...GLOBLA_RULE, transOpen: "false" }]);
+  runtime = new PageRuntime({
+    setting: DEFAULT_SETTING,
+    getHref: () => "https://x.com/home",
+  });
+  await runtime.start();
+  const statesWhenEnabling = [];
+  jest
+    .spyOn(runtime.manager._translator, "enable")
+    .mockImplementation(function () {
+      statesWhenEnabling.push(this.rule.transOnly);
+      this.rule.transOpen = "true";
+    });
+  sendIframeMsg.mockClear();
+  response(MSG_TRANS_TOGGLE_ONLY);
+  expect(statesWhenEnabling).toEqual(["true"]);
+  expect(sendIframeMsg).toHaveBeenCalledTimes(1);
+  expect(sendIframeMsg).toHaveBeenCalledWith(MSG_TRANS_TOGGLE_ONLY, {
+    transOnly: "true",
+    enabled: true,
+  });
+  response(MSG_TRANS_TOGGLE_ONLY, { transOnly: "true", enabled: true });
+  expect(response(MSG_TRANS_GETRULE).rule.transOnly).toBe("true");
+});
+
+test("style forwarding sets the accepted style rather than toggling the receiver", async () => {
+  seed([{ ...GLOBLA_RULE, textStyle: "highlight" }]);
+  runtime = new PageRuntime({
+    setting: DEFAULT_SETTING,
+    getHref: () => "https://x.com/home",
+  });
+  await runtime.start();
+  jest
+    .spyOn(runtime.manager._translator, "toggleStyle")
+    .mockImplementation(function () {
+      this.rule.textStyle = "none";
+    });
+  sendIframeMsg.mockClear();
+  response(MSG_TRANS_TOGGLE_STYLE);
+  expect(sendIframeMsg).toHaveBeenCalledWith(MSG_TRANS_PUTRULE, {
+    textStyle: "none",
+  });
+  response(MSG_TRANS_TOGGLE, { enabled: true });
+  expect(response(MSG_TRANS_GETRULE).rule.textStyle).toBe("none");
 });
 
 test("changing URLs discards the sparse page patch, including when returning", async () => {

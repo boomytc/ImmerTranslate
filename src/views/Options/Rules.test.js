@@ -534,6 +534,92 @@ describe("Options Rules personal tab", () => {
   });
 });
 
+describe("Options Rules historical hostname aliases", () => {
+  const mockAddRule = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useRules.mockReturnValue({
+      list: [
+        { pattern: "example.com", selector: ".first", autoScan: "false" },
+        {
+          pattern: "hostname:example.com",
+          selector: ".second",
+          autoScan: "false",
+        },
+        { pattern: "*", selector: "p" },
+      ],
+      put: mockPutRule,
+      add: mockAddRule,
+    });
+  });
+
+  async function click(view, text) {
+    await act(async () => getButtonByText(view.container, text).click());
+  }
+
+  async function editField(view, name, value) {
+    const input = view.container.querySelector(`textarea[name="${name}"]`);
+    expect(input.disabled).toBe(false);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      ).set.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  test.each(["example.com", "hostname:example.com"])(
+    "edits selectors on %s but rejects renaming it to the other existing text pattern",
+    async (pattern) => {
+      const view = renderRules();
+      try {
+        await openPersonalTab(view);
+        const summary = Array.from(
+          view.container.querySelectorAll('[role="button"]')
+        ).find((item) => item.textContent === pattern);
+        await act(async () => summary.click());
+        await click(view, "edit");
+        await editField(view, "selector", ".new");
+        await click(view, "save");
+        expect(mockPutRule).toHaveBeenCalledTimes(1);
+        expect(mockPutRule).toHaveBeenCalledWith(pattern, { selector: ".new" });
+        expect(view.container.textContent).not.toContain(
+          "error_duplicate_values"
+        );
+
+        mockPutRule.mockClear();
+        await click(view, "edit");
+        await editField(
+          view,
+          "pattern",
+          pattern === "example.com" ? "hostname:example.com" : "example.com"
+        );
+        await click(view, "save");
+        expect(mockPutRule).not.toHaveBeenCalled();
+        expect(view.container.textContent).toContain("error_duplicate_values");
+      } finally {
+        view.unmount();
+      }
+    }
+  );
+
+  test("rejects adding a pattern equivalent to an existing hostname rule", async () => {
+    const view = renderRules();
+    try {
+      await openPersonalTab(view);
+      await click(view, "add");
+      await editField(view, "pattern", "EXAMPLE.COM");
+      await click(view, "save");
+      expect(mockAddRule).not.toHaveBeenCalled();
+      expect(view.container.textContent).toContain("error_duplicate_values");
+    } finally {
+      view.unmount();
+    }
+  });
+});
+
 describe("Options Rules sparse personal rule", () => {
   // The popup and FAB site-policy writes store only the fields they set.
   const sparseRule = { pattern: "localhost", transOpen: "true" };
