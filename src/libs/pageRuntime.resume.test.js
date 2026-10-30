@@ -82,11 +82,11 @@ describe("storage resume", () => {
         }),
       });
       await runtime.start();
-      // 第一次把尚未读过的存储装进来。第二次内容相同，不能再重算。
+      // 启动已经加载存储；重复恢复事件的内容相同时不能再重算。
       window.dispatchEvent(new Event(eventName));
       const matches = await settle(runtime, matchRule);
       const applications = applyTarget.mock.calls.length;
-      expect(matches).toBeGreaterThan(1);
+      expect(matches).toBeGreaterThanOrEqual(1);
 
       window.dispatchEvent(new Event(eventName));
       await settle(runtime, matchRule);

@@ -1,5 +1,6 @@
 import {
   MSG_INSTALL_LOCATION_HOOK,
+  DEFAULT_RULES,
   STOKEY_RULES,
   STOKEY_SETTING,
 } from "../config";
@@ -11,7 +12,8 @@ import { LOCATION_CHANGE_EVENT } from "./locationHook";
 import { logger } from "./log";
 import { sendBgMsg } from "./msg";
 import { readRedditEmbeddingHref } from "./redditFrame";
-import { matchRule as matchRuleDefault } from "./rules";
+import { deriveRuleContext } from "./rules";
+import { normalizeStoredSetting } from "./storage";
 import {
   ManualOverride,
   PAGE_SWITCH,
@@ -47,30 +49,32 @@ export { withFeatureBlacklists } from "./featureBlacklists";
 
 function subscribeStorage(key, defaultValue, onData) {
   const state = getStorageState(key, defaultValue);
-  return state.subscribe((snapshot) => {
-    if (
-      !snapshot ||
-      snapshot.isLoading ||
-      snapshot.isSaving ||
-      snapshot.isRecovering
-    ) {
-      return;
-    }
-    if (!snapshot.data || typeof snapshot.data !== "object") return;
-    onData(snapshot);
-  });
+  const unsubscribe = state.subscribe(onData);
+  unsubscribe.load = async () => {
+    await state.ensureLoaded();
+    if (state.snapshot.isRecovering) await state.load();
+  };
+  return unsubscribe;
 }
 
 export class PageRuntime {
   #started = false;
   #generation = 0;
+  #lifecycle = 0;
   #queue = Promise.resolve();
+  #startPromise = null;
+  #cancelStart = null;
+  #initializing = false;
+  #initialReconcileStarted = false;
+  #initialSnapshotsConfirmed = false;
+  #initialError = null;
+  #settingReady = false;
   #href = "";
   #setting;
   #rules = null;
-  #rule;
   #manager;
   #override = null;
+  #pagePatch = {};
   #context = null;
   #unwatch = () => {};
   #unsubscribeSetting = () => {};
@@ -78,7 +82,6 @@ export class PageRuntime {
 
   constructor(options = {}) {
     this.#setting = options.setting || {};
-    this.#rule = options.rule || null;
     this.#manager = options.manager || null;
     this.#href = options.href || "";
     this.options = options;
@@ -89,61 +92,192 @@ export class PageRuntime {
   }
 
   start() {
-    if (this.#started) return this.whenIdle();
+    if (this.#started) return this.#startPromise || this.whenIdle();
     this.#started = true;
+    this.#initializing = true;
+    this.#initialReconcileStarted = false;
+    this.#initialSnapshotsConfirmed = false;
+    this.#initialError = null;
+    this.#settingReady = false;
+    this.#rules = null;
+    this.#context = null;
+    const lifecycle = ++this.#lifecycle;
     const options = this.options;
-    this.#href = options.getHref ? options.getHref() : window.location.href;
-    if (this.#manager) {
-      // 个人规则还没到。先跟随全局，不用折叠后的 matchRule.transOpen。
-      const policy = sitePolicy(SITE_TRANS_OPEN.FOLLOW_GLOBAL);
-      this.#context = {
-        rule: { ...(this.#rule || {}) },
-        policy,
-        href: this.#href,
-        blacklistHit: Boolean(
-          matchingBlacklistEntries(this.#setting?.blacklist, this.#href).length
-        ),
-        globalTransOpen: SITE_TRANS_OPEN.DONT_AUTO_TRANSLATE,
-        setting: withFeatureBlacklists(this.#setting, this.#href),
-      };
-    }
-    const blocked = matchingBlacklistEntries(
-      this.#setting?.blacklist,
-      this.#href
-    ).length;
-    const ready =
-      blocked || !this.#manager ? this.requestReconcile() : Promise.resolve();
-    ensureLocationHook();
-    const watch = options.watchLocation || watchPageLocation;
-    this.#unwatch = watch(() => {
-      void this.requestReconcile();
-    });
     const subscribeSetting =
       options.subscribeSetting ||
       ((onData) => subscribeStorage(STOKEY_SETTING, this.#setting, onData));
     const subscribeRules =
       options.subscribeRules ||
-      ((onData) => subscribeStorage(STOKEY_RULES, [], onData));
-    this.#unsubscribeSetting = subscribeSetting((snapshot) => {
-      if (!snapshot?.data || typeof snapshot.data !== "object") return;
-      this.#setting = snapshot.data;
-      void this.requestReconcile();
+      ((onData) => subscribeStorage(STOKEY_RULES, DEFAULT_RULES, onData));
+    const cancelled = new Promise((resolve) => {
+      this.#cancelStart = () => resolve(false);
     });
-    this.#unsubscribeRules = subscribeRules((snapshot) => {
-      if (!Array.isArray(snapshot?.data)) return;
-      this.#rules = snapshot.data;
-      void this.requestReconcile();
-    });
-    return ready;
+    let settingConfirmed = false;
+    let rulesConfirmed = false;
+    let resumeConfirmed;
+    let rejectInvalid;
+    const invalid = new Promise((_, reject) => (rejectInvalid = reject));
+    // Subscriptions can publish synchronously before the first race is installed.
+    invalid.catch(() => {});
+    const confirmed = () => settingConfirmed && rulesConfirmed;
+    const waitForConfirmed = () =>
+      confirmed()
+        ? Promise.resolve(true)
+        : new Promise((resolve) => (resumeConfirmed = resolve));
+    const notifyConfirmed = () => {
+      this.#initialSnapshotsConfirmed = confirmed();
+      if (confirmed() && resumeConfirmed) {
+        const resume = resumeConfirmed;
+        resumeConfirmed = null;
+        resume(true);
+      }
+    };
+    const wait = (promise) => Promise.race([promise, cancelled, invalid]);
+    const pending = (snapshot) =>
+      !snapshot ||
+      snapshot.isLoading ||
+      snapshot.isSaving ||
+      snapshot.isRecovering;
+    const invalidate = () => {
+      this.#initialSnapshotsConfirmed = false;
+      if (this.#initializing && this.#initialReconcileStarted)
+        this.#generation += 1;
+    };
+    const failInvalid = (error) => {
+      if (this.#initializing) rejectInvalid(error);
+      else logger.info("page runtime", error);
+    };
+    this.#startPromise = (async () => {
+      try {
+        const href = options.getHref ? options.getHref() : window.location.href;
+        if (this.#href && this.#href !== href) {
+          this.#pagePatch = {};
+          this.#override = null;
+        }
+        this.#href = href;
+        ensureLocationHook();
+        const watch = options.watchLocation || watchPageLocation;
+        this.#unwatch = watch(() => {
+          void this.requestReconcile();
+        });
+        this.#unsubscribeSetting = subscribeSetting((snapshot) => {
+          if (!this.#started || lifecycle !== this.#lifecycle) return;
+          if (pending(snapshot)) {
+            settingConfirmed = false;
+            invalidate();
+            return;
+          }
+          if (
+            !snapshot.data ||
+            typeof snapshot.data !== "object" ||
+            Array.isArray(snapshot.data)
+          ) {
+            settingConfirmed = false;
+            invalidate();
+            failInvalid(new TypeError("Invalid settings snapshot"));
+            return;
+          }
+          try {
+            this.#setting = options.subscribeSetting
+              ? snapshot.data
+              : normalizeStoredSetting(snapshot.data);
+          } catch (error) {
+            settingConfirmed = false;
+            invalidate();
+            failInvalid(error);
+            return;
+          }
+          this.#settingReady = true;
+          settingConfirmed = true;
+          notifyConfirmed();
+          if (
+            this.#rules &&
+            (!this.#initializing ||
+              (this.#initialReconcileStarted && confirmed()))
+          ) {
+            void this.requestReconcile();
+          }
+        });
+        this.#unsubscribeRules = subscribeRules((snapshot) => {
+          if (!this.#started || lifecycle !== this.#lifecycle) return;
+          if (pending(snapshot)) {
+            rulesConfirmed = false;
+            invalidate();
+            return;
+          }
+          if (!Array.isArray(snapshot.data)) {
+            rulesConfirmed = false;
+            invalidate();
+            failInvalid(
+              new TypeError("Invalid rules snapshot: expected an array")
+            );
+            return;
+          }
+          this.#rules = snapshot.data;
+          rulesConfirmed = true;
+          notifyConfirmed();
+          if (
+            this.#settingReady &&
+            (!this.#initializing ||
+              (this.#initialReconcileStarted && confirmed()))
+          ) {
+            void this.requestReconcile();
+          }
+        });
+        // Both listeners must be present before either first read is requested.
+        if (
+          !(await wait(
+            Promise.all([
+              this.#unsubscribeSetting.load?.(),
+              this.#unsubscribeRules.load?.(),
+            ]).then(() => true)
+          ))
+        )
+          return;
+        while (this.#started && lifecycle === this.#lifecycle) {
+          if (!(await wait(waitForConfirmed()))) return;
+          if (!confirmed()) continue;
+          this.#initialReconcileStarted = true;
+          if (!(await wait(this.requestReconcile().then(() => true)))) return;
+          while (this.#started && lifecycle === this.#lifecycle) {
+            const queue = this.#queue;
+            if (!(await wait(queue.then(() => true)))) return;
+            if (queue === this.#queue) break;
+          }
+          if (confirmed()) break;
+        }
+        if (this.#initialError) throw this.#initialError;
+        if (this.#started && lifecycle === this.#lifecycle) {
+          this.#initializing = false;
+          this.#startPromise = null;
+          this.#cancelStart = null;
+        }
+      } catch (error) {
+        if (this.#started && lifecycle === this.#lifecycle) {
+          this.stop();
+        }
+        throw error;
+      }
+    })();
+    return this.#startPromise;
   }
 
   whenIdle() {
-    return this.#queue;
+    return this.#startPromise || this.#queue;
   }
 
   /** 本页手动开关。暂停中没有选择可记，调用直接结束。 */
   setManualSwitch(enabled) {
-    if (!this.#context || this.#context.blacklistHit) return;
+    const href = this.options.getHref
+      ? this.options.getHref()
+      : window.location.href;
+    if (
+      !this.#started ||
+      !this.#context ||
+      this.#context.blacklistHit ||
+      href !== this.#context.href
+    )
+      return;
     const turningOn =
       enabled === true ||
       (enabled !== false &&
@@ -161,6 +295,9 @@ export class PageRuntime {
 
   stop() {
     this.#generation += 1;
+    this.#lifecycle += 1;
+    this.#cancelStart?.();
+    this.#cancelStart = null;
     this.#unwatch();
     this.#unwatch = () => {};
     this.#unsubscribeSetting();
@@ -168,20 +305,44 @@ export class PageRuntime {
     this.#unsubscribeSetting = () => {};
     this.#unsubscribeRules = () => {};
     this.#started = false;
+    this.#initializing = false;
+    this.#startPromise = null;
+    this.#queue = Promise.resolve();
+    this.#manager?.stop?.();
+    this.#manager = null;
+    this.#context = null;
   }
 
   requestReconcile() {
+    if (
+      !this.#started ||
+      !this.#settingReady ||
+      !this.#rules ||
+      (this.#initializing && !this.#initialSnapshotsConfirmed)
+    )
+      return this.#queue;
+    const href = this.options.getHref
+      ? this.options.getHref()
+      : window.location.href;
+    if (href !== this.#href) {
+      this.#href = href;
+      this.#pagePatch = {};
+      this.#override = null;
+    }
     const generation = ++this.#generation;
     this.#queue = this.#queue
       .then(() => this.#reconcile(generation))
       .catch((error) => {
+        if (this.#initializing && generation === this.#generation) {
+          this.#initialError = error;
+        }
         logger.info("page runtime", error);
       });
     return this.#queue;
   }
 
   async #reconcile(generation) {
-    if (generation !== this.#generation) return;
+    if (!this.#started || generation !== this.#generation) return;
     const href = this.options.getHref
       ? this.options.getHref()
       : window.location.href;
@@ -193,12 +354,14 @@ export class PageRuntime {
     const ruleHref = this.options.ruleHref
       ? this.options.ruleHref(href, Boolean(this.options.isIframe))
       : readRedditEmbeddingHref(window, Boolean(this.options.isIframe)) || href;
-    const match = this.options.matchRule || matchRuleDefault;
-    let rule = await match(ruleHref, setting);
+    const rules = this.#rules;
+    const match =
+      this.options.matchRule ||
+      ((url, _setting, snapshot) =>
+        deriveRuleContext(url, { personalRules: snapshot }).effective);
+    let rule = await match(ruleHref, setting, rules);
     if (generation !== this.#generation) return;
-    let policy = this.#rules
-      ? sitePolicy(readSiteTransOpen(href, this.#rules))
-      : sitePolicy(SITE_TRANS_OPEN.FOLLOW_GLOBAL);
+    let policy = sitePolicy(readSiteTransOpen(href, rules));
     if (this.options.isIframe) {
       const query = this.options.queryParent || queryParentFrameRuntime;
       const parent = await query();
@@ -218,19 +381,22 @@ export class PageRuntime {
       policy,
       href,
       blacklistHit,
-      globalTransOpen: this.#rules?.find(
+      globalTransOpen: rules.find(
         (rule) => rule?.pattern === SITE_TRANS_OPEN.FOLLOW_GLOBAL
       )?.transOpen,
       setting,
     };
-    this.#rule = context.rule;
     this.#apply(context);
   }
 
   #apply(context) {
     if (context.blacklistHit) this.#override = null;
     this.#context = context;
-    const target = pageTarget({ ...context, override: this.#override });
+    const target = pageTarget({
+      ...context,
+      rule: { ...context.rule, ...this.#pagePatch },
+      override: this.#override,
+    });
     if (!this.#manager) {
       const create =
         this.options.createManager ||
@@ -243,6 +409,18 @@ export class PageRuntime {
         isIframe: Boolean(this.options.isIframe),
         transboxOnly: Boolean(this.options.transboxOnly),
         onManualSwitch: (enabled) => this.setManualSwitch(enabled),
+        onPageRuleChange: (patch) => {
+          const href = this.options.getHref
+            ? this.options.getHref()
+            : window.location.href;
+          if (
+            !this.#started ||
+            href !== this.#href ||
+            href !== this.#context?.href
+          )
+            return;
+          this.#pagePatch = { ...this.#pagePatch, ...patch };
+        },
       });
       this.#manager.start();
       this.options.onActivate?.({

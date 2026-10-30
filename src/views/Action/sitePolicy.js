@@ -2,6 +2,7 @@ import { GLOBAL_KEY, MSG_SAVE_RULE } from "../../config";
 import { isExt } from "../../libs/client";
 import { sendBgMsg } from "../../libs/msg";
 import { findMatchingRule, saveRule } from "../../libs/rules";
+import { rulePatternIndex } from "../../libs/siteMatch";
 import { SITE_TRANS_OPEN, siteTransOpenValue } from "../../libs/siteTransOpen";
 import { getDomainOptions } from "../../libs/url";
 
@@ -22,13 +23,11 @@ export const SITE_TRANS_OPEN_OPTIONS = [
  */
 export function readSiteTransOpen(href, rules, pattern) {
   const list = Array.isArray(rules) ? rules : [];
+  const eligible = list.filter(
+    (rule) => rule?.pattern !== GLOBAL_KEY && rule?.enabled !== false
+  );
   const matched = pattern
-    ? list.find(
-        (rule) =>
-          rule?.pattern === pattern &&
-          rule.pattern !== GLOBAL_KEY &&
-          rule?.enabled !== false
-      )
+    ? eligible[rulePatternIndex(eligible, pattern)]
     : typeof findMatchingRule === "function"
       ? findMatchingRule(list, href)
       : undefined;
@@ -40,20 +39,18 @@ export function readSiteTransOpen(href, rules, pattern) {
 }
 
 /**
- * Pattern saveRule should update: the personal rule that already matches
- * this page, or the current host when no personal rule exists yet.
+ * Default to the exact current host, retaining an existing equivalent alias.
+ * A wider scope is used only when the caller explicitly selects it.
  */
 export function siteRulePattern(href, rules) {
-  const matched =
-    typeof findMatchingRule === "function"
-      ? findMatchingRule(rules || [], href)?.pattern
-      : undefined;
-  return matched || getDomainOptions(href)[0] || "";
+  const pattern = getDomainOptions(href)[0] || "";
+  const eligible = (rules || []).filter((rule) => rule?.enabled !== false);
+  const existing = eligible[rulePatternIndex(eligible, pattern)];
+  return existing?.pattern || pattern;
 }
 
 /**
- * 本站开关只写这一条记录：已有个人规则就改它，否则用当前主机名新建一条。
- * 不另选下拉框里的宽模式，避免同一次切换再落一条规则。
+ * 本站开关只写选定范围：默认当前主机，调用方也可明确选用宽范围。
  */
 export function sitePolicyRecord(href, rules, transOpen, pattern) {
   const resolved = pattern || siteRulePattern(href, rules);

@@ -31,7 +31,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   rules = [
     {
-      pattern: "example.com",
+      pattern: "*.example.com",
       selector: ".old",
       apiSlug: "custom",
       fromLang: "en",
@@ -259,14 +259,31 @@ test("rejects invalid and duplicate patterns without changing either existing ru
     patch: { selector: ".new" },
   });
   const snapshot = structuredCopy(rules);
-  for (const pattern of ["", " ", "*", "example.com"]) {
+  for (const pattern of ["", " ", "*", "*.example.com"]) {
     await expect(
       writeSiteRule({ href, expected: created.site, patch: { pattern } })
     ).rejects.toThrow(
-      pattern === "example.com" ? "duplicate-pattern" : "invalid-pattern"
+      pattern === "*.example.com" ? "duplicate-pattern" : "invalid-pattern"
     );
     expect(rules).toEqual(snapshot);
   }
+});
+
+test("rejects renaming a rule to an existing hostname alias", async () => {
+  rules = checkRules([
+    { pattern: "news.example.com", selector: ".current" },
+    { pattern: "hostname:other.example.com", selector: ".other" },
+  ]);
+  const expected = structuredCopy(rules[0]);
+  const before = structuredCopy(rules);
+  await expect(
+    writeSiteRule({
+      href,
+      expected,
+      patch: { pattern: "other.example.com" },
+    })
+  ).rejects.toThrow("duplicate-pattern");
+  expect(rules).toEqual(before);
 });
 
 test("rejects stale edits after another editor has renamed the rule", async () => {

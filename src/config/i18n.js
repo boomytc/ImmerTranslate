@@ -543,8 +543,8 @@ export const I18N = {
     en: `URL pattern`,
   },
   pattern_helper: {
-    zh: `1、支持星号(*)通配符。2、多个URL用换行或英文逗号“,”分隔。3、hostname:example.com 仅匹配该主机，不包含子域名；此格式单独使用。`,
-    en: `1. Supports the asterisk (*) wildcard character. 2. Separate multiple URLs with newlines or English commas ",". 3. hostname:example.com matches only that host, without subdomains; use this format alone.`,
+    zh: `1、example.com 和 hostname:example.com 仅匹配该主机；*.example.com 包含该主机及其子域名。2、主机名可指定端口。3、多个网址用换行或英文逗号分隔；复杂网址支持星号(*)通配符。`,
+    en: `1. example.com and hostname:example.com match only that host; *.example.com includes the host and its subdomains. 2. Hostnames can specify a port. 3. Separate URLs with newlines or commas; complex URL patterns support the asterisk (*) wildcard.`,
   },
   selector_helper: {
     zh: `1、需要翻译的目标元素。2、开启自动扫描页面后，本设置无效。3、遵循CSS选择器语法。`,

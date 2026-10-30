@@ -63,7 +63,7 @@ export default function FabQuickOptions({
   const [siteDraft, setSiteDraft] = useState(null);
   const href = window.location.href;
   const sitePattern = siteRulePattern(href, rules);
-  const storedSiteTransOpen = readSiteTransOpen(href, rules);
+  const storedSiteTransOpen = readSiteTransOpen(href, rules, sitePattern);
   const siteTransOpen = siteDraft ?? storedSiteTransOpen;
 
   useEffect(() => {

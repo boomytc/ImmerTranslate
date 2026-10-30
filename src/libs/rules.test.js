@@ -227,12 +227,12 @@ describe("rules enabled state", () => {
     getRulesWithDefault.mockResolvedValue(latest);
     await saveRule(request);
     const result = (await saveEdit.mock.results[0].value).value;
-    expect(result[0]).toMatchObject({
+    expect(result[1]).toMatchObject({
       pattern: "example.com",
       selector: "article",
       transOpen: "true",
     });
-    expect(result[1]).toBe(other);
+    expect(result[0]).toBe(other);
     expect(latest).toEqual([other, existing, GLOBLA_RULE]);
   });
 

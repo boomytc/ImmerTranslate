@@ -17,6 +17,7 @@ import { trySyncRules } from "./sync";
 import { isExt } from "./client";
 import { sendBgMsg } from "./msg";
 import { getDomainOptions } from "./url";
+import { rulePatternIndex, sameRulePattern } from "./siteMatch";
 
 const EDITABLE_FIELDS = [...SELECTOR_FIELDS, "autoScan", "pattern"];
 let writeQueue = Promise.resolve();
@@ -64,11 +65,12 @@ export function writeSiteRule({
               keys.some((key) => latest.inherited[key] !== inherited[key])
             )
               throw new Error("rule-conflict");
-            const index = rules.findIndex(
-              (rule) => rule.pattern === previousPattern
-            );
+            const index = rulePatternIndex(rules, previousPattern);
             if (
-              rules.some((rule, i) => i !== index && rule.pattern === pattern)
+              rules.some(
+                (rule, i) =>
+                  i !== index && sameRulePattern(rule.pattern, pattern)
+              )
             )
               throw new Error("duplicate-pattern");
             const current = index < 0 ? null : rules[index];
@@ -80,7 +82,7 @@ export function writeSiteRule({
               !expected ||
               current.enabled === false ||
               (matchesRulePattern(href, current.pattern) &&
-                active?.pattern !== previousPattern) ||
+                !sameRulePattern(active?.pattern, previousPattern)) ||
               keys.some(
                 (key) =>
                   (current[key] ?? DEFAULT_RULE[key]) !==

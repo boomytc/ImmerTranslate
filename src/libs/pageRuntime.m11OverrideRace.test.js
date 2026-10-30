@@ -77,9 +77,20 @@ describe("M11 manual override race", () => {
       rule: { transOpen: "false", pattern: "stored" },
       getHref: () => window.location.href,
       matchRule: async () => ({ transOpen: "false", pattern: "stored" }),
-      subscribeSetting: () => () => {},
+      subscribeSetting: (listener) => {
+        listener({
+          data: {
+            blacklist: "",
+            tranboxSetting: {},
+            inputRule: {},
+            mouseHoverSetting: {},
+          },
+        });
+        return () => {};
+      },
       subscribeRules: (listener) => {
         onRules = listener;
+        listener({ data: [] });
         return () => {};
       },
       ...options,
@@ -94,7 +105,7 @@ describe("M11 manual override race", () => {
     };
   }
 
-  test("reproduces M11 race: manual enable before personal rules load is not cancelled by rules arrival", async () => {
+  test("manual enable after the initial rules load survives the same rules arriving again", async () => {
     window.history.pushState({}, "", "/index.html");
     const harness = boot();
     await harness.runtime.start();

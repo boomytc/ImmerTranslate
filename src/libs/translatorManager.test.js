@@ -753,6 +753,7 @@ describe("TranslatorManager SPA lifecycle", () => {
       onManualSwitch: topRuntime,
     });
     top.start();
+    sendIframeMsg.mockClear();
     const { processActions } = PopupManager.mock.calls.at(-1)[0];
     processActions({ action: "trans-toggle" });
     expect(topRuntime).toHaveBeenCalledWith(undefined);
@@ -778,6 +779,8 @@ describe("TranslatorManager SPA lifecycle", () => {
       onManualSwitch: childOffRuntime,
     });
     childOff.start();
+    expect(sendIframeMsg).toHaveBeenCalledTimes(3);
+    sendIframeMsg.mockClear();
     const handlers = browser.runtime.onMessage.addListener.mock.calls;
     handlers.at(-2)[0](
       { action: "trans-toggle", args: { enabled: false } },
@@ -800,8 +803,26 @@ describe("TranslatorManager SPA lifecycle", () => {
     expect(mockTranslatorInstances.at(-2).disable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances.at(-1).enable).not.toHaveBeenCalled();
     expect(mockTranslatorInstances.at(-1).disable).not.toHaveBeenCalled();
-    expect(sendIframeMsg).toHaveBeenCalledTimes(1);
+    expect(sendIframeMsg).not.toHaveBeenCalled();
   });
+
+  test.each([
+    ["on", true],
+    ["off", false],
+    ["paused", false],
+  ])(
+    "a frame starting as %s announces its initial state once to already started descendants",
+    (pageSwitch, enabled) => {
+      const manager = createManager({
+        pageSwitch,
+        rule: { transOpen: String(enabled) },
+      });
+      manager.start();
+      manager.start();
+      expect(sendIframeMsg).toHaveBeenCalledTimes(1);
+      expect(sendIframeMsg).toHaveBeenCalledWith("trans-toggle", { enabled });
+    }
+  );
 
   test("applies explicit feature states without flipping them on replay", () => {
     const manager = createManager();

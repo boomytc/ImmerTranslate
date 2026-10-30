@@ -3,7 +3,7 @@
  * @description 翻译规则引擎。提供选择器的继承与差分算法（如支持加减号追加/剔除选择器）、内置规则与个人规则合并（个人规则覆盖内置规则，内置规则覆盖全局规则）以及规则数据的健全性清洗校验与保存。
  */
 
-import { matchValue, type, isMatch } from "./utils";
+import { matchValue, type } from "./utils";
 import {
   GLOBAL_KEY,
   OPT_LANGS_FROM,
@@ -19,6 +19,11 @@ import { trySyncRules } from "./sync";
 import { kissLog } from "./log";
 import { splitSelectorList } from "./selectorList";
 import { isSiteTransOpen, siteTransOpenValue } from "./siteTransOpen";
+import {
+  matchesSiteEntry,
+  parseHostEntry,
+  rulePatternIndex,
+} from "./siteMatch";
 
 /**
  * 差分合并 CSS 选择器。
@@ -88,18 +93,22 @@ export function mergeSelectors(defaultStr, userStr) {
  * @returns {Object|undefined} 匹配到的首条规则，未匹配返回 undefined
  */
 export const matchesRulePattern = (href, pattern) => {
-  if (pattern.startsWith("hostname:")) {
-    try {
-      const url = new URL(href);
-      return (
-        ["http:", "https:"].includes(url.protocol) &&
-        url.hostname === pattern.slice("hostname:".length).toLowerCase()
-      );
-    } catch {
-      return false;
+  return pattern.split(/\n|,/).some((part) => {
+    const value = part.trim();
+    if (!value) return false;
+    if (value.startsWith("hostname:")) {
+      const host = value.slice("hostname:".length);
+      const parsed = parseHostEntry(host);
+      if (!parsed || parsed.wildcard) return false;
+      try {
+        if (!["http:", "https:"].includes(new URL(href).protocol)) return false;
+      } catch {
+        return false;
+      }
+      return matchesSiteEntry(href, host);
     }
-  }
-  return pattern.split(/\n|,/).some((p) => isMatch(href, p.trim()));
+    return matchesSiteEntry(href, value);
+  });
 };
 
 export const hostnamePattern = (href) => {
@@ -217,7 +226,7 @@ export const deriveRuleContext = (href, { personalRules }, sitePattern) => {
   // pattern no longer matches the page used to select elements.
   const activePersonalRule = findMatchingRule(personalRules, href);
   const requestedPersonalRule = sitePattern
-    ? personalRules.find((rule) => rule.pattern === sitePattern)
+    ? personalRules[rulePatternIndex(personalRules, sitePattern)]
     : null;
   // Reload must recover from deletion, renaming or a change in precedence.
   // Keep an explicitly edited off-page rule, but never pin a shadowed rule.
@@ -418,21 +427,13 @@ const ruleHasConcreteSetting = (rule) =>
 
 /** Apply a popup edit without mutating either the request or stored rules. */
 const applySavedRule = (rules, curRule) => {
-  const index = rules.findIndex(
-    (item) =>
-      item.pattern !== GLOBAL_KEY &&
-      (item.pattern === curRule.pattern ||
-        (item.pattern.startsWith("hostname:")
-          ? matchesRulePattern(`https://${curRule.pattern}`, item.pattern)
-          : isMatch(curRule.pattern, item.pattern)))
-  );
+  const index =
+    curRule.pattern === GLOBAL_KEY
+      ? -1
+      : rulePatternIndex(rules, curRule.pattern);
 
   const remaining = rules.filter((_, ruleIndex) => ruleIndex !== index);
   const rule = rules[index];
-  const globalRule = {
-    ...GLOBLA_RULE,
-    ...(rules.find((item) => item.pattern === GLOBAL_KEY) || {}),
-  };
   const next = { ...(rule || {}), pattern: rule?.pattern || curRule.pattern };
 
   // 只写调用方带来的字段。没给的键保持原样，不再铺成整份 DEFAULT_RULE。
@@ -448,12 +449,13 @@ const applySavedRule = (rules, curRule) => {
       return;
     }
     const value = curRule[key];
-    next[key] = !value || value === globalRule[key] ? DEFAULT_RULE[key] : value;
+    next[key] = !value ? DEFAULT_RULE[key] : value;
   });
 
   // 跟随全局之后如果没有任何非 * 字段，删掉这条，不留全 * 的空壳。
   if (!ruleHasConcreteSetting(next)) return remaining;
-  return [next, ...remaining];
+  if (index < 0) return [next, ...rules];
+  return rules.map((item, ruleIndex) => (ruleIndex === index ? next : item));
 };
 
 /** Persist the edit and its metadata before starting synchronization. */

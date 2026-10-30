@@ -1,3 +1,5 @@
+import { MSG_TRANS_TOGGLE } from "../config";
+
 /**
  * 判定当前脚本是否运行在 Iframe 嵌套子页面中。
  */
@@ -57,30 +59,38 @@ export function installFrameRuntimeBridge(getState) {
   return () => window.removeEventListener("message", handler);
 }
 
-export function queryParentFrameRuntime(timeout = 300) {
+export function queryParentFrameRuntime(timeout = 300, frameWindow = window) {
   let topWindow = null;
   try {
-    topWindow = window.top;
+    topWindow = frameWindow.top;
   } catch {
-    topWindow = window.parent;
+    topWindow = frameWindow.parent;
   }
-  if (!topWindow || topWindow === window) return Promise.resolve(null);
+  if (!topWindow || topWindow === frameWindow) return Promise.resolve(null);
 
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return new Promise((resolve) => {
     const finish = (value) => {
-      window.clearTimeout(timer);
-      window.removeEventListener("message", onMessage);
+      frameWindow.clearTimeout(timer);
+      frameWindow.removeEventListener("message", onMessage);
       resolve(value);
     };
     const onMessage = (event) => {
       const data = event.data;
+      if (
+        data?.action === MSG_TRANS_TOGGLE &&
+        typeof data.args?.enabled === "boolean" &&
+        (event.source === topWindow || event.source === frameWindow.parent)
+      ) {
+        finish(frameRuntimeState({ transOpen: data.args.enabled }));
+        return;
+      }
       if (!data || data.action !== MSG_FRAME_RUNTIME_STATE) return;
       if (data.requestId !== requestId) return;
       finish(frameRuntimeState(data));
     };
-    const timer = window.setTimeout(() => finish(null), timeout);
-    window.addEventListener("message", onMessage);
+    const timer = frameWindow.setTimeout(() => finish(null), timeout);
+    frameWindow.addEventListener("message", onMessage);
     topWindow.postMessage({ action: MSG_FRAME_RUNTIME_QUERY, requestId }, "*");
   });
 }

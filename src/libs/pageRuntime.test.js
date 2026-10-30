@@ -87,19 +87,20 @@ describe("PageRuntime", () => {
     window.history.pushState({}, "", "/stay-clear");
   });
 
-  function boot(options) {
+  function boot(options = {}) {
     const created = [];
     const managers = [];
     const listeners = [];
     let onSetting = () => {};
     let onRules = () => {};
+    const setting = options.setting || {
+      blacklist: "",
+      tranboxSetting: {},
+      inputRule: {},
+      mouseHoverSetting: {},
+    };
     const runtime = new PageRuntime({
-      setting: {
-        blacklist: "",
-        tranboxSetting: {},
-        inputRule: {},
-        mouseHoverSetting: {},
-      },
+      setting,
       getHref: () => window.location.href,
       matchRule: async (href) => ({
         transOpen: String(href).includes("auto-translate") ? "true" : "false",
@@ -130,10 +131,12 @@ describe("PageRuntime", () => {
       },
       subscribeSetting: (listener) => {
         onSetting = listener;
+        listener({ data: setting });
         return () => {};
       },
       subscribeRules: (listener) => {
         onRules = listener;
+        listener({ data: [] });
         return () => {};
       },
       listen: (handler) => {
@@ -919,7 +922,14 @@ describe("PageRuntime", () => {
       matchRule: async () => ({ transOpen: "false", selector: "p" }),
     });
     await harness.runtime.start();
-    expect(manager.applyTarget).not.toHaveBeenCalled();
+    expect(manager.applyTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        setting: expect.objectContaining({
+          tranboxSetting: expect.objectContaining({ transOpen: false }),
+        }),
+      })
+    );
+    manager.applyTarget.mockClear();
     expect(stored.tranboxSetting.transOpen).toBe(true);
     expect(stored.inputRule.transOpen).toBe(true);
     expect(stored.mouseHoverSetting.useMouseHover).toBe(true);
@@ -1067,6 +1077,8 @@ describe("PageRuntime", () => {
     await child.runtime.start();
     const childManager = child.managers[0];
     expect(child.created[0].rule.transOpen).toBe("true");
+    expect(topManager.applyTarget).toHaveBeenCalledTimes(1);
+    topManager.applyTarget.mockClear();
 
     childHref = "http://localhost:8765/spa2.html/blocked";
     childNotify.forEach((onChange) => onChange());

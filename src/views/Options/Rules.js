@@ -45,6 +45,7 @@ import { useApiList } from "../../hooks/Api";
 import ShowMoreButton from "./ShowMoreButton";
 import { useConfirm } from "../../hooks/Confirm";
 import { useAllTextStyles } from "../../hooks/CustomStyles";
+import { sameRulePattern } from "../../libs/siteMatch";
 
 // 计算规则的初始表单值
 // 存储里的个人规则可以是稀疏的（popup / FAB 只写 pattern + transOpen），
@@ -149,7 +150,10 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
   // 校验当前输入的 pattern 是否与已有的其他规则冲突（重复的域名规则）
   const hasSamePattern = (str) => {
     for (const item of rules.list) {
-      if (item.pattern === str && rule?.pattern !== str) {
+      if (
+        sameRulePattern(item.pattern, str) &&
+        item.pattern !== rule?.pattern
+      ) {
         return true;
       }
     }

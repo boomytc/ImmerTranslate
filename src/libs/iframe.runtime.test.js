@@ -4,8 +4,10 @@ import {
   installFrameRuntimeBridge,
   MSG_FRAME_RUNTIME_QUERY,
   MSG_FRAME_RUNTIME_STATE,
+  queryParentFrameRuntime,
   replyFrameRuntime,
 } from "./iframe";
+import { MSG_TRANS_TOGGLE } from "../config";
 
 test("frame runtime state carries translation and fab visibility", () => {
   expect(frameRuntimeState({ transOpen: "true", fabVisible: false })).toEqual({
@@ -72,4 +74,27 @@ test("a bridge answers a child query from the live getter", () => {
     fabVisible: false,
   });
   remove();
+});
+
+test("a parent startup broadcast resolves an outstanding child query only from an ancestor", async () => {
+  const parent = { postMessage: jest.fn() };
+  const listeners = new Set();
+  const frame = {
+    top: parent,
+    parent,
+    setTimeout,
+    clearTimeout,
+    addEventListener: (_type, listener) => listeners.add(listener),
+    removeEventListener: (_type, listener) => listeners.delete(listener),
+  };
+  const pending = queryParentFrameRuntime(1000, frame);
+  const message = { action: MSG_TRANS_TOGGLE, args: { enabled: true } };
+  listeners.forEach((listener) => listener({ data: message, source: {} }));
+  expect(listeners.size).toBe(1);
+  listeners.forEach((listener) => listener({ data: message, source: parent }));
+  await expect(pending).resolves.toEqual({
+    transOpen: true,
+    fabVisible: false,
+  });
+  expect(listeners.size).toBe(0);
 });

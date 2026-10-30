@@ -88,6 +88,8 @@ export default class TranslatorManager {
   #paused = false;
   #pageSwitch = null;
   #onManualSwitch = null;
+  #onPageRuleChange = null;
+  #dispatchingManualSwitch = false;
 
   // 运行期子模块实例。它们可能挂载 DOM，因此随 restart 销毁并重建。
   _translator = null;
@@ -111,6 +113,7 @@ export default class TranslatorManager {
     isIframe,
     transboxOnly = false,
     onManualSwitch,
+    onPageRuleChange,
     pageSwitch = null,
   }) {
     if (typeof onManualSwitch !== "function") {
@@ -122,6 +125,7 @@ export default class TranslatorManager {
     this.#isIframe = isIframe;
     this.#transboxOnly = transboxOnly;
     this.#onManualSwitch = onManualSwitch;
+    this.#onPageRuleChange = onPageRuleChange;
     this.#pageSwitch = pageSwitch;
 
     this.#innerMessageHandler = this.#handleInnerMessage.bind(this);
@@ -155,6 +159,16 @@ export default class TranslatorManager {
       this.#frameRuntimeState()
     );
     this.#isActive = true;
+    if (
+      !this.#transboxOnly &&
+      [PAGE_SWITCH.ON, PAGE_SWITCH.OFF, PAGE_SWITCH.PAUSED].includes(
+        this.#pageSwitch
+      )
+    ) {
+      sendIframeMsg(MSG_TRANS_TOGGLE, {
+        enabled: this.#pageSwitch === PAGE_SWITCH.ON,
+      });
+    }
     logger.info("TranslatorManager started.");
   }
 
@@ -241,6 +255,17 @@ export default class TranslatorManager {
     if (setting) this.#applyFoldedSetting(setting);
     const nextRule = this.#cloneConfig(target.rule);
     this.#rule = nextRule;
+    if (
+      !this.#dispatchingManualSwitch &&
+      !this.#isIframe &&
+      !this.#transboxOnly &&
+      target.state &&
+      wasOn !== (this.#pageSwitch === PAGE_SWITCH.ON)
+    ) {
+      sendIframeMsg(MSG_TRANS_TOGGLE, {
+        enabled: this.#pageSwitch === PAGE_SWITCH.ON,
+      });
+    }
     // SPA 路由可只改变 URL，不触发 FAB 配置存储更新或容器重建。
     this.#applyFabVisibility();
     if (!this._translator) {
@@ -328,6 +353,15 @@ export default class TranslatorManager {
         Boolean(this._fabManager) &&
         isFabVisible(href, this.#fabConfig),
     };
+  }
+
+  #applyManualSwitch(enabled) {
+    this.#dispatchingManualSwitch = true;
+    try {
+      this.#onManualSwitch(enabled);
+    } finally {
+      this.#dispatchingManualSwitch = false;
+    }
   }
 
   #applyFabVisibility() {
@@ -885,6 +919,13 @@ export default class TranslatorManager {
       };
     }
 
+    if (
+      action === MSG_TRANS_TOGGLE_ONLY &&
+      this.#pageSwitch === PAGE_SWITCH.PAUSED
+    ) {
+      return this.#getRuntimeResponse();
+    }
+
     // Keep shared translation commands in sync without forwarding top-only UI.
     if (
       !fromExt &&
@@ -906,7 +947,7 @@ export default class TranslatorManager {
         if (this.#pageSwitch === PAGE_SWITCH.PAUSED) break;
         const explicit = typeof args?.enabled === "boolean";
         if (this.#isIframe && !explicit) break;
-        this.#onManualSwitch(explicit ? args.enabled : undefined);
+        this.#applyManualSwitch(explicit ? args.enabled : undefined);
         let enabled = null;
         if (this.#pageSwitch === PAGE_SWITCH.ON) enabled = true;
         else if (this.#pageSwitch === PAGE_SWITCH.OFF) enabled = false;
@@ -916,19 +957,54 @@ export default class TranslatorManager {
         publishRule = true;
         break;
       }
-      case MSG_TRANS_TOGGLE_ONLY:
-        this._translator?.toggleTransOnly();
+      case MSG_TRANS_TOGGLE_ONLY: {
+        const previous = this._translator.rule.transOnly;
+        if (this.#pageSwitch === PAGE_SWITCH.OFF) {
+          this.#applyManualSwitch(true);
+          if (this.#pageSwitch !== PAGE_SWITCH.ON) break;
+          if (this._translator.rule.transOnly !== "true")
+            this._translator.updateRule({ transOnly: "true" });
+        } else {
+          this._translator?.toggleTransOnly();
+        }
+        if (this._translator.rule.transOnly !== previous)
+          this.#onPageRuleChange?.({
+            transOnly: this._translator.rule.transOnly,
+          });
         publishRule = true;
         break;
-      case MSG_TRANS_TOGGLE_STYLE:
+      }
+      case MSG_TRANS_TOGGLE_STYLE: {
+        const previous = this._translator.rule.textStyle;
         this._translator?.toggleStyle(args?.textStyle);
+        if (this._translator.rule.textStyle !== previous)
+          this.#onPageRuleChange?.({
+            textStyle: this._translator.rule.textStyle,
+          });
         publishRule = true;
         break;
+      }
       case MSG_TRANS_GETRULE:
         break;
       case MSG_TRANS_PUTRULE:
         // 只改本页这一次的规则字段，不写存储。站点策略不走这里。
-        this._translator?.updateRule(args);
+        {
+          const patch = { ...(args || {}) };
+          delete patch.transOpen;
+          const before = { ...this._translator.rule };
+          this._translator?.updateRule(patch);
+          const accepted = this._translator?.rule || {};
+          const changed = Object.fromEntries(
+            Object.keys(patch)
+              .filter(
+                (key) =>
+                  Object.prototype.hasOwnProperty.call(accepted, key) &&
+                  before[key] !== accepted[key]
+              )
+              .map((key) => [key, accepted[key]])
+          );
+          if (Object.keys(changed).length) this.#onPageRuleChange?.(changed);
+        }
         publishRule = true;
         break;
       case MSG_TRANS_SET_MODEL:
