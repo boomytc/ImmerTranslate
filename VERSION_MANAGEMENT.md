@@ -16,7 +16,7 @@ corepack pnpm@9.14.4 install --frozen-lockfile
 
 ## 本地检查与发布准备
 
-日常开发和版本升级都在 `dev` 分支进行，一个阶段收尾后再推送到远端 `dev` 并同步到 `main`。`main` 只接收稳定提交并作为发布入口，默认不额外新建开发或发布分支；确实需要额外分支时，先征得用户同意。如果在 `main` 上做了热修，要及时合回 `dev`，保持 `dev` 和 `main` 提交历史一致。
+日常开发、版本升级和发布统一在 `main` 分支进行，不再维护独立的 `dev` 分支。默认不额外新建开发或发布分支；确实需要临时分支时，先征得用户同意。
 
 更新版本号请使用以下脚本（不会自动创建 Git 标签）：
 
@@ -33,30 +33,25 @@ pnpm version:set -- 0.2.1   # 明确指定目标稳定版本
 
 ```bash
 pnpm check                 # 检查当前改动并执行双端构建、打包与产物校验
-pnpm check -- origin/main  # 在 dev 上检查相对 main 的全部改动
+pnpm check -- v0.2.0       # 检查自指定标签或提交以来的全部改动
 ```
 
 `pnpm check` 会依次检查 `.github/workflows` 是否存在、工作区是否残留临时测试文件、改动文件是否符合 Prettier 格式、`package.json`/`.env`/`public/manifest.json` 与 `CHANGELOG.md` 顶部版本是否一致，随后在 `CI=true` 下执行 Chrome/Edge 构建和 ZIP 打包（`pnpm build+zip`），最后校验包内版本号并生成带 SHA-256 摘要的 `build/release-manifest.json`。该命令支持在有未提交改动时运行，但如果检查或构建过程中修改了源文件（例如版本号未同步），会直接报错中止。日常开发调试构建仍可单独运行 `pnpm build` 或 `pnpm build:chrome`。
 
-本仓库以代码逻辑正确性为先，不维护常驻测试套件。改完代码后按影响范围做必要的临时验证或主路径试跑，结束后清除测试专用文件。纯文档变更只运行 `pnpm format:check`。同一份改动已经通过检查时，后续提交、推送和合并直接复用结果；只有代码有新改动、上次检查失败或发现新疑点时，才重跑受影响的验证。后续问题通过真实使用反馈定位并迭代。
+本仓库以代码逻辑正确性为先，不维护常驻测试套件。改完代码后按影响范围做必要的临时验证或主路径试跑，结束后清除测试专用文件。纯文档变更只运行 `pnpm format:check`。同一份改动已经通过检查时，后续提交和推送直接复用结果；只有代码有新改动、上次检查失败或发现新疑点时，才重跑受影响的验证。后续问题通过真实使用反馈定位并迭代。
 
-提交、推送和同步分支分别按用户授权执行。已授权同步时，检查通过后按以下顺序快进合并，保持 `dev` 和 `main` 提交历史一致：
+提交和推送分别按用户授权执行。已授权推送时，检查通过后直接同步到远端 `main`：
 
 ```bash
-git switch dev
-git push -u origin dev
-git switch main
 git pull --ff-only origin main
-git merge --ff-only dev
 git push origin main
-git switch dev
 ```
 
-如果两条分支的提交历史出现分叉，先查清原因再处理，不要强推（force push）或使用 squash 合并。若远端开启了分支保护要求走 PR，就提交从 `dev` 到 `main` 的 PR 进行合并。
+如果本地与远端 `main` 的提交历史出现分叉，先查清原因再处理，不要强推（force push）。
 
 ## 本机发布
 
-合并后同步 `main`，确保版本号文件和 `CHANGELOG.md` 顶部都已更新为目标版本：
+发布前确保当前位于 `main` 分支、与远端 `origin/main` 同步，且版本号文件和 `CHANGELOG.md` 顶部都已更新为目标版本：
 
 ```bash
 git switch main
@@ -89,6 +84,6 @@ GitHub Release 中上传的文件固定为 `immer-translate_v<版本>_chrome.zip
 
 ## 发布验收
 
-确认标签指向 `main` 历史中的对应发布提交、Release 已转为正式发布、Chrome/Edge 压缩包与来源清单齐全且包内版本号正确。汇报时说明 `dev`/`main` 同步状态、`main` 提交 SHA、标签名、Release 链接、本机检查结果和最终所在分支；走了 PR 时一并附上链接。
+确认标签指向 `main` 历史中的对应发布提交、Release 已转为正式发布、Chrome/Edge 压缩包与来源清单齐全且包内版本号正确。汇报时说明 `main` 提交 SHA、标签名、Release 链接、本机检查结果和远端同步状态。
 
 把新版本加载到浏览器后，按本次改动走一遍受影响的升级或使用主路径即可，不需要重复验收无关功能；汇报时如实说明实际验证过的内容和未验证部分。

@@ -76,7 +76,7 @@ pnpm build          # 同步版本号后同时构建 Chrome 与 Edge，输出到
 
 如需在本地做完整校验或准备发布：
 
-- `pnpm check`（在 `dev` 分支检查相对 `main` 的全部改动可用 `pnpm check -- origin/main`）：检查是否有遗留的测试文件或禁用项，校验代码格式、版本号与 `CHANGELOG.md`，并完成 Chrome / Edge 构建、ZIP 打包以及校验和验证。
+- `pnpm check`（也可指定基准标签或提交，如 `pnpm check -- v0.2.0`）：检查是否有遗留的测试文件或禁用项，校验代码格式、版本号与 `CHANGELOG.md`，并完成 Chrome / Edge 构建、ZIP 打包以及校验和验证。
 - `pnpm release -- --dry-run` 与 `pnpm release`：供维护者在本机 `main` 分支执行发布。命令会从与 `origin/main` 一致的干净提交创建临时工作树完成检查和隔离构建，将验证后的发布包保存在本地 `dist-release/` 目录，随后打上版本标签并通过 GitHub CLI（`gh`）上传发布到 GitHub Releases（本仓库不使用 GitHub Actions）。
 
 贡献与维护约定请参考 [AGENTS.md](AGENTS.md)，版本号管理与本地发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。

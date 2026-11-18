@@ -23,7 +23,6 @@ pnpm install
 pnpm build:chrome   # 产物在 build/chrome
 pnpm build          # 清空后构建 Chrome 与 Edge，Edge 复用 Chrome 产物
 pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建与 ZIP、产物校验
-pnpm check -- origin/main
 ```
 
 - 源码、构建或发布配置有变更时，完成后运行一次 `pnpm check`；纯文档变更只运行 `pnpm format:check`。`pnpm check` 也会拒绝新增 `.github/workflows` 和检查/构建反过来修改源文件。
@@ -35,7 +34,7 @@ pnpm check -- origin/main
 
 - `package.json` 是唯一的版本号来源。`.env` 中的 `REACT_APP_VERSION` 与 `public/manifest.json` 中的 `version` 由 `pnpm sync-version` 同步，禁止手工分别改号。升级版本使用 `pnpm version:patch`、`pnpm version:minor`、`pnpm version:major` 或 `pnpm version:set -- <版本>`。
 - `CHANGELOG.md` 顶部添加唯一、非空的 `## v<目标版本>` 一节，用通俗中文写清楚用户可见变化，并保留下方历史条目。
-- 日常开发在 `dev`；阶段性闭环后快进同步到 `main`，`main` 是发布入口。`main` 上的热修要及时合回 `dev`。不用 squash，不强推。
+- 日常开发与发布统一在 `main` 分支进行，不再维护独立的 `dev` 分支；不要 force push。
 - 正式发布在工作区干净且等于 `origin/main` 的 `main` 上执行：先跑 `pnpm release -- --dry-run`，再跑 `pnpm release`。不手工打标签，不覆盖已上传资产，不重打历史标签。
 - `dist-release/` 里的原始构建产物用于中断恢复和校验，不删除、不重建。
 - 仓库不使用 GitHub Actions。检查、构建、打包和发布都在本机完成。
@@ -57,7 +56,7 @@ pnpm check -- origin/main
 - 不要提交 Key、token、`.env.local`、`build/` 或 `dist-release/`。
 - 不要手工改 `.env` 或 `public/manifest.json` 的版本，不要手工打标签或创建 Release。
 - 不要新增 `.github/workflows`。
-- 不要直接在 `main` 上改代码，不要 force push，不要用 squash 同步分支。
+- 不要 force push，不要跳过本地检查或绕过钩子。
 - 不要把 `build/` 当发布包，不要删除或重建 `dist-release/` 的原始产物。
 - 不要新增移动端或触屏版式。
 - 不要为一次性需求新起翻译协议、存储实现或请求客户端，先在现有契约上扩展。

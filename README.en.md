@@ -76,7 +76,7 @@ After building, load `build/chrome` or `build/edge` as an unpacked extension usi
 
 For full local verification or releasing:
 
-- `pnpm check` (or `pnpm check -- origin/main` to check all changes on `dev` against `main`): checks for leftover test files or disallowed workflows, validates formatting, version files, and `CHANGELOG.md`, builds and zips the Chrome and Edge packages, and verifies artifact manifests and SHA-256 checksums.
+- `pnpm check` (or `pnpm check -- v0.2.0` to check all changes since a given tag or commit): checks for leftover test files or disallowed workflows, validates formatting, version files, and `CHANGELOG.md`, builds and zips the Chrome and Edge packages, and verifies artifact manifests and SHA-256 checksums.
 - `pnpm release -- --dry-run` and `pnpm release`: used by maintainers on a clean `main` branch matching `origin/main`. It builds in an isolated temporary worktree, saves verified artifacts under `dist-release/`, creates and pushes an annotated version tag, and publishes the Chrome/Edge zip packages and provenance manifest to GitHub Releases via GitHub CLI (`gh`) (this repository does not use GitHub Actions).
 
 See [AGENTS.md](AGENTS.md) for contributor and repository conventions, [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for versioning and release steps, and [CHANGELOG.md](CHANGELOG.md) for release notes.
