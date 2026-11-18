@@ -4,12 +4,12 @@
 
 <h1 align="center">ImmerTranslate</h1>
 
-<p align="center">双语对照的网页翻译扩展：原文和译文并排阅读，用自己的服务和密钥，数据留在本机。</p>
+<p align="center">面向 Chrome 与 Edge 桌面浏览器的双语对照网页翻译扩展：原文与译文同屏对照，支持免钥服务与自带密钥，配置与密钥只留在本机。</p>
 
 <p align="center">
   <a href="https://github.com/boomytc/ImmerTranslate/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/boomytc/ImmerTranslate?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC"></a>
   <img alt="许可证 GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
-  <img alt="Chrome Edge" src="https://img.shields.io/badge/%E6%94%AF%E6%8C%81-Chrome%20%7C%20Edge-informational">
+  <img alt="支持 Chrome 与 Edge" src="https://img.shields.io/badge/%E6%94%AF%E6%8C%81-Chrome%20%7C%20Edge-informational">
 </p>
 
 <p align="center">
@@ -18,64 +18,69 @@
 
 ## 为什么用它
 
-- **双语对照。** 整页翻译后，译文紧跟在原文下面，排版和链接不变；也可以只看译文。
-- **免钥即用。** Google、Microsoft 等免钥服务装好就能翻，不用注册账号。
-- **自带密钥。** 想用大模型就填自己的 Key，密钥只存在本机的扩展存储里，不经过任何第三方。
-- **不止整页。** 划词、悬停、输入框、视频字幕，各有对应的入口。
-- **记住每个网站。** 每个站点可以单独设为自动翻译或不翻译，其余跟随全局设置。
+- **双语对照阅读。** 整页翻译后，译文紧跟在原文下方，尽量保留网页原有排版与链接；也可以切换为「仅显示译文」。
+- **免钥即可上手。** 装好就能直接使用 Microsoft、Google 等免钥服务，无需注册账号。
+- **自带密钥直连。** 填写自己的大模型或云端翻译 API Key，密钥只存在本机扩展存储中，请求直接发往你配置的接口地址。
+- **覆盖常见阅读与输入场景。** 除整页翻译外，还支持划词翻译、段落悬停翻译、输入框翻译与 YouTube 桌面端双语字幕。
+- **按网站记住偏好。** 每个站点都可单独设为自动翻译或不自动翻译，未单独设置的站点跟随全局规则。
 
 ## 能做什么
 
-| 场景       | 说明                                                     |
-| ---------- | -------------------------------------------------------- |
-| 整页翻译   | 一键或快捷键翻译当前页，长页面会分批请求。               |
-| 划词翻译   | 选中文字后点浮钮，在面板里看译文、复制、朗读。           |
-| 悬停翻译   | 鼠标停在段落上，弹出译文气泡。                           |
-| 输入框翻译 | 在输入框里写完，直接译成目标语言。                       |
-| 视频字幕   | 支持 YouTube 字幕的双语显示。                            |
-| 悬浮球     | 切换双语或仅译文、换翻译服务和模型、设置当前站点怎么翻。 |
-| 规则与术语 | 使用内置网站规则、个人选择器规则和术语表。               |
-| 同步       | 设置可加密同步，默认使用 WebDAV。                        |
+| 场景               | 说明                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| 整页翻译           | 通过工具栏弹窗、悬浮球或快捷键（默认 `Alt+Q`）翻译当前页；长页面支持滚动分批加载，也可切换「仅显示译文」。              |
+| 划词与文本翻译     | 选中文字后点击弹出按钮（或直接弹出面板）看译文、查词典、复制或朗读；工具栏弹窗也支持文本翻译并可打开独立窗口。          |
+| 段落（悬停）翻译   | 在「段落翻译」中开启后，配合快捷键悬停或按住鼠标左键，可在当前位置双语对照或以译文气泡形式翻译段落。                    |
+| 输入框翻译         | 在网页输入框中写完后，点击输入框旁的翻译图标、按快捷键（默认 `Alt+I`）或输入结尾符号（如 `/`）直接译成目标语言。        |
+| 视频字幕           | 支持 YouTube 桌面网站双语字幕，内置规则断句并可选 AI 智能断句，支持样式调整与字幕导出。                                 |
+| 悬浮球（悬浮按钮） | 一键翻译整页、切换双语或仅译文、切换翻译服务/模型/目标语言与样式、设置当前站点自动翻译，或在此网站隐藏。                |
+| 规则与术语         | 遵循「个人规则 > 内置网站规则 > 全局规则」优先级，支持可视化「编辑网站规则」、CSS 选择器增删（`+`/`-`）与专业术语替换。 |
+| 数据同步           | 支持 WebDAV（默认）和私密 GitHub Gist 同步设置与规则，数据在上传前先使用同步加密口令加密。                              |
 
-界面语言：English、简体中文。
-
-1.2.0 聚焦 Chrome 与 Edge，已移除规则订阅、规则脚本和翻译钩子，以及生词本、字幕学习附带功能；YouTube 双语字幕继续保留。
+适用环境：Chrome 与 Edge 桌面浏览器（Manifest V3 扩展，当前代码基线版本为 0.2.0）。界面语言支持简体中文与 English。
 
 ## 翻译服务
 
-- **免钥：** Google、Microsoft、DeepL 网页接口、Yandex 网页接口，以及浏览器内置 AI（浏览器支持时可用）。
-- **自带密钥：** OpenAI、Anthropic（Claude）、DeepSeek、MiMo、DashScope、ModelScope、ModelBest 等大模型服务，以及 DeepL、Google Cloud、Azure、百度、腾讯、火山等翻译 API，也可接入任何兼容 OpenAI 的自定义接口。
+- **免钥服务：** 默认开启 **Microsoft** 与 **Google**；另预置 **DeepLFree**、**YandexFree**、**Tencent**、**Volcengine** 以及浏览器内置 AI（**BuiltinAI**，需 Chrome 138+ 并在 `chrome://flags` 开启 Translation API），可在设置页按需启用。
+- **自带密钥（大模型）：** 预置 **OpenAI**、**Claude**（Anthropic）、**Gemini** / **Gemini (OpenAI 兼容)**、**DeepSeek**、**OpenCodeGo**、**SiliconFlow**、**XiaomiMimo**、**AliyunBailian**（DashScope）、**ModelScope**、**ModelBest**、**Cerebras**、**Zai**（智谱）、**OpenRouter**、**OrcaRouter**、**Requesty**、**ePhoneAI**、**APIMart** 等，也支持接入本地 **Ollama**（密钥可选）或其他兼容接口。
+- **自带密钥（翻译 API 与自定义）：** 预置 **DeepL**、**GoogleCloud**、**AzureAI**、**Yandex**、**QwenMT** 与 **CloudflareAI**；另支持自建或本地 **DeepLX**（密钥可选），以及使用 **Custom** 接口配合请求/响应钩子接入其他协议（见 [custom-api.md](custom-api.md)）。
 
-预置的大模型服务默认禁用，在选项页启用后填地址、Key 和模型即可。翻译请求默认关闭思考模式。详细说明见 [docs/BYOK.md](docs/BYOK.md)。
+除 Microsoft 和 Google 外，其余预置服务默认处于禁用状态。到扩展设置页的「翻译服务」关闭「是否禁用」（需要密钥的服务再填写自己的 API Key，并按需修改接口地址或模型），保存后即可选用。大模型翻译默认关闭思考模式。详细配置见 [docs/BYOK.md](docs/BYOK.md)。
 
 ## 安装
 
-目前还没有上架浏览器商店，请从 [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest) 下载对应的压缩包：
+扩展暂未上架浏览器应用商店，请从 [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest) 下载对应浏览器的压缩包：
 
-| 浏览器 | 文件                                | 安装方式                                                                         |
-| ------ | ----------------------------------- | -------------------------------------------------------------------------------- |
-| Chrome | `immer-translate_<版本>_chrome.zip` | 解压，打开 `chrome://extensions`，开启开发者模式，选择「加载已解压的扩展程序」。 |
-| Edge   | `immer-translate_<版本>_edge.zip`   | 解压，打开 `edge://extensions`，开启开发人员模式，选择「加载解压缩的扩展」。     |
+| 浏览器 | 发布文件                             | 安装步骤                                                                                                                                               |
+| ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Chrome | `immer-translate_v<版本>_chrome.zip` | 解压压缩包；打开 `chrome://extensions`，开启右上角「开发者模式」，点击「加载已解压的扩展程序」，选择解压出来的 `chrome` 目录（内含 `manifest.json`）。 |
+| Edge   | `immer-translate_v<版本>_edge.zip`   | 解压压缩包；打开 `edge://extensions`，开启「开发人员模式」，点击「加载解压缩的扩展」，选择解压出来的 `edge` 目录（内含 `manifest.json`）。             |
 
-装好后点击工具栏图标即可开始；第一次可以直接用免钥服务试一下。
+装好后点击浏览器工具栏的扩展图标即可开始使用，首次使用可直接用默认的 Microsoft 或 Google 免钥服务体验。
 
-更新时下载新版本压缩包，解压后在扩展管理页重新加载对应目录。当前解压加载方式不会自动升级。
+由于采用本地解压加载，扩展不会自动更新。升级时请下载新版本压缩包并解压替换原目录（或加载新目录），再在扩展管理页点击刷新。
 
 ## 从源码构建
 
-需要 Node.js 24 与 pnpm。
+需要 Node.js 24 与 pnpm（仓库固定为 pnpm 9.14.4）。
 
 ```sh
 git clone https://github.com/boomytc/ImmerTranslate.git
 cd ImmerTranslate
 pnpm install
-pnpm build:chrome
+pnpm build:chrome   # 仅构建 Chrome 扩展，输出到 build/chrome
+pnpm build          # 同步版本号后同时构建 Chrome 与 Edge，输出到 build/chrome 与 build/edge
 ```
 
-构建结果在 `build/chrome`，按上面的方法加载即可。开发以代码逻辑正确性为先，完成后只做必要验收，临时测试随即清除，通过真实使用反馈迭代。仓库不维护常驻测试套件；具体约定见 [AGENTS.md](AGENTS.md)。
+构建完成后，按上面的步骤在浏览器中加载对应的 `build/chrome` 或 `build/edge` 目录即可。
 
-`pnpm check` 在本机检查测试残留、格式和版本，并完成 Chrome/Edge 构建、打包与产物校验。`pnpm release -- --dry-run` 验证发布产物，`pnpm release` 创建标签并发布到 GitHub Releases。仓库不使用 GitHub Actions。版本与发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+如需在本地做完整校验或准备发布：
+
+- `pnpm check`（在 `dev` 分支检查相对 `main` 的全部改动可用 `pnpm check -- origin/main`）：检查是否有遗留的测试文件或禁用项，校验代码格式、版本号与 `CHANGELOG.md`，并完成 Chrome / Edge 构建、ZIP 打包以及校验和验证。
+- `pnpm release -- --dry-run` 与 `pnpm release`：供维护者在本机 `main` 分支执行发布。命令会从与 `origin/main` 一致的干净提交创建临时工作树完成检查和隔离构建，将验证后的发布包保存在本地 `dist-release/` 目录，随后打上版本标签并通过 GitHub CLI（`gh`）上传发布到 GitHub Releases（本仓库不使用 GitHub Actions）。
+
+贡献与维护约定请参考 [AGENTS.md](AGENTS.md)，版本号管理与本地发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 
-本项目基于 GPL-3.0 开源项目二次开发，同样以 [GPL-3.0](LICENSE) 发布。分发修改后的版本时，请保留许可证并提供对应源码。
+本项目基于 GPL-3.0 开源项目二次开发，同样以 [GPL-3.0](LICENSE) 协议发布。分发修改后的版本时，请保留许可证并附带对应源码。

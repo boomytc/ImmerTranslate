@@ -4,12 +4,12 @@
 
 <h1 align="center">ImmerTranslate</h1>
 
-<p align="center">A bilingual web-page translation extension. Read the original and the translation side by side, use your own services and keys, and keep your data on your machine.</p>
+<p align="center">A bilingual translation extension for Chrome and Edge on desktop: read original and translated text together, use free or bring-your-own-key services, and keep your data local.</p>
 
 <p align="center">
   <a href="https://github.com/boomytc/ImmerTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/boomytc/ImmerTranslate?label=release"></a>
   <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
-  <img alt="Chrome, Edge" src="https://img.shields.io/badge/works%20on-Chrome%20%7C%20Edge-informational">
+  <img alt="Supports Chrome and Edge" src="https://img.shields.io/badge/works%20on-Chrome%20%7C%20Edge-informational">
 </p>
 
 <p align="center">
@@ -18,63 +18,68 @@
 
 ## Why ImmerTranslate
 
-- **Side-by-side reading.** After you translate a page, each translation sits right under its original paragraph. Layout and links stay as they were. You can also show the translation only.
-- **Works without a key.** Free services such as Google and Microsoft work right after install, with no account.
-- **Bring your own key.** For large language models, enter your own key. It stays in the extension's local storage and never passes through a third party.
-- **More than whole pages.** Selected text, hover, input boxes, and video subtitles each have their own entry point.
-- **Remembers each site.** Set a site to auto-translate or never translate. Every other site follows the global setting.
+- **Bilingual reading.** After translating a page, each translation appears right below its original paragraph, keeping the original layout and links intact. You can also switch to **Show Only Translations**.
+- **Works out of the box.** Keyless services such as Microsoft and Google work immediately after installation with no account required.
+- **Bring your own key, direct connection.** Enter your own LLM or cloud translation API keys. Keys stay in your browser's local extension storage, and requests go directly to the endpoint you configure.
+- **Built for more than whole pages.** In addition to whole-page translation, it covers text selection, paragraph hover, web input boxes, and YouTube desktop bilingual subtitles.
+- **Per-site preferences.** Set any site to auto-translate or never auto-translate; all other sites follow your global rule.
 
 ## What it does
 
-| Scenario           | Details                                                                                                              |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Whole page         | Translate the current page with one click or a shortcut. Long pages are requested in batches.                        |
-| Selection          | Select text, click the button, and read, copy, or listen to the translation in a panel.                              |
-| Hover              | Rest the pointer on a paragraph to get a translation bubble.                                                         |
-| Input box          | Write in an input box and translate it into the target language in place.                                            |
-| Video subtitles    | Bilingual subtitles for YouTube.                                                                                     |
-| Floating ball      | Switch between bilingual and translation-only, change service and model, and set how the current site is translated. |
-| Rules and glossary | Use built-in site rules, personal selector rules, and a glossary.                                                    |
-| Sync               | Sync encrypted settings, with WebDAV as the default.                                                                 |
+| Scenario           | Details                                                                                                                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whole page         | Translate the current page via the toolbar popup, floating button, or shortcut (default `Alt+Q`). Long pages load in batches as you scroll, and you can switch to **Show Only Translations**.             |
+| Selection & text   | Select text and click the popup button (or open the panel directly) to view translations, look up words, copy, or read aloud. The toolbar popup also provides **Text translation** and a separate window. |
+| Paragraph (hover)  | Once enabled under **Paragraph translation**, hover with a shortcut key or hold the left mouse button to translate a paragraph or section inline or in a translation bubble.                              |
+| Input box          | Translate text in web input fields in place via the input translation icon, shortcut (default `Alt+I`), or a trailing trigger sign (such as `/`).                                                         |
+| Video subtitles    | Bilingual subtitles on the YouTube desktop website, with built-in or optional AI sentence segmentation, custom styling, and subtitle export.                                                              |
+| Floating button    | Toggle page translation, switch between bilingual and translation-only, change service, model, target language, or style, set site auto-translate, or hide on the current site.                           |
+| Rules and glossary | Follows **Personal rule > Built-in site rule > Global rule**, with a visual **Site rule editor**, CSS selector inheritance (`+`/`-`), and regex or AI glossaries.                                         |
+| Data sync          | Sync settings and rules via WebDAV (default) or a private GitHub Gist, encrypted with your sync encryption passphrase before upload.                                                                      |
 
-Interface languages: English, 简体中文.
-
-Version 1.2.0 focuses on Chrome and Edge. Rule subscriptions, rule scripts, translation hooks, vocabulary lists, and subtitle learning extras have been removed. YouTube bilingual subtitles remain available.
+Supported platforms: Chrome and Edge desktop browsers (Manifest V3 extension; current codebase baseline version is 0.2.0). Interface languages: English and 简体中文.
 
 ## Translation services
 
-- **No key needed:** Google, Microsoft, the DeepL and Yandex web endpoints, and the browser's built-in AI where your browser supports it.
-- **Bring your own key:** LLM services such as OpenAI, Anthropic (Claude), DeepSeek, MiMo, DashScope, ModelScope, and ModelBest; translation APIs such as DeepL, Google Cloud, Azure, Baidu, Tencent, and Volcengine; and any custom OpenAI-compatible endpoint.
+- **No key needed:** **Microsoft** and **Google** are enabled by default. Additional keyless presets — **DeepLFree**, **YandexFree**, **Tencent**, **Volcengine**, and browser built-in AI (**BuiltinAI**, requires Chrome 138+ with Translation API enabled in `chrome://flags`) — can be enabled in Settings.
+- **Bring your own key (LLMs):** Includes presets for **OpenAI**, **Claude** (Anthropic), **Gemini** / **Gemini (OpenAI 兼容)**, **DeepSeek**, **OpenCodeGo**, **SiliconFlow**, **XiaomiMimo**, **AliyunBailian** (DashScope), **ModelScope**, **ModelBest**, **Cerebras**, **Zai**, **OpenRouter**, **OrcaRouter**, **Requesty**, **ePhoneAI**, and **APIMart**, plus local **Ollama** (optional key) or other compatible endpoints.
+- **Bring your own key (Translation APIs & Custom):** Includes **DeepL**, **GoogleCloud**, **AzureAI**, **Yandex**, **QwenMT**, and **CloudflareAI**, plus self-hosted or local **DeepLX** (optional key), and **Custom** endpoints with Request/Response Hooks for other protocols (see [custom-api.md](custom-api.md)).
 
-Preset LLM services start disabled. Enable one in Options, then fill in the base URL, key, and model. Translation requests keep thinking mode off by default. See [docs/BYOK.md](docs/BYOK.md) for details.
+All preset services except Microsoft and Google start disabled. Open **Translation services** in the extension settings, turn off **Is Disabled** for the service you want (and for keyed services, enter your API key and adjust the URL or model if needed), save, and select it for your scenario. LLM translation requests keep thinking mode disabled by default. See [docs/BYOK.md](docs/BYOK.md) for setup details.
 
 ## Install
 
-The extension is not on the browser stores yet. Download the package for your browser from [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest):
+The extension is not listed on browser stores yet. Download the package for your browser from [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest):
 
-| Browser | File                                   | How to install                                                                       |
-| ------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
-| Chrome  | `immer-translate_<version>_chrome.zip` | Unzip, open `chrome://extensions`, turn on Developer mode, and choose Load unpacked. |
-| Edge    | `immer-translate_<version>_edge.zip`   | Unzip, open `edge://extensions`, turn on Developer mode, and choose Load unpacked.   |
+| Browser | Release file                            | How to install                                                                                                                                                             |
+| ------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chrome  | `immer-translate_v<version>_chrome.zip` | Unzip the archive, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select the extracted `chrome` folder (containing `manifest.json`). |
+| Edge    | `immer-translate_v<version>_edge.zip`   | Unzip the archive, open `edge://extensions`, turn on **Developer mode**, click **Load unpacked**, and select the extracted `edge` folder (containing `manifest.json`).     |
 
-Click the toolbar icon to start. On first run you can try a free service straight away.
+Click the extension icon in your browser toolbar to start; you can try the default Microsoft or Google service right away.
 
-To update, download and unzip the new package, then reload its directory on the extension management page. Unpacked installations do not update automatically.
+Because the extension is loaded unpacked, it does not update automatically. To update, download the new release archive, unzip it to replace the old directory (or load the new folder), and reload the extension on your browser's extensions page.
 
 ## Build from source
 
-Requires Node.js 24 and pnpm.
+Requires Node.js 24 and pnpm (pinned to pnpm 9.14.4 in this repository).
 
 ```sh
 git clone https://github.com/boomytc/ImmerTranslate.git
 cd ImmerTranslate
 pnpm install
-pnpm build:chrome
+pnpm build:chrome   # Build Chrome only into build/chrome
+pnpm build          # Sync version and build both Chrome and Edge into build/chrome and build/edge
 ```
 
-The output is in `build/chrome`; load it as described above. Development focuses on correct code logic, followed by the checks needed for the change. Remove temporary tests after verification and use real usage feedback to guide iteration. This repository does not maintain a permanent test suite. See [AGENTS.md](AGENTS.md) for the development conventions.
+After building, load `build/chrome` or `build/edge` as an unpacked extension using the steps above.
 
-Run `pnpm check` locally to reject leftover test files, check formatting and versions, and build, package, and verify the Chrome/Edge artifacts. Use `pnpm release -- --dry-run` to verify release artifacts, then `pnpm release` to tag and publish to GitHub Releases. This repository does not use GitHub Actions. See [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+For full local verification or releasing:
+
+- `pnpm check` (or `pnpm check -- origin/main` to check all changes on `dev` against `main`): checks for leftover test files or disallowed workflows, validates formatting, version files, and `CHANGELOG.md`, builds and zips the Chrome and Edge packages, and verifies artifact manifests and SHA-256 checksums.
+- `pnpm release -- --dry-run` and `pnpm release`: used by maintainers on a clean `main` branch matching `origin/main`. It builds in an isolated temporary worktree, saves verified artifacts under `dist-release/`, creates and pushes an annotated version tag, and publishes the Chrome/Edge zip packages and provenance manifest to GitHub Releases via GitHub CLI (`gh`) (this repository does not use GitHub Actions).
+
+See [AGENTS.md](AGENTS.md) for contributor and repository conventions, [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for versioning and release steps, and [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## License
 

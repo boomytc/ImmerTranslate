@@ -1,51 +1,86 @@
-# 预置与 BYOK
+# 自带密钥与预置服务（BYOK）
 
-Built-in model presets are disabled until you enable them. Fill base URL, key, and model yourself. Keys stay in the extension's local storage and must not be committed. The project is GPL-3.0 (see `LICENSE`); if you distribute a modified build, keep the license and offer the corresponding source.
+ImmerTranslate 内置了 `Microsoft`、`Google` 等免钥翻译服务，安装后即可直接使用；如果你想使用 OpenAI、Claude、DeepSeek 等大模型，或者 DeepL、Google Cloud 等付费翻译接口，只需要填入你自己的 API Key。
 
-## 加载未打包的 Chrome 扩展
+- **密钥留在本机**：API Key 只保存在本机浏览器的扩展存储中，请求由浏览器直接发送到你配置的服务地址，不会上传到第三方服务器或写入代码仓库。（如果你主动开启了数据同步，配置会经你的同步加密口令加密后再上传。）
+- **预置默认禁用**：为了避免未填写密钥的服务占满切换列表，所有需要密钥的大模型与专业翻译预置默认处于禁用状态，用到哪个再启用哪个即可。
+- **安装说明**：如果还未安装扩展，请先参考 [README.md](../README.md) 下载对应浏览器压缩包，或从源码构建后在扩展管理页加载。
 
-需要 Node.js 与 pnpm（建议使用 Node 24）。
+## 如何启用并配置服务
 
-```sh
-pnpm install
-pnpm build:chrome
-```
+### 1. 启用预置并填写密钥
 
-产物在 `build/chrome`。
+1. 打开扩展的设置页，在左侧导航栏「服务与接口」下进入「翻译服务」。
+2. 在左侧列表中选中需要配置的服务（例如 `OpenAI`、`DeepSeek`）；如果想为同一协议添加多个配置，点击上方「添加」即可新建。
+3. 在右侧详情顶部，关闭「是否禁用」开关；常用服务可以顺手打开「是否置顶」。
+4. 核对并填写以下设置：
+   - **接口名称**：可按需要修改，方便在弹窗或悬浮球里辨认。
+   - **URL**：内置预置已填好官方默认地址；若使用中转或自建服务，直接替换为你的接口地址即可。OpenAI 兼容服务支持只填服务根地址或以 `/v1` 结尾的地址，请求时会自动补全对话路径。
+   - **Key**：填入你自己的 API Key。支持填写多个 Key（用换行或英文逗号 `,` 分隔），调用时会自动轮询；还没有密钥可点击右侧「获取 API Key」前往官方控制台申请。本地服务（如 `Ollama`、`DeepLX`）若未开启鉴权可留空。
+   - **Model**：每个大模型预置都带有默认模型，你可以直接手动输入任意模型 ID，也可以在填好 URL 和 Key 后点击「拉取模型列表」从服务商获取可用模型。若未填 Key，拉取会提示失败，但依然支持手动输入模型名。
+   - **思考模式**：大模型预置默认设置为「关闭思考」，避免推理过程混入译文或拖慢翻译速度；如果遇到某些模型或中转接口报错，可改选「接口默认」。
+5. 点击底部的「保存」。保存后可点击「测试连接」检查密钥与模型目录连通性，或点击「点击测试」用一句英文试译验证实际效果。
 
-1. 打开 `chrome://extensions`。
-2. 打开「开发者模式」。
-3. 「加载已解压的扩展程序」，选择 `build/chrome`（目录内应有 `manifest.json`）。
-4. 打开扩展的选项页。
+> 关闭「是否禁用」后，该服务就会出现在设置页各翻译场景（如「网页翻译」「划词翻译」「输入框翻译」「字幕翻译」等）的下拉列表中；而浏览器工具栏弹窗和网页悬浮球中只会列出**已填写 Key** 的服务（`Google`、`Microsoft` 等免钥服务以及本地 `Ollama`、`DeepLX` 除外）。如果你配置的是无需鉴权的 `Custom` 自定义接口，且希望在弹窗和悬浮球中选用它，可在 `Key` 中任意填写一个占位字符（未配置 `Request Hook` 覆盖请求头时，默认会携带 `Authorization: Bearer <Key>`）。
 
-## 预置
+### 2. 在不同翻译场景中切换服务
 
-这些条目都在 `src/config/api.js` 里，**默认禁用**，Key 为空。没有另做一套协议。已有的 OpenAI、Claude、DeepSeek、XiaomiMimo、AliyunBailian 不重复添加；相对 `dev` 新增的有 ModelScope 与 ModelBest。
+启用并保存接口后，各翻译场景默认仍使用免钥的 `Microsoft`，需要到对应设置中切换为你刚启用的服务：
 
-启用：选项页「接口设置」→ 选中该预置 → 关掉「是否禁用」→「保存」。然后自填 base、Key、Model，再保存。Model 可改预置占位，也可点「拉取模型列表」或手填。缺 Key 时拉取失败会显示出来，模型 ID 仍可手填。
+- **整页网页翻译**
+  - **设成全局默认**：在设置页左侧「翻译场景」→「网页翻译」→「全局规则」标签页下，点击「编辑」，将「翻译服务」改为你启用的服务并「保存」。
+  - **按网站单独指定**：在「网页翻译」→「个人规则」中添加或编辑规则，为特定网站指定「翻译服务」。
+  - **临时或快速切换**：打开浏览器工具栏弹窗，或点击网页上的悬浮球，在「翻译服务」和「模型」中直接切换当前页使用的服务（即时生效）；如需以后访问该网站都记住当前配置，在工具栏弹窗中点击「保存本站规则」。
+- **划词翻译**：在「翻译场景」→「划词翻译」中展开底部的「详细设置」，在「翻译服务 (支持多选)」里勾选要使用的服务；如需用大模型查询单词释义，可在同页面的「词典」卡片中设置「AI 词典接口」。
+- **段落翻译（鼠标悬停）**：在「翻译场景」→「段落翻译」中，「展示模式」为「双语模式」时自动跟随当前网页规则；设为「气泡模式」时，可在「翻译服务」中选择「跟随网页规则」或单独指定一个服务。
+- **输入框翻译**：在「翻译场景」→「输入框翻译」中展开「详细设置」，将「翻译服务」改为目标服务。
+- **YouTube 双语字幕**：在「翻译场景」→「字幕翻译」的「质量」卡片中修改「翻译服务」；如需用大模型进行智能断句或分析视频上下文，也可在同页面的「AI智能断句」与「详细设置」→「增强智能上下文」中指定 AI 服务。
 
-要用它翻译网页：到「规则设置」→「全局规则」→「编辑」，把「翻译服务」改成该预置，再保存。未改之前全局规则仍是 Microsoft。输入框、划词、字幕的接口需要在对应设置里另选。
+## 常用大模型预置参考
 
-| 预置                       | 协议                                | 默认对话地址                                                         | 模型占位（可改）          |
-| -------------------------- | ----------------------------------- | -------------------------------------------------------------------- | ------------------------- |
-| OpenAI                     | OpenAI 兼容                         | `https://api.openai.com/v1/chat/completions`                         | `gpt-4`                   |
-| Claude                     | Anthropic                           | `https://api.anthropic.com/v1/messages`                              | `claude-3-haiku-20240307` |
-| DeepSeek                   | OpenAI 兼容                         | `https://api.deepseek.com/chat/completions`                          | `deepseek-v4-flash`       |
-| XiaomiMimo（Mimo）         | OpenAI 兼容                         | `https://api.xiaomimimo.com/v1/chat/completions`                     | `mimo-v2.5-pro`           |
-| AliyunBailian（DashScope） | OpenAI 兼容，对话用 compatible-mode | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions` | `qwen-plus`               |
-| ModelScope                 | OpenAI 兼容                         | `https://api-inference.modelscope.cn/v1/chat/completions`            | `Qwen/Qwen3-32B`          |
-| ModelBest                  | OpenAI 兼容                         | `https://api.modelbest.cn/v1/chat/completions`                       | `MiniCPM5-2B`             |
+下表列出常用自带密钥的大模型预置（全部默认禁用，模型名可自行更换）：
 
-OpenAI 兼容拉列表时，地址收成 `{base}/models`（已是 `/models` 则保持不变），请求头 `Authorization: Bearer`。DeepSeek 预置列表是 `https://api.deepseek.com/models`。Claude 使用 `x-api-key` 和 `anthropic-version: 2023-06-01`；地址不含 `/v1` 时先 `{base}/v1/models`，404 再 `{base}/models`。百炼的模型目录是原生 `GET https://dashscope.aliyuncs.com/api/v1/models`（分页），不是 compatible-mode。
+| 列表显示名称    | 协议类型           | 默认对话地址                                                         | 默认模型（可改）          |
+| --------------- | ------------------ | -------------------------------------------------------------------- | ------------------------- |
+| `OpenAI`        | OpenAI 兼容        | `https://api.openai.com/v1/chat/completions`                         | `gpt-4`                   |
+| `Claude`        | Anthropic Messages | `https://api.anthropic.com/v1/messages`                              | `claude-3-haiku-20240307` |
+| `DeepSeek`      | OpenAI 兼容        | `https://api.deepseek.com/chat/completions`                          | `deepseek-v4-flash`       |
+| `XiaomiMimo`    | OpenAI 兼容        | `https://api.xiaomimimo.com/v1/chat/completions`                     | `mimo-v2.5-pro`           |
+| `AliyunBailian` | OpenAI 兼容        | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions` | `qwen-plus`               |
+| `ModelScope`    | OpenAI 兼容        | `https://api-inference.modelscope.cn/v1/chat/completions`            | `Qwen/Qwen3-32B`          |
+| `ModelBest`     | OpenAI 兼容        | `https://api.modelbest.cn/v1/chat/completions`                       | `MiniCPM5-2B`             |
 
-表里还有其它 OpenAI 兼容行（如 OpenRouter）。同样默认禁用，启用后自填。上面这些是要配置的预置。
+使用补充说明：
 
-ModelBest 托管默认开启思考。关闭思考时请求体写入 `chat_template_kwargs.enable_thinking: false`，避免推理进入译文。输出长度使用 `max_tokens`。Key 在 [platform.modelbest.cn](https://platform.modelbest.cn/console/) 申请。
+- **阿里云百炼（`AliyunBailian`）**：对话地址采用 `compatible-mode` 兼容接口；点击「拉取模型列表」时，扩展会自动请求阿里云百炼官方模型目录接口，无需手动改地址。
+- **面壁智能（`ModelBest`）**：托管服务默认开启思考模式，扩展在「关闭思考」（默认状态）下会自动传参关闭推理，避免思考过程进入译文；Key 可在 [platform.modelbest.cn](https://platform.modelbest.cn/console/) 申请。
+- **其他默认禁用的内置预置**：
+  - **大模型与聚合网关**：`Gemini`（Google 原生接口，默认 `gemini-3.6-flash`）、`Gemini (OpenAI 兼容)`、`OpenRouter`、`OrcaRouter`、`Requesty`、`SiliconFlow`（硅基流动）、`OpenCodeGo`、`Cerebras`、`Zai`（智谱 AI）、`ePhoneAI`、`APIMart`，以及本地部署的 `Ollama`。
+  - **专用翻译 API 与其他免钥服务**：`QwenMT`（百炼翻译模型）、`DeepL`、`DeepLX`、`GoogleCloud`、`AzureAI`、`Yandex`、`CloudflareAI`，以及免钥的 `DeepLFree`、`YandexFree`、`Tencent`、`Volcengine` 和 `BuiltinAI`（浏览器内置端侧翻译，需 Chrome 138+ 并在 `chrome://flags` 中开启 Translation API）。
+- **接入第三方兼容服务**：如果是其他 OpenAI 兼容中转或自建网关，直接选用或添加 `OpenAI` 类型并修改地址即可；如果是 Anthropic Messages 协议，选用或添加 `Claude` 类型并替换地址。只有非标准私有协议才需要使用 `Custom` 类型编写 Hook，详见 [custom-api.md](../custom-api.md)。
 
-双语译文默认保留原文（`transOnly` 关闭），译文样式默认无额外装饰，字号、字重、行高、颜色尽量继承所在段落。不要另做一套排版。
+## 译文排版与网站规则
 
-## 网站规则
+### 双语对照与排版继承
 
-生效顺序：**个人规则 > 内置网站规则 > 全局规则**。内置规则按当前页面自动匹配，个人规则覆盖对应设置，全局规则兜底。
+- 网页翻译默认保留原文并紧跟显示译文（「仅显示译文」默认关闭），译文默认无下划线、背景色等额外装饰，字号、字重、行高和文字颜色会自动继承所在段落的网页原有排版。
+- 如果你想只看译文或改变样式，可在工具栏弹窗、悬浮球或「网页翻译」规则中开启「仅显示译文」或更换「译文样式」。
 
-规则字段留空或下拉框选 `*` 表示继承下一级；CSS 选择器以 `+` 追加，以 `-` 剔除。
+### 网站规则优先级与继承
+
+在「网页翻译」设置中，规则按以下顺序生效：
+
+**个人规则 > 内置网站规则 > 全局规则**
+
+- **全局规则**：作为兜底规则，对未命中特定站点规则的所有页面生效。
+- **内置网站规则**：扩展内置，按网址自动匹配常见网站（如 GitHub、Reddit、Stack Overflow、YouTube、Wikipedia 等），用于优化正文识别范围。
+- **个人规则**：你在设置页、弹窗或可视化规则编辑器中保存的规则，优先级最高，会覆盖内置规则和全局规则的对应项。
+
+在编辑个人规则时：
+
+- 文本输入框留空或下拉框选 `*`，表示继续继承下一级规则的设置。
+- CSS 选择器字段（例如「需翻译节点选择器」、「不翻译节点选择器」、「保留元素选择器」）直接填写会覆盖继承值；以 `+` 开头表示在继承结果上追加，以 `-` 开头表示从继承结果中剔除（例如 `+.math-container`）。
+
+## 许可证
+
+本项目基于 GPL-3.0 协议开源，详见 [LICENSE](../LICENSE)。分发修改后的版本时，请保留许可证与版权声明，并提供对应源码。
