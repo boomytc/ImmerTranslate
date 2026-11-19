@@ -7,7 +7,6 @@
 <p align="center">A bilingual translation extension for Chrome and Edge on desktop: read original and translated text together, use free or bring-your-own-key services, and keep your data local.</p>
 
 <p align="center">
-  <a href="https://github.com/boomytc/ImmerTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/boomytc/ImmerTranslate?label=release"></a>
   <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
   <img alt="Supports Chrome and Edge" src="https://img.shields.io/badge/works%20on-Chrome%20%7C%20Edge-informational">
 </p>
@@ -49,18 +48,7 @@ All preset services except Microsoft and Google start disabled. Open **Translati
 
 ## Install
 
-The extension is not listed on browser stores yet. Download the package for your browser from [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest):
-
-| Browser | Release file                            | How to install                                                                                                                                                             |
-| ------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chrome  | `immer-translate_v<version>_chrome.zip` | Unzip the archive, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select the extracted `chrome` folder (containing `manifest.json`). |
-| Edge    | `immer-translate_v<version>_edge.zip`   | Unzip the archive, open `edge://extensions`, turn on **Developer mode**, click **Load unpacked**, and select the extracted `edge` folder (containing `manifest.json`).     |
-
-Click the extension icon in your browser toolbar to start; you can try the default Microsoft or Google service right away.
-
-Because the extension is loaded unpacked, it does not update automatically. To update, download the new release archive, unzip it to replace the old directory (or load the new folder), and reload the extension on your browser's extensions page.
-
-## Build from source
+This extension is for personal use. There is no published package and no store listing. Clone the source, build it, and load the unpacked folder in developer mode.
 
 Requires Node.js 24 and pnpm (pinned to pnpm 9.14.4 in this repository).
 
@@ -68,18 +56,24 @@ Requires Node.js 24 and pnpm (pinned to pnpm 9.14.4 in this repository).
 git clone https://github.com/boomytc/ImmerTranslate.git
 cd ImmerTranslate
 pnpm install
-pnpm build:chrome   # Build Chrome only into build/chrome
-pnpm build          # Sync version and build both Chrome and Edge into build/chrome and build/edge
+pnpm build:chrome   # Chrome only, output in build/chrome
+pnpm build          # Sync the version, then build Chrome and Edge into build/chrome and build/edge
 ```
 
-After building, load `build/chrome` or `build/edge` as an unpacked extension using the steps above.
+| Browser | Folder to load | Steps                                                                                                                                                  |
+| ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Chrome  | `build/chrome` | Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select `build/chrome` (the folder that contains `manifest.json`). |
+| Edge    | `build/edge`   | Open `edge://extensions`, turn on **Developer mode**, click **Load unpacked**, and select `build/edge` (the folder that contains `manifest.json`).     |
 
-For full local verification or releasing:
+Click the extension icon in the toolbar to start. Microsoft or Google works immediately.
 
-- `pnpm check` (or `pnpm check -- v0.2.0` to check all changes since a given tag or commit): checks for leftover test files or disallowed workflows, validates formatting, version files, and `CHANGELOG.md`, builds and zips the Chrome and Edge packages, and verifies artifact manifests and SHA-256 checksums.
-- `pnpm release -- --dry-run` and `pnpm release`: used by maintainers on a clean `main` branch matching `origin/main`. It builds in an isolated temporary worktree, saves verified artifacts under `dist-release/`, creates and pushes an annotated version tag, and publishes the Chrome/Edge zip packages and provenance manifest to GitHub Releases via GitHub CLI (`gh`) (this repository does not use GitHub Actions).
+To update, pull the latest source, run the build again, and click reload on the extensions page. The extension does not update itself. If a local change breaks it, rebuild and reload; removing the extension clears its local storage.
 
-See [AGENTS.md](AGENTS.md) for contributor and repository conventions, [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for versioning and release steps, and [CHANGELOG.md](CHANGELOG.md) for release notes.
+Local check:
+
+- `pnpm check` (or `pnpm check -- v0.2.0` to check changes since a tag or commit): looks for leftover test files, checks formatting, version files, and `CHANGELOG.md`, then builds Chrome and Edge and verifies the artifacts.
+
+See [AGENTS.md](AGENTS.md) for repository conventions, [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the version number, and [CHANGELOG.md](CHANGELOG.md) for history.
 
 ## License
 

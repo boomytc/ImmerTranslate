@@ -7,7 +7,6 @@
 <p align="center">面向 Chrome 与 Edge 桌面浏览器的双语对照网页翻译扩展：原文与译文同屏对照，支持免钥服务与自带密钥，配置与密钥只留在本机。</p>
 
 <p align="center">
-  <a href="https://github.com/boomytc/ImmerTranslate/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/boomytc/ImmerTranslate?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC"></a>
   <img alt="许可证 GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
   <img alt="支持 Chrome 与 Edge" src="https://img.shields.io/badge/%E6%94%AF%E6%8C%81-Chrome%20%7C%20Edge-informational">
 </p>
@@ -49,18 +48,7 @@
 
 ## 安装
 
-扩展暂未上架浏览器应用商店，请从 [GitHub Releases](https://github.com/boomytc/ImmerTranslate/releases/latest) 下载对应浏览器的压缩包：
-
-| 浏览器 | 发布文件                             | 安装步骤                                                                                                                                               |
-| ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Chrome | `immer-translate_v<版本>_chrome.zip` | 解压压缩包；打开 `chrome://extensions`，开启右上角「开发者模式」，点击「加载已解压的扩展程序」，选择解压出来的 `chrome` 目录（内含 `manifest.json`）。 |
-| Edge   | `immer-translate_v<版本>_edge.zip`   | 解压压缩包；打开 `edge://extensions`，开启「开发人员模式」，点击「加载解压缩的扩展」，选择解压出来的 `edge` 目录（内含 `manifest.json`）。             |
-
-装好后点击浏览器工具栏的扩展图标即可开始使用，首次使用可直接用默认的 Microsoft 或 Google 免钥服务体验。
-
-由于采用本地解压加载，扩展不会自动更新。升级时请下载新版本压缩包并解压替换原目录（或加载新目录），再在扩展管理页点击刷新。
-
-## 从源码构建
+供个人使用。不发布安装包，也不上架浏览器商店。在本机克隆源码、构建后，用开发者模式加载未打包目录。
 
 需要 Node.js 24 与 pnpm（仓库固定为 pnpm 9.14.4）。
 
@@ -68,18 +56,24 @@
 git clone https://github.com/boomytc/ImmerTranslate.git
 cd ImmerTranslate
 pnpm install
-pnpm build:chrome   # 仅构建 Chrome 扩展，输出到 build/chrome
-pnpm build          # 同步版本号后同时构建 Chrome 与 Edge，输出到 build/chrome 与 build/edge
+pnpm build:chrome   # 仅构建 Chrome，输出到 build/chrome
+pnpm build          # 同步版本号后构建 Chrome 与 Edge，输出到 build/chrome 与 build/edge
 ```
 
-构建完成后，按上面的步骤在浏览器中加载对应的 `build/chrome` 或 `build/edge` 目录即可。
+| 浏览器 | 加载目录       | 步骤                                                                                                                              |
+| ------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Chrome | `build/chrome` | 打开 `chrome://extensions`，开启右上角「开发者模式」，点击「加载已解压的扩展程序」，选择 `build/chrome`（内含 `manifest.json`）。 |
+| Edge   | `build/edge`   | 打开 `edge://extensions`，开启「开发人员模式」，点击「加载解压缩的扩展」，选择 `build/edge`（内含 `manifest.json`）。             |
 
-如需在本地做完整校验或准备发布：
+装好后点击浏览器工具栏的扩展图标即可开始使用，首次使用可直接用默认的 Microsoft 或 Google 免钥服务。
 
-- `pnpm check`（也可指定基准标签或提交，如 `pnpm check -- v0.2.0`）：检查是否有遗留的测试文件或禁用项，校验代码格式、版本号与 `CHANGELOG.md`，并完成 Chrome / Edge 构建、ZIP 打包以及校验和验证。
-- `pnpm release -- --dry-run` 与 `pnpm release`：供维护者在本机 `main` 分支执行发布。命令会从与 `origin/main` 一致的干净提交创建临时工作树完成检查和隔离构建，将验证后的发布包保存在本地 `dist-release/` 目录，随后打上版本标签并通过 GitHub CLI（`gh`）上传发布到 GitHub Releases（本仓库不使用 GitHub Actions）。
+更新时在仓库里拉取最新源码，重新执行上面的构建，再在扩展管理页点击刷新。扩展不会自动更新。改坏了就重新构建并重新加载；本机扩展存储可以在扩展管理页移除后重装。
 
-贡献与维护约定请参考 [AGENTS.md](AGENTS.md)，版本号管理与本地发布流程见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+本地检查：
+
+- `pnpm check`（也可指定基准标签或提交，如 `pnpm check -- v0.2.0`）：检查是否有遗留的测试文件，校验代码格式、版本号与 `CHANGELOG.md`，并完成 Chrome / Edge 构建与产物校验。
+
+维护约定见 [AGENTS.md](AGENTS.md)，版本号见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，历史变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 

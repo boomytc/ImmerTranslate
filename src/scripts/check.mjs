@@ -47,7 +47,7 @@ export function runChecks(root, base = "HEAD") {
   }
   if (workflows.some((file) => /\.ya?ml$/.test(file)))
     throw new Error(
-      "GitHub workflows are disabled; use local check and release commands"
+      "GitHub workflows are disabled; use the local check command"
     );
   const testFiles = execFileSync(
     "git",

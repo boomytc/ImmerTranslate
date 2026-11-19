@@ -14,7 +14,6 @@
 
 # production
 /build
-/dist-release/
 
 # misc
 .DS_Store
@@ -36,6 +35,4 @@ package-lock.json
 .agents/*
 !.agents/skills/
 .agents/skills/*
-!.agents/skills/release-immer-translate/
-!.agents/skills/release-immer-translate/**
 .claude

@@ -1,12 +1,12 @@
 # AGENTS.md
 
-给在本仓库工作的编码 Agent。修改代码前请先通读本文件。产品说明与安装使用见 `README.md`，版本号、本地检查与发布流程见 `VERSION_MANAGEMENT.md`，设置持久化与同步一致性约束见 `docs/storage-consistency.md`，预置翻译服务与自带密钥（BYOK）说明见 `docs/BYOK.md`。
+给在本仓库工作的编码 Agent。修改代码前请先通读本文件。产品说明与安装使用见 `README.md`，版本号见 `VERSION_MANAGEMENT.md`，设置持久化与同步一致性约束见 `docs/storage-consistency.md`，预置翻译服务与自带密钥（BYOK）说明见 `docs/BYOK.md`。
 
 ## 1. 这是什么
 
 面向桌面端 Chrome 和 Edge 的 Manifest V3 网页双语翻译扩展，支持免钥服务与自带密钥（BYOK），配置和密钥只保存在本机。仅针对桌面浏览器，界面语言提供简体中文和 English。
 
-技术栈：React 18、MUI 5、CRA 5（react-app-rewired）、JavaScript、pnpm 9.14.4、Node 24。源码在 `src/`，构建产物在 `build/<target>/`，发布产物在 `dist-release/`。
+技术栈：React 18、MUI 5、CRA 5（react-app-rewired）、JavaScript、pnpm 9.14.4、Node 24。源码在 `src/`，本机加载的构建产物在 `build/<target>/`。这是个人使用的扩展：从源码构建后在 Chrome 或 Edge 里加载未打包目录，不发布安装包。
 
 入口文件在 `src/` 下的 `background.js`、`content.js`、`popup.js`、`options.js` 和 `injector-*.js`。页面与扩展核心逻辑主要在 `src/libs/`、`src/apis/`、`src/components/`、`src/views/`、`src/hooks/`。
 
@@ -25,19 +25,19 @@ pnpm build          # 清空后构建 Chrome 与 Edge，Edge 复用 Chrome 产�
 pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建与 ZIP、产物校验
 ```
 
-- 源码、构建或发布配置有变更时，完成后运行一次 `pnpm check`；纯文档变更只运行 `pnpm format:check`。`pnpm check` 也会拒绝新增 `.github/workflows` 和检查/构建反过来修改源文件。
-- 临时验证优先使用系统临时目录，或使用 `.gitignore` 已忽略的 `tmp/` 并在结束后清除。产品自带的接口连通性检查与发布包完整性校验继续保留。
-- `build/` 只是本机开发验证产物；正式发布只认在隔离工作区构建并保存到 `dist-release/v<版本>-<完整SHA>/build/` 的产物。
+- 源码或构建配置有变更时，完成后运行一次 `pnpm check`；纯文档变更只运行 `pnpm format:check`。`pnpm check` 也会拒绝新增 `.github/workflows` 和检查/构建反过来修改源文件。
+- 临时验证优先使用系统临时目录，或使用 `.gitignore` 已忽略的 `tmp/` 并在结束后清除。产品自带的接口连通性检查继续保留。
+- 浏览器里加载 `pnpm build` 生成的 `build/chrome` 或 `build/edge`。不要再制作发布包。
 - 涉及浏览器交互时，加载未打包扩展走一遍受影响的主路径即可。如实汇报实际验证结果和未验证部分，不把模拟响应说成真实服务验证。
+- 当前是快速迭代。存储和规则按现在的结构读写，不为旧数据保留迁移或双轨逻辑；本地数据乱了就移除扩展后重新加载。
 
-## 3. 版本与发布
+## 3. 版本
 
-- `package.json` 是唯一的版本号来源。`.env` 中的 `REACT_APP_VERSION` 与 `public/manifest.json` 中的 `version` 由 `pnpm sync-version` 同步，禁止手工分别改号。升级版本使用 `pnpm version:patch`、`pnpm version:minor`、`pnpm version:major` 或 `pnpm version:set -- <版本>`。
-- `CHANGELOG.md` 顶部添加唯一、非空的 `## v<目标版本>` 一节，用通俗中文写清楚用户可见变化，并保留下方历史条目。
-- 日常开发与发布统一在 `main` 分支进行，不再维护独立的 `dev` 分支；不要 force push。
-- 正式发布在工作区干净且等于 `origin/main` 的 `main` 上执行：先跑 `pnpm release -- --dry-run`，再跑 `pnpm release`。不手工打标签，不覆盖已上传资产，不重打历史标签。
-- `dist-release/` 里的原始构建产物用于中断恢复和校验，不删除、不重建。
-- 仓库不使用 GitHub Actions。检查、构建、打包和发布都在本机完成。
+- `package.json` 是唯一的版本号来源。`.env` 中的 `REACT_APP_VERSION` 与 `public/manifest.json` 中的 `version` 由 `pnpm sync-version` 同步，禁止手工分别改号。要改版本时使用 `pnpm version:patch`、`pnpm version:minor`、`pnpm version:major` 或 `pnpm version:set -- <版本>`。
+- 改了版本号时，`CHANGELOG.md` 顶部保留唯一、非空的 `## v<目标版本>` 一节，用通俗中文写清楚变化，并保留下方历史条目。
+- 开发在 `main` 分支进行，不再维护独立的 `dev` 分支；不要 force push。
+- 不发布。不要打版本标签，不要创建 GitHub Release，不要运行已经删除的发布命令。
+- 仓库不使用 GitHub Actions。检查和构建都在本机完成。
 
 ## 4. 代码
 
@@ -53,11 +53,11 @@ pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建
 
 ## 5. 不要做
 
-- 不要提交 Key、token、`.env.local`、`build/` 或 `dist-release/`。
-- 不要手工改 `.env` 或 `public/manifest.json` 的版本，不要手工打标签或创建 Release。
+- 不要提交 Key、token、`.env.local` 或 `build/`。
+- 不要手工改 `.env` 或 `public/manifest.json` 的版本，不要打标签或创建 Release。
 - 不要新增 `.github/workflows`。
 - 不要 force push，不要跳过本地检查或绕过钩子。
-- 不要把 `build/` 当发布包，不要删除或重建 `dist-release/` 的原始产物。
+- 不要恢复发布流程，也不要为了兼容旧安装包或旧存储格式保留第二套实现。
 - 不要新增移动端或触屏版式。
 - 不要为一次性需求新起翻译协议、存储实现或请求客户端，先在现有契约上扩展。
 - 不要为了绕过检查而修改检查脚本；检查失败先修实现或文档。
