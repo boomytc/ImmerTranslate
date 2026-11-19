@@ -24,6 +24,7 @@ import {
   parseHostEntry,
   rulePatternIndex,
 } from "./siteMatch";
+import { getDomainOptions } from "./url";
 
 /**
  * 差分合并 CSS 选择器。
@@ -127,6 +128,29 @@ export const findMatchingRule = (rules, href) => {
       matchesRulePattern(href, r.pattern)
   );
 };
+
+/** 当前主机。已有等价域名写法时沿用那条 pattern。 */
+export function siteRulePattern(href, rules) {
+  const pattern = getDomainOptions(href)[0] || "";
+  const eligible = (Array.isArray(rules) ? rules : []).filter(
+    (rule) => rule?.enabled !== false
+  );
+  const existing = eligible[rulePatternIndex(eligible, pattern)];
+  return existing?.pattern || pattern;
+}
+
+/**
+ * 网站翻译服务写到正在生效的个人规则上。
+ * 没有个人规则时新建当前主机规则。
+ */
+export function siteServicePattern(href, rules) {
+  const list = Array.isArray(rules) ? rules : [];
+  const matched = findMatchingRule(list, href);
+  if (typeof matched?.pattern === "string" && matched.pattern !== GLOBAL_KEY) {
+    return matched.pattern;
+  }
+  return siteRulePattern(href, list);
+}
 
 /**
  * 合并两条规则，高优先级（overrideRule）覆盖基准低优先级规则（baseRule）
@@ -469,9 +493,28 @@ export const saveRule = async (curRule) => {
   trySyncRules();
 };
 
+/** 把当前页的翻译服务记到正在生效的网站规则上。 */
+export const saveSiteApiSlug = async (href, apiSlug) => {
+  const slug = typeof apiSlug === "string" ? apiSlug.trim() : "";
+  if (typeof href !== "string" || !href || !slug || slug === GLOBAL_KEY) {
+    throw new Error("invalid-api-slug");
+  }
+  await saveEdit(STOKEY_RULES, (rules) => {
+    if (!Array.isArray(rules)) return rules;
+    const pattern = siteServicePattern(href, rules);
+    if (!pattern || pattern === GLOBAL_KEY) return rules;
+    return applySavedRule(rules, { pattern, apiSlug: slug });
+  });
+  trySyncRules();
+};
+
 /** save_rule 的消息响应。非法 transOpen 放进 error，不能当成保存成功。 */
 export async function saveRuleMessage(curRule) {
   try {
+    if (curRule?.rememberApiSlug === true) {
+      await saveSiteApiSlug(curRule.href, curRule.apiSlug);
+      return;
+    }
     await saveRule(curRule);
   } catch (error) {
     return { error: error?.message || String(error) };

@@ -24,6 +24,7 @@ import {
   readSiteTransOpen,
   siteRulePattern,
   SITE_TRANS_OPEN_OPTIONS,
+  writeSiteApiSlug,
   writeSiteTransOpen,
 } from "./sitePolicy";
 
@@ -42,8 +43,9 @@ const uniqueModels = (values) => {
 /**
  * Compact translation controls for the content FAB.
  * Site auto-translate is the personal rule's transOpen (`*` follows global).
- * Provider, bilingual mode, and target language write the page rule through
- * MSG_TRANS_PUTRULE. Open popups hear MSG_TRANS_CURRULE and this menu does too.
+ * The translation service is saved on the site rule. Language, bilingual mode,
+ * and style stay on this page through MSG_TRANS_PUTRULE. Open popups hear
+ * MSG_TRANS_CURRULE and this menu does too.
  */
 export default function FabQuickOptions({
   getFabPageState,
@@ -220,11 +222,32 @@ export default function FabQuickOptions({
   };
   const applyService = (apiSlug) => {
     if (!apiSlug || apiSlug === rule?.apiSlug) return;
+    const previous = rule?.apiSlug;
     setRule((current) => ({ ...current, apiSlug }));
-    void processActions?.({
-      action: MSG_TRANS_PUTRULE,
-      args: { apiSlug },
-    });
+    void (async () => {
+      try {
+        const response = await processActions?.({
+          action: MSG_TRANS_PUTRULE,
+          args: { apiSlug },
+        });
+        if (response?.error) throw new Error(response.error);
+        const saved = await writeSiteApiSlug(href, apiSlug);
+        if (saved?.error) throw new Error(saved.error);
+      } catch (error) {
+        kissLog("save site apiSlug", error);
+        setRule((current) =>
+          current?.apiSlug === apiSlug
+            ? { ...current, apiSlug: previous }
+            : current
+        );
+        if (previous) {
+          void processActions?.({
+            action: MSG_TRANS_PUTRULE,
+            args: { apiSlug: previous },
+          });
+        }
+      }
+    })();
   };
   const applyToLang = (toLang) => {
     if (!toLang || toLang === rule?.toLang) return;

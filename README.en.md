@@ -22,20 +22,20 @@
 - **Works out of the box.** Keyless services such as Microsoft and Google work immediately after installation with no account required.
 - **Bring your own key, direct connection.** Enter your own LLM or cloud translation API keys. Keys stay in your browser's local extension storage, and requests go directly to the endpoint you configure.
 - **Built for more than whole pages.** In addition to whole-page translation, it covers text selection, paragraph hover, web input boxes, and YouTube desktop bilingual subtitles.
-- **Per-site preferences.** Set any site to auto-translate or never auto-translate; all other sites follow your global rule.
+- **Per-site preferences.** Set any site to auto-translate or never auto-translate, and keep the translation service chosen for that site. Other sites follow the global rule.
 
 ## What it does
 
-| Scenario           | Details                                                                                                                                                                                                   |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Whole page         | Translate the current page via the toolbar popup, floating button, or shortcut (default `Alt+Q`). Long pages load in batches as you scroll, and you can switch to **Show Only Translations**.             |
-| Selection & text   | Select text and click the popup button (or open the panel directly) to view translations, look up words, copy, or read aloud. The toolbar popup also provides **Text translation** and a separate window. |
-| Paragraph (hover)  | Once enabled under **Paragraph translation**, hover with a shortcut key or hold the left mouse button to translate a paragraph or section inline or in a translation bubble.                              |
-| Input box          | Translate text in web input fields in place via the input translation icon, shortcut (default `Alt+I`), or a trailing trigger sign (such as `/`).                                                         |
-| Video subtitles    | Bilingual subtitles on the YouTube desktop website, with built-in or optional AI sentence segmentation, custom styling, and subtitle export.                                                              |
-| Floating button    | Toggle page translation, switch between bilingual and translation-only, change service, model, target language, or style, set site auto-translate, or hide on the current site.                           |
-| Rules and glossary | Follows **Personal rule > Built-in site rule > Global rule**, with a visual **Site rule editor**, CSS selector inheritance (`+`/`-`), and regex or AI glossaries.                                         |
-| Data sync          | Sync settings and rules via WebDAV (default) or a private GitHub Gist, encrypted with your sync encryption passphrase before upload.                                                                      |
+| Scenario           | Details                                                                                                                                                                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whole page         | Translate the current page via the toolbar popup, floating button, or shortcut (default `Alt+Q`). Long pages load in batches as you scroll, and you can switch to **Show Only Translations**.                                          |
+| Selection & text   | Select text and click the popup button (or open the panel directly) to view translations, look up words, copy, or read aloud. The toolbar popup also provides **Text translation** and a separate window.                              |
+| Paragraph (hover)  | Once enabled under **Paragraph translation**, hover with a shortcut key or hold the left mouse button to translate a paragraph or section inline or in a translation bubble.                                                           |
+| Input box          | Translate text in web input fields in place via the input translation icon, shortcut (default `Alt+I`), or a trailing trigger sign (such as `/`).                                                                                      |
+| Video subtitles    | Bilingual subtitles on the YouTube desktop website, with built-in or optional AI sentence segmentation, custom styling, and subtitle export.                                                                                           |
+| Floating button    | Toggle page translation, switch between bilingual and translation-only, change service, model, target language, or style, set site auto-translate, or hide on the current site. The service chosen for the current site is remembered. |
+| Rules and glossary | Follows **Personal rule > Built-in site rule > Global rule**, with a visual **Site rule editor**, CSS selector inheritance (`+`/`-`), and regex or AI glossaries.                                                                      |
+| Data sync          | Sync settings and rules via WebDAV (default) or a private GitHub Gist, encrypted with your sync encryption passphrase before upload.                                                                                                   |
 
 Supported platforms: Chrome and Edge desktop browsers (Manifest V3 extension; current codebase baseline version is 0.2.0). Interface languages: English and 简体中文.
 

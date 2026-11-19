@@ -66,6 +66,7 @@ import {
   readSiteTransOpen,
   siteRulePattern,
   SITE_TRANS_OPEN_OPTIONS,
+  writeSiteApiSlug,
   writeSiteTransOpen,
 } from "../Action/sitePolicy";
 import { browser } from "../../libs/browser";
@@ -108,9 +109,10 @@ const uniqueModels = (values) => {
   return models;
 };
 
-// Save 只带 popup 控件的当前值：语言、服务、样式和高级开关。
-// 站点策略 transOpen 不在这份数据里，只由策略下拉 / writeSiteTransOpen 写入。
-// 折叠规则上的选择器、术语、注入样式、enabled 等也不在这里。
+// 「保存本站规则」带上弹窗里的语言、样式和高级开关，也带上当前服务。
+// 切换翻译服务时已经由 writeSiteApiSlug 记到网站规则。
+// 站点策略 transOpen 不在这份数据里，只由策略按钮 / writeSiteTransOpen 写入。
+// 选择器、术语、注入样式、enabled 等也不在这里。
 const POPUP_SAVED_RULE_FIELDS = [
   "apiSlug",
   "fromLang",
@@ -456,6 +458,59 @@ export default function PopupCont({
     (name, value) => putRuleValues({ [name]: value }),
     [putRuleValues]
   );
+  const pendingSiteServiceRef = useRef("");
+  const previousSiteServiceRef = useRef("");
+
+  const pageHref = currentHref || (isContent ? window.location?.href : "");
+
+  const persistSiteService = useCallback(
+    (href, apiSlug, previous) => {
+      void writeSiteApiSlug(href, apiSlug, {
+        throughBackground: isExt && isContent,
+      })
+        .then((response) => {
+          if (response?.error) throw new Error(response.error);
+        })
+        .catch((error) => {
+          kissLog("save site apiSlug", error);
+          pendingSiteServiceRef.current = "";
+          if (previous && ruleRef.current?.apiSlug === apiSlug) {
+            putRuleValue("apiSlug", previous);
+          }
+          showMessage(i18n("error_got_some_wrong"), "error");
+        });
+    },
+    [i18n, isContent, putRuleValue, showMessage]
+  );
+
+  const handleSelectService = useCallback(
+    (apiSlug) => {
+      if (
+        !canTranslatePage ||
+        !apiSlug ||
+        apiSlug === ruleRef.current?.apiSlug
+      ) {
+        return;
+      }
+      const previous = ruleRef.current?.apiSlug;
+      previousSiteServiceRef.current = previous || "";
+      putRuleValue("apiSlug", apiSlug);
+      if (!pageHref) {
+        pendingSiteServiceRef.current = apiSlug;
+        return;
+      }
+      pendingSiteServiceRef.current = "";
+      persistSiteService(pageHref, apiSlug, previous);
+    },
+    [canTranslatePage, pageHref, persistSiteService, putRuleValue]
+  );
+
+  useEffect(() => {
+    const apiSlug = pendingSiteServiceRef.current;
+    if (!apiSlug || !pageHref) return;
+    pendingSiteServiceRef.current = "";
+    persistSiteService(pageHref, apiSlug, previousSiteServiceRef.current);
+  }, [pageHref, persistSiteService]);
 
   const handleSwapLanguages = useCallback(() => {
     const { fromLang, toLang } = ruleRef.current;
@@ -1255,7 +1310,7 @@ export default function PopupCont({
                   className="kt-popup-service"
                   aria-pressed={service.key === apiSlug}
                   key={service.key}
-                  onClick={() => putRuleValue("apiSlug", service.key)}
+                  onClick={() => handleSelectService(service.key)}
                 >
                   <ApiProviderIcon
                     apiType={service.type}

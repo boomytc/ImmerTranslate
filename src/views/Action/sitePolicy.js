@@ -1,10 +1,16 @@
 import { GLOBAL_KEY, MSG_SAVE_RULE } from "../../config";
 import { isExt } from "../../libs/client";
 import { sendBgMsg } from "../../libs/msg";
-import { findMatchingRule, saveRule } from "../../libs/rules";
+import {
+  findMatchingRule,
+  saveRule,
+  saveSiteApiSlug,
+  siteRulePattern,
+} from "../../libs/rules";
 import { rulePatternIndex } from "../../libs/siteMatch";
 import { SITE_TRANS_OPEN, siteTransOpenValue } from "../../libs/siteTransOpen";
-import { getDomainOptions } from "../../libs/url";
+
+export { siteRulePattern };
 
 export { SITE_TRANS_OPEN };
 
@@ -39,17 +45,6 @@ export function readSiteTransOpen(href, rules, pattern) {
 }
 
 /**
- * Default to the exact current host, retaining an existing equivalent alias.
- * A wider scope is used only when the caller explicitly selects it.
- */
-export function siteRulePattern(href, rules) {
-  const pattern = getDomainOptions(href)[0] || "";
-  const eligible = (rules || []).filter((rule) => rule?.enabled !== false);
-  const existing = eligible[rulePatternIndex(eligible, pattern)];
-  return existing?.pattern || pattern;
-}
-
-/**
  * 本站开关只写选定范围：默认当前主机，调用方也可明确选用宽范围。
  */
 export function sitePolicyRecord(href, rules, transOpen, pattern) {
@@ -68,4 +63,22 @@ export async function writeSiteTransOpen(
   if (!record) return null;
   if (throughBackground) return sendBgMsg(MSG_SAVE_RULE, record);
   return saveRule(record);
+}
+
+/** 当前页选用的翻译服务立即写入网站规则。 */
+export async function writeSiteApiSlug(
+  href,
+  apiSlug,
+  { throughBackground = isExt } = {}
+) {
+  const slug = typeof apiSlug === "string" ? apiSlug.trim() : "";
+  if (!href || !slug || slug === GLOBAL_KEY) return null;
+  if (throughBackground) {
+    return sendBgMsg(MSG_SAVE_RULE, {
+      href,
+      apiSlug: slug,
+      rememberApiSlug: true,
+    });
+  }
+  return saveSiteApiSlug(href, slug);
 }
