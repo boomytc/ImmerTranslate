@@ -36,7 +36,7 @@
 | 规则与术语         | 遵循「个人规则 > 内置网站规则 > 全局规则」优先级，支持可视化「编辑网站规则」、CSS 选择器增删（`+`/`-`）与专业术语替换。            |
 | 数据同步           | 支持 WebDAV（默认）和私密 GitHub Gist 同步设置与规则，数据在上传前先使用同步加密口令加密。                                         |
 
-适用环境：Chrome 与 Edge 桌面浏览器（Manifest V3 扩展，当前代码基线版本为 0.2.0）。界面语言支持简体中文与 English。
+适用环境：Chrome 与 Edge 桌面浏览器（Manifest V3 扩展，当前更新标识 `26.1119.1757`）。界面语言支持简体中文与 English。
 
 ## 翻译服务
 
@@ -48,7 +48,7 @@
 
 ## 安装
 
-供个人使用。不发布安装包，也不上架浏览器商店。在本机克隆源码、构建后，用开发者模式加载未打包目录。
+供个人使用。克隆本仓库，在本机构建，再用开发者模式加载未打包目录。
 
 需要 Node.js 24 与 pnpm（仓库固定为 pnpm 9.14.4）。
 
@@ -57,7 +57,7 @@ git clone https://github.com/boomytc/ImmerTranslate.git
 cd ImmerTranslate
 pnpm install
 pnpm build:chrome   # 仅构建 Chrome，输出到 build/chrome
-pnpm build          # 同步版本号后构建 Chrome 与 Edge，输出到 build/chrome 与 build/edge
+pnpm build          # 同步更新日期后构建 Chrome 与 Edge，输出到 build/chrome 与 build/edge
 ```
 
 | 浏览器 | 加载目录       | 步骤                                                                                                                              |
@@ -71,9 +71,9 @@ pnpm build          # 同步版本号后构建 Chrome 与 Edge，输出到 build
 
 本地检查：
 
-- `pnpm check`（也可指定基准标签或提交，如 `pnpm check -- v0.2.0`）：检查是否有遗留的测试文件，校验代码格式、版本号与 `CHANGELOG.md`，并完成 Chrome / Edge 构建与产物校验。
+- `pnpm check`（也可指定基准提交）：检查是否有遗留的测试文件，校验代码格式、更新日期与 `CHANGELOG.md`，并完成 Chrome / Edge 构建与产物校验。
 
-维护约定见 [AGENTS.md](AGENTS.md)，版本号见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，历史变更见 [CHANGELOG.md](CHANGELOG.md)。
+维护约定见 [AGENTS.md](AGENTS.md)，更新日期见 [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)，当前说明见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 

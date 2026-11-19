@@ -1,73 +1,53 @@
 #!/usr/bin/env zx
-import { $, argv } from "zx";
-import {
-  assertVersion,
-  readVersionFiles,
-  syncVersion,
-} from "./version-files.mjs";
+import { argv } from "zx";
+import { assertVersion, syncVersion } from "./version-files.mjs";
 
 /**
- * 版本号更新脚本
- * 使用 npm version 命令更新 package.json 中的版本号，然后自动同步到其他文件
+ * 把更新日期写成 YY.MMDD.HHMM，并同步到 .env 与扩展清单。
  *
  * 用法:
- *   pnpm version:patch  // 2.0.19 -> 2.0.20
- *   pnpm version:minor  // 2.0.19 -> 2.1.0
- *   pnpm version:major  // 2.0.19 -> 3.0.0
- *   pnpm version:set -- 2.1.0  // 手动指定版本号
+ *   pnpm updated
+ *   pnpm version:set -- 26.1119.1740
  */
 
 const rootDir = path.resolve(__dirname, "../..");
-const versionType = argv._[0] || argv.type || "patch";
+const command = argv._[0] || "today";
 
-console.log(chalk.blue(`\n🚀 开始更新版本号...\n`));
+const todayId = () => {
+  const now = new Date();
+  const year = String(now.getFullYear()).slice(-2);
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = String(now.getMinutes()).padStart(2, "0");
+  return `${year}.${month}${day}.${hour}${minute}`;
+};
+
+console.log(chalk.blue(`\n更新扩展日期...\n`));
 
 try {
-  if (!["patch", "minor", "major", "set"].includes(versionType)) {
-    throw new Error(`Unsupported version update: ${versionType}`);
+  const next = command === "set" ? argv._[1] : todayId();
+  if (command === "set" && !next) {
+    throw new Error("请指定日期，例如: pnpm version:set -- 26.1119.1740");
   }
-  if (versionType === "set") assertVersion(argv._[1]);
-  // Validate every destination before npm changes package.json.
-  await readVersionFiles(rootDir);
-  $.cwd = rootDir;
-  // 读取当前版本
+  if (!["today", "set"].includes(command)) {
+    throw new Error(`Unsupported update command: ${command}`);
+  }
+  assertVersion(next);
+
   const pkgPath = path.join(rootDir, "package.json");
   const pkg = await fs.readJSON(pkgPath);
-  const oldVersion = pkg.version;
+  const previous = pkg.version;
+  pkg.version = next;
+  await fs.writeJSON(pkgPath, pkg, { spaces: 2 });
+  await fs.appendFile(pkgPath, "\n");
+  console.log(chalk.gray(`${previous} -> ${next}`));
 
-  console.log(chalk.gray(`当前版本: ${oldVersion}`));
-
-  // 使用 npm version 更新 package.json
-  // --no-git-tag-version 参数防止自动创建 git tag
-  if (versionType === "set") {
-    const newVersion = argv._[1];
-    if (!newVersion) {
-      console.error(
-        chalk.red("❌ 错误: 请指定版本号，例如: pnpm version:set -- 2.1.0")
-      );
-      process.exit(1);
-    }
-    await $`npm version ${newVersion} --no-git-tag-version`;
-  } else {
-    await $`npm version ${versionType} --no-git-tag-version`;
-  }
-
-  // 重新读取更新后的版本
-  const updatedPkg = await fs.readJSON(pkgPath);
-  const newVersion = updatedPkg.version;
-
-  console.log(
-    chalk.green(`✅ package.json 版本已更新: ${oldVersion} -> ${newVersion}\n`)
-  );
-
-  // 同步到其他文件
-  console.log(chalk.blue(`📦 开始同步版本号到其他文件...\n`));
-  await syncVersion(rootDir);
-
-  console.log(chalk.green.bold(`\n✨ 版本更新完成！新版本: ${newVersion}\n`));
-  console.log(chalk.gray(`提示: 别忘了更新 CHANGELOG.md 并提交更改\n`));
+  const { version, updated } = await syncVersion(rootDir);
+  console.log(chalk.green(`日期已同步: ${version}（${updated} 个文件）`));
+  console.log(chalk.gray(`CHANGELOG.md 顶部写 ## ${version}\n`));
 } catch (err) {
-  console.error(chalk.red("\n❌ 版本更新失败:"));
+  console.error(chalk.red("\n更新日期失败:"));
   console.error(err.message);
   process.exit(1);
 }

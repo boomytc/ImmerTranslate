@@ -36,7 +36,7 @@
 | Rules and glossary | Follows **Personal rule > Built-in site rule > Global rule**, with a visual **Site rule editor**, CSS selector inheritance (`+`/`-`), and regex or AI glossaries.                                                                      |
 | Data sync          | Sync settings and rules via WebDAV (default) or a private GitHub Gist, encrypted with your sync encryption passphrase before upload.                                                                                                   |
 
-Supported platforms: Chrome and Edge desktop browsers (Manifest V3 extension; current codebase baseline version is 0.2.0). Interface languages: English and 简体中文.
+Supported platforms: Chrome and Edge desktop browsers (Manifest V3 extension; current update id `26.1119.1757`). Interface languages: English and 简体中文.
 
 ## Translation services
 
@@ -48,7 +48,7 @@ All preset services except Microsoft and Google start disabled. Open **Translati
 
 ## Install
 
-This extension is for personal use. There is no published package and no store listing. Clone the source, build it, and load the unpacked folder in developer mode.
+For personal use. Clone this repository, build it locally, and load the unpacked folder in developer mode.
 
 Requires Node.js 24 and pnpm (pinned to pnpm 9.14.4 in this repository).
 
@@ -57,7 +57,7 @@ git clone https://github.com/boomytc/ImmerTranslate.git
 cd ImmerTranslate
 pnpm install
 pnpm build:chrome   # Chrome only, output in build/chrome
-pnpm build          # Sync the version, then build Chrome and Edge into build/chrome and build/edge
+pnpm build          # Sync the update date, then build Chrome and Edge into build/chrome and build/edge
 ```
 
 | Browser | Folder to load | Steps                                                                                                                                                  |
@@ -71,9 +71,9 @@ To update, pull the latest source, run the build again, and click reload on the 
 
 Local check:
 
-- `pnpm check` (or `pnpm check -- v0.2.0` to check changes since a tag or commit): looks for leftover test files, checks formatting, version files, and `CHANGELOG.md`, then builds Chrome and Edge and verifies the artifacts.
+- `pnpm check` (or `pnpm check -- <commit>` to check changes since a commit): looks for leftover test files, checks formatting, the update date, and `CHANGELOG.md`, then builds Chrome and Edge and verifies the artifacts.
 
-See [AGENTS.md](AGENTS.md) for repository conventions, [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the version number, and [CHANGELOG.md](CHANGELOG.md) for history.
+See [AGENTS.md](AGENTS.md) for repository conventions, [VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md) for the update date, and [CHANGELOG.md](CHANGELOG.md) for the current notes.
 
 ## License
 

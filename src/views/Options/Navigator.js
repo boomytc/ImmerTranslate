@@ -141,7 +141,7 @@ export default function Navigator({ open, compact = false, onClose }) {
             {i18n("app_name")}
           </span>
           <span className="kt-options-brand__version">
-            v{process.env.REACT_APP_VERSION}
+            {process.env.REACT_APP_VERSION}
           </span>
         </span>
       </a>

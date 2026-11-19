@@ -398,25 +398,9 @@ export const I18N = {
     zh: `AI 英俄词典`,
     en: `AI English-Russian Dictionary`,
   },
-  inject_rules: {
-    zh: `注入订阅规则`,
-    en: `Inject Subscribe Rules`,
-  },
   personal_rules: {
     zh: `个人规则`,
     en: `Rules`,
-  },
-  subscribe_rules: {
-    zh: `订阅规则`,
-    en: `Subscribe`,
-  },
-  overwrite_subscribe_rules: {
-    zh: `覆写订阅规则`,
-    en: `Overwrite`,
-  },
-  subscribe_url: {
-    zh: `订阅地址`,
-    en: `Subscribe URL`,
   },
   rules_warn_1: {
     zh: `1、规则生效的优先级依次为：个人规则 > 内置网站规则 > 全局规则。"全局规则"相当于兜底规则。`,
@@ -1823,8 +1807,8 @@ export const I18N = {
     en: `Translate the whole article`,
   },
   mousehover_hold_scope_helper: {
-    zh: `“只翻译当前段”与旧版悬停翻译一致；“翻译最近区域”从鼠标所在位置向上定位到最近的、包含多个文字块的容器；“翻译整篇文章”优先定位到文章/邮件正文容器，从上到下翻译其中全部内容。`,
-    en: `"Current paragraph only" behaves like the legacy hover translation. "Nearest region" locates the closest container with multiple text blocks above the cursor. "Whole article" prefers the article/mail body container and translates all its content from top to bottom.`,
+    zh: `“只翻译当前段”只处理光标所在段落；“翻译最近区域”从鼠标所在位置向上定位到最近的、包含多个文字块的容器；“翻译整篇文章”优先定位到文章或邮件正文，从上到下翻译其中全部内容。`,
+    en: `"Current paragraph only" translates the paragraph under the cursor. "Nearest region" locates the closest container with multiple text blocks above the cursor. "Whole article" prefers the article or mail body and translates all of its content from top to bottom.`,
   },
   mousehover_hold_display: {
     zh: `按住左键译文显示方式`,

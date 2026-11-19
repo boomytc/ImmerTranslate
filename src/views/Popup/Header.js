@@ -38,7 +38,7 @@ export default function Header({ onClose, openSeparateWindow, openSettings }) {
       <span className="kt-popup-header__identity">
         <span className="kt-popup-header__title">{appName}</span>
         <span className="kt-popup-header__version">
-          v{process.env.REACT_APP_VERSION}
+          {process.env.REACT_APP_VERSION}
         </span>
       </span>
       <span className="kt-popup-header__spacer" />

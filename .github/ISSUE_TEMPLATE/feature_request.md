@@ -9,7 +9,7 @@ assignees: ""
 1. Environment / 适用环境
 
 - Browser / 浏览器: [e.g. Chrome, Edge]
-- Extension Version / 扩展版本 (Optional / 可选): [e.g. v0.2.0]
+- Updated / 更新日期 (Optional / 可选): [e.g. 26.1119.1740]
 
 2. Problem / 遇到的问题
 

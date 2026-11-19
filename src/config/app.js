@@ -1,6 +1,6 @@
 /**
  * @file app.js
- * @description 定义应用的基本信息与全局 UI 常量，例如 DOM 注入元素的 ID、版本解析以及主题名称。
+ * @description 定义应用的基本信息与全局 UI 常量，例如 DOM 注入元素的 ID 以及主题名称。
  */
 
 // 统一格式化应用名称，将空格替换为 "-"
@@ -15,9 +15,6 @@ export const APP_CONSTS = {
   boxID: `${APP_LCNAME}-box`, // 划词/查词翻译面板元素的 ID
   popupID: `${APP_LCNAME}-popup`, // 弹出页/提示框的 ID
 };
-
-// 当前应用的版本，按点号拆分成数组 (例如: "1.0.2" -> ["1", "0", "2"])
-export const APP_VERSION = process.env.REACT_APP_VERSION.split(".");
 
 // Preferred content width when opening a new separate window.
 // Saved windows and user resizing remain free to use the full available width.

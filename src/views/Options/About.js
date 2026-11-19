@@ -11,7 +11,7 @@ export default function About() {
         <Logo size={72} className="kt-about-hero__logo" />
         <h2>{i18n("app_name")}</h2>
         <div className="kt-about-hero__version">
-          v{process.env.REACT_APP_VERSION}
+          {process.env.REACT_APP_VERSION}
         </div>
         <p>{i18n("settings_about_description")}</p>
         <small>{i18n("settings_about_license")}</small>

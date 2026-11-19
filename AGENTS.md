@@ -6,7 +6,7 @@
 
 面向桌面端 Chrome 和 Edge 的 Manifest V3 网页双语翻译扩展，支持免钥服务与自带密钥（BYOK），配置和密钥只保存在本机。仅针对桌面浏览器，界面语言提供简体中文和 English。
 
-技术栈：React 18、MUI 5、CRA 5（react-app-rewired）、JavaScript、pnpm 9.14.4、Node 24。源码在 `src/`，本机加载的构建产物在 `build/<target>/`。这是个人使用的扩展：从源码构建后在 Chrome 或 Edge 里加载未打包目录，不发布安装包。
+技术栈：React 18、MUI 5、CRA 5（react-app-rewired）、JavaScript、pnpm 9.14.4、Node 24。源码在 `src/`。个人使用时在本机构建，加载 `build/chrome` 或 `build/edge`。
 
 入口文件在 `src/` 下的 `background.js`、`content.js`、`popup.js`、`options.js` 和 `injector-*.js`。页面与扩展核心逻辑主要在 `src/libs/`、`src/apis/`、`src/components/`、`src/views/`、`src/hooks/`。
 
@@ -27,17 +27,16 @@ pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建
 
 - 源码或构建配置有变更时，完成后运行一次 `pnpm check`；纯文档变更只运行 `pnpm format:check`。`pnpm check` 也会拒绝新增 `.github/workflows` 和检查/构建反过来修改源文件。
 - 临时验证优先使用系统临时目录，或使用 `.gitignore` 已忽略的 `tmp/` 并在结束后清除。产品自带的接口连通性检查继续保留。
-- 浏览器里加载 `pnpm build` 生成的 `build/chrome` 或 `build/edge`。不要再制作发布包。
+- 浏览器里加载 `pnpm build` 生成的 `build/chrome` 或 `build/edge`。
 - 涉及浏览器交互时，加载未打包扩展走一遍受影响的主路径即可。如实汇报实际验证结果和未验证部分，不把模拟响应说成真实服务验证。
-- 当前是快速迭代。存储和规则按现在的结构读写，不为旧数据保留迁移或双轨逻辑；本地数据乱了就移除扩展后重新加载。
+- 存储和规则只按当前结构读写。本地数据对不上时，移除扩展后重新加载。
 
 ## 3. 版本
 
-- `package.json` 是唯一的版本号来源。`.env` 中的 `REACT_APP_VERSION` 与 `public/manifest.json` 中的 `version` 由 `pnpm sync-version` 同步，禁止手工分别改号。要改版本时使用 `pnpm version:patch`、`pnpm version:minor`、`pnpm version:major` 或 `pnpm version:set -- <版本>`。
-- 改了版本号时，`CHANGELOG.md` 顶部保留唯一、非空的 `## v<目标版本>` 一节，用通俗中文写清楚变化，并保留下方历史条目。
-- 开发在 `main` 分支进行，不再维护独立的 `dev` 分支；不要 force push。
-- 不发布。不要打版本标签，不要创建 GitHub Release，不要运行已经删除的发布命令。
-- 仓库不使用 GitHub Actions。检查和构建都在本机完成。
+- `package.json` 的 `version` 是更新日期，格式 `YY.MMDD.HHMM`，例如 `26.1119.1740`。`.env` 中的 `REACT_APP_VERSION` 与 `public/manifest.json` 中的 `version` 由 `pnpm sync-version` 同步，禁止手工分别改。指定时刻用 `pnpm version:set -- 26.1119.1740`。
+- `CHANGELOG.md` 顶部是唯一、非空的 `## <日期>`，用通俗中文说明当前能看到的行为。时刻没变时不另起一节。
+- 开发在 `main` 分支进行。不要 force push。
+- 检查和构建在本机完成，仓库不使用 GitHub Actions。
 
 ## 4. 代码
 
@@ -54,10 +53,10 @@ pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建
 ## 5. 不要做
 
 - 不要提交 Key、token、`.env.local` 或 `build/`。
-- 不要手工改 `.env` 或 `public/manifest.json` 的版本，不要打标签或创建 Release。
+- 不要手工改 `.env` 或 `public/manifest.json` 的日期。
 - 不要新增 `.github/workflows`。
 - 不要 force push，不要跳过本地检查或绕过钩子。
-- 不要恢复发布流程，也不要为了兼容旧安装包或旧存储格式保留第二套实现。
+- 不要为同一行为保留两套实现。
 - 不要新增移动端或触屏版式。
 - 不要为一次性需求新起翻译协议、存储实现或请求客户端，先在现有契约上扩展。
 - 不要为了绕过检查而修改检查脚本；检查失败先修实现或文档。
@@ -65,5 +64,6 @@ pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建
 ## 6. 提交
 
 - 默认不提交。用户明确要求提交时，只加本会话改过的文件，用明确路径。
+- 开发完成并准备提交前，先运行 `pnpm updated`，把更新日期写成当前时刻。不要等用户再提醒。日期与 `CHANGELOG.md` 顶部不一致时，把顶部改成该时刻。`package.json`、`.env`、`public/manifest.json` 以及因此改动的 `CHANGELOG.md` 放进同一次提交。同一分钟内再次提交时标识不变，不改标题。
 - 说明用中文 conventional：`feat|fix|refactor|docs|build|chore[(scope)]: <说明>`，说明写为什么。
 - 提交说明、代码和文档里不用表情符号。不要 force push，不要跳过检查。

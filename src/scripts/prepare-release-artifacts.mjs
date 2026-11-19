@@ -13,7 +13,7 @@ try {
       fileURLToPath(new URL("../../", import.meta.url))
   );
   const [{ version }] = await readVersionFiles(root);
-  const tag = process.env.RELEASE_TAG || `v${version}`;
+  const tag = process.env.RELEASE_TAG || version;
   const sha = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: root,
     encoding: "utf8",

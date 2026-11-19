@@ -10,7 +10,7 @@ assignees: ""
 
 - OS / 操作系统: [e.g. Windows 11, macOS 15, Linux]
 - Browser / 浏览器: [e.g. Chrome 138, Edge 138]
-- Extension Version / 扩展版本: [e.g. v0.2.0]
+- Updated / 更新日期: [e.g. 26.1119.1740]
 - Translation Service / 翻译服务 (Optional / 可选): [e.g. Microsoft, Google, OpenAI]
 
 2. Description / 问题描述

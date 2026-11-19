@@ -1,17 +1,17 @@
 /**
  * @file storage.js
- * @description 存储相关的常量配置模块。定义保存在本地（如 chrome.storage.local）和云端同步（如 WebDAV）中的键名 (Key) 及版本化规则。
+ * @description 存储相关的常量配置模块。定义保存在本地（如 chrome.storage.local）和云端同步（如 WebDAV）中的键名。
  */
 
-import { APP_NAME, APP_VERSION } from "./app";
+import { APP_NAME } from "./app";
 
-// --- 云端同步时的 JSON 数据文件名 (包含主版本号做兼容性隔离) ---
-export const KV_RULES_KEY = `kiss-rules_v${APP_VERSION[0]}.json`; // 同步的自定义规则文件名
-export const KV_SETTING_KEY = `kiss-setting_v${APP_VERSION[0]}.json`; // 同步的全局设置文件名
+// 云端同步文件名。更新日期不进入键名，改日期不会换一套配置。
+export const KV_RULES_KEY = "kiss-rules.json";
+export const KV_SETTING_KEY = "kiss-setting.json";
 
-// --- 浏览器本地存储 (chrome.storage 或 localStorage) 的键名 ---
-export const STOKEY_SETTING = `${APP_NAME}_setting_v${APP_VERSION[0]}`; // 当前大版本全局配置缓存键名
-export const STOKEY_RULES = `${APP_NAME}_rules_v${APP_VERSION[0]}`; // 当前大版本网页规则缓存键名
+// 浏览器本地存储键名。
+export const STOKEY_SETTING = `${APP_NAME}_setting`;
+export const STOKEY_RULES = `${APP_NAME}_rules`;
 export const STOKEY_SYNC = `${APP_NAME}_sync`; // 同步接口及凭证配置缓存键名
 export const STOKEY_FAB = `${APP_NAME}_fab`; // 网页翻译悬浮球最近一次位置等配置缓存键名
 export const STOKEY_TRANBOX = `${APP_NAME}_tranbox`; // 划词翻译框的最后状态缓存键名

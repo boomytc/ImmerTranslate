@@ -4,7 +4,7 @@ import { readVersionFiles, validateReleaseSources } from "./version-files.mjs";
 try {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const [{ version }] = await readVersionFiles(root);
-  const tag = process.env.RELEASE_TAG || `v${version}`;
+  const tag = process.env.RELEASE_TAG || version;
   await validateReleaseSources(root, tag);
   console.log(`Release sources verified: ${tag}`);
 } catch (error) {

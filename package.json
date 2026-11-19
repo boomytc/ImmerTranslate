@@ -1,7 +1,7 @@
 {
   "name": "immer-translate",
   "description": "A minimalist bilingual translation extension",
-  "version": "0.2.0",
+  "version": "26.1119.1757",
   "license": "GPL-3.0-only",
   "author": "Gabe<yugang2002@gmail.com>",
   "private": true,
@@ -29,9 +29,7 @@
   "scripts": {
     "start": "cross-env REACT_APP_CLIENT=chrome react-app-rewired start",
     "sync-version": "node src/scripts/sync-version.mjs",
-    "version:patch": "zx src/scripts/update-version.mjs patch",
-    "version:minor": "zx src/scripts/update-version.mjs minor",
-    "version:major": "zx src/scripts/update-version.mjs major",
+    "updated": "zx src/scripts/update-version.mjs today",
     "version:set": "zx src/scripts/update-version.mjs set",
     "build:chrome": "zx src/scripts/build-task.mjs --target=chrome",
     "build:edge": "zx src/scripts/build-task.mjs --target=edge",
@@ -85,3 +83,4 @@
   },
   "packageManager": "pnpm@9.14.4"
 }
+
