@@ -549,6 +549,45 @@ const geminiResponseText = (res) =>
     ? geminiInteractionText(res)
     : geminiText(res?.candidates?.[0]?.content?.parts);
 
+/**
+ * 从 Claude 非流式响应 content 中提取全部文本块，跳过 thinking / redacted_thinking 块，
+ * 同时兼容第三方网关返回纯字符串或单对象的形态。
+ */
+const extractClaudeText = (content) => {
+  if (Array.isArray(content)) {
+    return content
+      .filter(
+        (block) =>
+          block &&
+          typeof block.text === "string" &&
+          (block.type === "text" || !block.type)
+      )
+      .map((block) => block.text)
+      .join("");
+  }
+  if (typeof content === "string") {
+    return content;
+  }
+  if (
+    content &&
+    typeof content === "object" &&
+    typeof content.text === "string" &&
+    (content.type === "text" || !content.type)
+  ) {
+    return content.text;
+  }
+  return "";
+};
+
+// 明确的认证/参数/欠费/限流错误与流式协议无关，直接上抛不再回退非流式放大请求。
+const NON_FALLBACK_STREAM_STATUSES = new Set([400, 401, 402, 403, 422, 429]);
+
+const isNonFallbackStreamError = (error) => {
+  if (error?.name === "AbortError") return true;
+  const status = Number(error?.status) || httpStatusFromError(error);
+  return NON_FALLBACK_STREAM_STATUSES.has(status);
+};
+
 const parseIndexSubtitleRes = (raw, events, fromLang = "auto") => {
   const buildResult = (data) => {
     if (!Array.isArray(data) || !data.length) return null;
@@ -1856,11 +1895,16 @@ export const genTransReq = async ({ reqHook, ...args }) => {
     }
   }
 
-  // 合并用户自定义headers和body
-  if (customHeader?.trim()) {
+  // 合并用户自定义headers和body（GET 等无 body 请求跳过 body 合并防止 null 崩溃）
+  if (customHeader?.trim() && headers && typeof headers === "object") {
     Object.assign(headers, parseJsonObj(customHeader));
   }
-  if (customBody?.trim()) {
+  if (
+    customBody?.trim() &&
+    body &&
+    typeof body === "object" &&
+    !Array.isArray(body)
+  ) {
     Object.assign(body, parseJsonObj(customBody));
   }
 
@@ -2069,36 +2113,14 @@ export const parseTransRes = async (
       }
       return parseAIRes(geminiResponseText(res), useBatchFetch);
     case OPT_TRANS_CLAUDE: {
-      // 历史上下文取值必须做形态归一化，原因有三：
-      // 1. 形态防御：响应 content 存在多种形态 —— Anthropic 标准的块数组
-      //    [{type:"text",text:"…"}]、第三方实现可能返回的纯字符串、以及单对象
-      //    {type:"text",text:"…"}。只写 .map(...) 会在字符串形态上抛 TypeError
-      //    让整页翻译崩溃，只写 content?.text 又取不到块数组里的文本，故三分支全覆盖。
-      // 2. 网关现实：Claude 模型价格昂贵且平台随意封号，实际拿来翻译的机会很少；
-      //    现实中这个 /messages 接口多由第三方开源网关模拟 Claude Message 协议提供，
-      //    并不能真实代表 Anthropic 原装 Claude 的体验，响应形态更需要宽容。
-      // 3. 历史教训：本行旧写法是 res?.content?.text —— 块数组没有 .text 属性，
-      //    于是开启「智能上下文」时写进历史的 assistant 条目全是空壳 {role:"assistant"}，
-      //    上下文功能对 Claude 实际失效。2026-08 由用户抓包发现并修复。
-      // 取全部文本块拼接而非只取 [0]：历史上下文应完整保留模型输出，
-      // 与下方解析译文只取首块（最小变更）是两种用途。
-      // 是否写入历史由 addPair 的统一守卫裁决：role 缺失或无可用文本的响应
-      // 整对不写，与其它协议分支语义一致；多块拼接/thinking-first 的统一语义
-      // 不在本修复范围内。
-      const pickClaudeText = (c) =>
-        Array.isArray(c)
-          ? c
-              .map((b) => b?.text)
-              .filter(Boolean)
-              .join("")
-          : typeof c === "string"
-            ? c
-            : (c?.text ?? "");
-      modelMsg = { role: res?.role, content: pickClaudeText(res?.content) };
+      // 思考模式下 content[0] 可能是 thinking 块，统一通过 extractClaudeText 拼接全部 text 块，
+      // 避免硬读 content[0].text 拿到空译文，同时兼容第三方网关返回纯字符串或单对象形态。
+      const claudeText = extractClaudeText(res?.content);
+      modelMsg = { role: res?.role, content: claudeText };
       if (history && userMsg) {
         history.addPair(userMsg, modelMsg);
       }
-      return parseAIRes(res?.content?.[0]?.text ?? "", useBatchFetch);
+      return parseAIRes(claudeText, useBatchFetch);
     }
     case OPT_TRANS_CLOUDFLAREAI:
       return [[res?.result?.translated_text]];
@@ -2132,7 +2154,7 @@ function parseDictRes(res, apiType) {
     case OPT_TRANS_GEMINI:
       return geminiResponseText(res);
     case OPT_TRANS_CLAUDE:
-      return res?.content?.[0]?.text || "";
+      return extractClaudeText(res?.content);
     case OPT_TRANS_CUSTOMIZE:
       if (typeof res === "string") return res;
       return res?.text || res?.result || "";
@@ -2220,7 +2242,8 @@ export const handleDict = async ({
 
   if (enableStream) {
     try {
-      let fullContent = "";
+      let rawContent = "";
+      let lastEmitted = "";
 
       for await (const rawData of fetchStream(input, init, {
         useCache: false,
@@ -2235,24 +2258,27 @@ export const handleDict = async ({
           const delta = getStreamDelta(json, apiType);
           if (!delta) continue;
 
-          fullContent += delta;
-          // 流式模型可能先输出 Markdown 代码围栏，边流式展示边剥离可避免 UI 闪出 ```。
-          fullContent = stripMarkdownCodeBlock(fullContent, true);
-          onStreamChunk({ markdown: fullContent });
+          rawContent += delta;
+          // 累积原始文本并在开头围栏行完整后再剥离，避免跨片残留语言标识。
+          const displayContent = stripMarkdownCodeBlock(rawContent, true);
+          if (displayContent && displayContent !== lastEmitted) {
+            lastEmitted = displayContent;
+            onStreamChunk({ markdown: displayContent });
+          }
         } catch (error) {
           if (error?.isAIStreamTerminal) throw error;
           // 忽略单个 SSE 数据帧解析失败，等待后续帧继续输出。
         }
       }
 
-      const markdown = stripMarkdownCodeBlock(fullContent).trim();
+      const markdown = stripMarkdownCodeBlock(rawContent).trim();
       if (!markdown) {
         throw new Error("dictionary got empty content");
       }
 
       return markdown;
     } catch (err) {
-      if (err?.name === "AbortError") {
+      if (isNonFallbackStreamError(err)) {
         throw err;
       }
 
@@ -2556,7 +2582,7 @@ export async function* handleTranslate(
       }
       return;
     } catch (err) {
-      if (err?.name === "AbortError") {
+      if (isNonFallbackStreamError(err)) {
         throw err;
       }
       kissLog("translate stream failed, fallback to non-stream", err);
@@ -2602,8 +2628,11 @@ async function* handleTranslateStreamInternal(
   }
 ) {
   const results = new Array(texts.length).fill(null);
+  let rawContent = "";
   let fullContent = "";
   const processedIds = new Set();
+  const isValidSegmentId = (id) =>
+    Number.isInteger(id) && id >= 0 && id < texts.length;
 
   const jsonParser = createStreamingJsonParser();
   const realtimeParser =
@@ -2624,8 +2653,18 @@ async function* handleTranslateStreamInternal(
         const delta = getStreamDelta(json, apiType);
 
         if (delta) {
-          fullContent += delta;
-          fullContent = stripMarkdownCodeBlock(fullContent, true);
+          rawContent += delta;
+          const nextContent = stripMarkdownCodeBlock(rawContent, true);
+          const contentDelta = !fullContent
+            ? nextContent
+            : nextContent.startsWith(fullContent)
+              ? nextContent.slice(fullContent.length)
+              : delta;
+          fullContent = nextContent;
+
+          if (!contentDelta) {
+            continue;
+          }
 
           if (!useBatchFetch) {
             if (streamRenderMode === "realtime") {
@@ -2637,9 +2676,13 @@ async function* handleTranslateStreamInternal(
           // 中间态必须先于同一段的最终结果发出，避免较晚到达的 partial
           // 回调覆盖已经完成的译文。
           if (realtimeParser && streamRenderMode === "realtime") {
-            const items = realtimeParser.write(delta);
+            const items = realtimeParser.write(contentDelta);
             for (const { id, partialText, isComplete } of items) {
-              if (!isComplete) {
+              if (
+                !isComplete &&
+                isValidSegmentId(id) &&
+                !processedIds.has(id)
+              ) {
                 yield { id, partialText, isComplete: false };
               }
             }
@@ -2655,13 +2698,26 @@ async function* handleTranslateStreamInternal(
                 for (const { id, translation } of jsonParser.write(
                   fullContent
                 )) {
+                  if (!isValidSegmentId(id) || processedIds.has(id)) continue;
+                  processedIds.add(id);
+                  results[id] = translation;
+                  yield { id, result: translation };
+                }
+              } else {
+                for (const { id, translation } of parseStreamingSegments(
+                  fullContent,
+                  processedIds
+                )) {
+                  if (!isValidSegmentId(id) || results[id]) continue;
                   results[id] = translation;
                   yield { id, result: translation };
                 }
               }
             }
           } else if (isJsonFormat) {
-            for (const { id, translation } of jsonParser.write(delta)) {
+            for (const { id, translation } of jsonParser.write(contentDelta)) {
+              if (!isValidSegmentId(id) || processedIds.has(id)) continue;
+              processedIds.add(id);
               results[id] = translation;
               yield { id, result: translation };
             }
@@ -2670,6 +2726,7 @@ async function* handleTranslateStreamInternal(
               fullContent,
               processedIds
             )) {
+              if (!isValidSegmentId(id) || results[id]) continue;
               results[id] = translation;
               yield { id, result: translation };
             }
@@ -2689,11 +2746,13 @@ async function* handleTranslateStreamInternal(
     throw error;
   }
 
+  const finalContent = stripMarkdownCodeBlock(rawContent);
+
   // 最终再解析一次，捕获可能遗漏的段落（严格按真实 ID 寻址，防止错位）
   const hasEmpty = results.some((r) => !r);
   const newlyYieldable = [];
   if (hasEmpty) {
-    const parsed = parseAIRes(fullContent, useBatchFetch);
+    const parsed = parseAIRes(finalContent, useBatchFetch);
     for (let i = 0; i < parsed.length; i++) {
       const item = parsed[i];
       let id;
@@ -2705,14 +2764,8 @@ async function* handleTranslateStreamInternal(
         id = i;
         translation = item;
       }
-      if (
-        typeof id === "number" &&
-        Number.isInteger(id) &&
-        id >= 0 &&
-        id < texts.length &&
-        !results[id] &&
-        translation
-      ) {
+      if (isValidSegmentId(id) && !results[id] && translation) {
+        processedIds.add(id);
         results[id] = translation;
         newlyYieldable.push({ id, result: results[id] });
       }
@@ -2742,13 +2795,13 @@ async function* handleTranslateStreamInternal(
     if (apiType === OPT_TRANS_GEMINI) {
       history.add(userMsg, {
         role: "model",
-        parts: [{ text: fullContent }],
+        parts: [{ text: finalContent }],
       });
     } else {
       // 流式非 Gemini 分支与非流式挂载点共用 addPair 守卫：空正文整对不写
       history.addPair(userMsg, {
         role: "assistant",
-        content: fullContent,
+        content: finalContent,
       });
     }
   }
@@ -2809,7 +2862,7 @@ export const handleSubtitle = async ({
         return subtitles;
       }
     } catch (err) {
-      if (err?.name === "AbortError") {
+      if (isNonFallbackStreamError(err)) {
         throw err;
       }
       kissLog("subtitle stream failed, fallback to non-stream", err);
@@ -2856,6 +2909,9 @@ export const handleSubtitle = async ({
         ? res?.status === "incomplete" || res?.status === "budget_exceeded"
         : res?.candidates?.[0]?.finishReason === "MAX_TOKENS";
       if (outputWasTruncated && thinkingWasOn) {
+        if (signal?.aborted) {
+          throw new DOMException("The operation was aborted.", "AbortError");
+        }
         // 运行时只在实际发生截断重试时归一化一次关闭状态，普通请求不再解析模型能力。
         const retryThinkingSettings = normalizeThinkingSettings({
           ...apiSetting,
@@ -2879,6 +2935,7 @@ export const handleSubtitle = async ({
           fetchInterval,
           fetchLimit,
           httpTimeout,
+          signal,
         });
         const retryText = geminiResponseText(retryRes);
         if (retryText) {
@@ -2888,7 +2945,7 @@ export const handleSubtitle = async ({
       return parseSTRes(geminiResponseText(res), events, from);
     }
     case OPT_TRANS_CLAUDE:
-      return parseSTRes(res?.content?.[0]?.text ?? "", events, from);
+      return parseSTRes(extractClaudeText(res?.content), events, from);
     case OPT_TRANS_CUSTOMIZE:
       return res;
     default:
@@ -3003,7 +3060,12 @@ export const handleSummarize = async ({
   description,
   transcript,
   apiSetting,
+  signal,
 }) => {
+  if (signal?.aborted) {
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }
+
   const { apiType, fetchInterval, fetchLimit, httpTimeout } = apiSetting;
 
   const userPrompt = [
@@ -3033,6 +3095,7 @@ export const handleSummarize = async ({
     fetchInterval,
     fetchLimit,
     httpTimeout,
+    signal,
   });
 
   if (!res) return "";
@@ -3045,13 +3108,13 @@ export const handleSummarize = async ({
     case OPT_TRANS_GEMINI:
       return geminiResponseText(res).trim() || "";
     case OPT_TRANS_CLAUDE:
-      return res?.content?.[0]?.text?.trim() || "";
+      return extractClaudeText(res?.content).trim() || "";
     case OPT_TRANS_CUSTOMIZE:
       if (typeof res === "string") return res.trim();
       return (
         res?.choices?.[0]?.message?.content?.trim() ||
         geminiText(res?.candidates?.[0]?.content?.parts).trim() ||
-        res?.content?.[0]?.text?.trim() ||
+        extractClaudeText(res?.content).trim() ||
         ""
       );
     default:

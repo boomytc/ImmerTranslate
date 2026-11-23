@@ -24,36 +24,69 @@ import { mapBoundaryItemToCue } from "../subtitle/subtitleBoundaryProtocol";
 export const createSSEParser = () => {
   let buffer = "";
 
-  return function* (chunk = "") {
-    buffer += chunk;
-    buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const extractFrameData = (frame) => {
+    const dataLines = [];
+    for (const line of frame.split("\n")) {
+      if (line.startsWith(":")) continue;
+      if (!line.startsWith("data:")) continue;
 
+      let data = line.slice(5);
+      if (data.startsWith(" ")) data = data.slice(1);
+      dataLines.push(data);
+    }
+
+    if (!dataLines.length) return null;
+    const data = dataLines.join("\n");
+    return data.trim() !== "[DONE]" ? data : null;
+  };
+
+  function* drainFrames(isFinal = false) {
     let boundaryIndex = buffer.indexOf("\n\n");
     while (boundaryIndex !== -1) {
       const frame = buffer.slice(0, boundaryIndex);
       // SSE 以空行作为一帧结束；未结束的尾部片段必须留在 buffer 等下一块数据补齐。
       buffer = buffer.slice(boundaryIndex + 2);
 
-      const dataLines = [];
-      for (const line of frame.split("\n")) {
-        if (line.startsWith(":")) continue;
-        if (!line.startsWith("data:")) continue;
-
-        let data = line.slice(5);
-        if (data.startsWith(" ")) data = data.slice(1);
-        dataLines.push(data);
-      }
-
-      if (dataLines.length) {
-        const data = dataLines.join("\n");
-        if (data.trim() !== "[DONE]") {
-          yield data;
-        }
+      const data = extractFrameData(frame);
+      if (data !== null) {
+        yield data;
       }
 
       boundaryIndex = buffer.indexOf("\n\n");
     }
+
+    if (isFinal && buffer) {
+      const frame = buffer;
+      buffer = "";
+      const data = extractFrameData(frame);
+      if (data !== null) {
+        yield data;
+      }
+    }
+  }
+
+  const parse = function* (chunk = "") {
+    if (chunk) {
+      buffer += chunk;
+      // 保留末尾孤立 \r 至下一 chunk，防止跨片 \r\n 被误切成虚假的 \n\n 帧边界。
+      const trailingCR = buffer.endsWith("\r");
+      const body = trailingCR ? buffer.slice(0, -1) : buffer;
+      buffer =
+        body.replace(/\r\n/g, "\n").replace(/\r/g, "\n") +
+        (trailingCR ? "\r" : "");
+    }
+
+    yield* drainFrames(false);
   };
+
+  parse.flush = function* () {
+    if (buffer) {
+      buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    }
+    yield* drainFrames(true);
+  };
+
+  return parse;
 };
 
 /**
@@ -95,19 +128,33 @@ export const createAsyncQueue = () => {
       done = true;
       wake();
     },
-    // 消费者调用的异步迭代器，可使用 for await (const item of queue.iterate()) 形式消费
-    async *iterate() {
+    // 消费者调用的异步迭代器，可使用 for await (const item of queue.iterate(signal)) 形式消费
+    async *iterate(signal) {
+      if (signal?.aborted) {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+      const onAbort = () => {
+        wake();
+      };
+      signal?.addEventListener?.("abort", onAbort, { once: true });
       const setResolve = (r) => {
         resolve = r;
       };
-      while (!done || queue.length > 0) {
-        if (queue.length > 0) {
-          yield queue.shift();
-        } else if (!done) {
-          await new Promise(setResolve); // 无数据时挂起等待 push 或 finish
+      try {
+        while (!done || queue.length > 0) {
+          if (signal?.aborted) {
+            throw new DOMException("The operation was aborted.", "AbortError");
+          }
+          if (queue.length > 0) {
+            yield queue.shift();
+          } else if (!done) {
+            await new Promise(setResolve); // 无数据时挂起等待 push、finish 或 abort
+          }
         }
+        if (error) throw error;
+      } finally {
+        signal?.removeEventListener?.("abort", onAbort);
       }
-      if (error) throw error;
     },
   };
 };
@@ -216,6 +263,8 @@ export function* parseStreamingSegments(content, processedIds) {
  */
 export function createStreamingJsonParser() {
   const pending = [];
+  let started = false;
+  let prefixBuffer = "";
   // 设置 JSON 抽取路径
   const parser = new JSONParser({
     paths: ["$.translations.*", "$.*"],
@@ -239,8 +288,25 @@ export function createStreamingJsonParser() {
      * @param {string} delta
      */
     *write(delta) {
+      if (!delta) return;
+      let chunk = delta;
+      if (!started) {
+        // 统一从首个 '[' 或 '{' 切入，忽略前导 Markdown 围栏或说明文字，避免打死流式 JSON 解析器。
+        prefixBuffer += chunk;
+        const startIdx = prefixBuffer.search(/[{[]/);
+        if (startIdx === -1) {
+          if (prefixBuffer.length > 64) {
+            prefixBuffer = prefixBuffer.slice(-64);
+          }
+          return;
+        }
+        started = true;
+        chunk = prefixBuffer.slice(startIdx);
+        prefixBuffer = "";
+      }
+
       try {
-        parser.write(delta);
+        parser.write(chunk);
       } catch (e) {
         // 忽略流式解析中由残缺 JSON 导致的解析错误
       }
@@ -252,6 +318,7 @@ export function createStreamingJsonParser() {
      * 强行闭合流并清理资源
      */
     end() {
+      if (!started) return;
       try {
         parser.end();
       } catch (e) {
@@ -472,6 +539,7 @@ export function detectStreamFormat(content) {
 export function createRealtimeStreamParser() {
   let format = null; // 判定的流格式："xml" | "json" | "line" | null
   let buffer = "";
+  let jsonStarted = false;
   const pendingJsonItems = [];
   const lastJsonTextById = new Map();
   const jsonParser = new JSONParser({
@@ -559,8 +627,18 @@ export function createRealtimeStreamParser() {
   };
 
   const parseJson = (delta) => {
+    let chunk = delta;
+    if (!jsonStarted) {
+      const startIdx = buffer.search(/[{[]/);
+      if (startIdx === -1) {
+        return [];
+      }
+      jsonStarted = true;
+      chunk = buffer.slice(startIdx);
+    }
+    if (!chunk) return [];
     try {
-      jsonParser.write(delta);
+      jsonParser.write(chunk);
     } catch (e) {
       // 最终 JSON 解析与非流式回退仍会处理协议异常；实时预览不应中断请求。
     }

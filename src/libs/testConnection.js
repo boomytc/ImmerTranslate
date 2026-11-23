@@ -1,4 +1,9 @@
-import { fetchModelCatalog, httpStatusFromError } from "./modelList";
+import {
+  extractFirstApiKey,
+  fetchModelCatalog,
+  httpStatusFromError,
+} from "./modelList";
+import { apiRequiresKey } from "./apiKey";
 import { OPT_TRANS_BUILTINAI } from "../config";
 
 const MISSING_CONFIG = "test_connection_missing";
@@ -95,9 +100,21 @@ export async function testApiConnection({
     return testBuiltinAiConnection();
   }
 
+  const requiresKey = apiRequiresKey({ apiType, apiSlug });
+  if (
+    !hasText(modelListUrl) ||
+    (requiresKey && !hasText(extractFirstApiKey(key)))
+  ) {
+    return { ok: false, kind: "config", message: MISSING_CONFIG };
+  }
+
   let catalog;
   try {
-    catalog = await fetchModelCatalog({ apiType, modelListUrl, key });
+    catalog = await fetchModelCatalog({
+      apiType: resolvedType,
+      modelListUrl,
+      key,
+    });
   } catch (error) {
     const status = httpStatusFromError(error);
     if (status) {
@@ -109,11 +126,6 @@ export async function testApiConnection({
       };
     }
     return { ok: false, kind: "network", message: NETWORK_ERROR };
-  }
-
-  // fetchModelCatalog returns an empty catalog without sending when key or URL is missing.
-  if (!hasText(key) || !hasText(modelListUrl)) {
-    return { ok: false, kind: "config", message: MISSING_CONFIG };
   }
 
   if (!Array.isArray(catalog?.models)) {

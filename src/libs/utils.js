@@ -11,10 +11,27 @@
  */
 export function stripMarkdownCodeBlock(text, startOnly = false) {
   if (!text) return "";
-  let result = text.replace(/^```[a-z]*\s*\n?/i, "");
-  if (!startOnly) {
-    result = result.replace(/\n?```$/i, "");
+  if (startOnly) {
+    const leading = text.trimStart();
+    // 流式场景下开头围栏行尚未闭合（未见换行且仍匹配围栏前缀）时暂缓剥离，
+    // 避免跨片 "```" + "json\n" 残留语言标识并破坏后续解析。
+    if (
+      /^`{1,2}$/.test(leading) ||
+      /^```[a-z0-9_-]*[ \t]*\r?$/i.test(leading)
+    ) {
+      return "";
+    }
+    if (/^\s*```[a-z0-9_-]*[ \t]*\r?\n/i.test(text)) {
+      return text.replace(/^\s*```[a-z0-9_-]*[ \t]*\r?\n/i, "");
+    }
+    if (/^\s*```/i.test(text)) {
+      return text.replace(/^\s*```[a-z0-9_-]*[ \t]*/i, "");
+    }
+    return text;
   }
+
+  let result = text.replace(/^\s*```[a-z0-9_-]*[ \t]*\r?\n?/i, "");
+  result = result.replace(/\r?\n?```\s*$/i, "");
   return result;
 }
 

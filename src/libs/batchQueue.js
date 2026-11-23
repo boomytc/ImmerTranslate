@@ -22,6 +22,7 @@ const BatchQueue = (
     batchSize = DEFAULT_BATCH_SIZE,
     batchLength = DEFAULT_BATCH_LENGTH,
     batchConcurrency = 1,
+    onIdle,
   } = {}
 ) => {
   const queue = [];
@@ -34,6 +35,22 @@ const BatchQueue = (
       clearTimeout(timer);
       timer = null;
     }
+  };
+
+  const notifyIdleIfEmpty = () => {
+    if (queue.length === 0 && activeBatches.size === 0 && timer === null) {
+      onIdle?.();
+    }
+  };
+
+  const isQueueReadyImmediately = () => {
+    if (queue.length >= batchSize) return true;
+    let totalLength = 0;
+    for (const task of queue) {
+      totalLength += task.payload?.length || 0;
+      if (totalLength > batchLength) return true;
+    }
+    return false;
   };
 
   const settle = (task, method, value) => {
@@ -58,7 +75,10 @@ const BatchQueue = (
     } else {
       const index = queue.indexOf(task);
       if (index !== -1) queue.splice(index, 1);
-      if (queue.length === 0) clearTimer();
+      if (queue.length === 0) {
+        clearTimer();
+        notifyIdleIfEmpty();
+      }
     }
   };
 
@@ -76,23 +96,29 @@ const BatchQueue = (
   const processQueue = async () => {
     clearTimer();
     if (queue.length === 0 || activeBatches.size >= concurrency) {
+      notifyIdleIfEmpty();
       return;
     }
 
     let length = 0;
     let count = 0;
+    let truncatedByLength = false;
     for (const task of queue) {
       const textLength = task.payload?.length || 0;
-      if (
-        count >= batchSize ||
-        (length + textLength > batchLength && count > 0)
-      ) {
+      if (count >= batchSize) {
+        break;
+      }
+      if (length + textLength > batchLength && count > 0) {
+        truncatedByLength = true;
         break;
       }
       length += textLength;
       count++;
     }
-    if (count === 0) return;
+    if (count === 0) {
+      notifyIdleIfEmpty();
+      return;
+    }
 
     const tasks = queue.splice(0, count);
     const batch = { tasks, controller: new AbortController() };
@@ -100,8 +126,14 @@ const BatchQueue = (
     tasks.forEach((task) => {
       task.batch = batch;
     });
-    // A coalesced completion wakeup can leave several concurrency slots free.
-    if (queue.length >= batchSize) scheduleProcessing(0);
+    // 批次因 batchLength 截断或剩余队列已达到立即发车条件且仍有并发空位时，立刻调度下一批。
+    if (
+      activeBatches.size < concurrency &&
+      queue.length > 0 &&
+      (truncatedByLength || isQueueReadyImmediately())
+    ) {
+      scheduleProcessing(0);
+    }
 
     try {
       const firstArgs = tasks[0].args;
@@ -161,7 +193,11 @@ const BatchQueue = (
       // Cancellation settles callers immediately, but only completion of the
       // task function/iterator releases this batch's concurrency slot.
       activeBatches.delete(batch);
-      scheduleProcessing(queue.length >= batchSize ? 0 : batchInterval);
+      if (queue.length > 0) {
+        scheduleProcessing(isQueueReadyImmediately() ? 0 : batchInterval);
+      } else {
+        notifyIdleIfEmpty();
+      }
     }
   };
 
@@ -186,7 +222,7 @@ const BatchQueue = (
       }
       if (task.settled) return;
 
-      if (queue.length >= batchSize) {
+      if (isQueueReadyImmediately()) {
         void processQueue();
       } else {
         scheduleProcessing();
@@ -202,7 +238,15 @@ const queueMap = new Map();
 /** Reuse a queue for a provider, language pair, and request configuration. */
 export const getBatchQueue = (key, taskFn, options) => {
   if (queueMap.has(key)) return queueMap.get(key);
-  const queue = BatchQueue(taskFn, options);
+  let queue;
+  queue = BatchQueue(taskFn, {
+    ...options,
+    onIdle: () => {
+      if (queueMap.get(key) === queue) {
+        queueMap.delete(key);
+      }
+    },
+  });
   queueMap.set(key, queue);
   return queue;
 };

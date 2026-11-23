@@ -46,8 +46,8 @@ import { getFetchPool } from "../libs/pool";
 import { trustedTypesHelper } from "../libs/trustedTypes";
 import { getDocInfo } from "../libs/docInfo";
 
-const withCache = async (key, fn) => {
-  const cached = await getHttpCachePolyfill(key);
+const withCache = async (key, fn, { init = null, isValid } = {}) => {
+  const cached = await getHttpCachePolyfill(key, init);
   if (cached != null) return cached;
   const value = await fn();
   if (
@@ -57,7 +57,10 @@ const withCache = async (key, fn) => {
   ) {
     return value;
   }
-  await putHttpCachePolyfill(key, null, value);
+  if (isValid && !isValid(value)) {
+    return value;
+  }
+  await putHttpCachePolyfill(key, init, value);
   return value;
 };
 
@@ -238,15 +241,19 @@ export const apiGoogleLangdetect = async (text) => {
       "Content-type": "application/json",
     },
   };
-  // 语言识别通常调用频繁，此处开启 useCache: true 节省请求开销
-  const res = await fetchData(input, init, { useCache: true });
+  // 语言识别调用频繁，统一经 withCache 读写缓存，命中时不再重复写盘。
+  const res = await withCache(input, () => fetchData(input, init), {
+    init,
+    isValid: (data) =>
+      Boolean(
+        data &&
+          typeof data === "object" &&
+          typeof data.src === "string" &&
+          data.src
+      ),
+  });
 
-  if (res?.src) {
-    await putHttpCachePolyfill(input, init, res);
-    return res.src;
-  }
-
-  return "";
+  return typeof res?.src === "string" ? res.src : "";
 };
 
 /**
@@ -261,7 +268,7 @@ export const apiMicrosoftDict = async (text) => {
 
   return withCache(cacheInput, async () => {
     const host = "https://www.bing.com";
-    const url = `${host}/dict/search?q=${text}&FORM=BDVSP6&cc=cn`;
+    const url = `${host}/dict/search?q=${encodeURIComponent(text)}&FORM=BDVSP6&cc=cn`;
     const str = await fetchData(
       url,
       { credentials: "include" } // 携带 credentials 以免遭到网站人机拦截限制
@@ -385,14 +392,13 @@ export const apiBaiduLangdetect = async (text) => {
       query: text,
     }),
   };
-  const res = await fetchData(input, init, { useCache: true });
+  const res = await withCache(input, () => fetchData(input, init), {
+    init,
+    isValid: (data) =>
+      Boolean(data?.error === 0 && typeof data?.lan === "string" && data.lan),
+  });
 
-  if (res?.error === 0) {
-    await putHttpCachePolyfill(input, init, res);
-    return res.lan;
-  }
-
-  return "";
+  return res?.error === 0 && typeof res?.lan === "string" ? res.lan : "";
 };
 
 /**
@@ -411,14 +417,15 @@ export const apiBaiduSuggest = async (text) => {
       kw: text,
     }),
   };
-  const res = await fetchData(input, init, { useCache: true });
+  const res = await withCache(input, () => fetchData(input, init), {
+    init,
+    isValid: (data) =>
+      Boolean(
+        data?.errno === 0 && Array.isArray(data?.data) && data.data.length > 0
+      ),
+  });
 
-  if (res?.errno === 0) {
-    await putHttpCachePolyfill(input, init, res);
-    return res.data;
-  }
-
-  return [];
+  return res?.errno === 0 && Array.isArray(res?.data) ? res.data : [];
 };
 
 /**
@@ -444,14 +451,19 @@ export const apiYoudaoSuggest = async (text) => {
     },
     method: "GET",
   };
-  const res = await fetchData(input, init, { useCache: true });
+  const res = await withCache(input, () => fetchData(input, init), {
+    init,
+    isValid: (data) =>
+      Boolean(
+        data?.result?.code === 200 &&
+          Array.isArray(data?.data?.entries) &&
+          data.data.entries.length > 0
+      ),
+  });
 
-  if (res?.result?.code === 200) {
-    await putHttpCachePolyfill(input, init, res);
-    return res.data.entries;
-  }
-
-  return [];
+  return res?.result?.code === 200 && Array.isArray(res?.data?.entries)
+    ? res.data.entries
+    : [];
 };
 
 /**
@@ -459,6 +471,20 @@ export const apiYoudaoSuggest = async (text) => {
  * @param {string} text 查询单词
  * @returns {Promise<Object|null>} 有道词典的 JSON 响应数据
  */
+const isValidYoudaoDictRes = (data) =>
+  Boolean(
+    data &&
+      typeof data === "object" &&
+      !Array.isArray(data) &&
+      (data.ec ||
+        data.ce ||
+        data.simple ||
+        data.web_trans ||
+        data.fanyi ||
+        data.collins ||
+        data.ee)
+  );
+
 export const apiYoudaoDict = async (text) => {
   const params = {
     doctype: "json",
@@ -481,14 +507,12 @@ export const apiYoudaoDict = async (text) => {
     method: "POST",
     body,
   };
-  const res = await fetchData(input, init, { useCache: true });
+  const res = await withCache(input, () => fetchData(input, init), {
+    init,
+    isValid: isValidYoudaoDictRes,
+  });
 
-  if (res) {
-    await putHttpCachePolyfill(input, init, res);
-    return res;
-  }
-
-  return null;
+  return isValidYoudaoDictRes(res) ? res : null;
 };
 
 /**
@@ -516,14 +540,18 @@ export const apiTencentLangdetect = async (text) => {
     method: "POST",
     body,
   };
-  const res = await fetchData(input, init, { useCache: true });
+  const res = await withCache(input, () => fetchData(input, init), {
+    init,
+    isValid: (data) =>
+      Boolean(
+        data &&
+          typeof data === "object" &&
+          typeof data.language === "string" &&
+          data.language
+      ),
+  });
 
-  if (res?.language) {
-    await putHttpCachePolyfill(input, init, res);
-    return res.language;
-  }
-
-  return "";
+  return typeof res?.language === "string" ? res.language : "";
 };
 
 /**
@@ -561,9 +589,18 @@ const resolveBuiltinAISourceLang = async (text) => {
  * 浏览器内置 Gemini Nano AI 翻译 API。
  * 整合了超时管理与内置并发频率池（FetchPool），保证前台调用不易发生死锁。
  */
-const apiBuiltinAITranslate = async ({ text, from, to, apiSetting }) => {
+const apiBuiltinAITranslate = async ({
+  text,
+  from,
+  to,
+  apiSetting,
+  signal,
+}) => {
   if (!isBuiltinAIAvailable) {
     return ["", true];
+  }
+  if (signal?.aborted) {
+    throw new DOMException("The operation was aborted.", "AbortError");
   }
 
   const { fetchInterval, fetchLimit, httpTimeout } = apiSetting;
@@ -571,14 +608,16 @@ const apiBuiltinAITranslate = async ({ text, from, to, apiSetting }) => {
   const translateOnce = (sourceLang) =>
     withTimeout(
       fetchPool.push(
-        (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
+        (args, poolSignal) => fnPolyfill(attachPoolSignal(args, poolSignal)),
         {
           fn: chromeTranslate,
           msg: MSG_BUILTINAI_TRANSLATE,
           text,
           from: sourceLang,
           to,
-        }
+          opts: { signal },
+        },
+        { signal }
       ),
       resolveHttpTimeout({ httpTimeout })
     );
@@ -666,14 +705,21 @@ export const apiTranslate = async ({
     throw new Error(`The target lang: ${toLang} not support`);
   }
 
-  // 缓存键带上更新日期。日期变化后不再复用旧译文。
-  // 视频字幕还会带上简介前 50 个字符，避免不同视频共用同一段缓存。
+  // 缓存键带上更新日期，日期变化后不再复用旧译文。
+  // 覆盖完整 summary 与 context 摘要哈希，避免截断碰撞或不同语境误命中同一缓存。
   const promptSig = await getPromptCacheSig(
     apiSetting,
     getTranslatePromptCacheScope(apiSetting),
     glossary
   );
   const reqSig = await getRequestConfigSig(apiSetting);
+  const hasDocContext = Boolean(docInfo?.summary || docInfo?.context);
+  const ctxSig = hasDocContext
+    ? getCacheDigest(
+        [docInfo?.summary || "", docInfo?.context || ""].join("\n"),
+        PROMPT_CACHE_SALT
+      )
+    : "";
   const cacheOpts = {
     apiSlug,
     text,
@@ -684,7 +730,7 @@ export const apiTranslate = async ({
     version: process.env.REACT_APP_VERSION,
     promptSig,
     reqSig,
-    ...(docInfo?.summary && { ctx: docInfo.summary.slice(0, 50) }),
+    ...(ctxSig && { ctxSig }),
   };
   const cacheInput = `${URL_CACHE_TRAN}?${queryString.stringify(cacheOpts)}`;
 
@@ -701,6 +747,7 @@ export const apiTranslate = async ({
         from,
         to,
         apiSetting,
+        signal,
       });
     } else if (useBatchFetch && API_SPE_TYPES.batch.has(apiType)) {
       // 2.2 支持批量翻译的传统接口 (如 Google/Microsoft/DeepL 等)
@@ -1029,11 +1076,22 @@ export const apiSummarizeContext = async ({
   description,
   transcript,
   apiSetting,
+  signal,
 }) => {
+  if (signal?.aborted) {
+    throw new DOMException("The operation was aborted.", "AbortError");
+  }
+
+  const contentHash = getCacheDigest(
+    [title || "", description || "", transcript || ""].join("\n"),
+    "context-summary"
+  );
   const cacheOpts = {
     apiSlug: apiSetting.apiSlug,
     videoId,
+    version: process.env.REACT_APP_VERSION,
     reqSig: await getRequestConfigSig(apiSetting),
+    contentHash,
   };
   const cacheInput = `${URL_CACHE_CONTEXT}?${queryString.stringify(cacheOpts)}`;
 
@@ -1044,6 +1102,7 @@ export const apiSummarizeContext = async ({
         description,
         transcript,
         apiSetting,
+        signal,
       })
     )) || ""
   );

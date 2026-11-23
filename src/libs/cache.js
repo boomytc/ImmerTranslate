@@ -15,6 +15,42 @@ import { isExt } from "./client";
 import { isBg } from "./browser";
 import { sendBgMsg } from "./msg";
 import { parseResponse } from "./response";
+import { getCacheDigest } from "./cacheDigest";
+
+const HEADER_CACHED_AT = "X-Cached-At";
+const MAX_HTTP_CACHE_ENTRIES = 2000;
+
+const stripInitSignal = (init) => {
+  if (!init || typeof init !== "object") return init;
+  if (!("signal" in init)) return init;
+  const { signal: _signal, ...rest } = init;
+  return rest;
+};
+
+const isCacheResponseExpired = (response) => {
+  const cachedAt = Number(response.headers.get(HEADER_CACHED_AT));
+  if (!Number.isFinite(cachedAt) || cachedAt <= 0) {
+    return false;
+  }
+  const cacheControl = response.headers.get("Cache-Control") || "";
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+  const maxAgeSec = maxAgeMatch
+    ? Number(maxAgeMatch[1])
+    : DEFAULT_CACHE_TIMEOUT;
+  if (!Number.isFinite(maxAgeSec) || maxAgeSec <= 0) {
+    return false;
+  }
+  return Date.now() - cachedAt > maxAgeSec * 1000;
+};
+
+const evictOverflowCacheEntries = async (cache) => {
+  const keys = await cache.keys();
+  const overflow = keys.length - MAX_HTTP_CACHE_ENTRIES;
+  if (overflow <= 0) return;
+  for (let i = 0; i < overflow; i++) {
+    await cache.delete(keys[i]);
+  }
+};
 
 /**
  * Clear translation caches and report whether the operation completed.
@@ -51,11 +87,16 @@ export const tryClearCaches = async () => {
  * @returns {Promise<Request>} 虚拟转换后的 GET 缓存 Request 对象
  */
 const newCacheReq = async (input, init) => {
-  let request = new Request(input, init);
+  const safeInit = stripInitSignal(init);
+  let request = new Request(input, safeInit);
   if (request.method !== "GET") {
     const body = await request.text();
     const cacheUrl = new URL(request.url);
-    cacheUrl.pathname += body;
+    const bodyDigest = getCacheDigest(
+      `${request.method}:${body}`,
+      "http-cache-body"
+    );
+    cacheUrl.searchParams.set("__cache_body", bodyDigest);
     request = new Request(cacheUrl.toString(), { method: "GET" });
   }
 
@@ -75,6 +116,10 @@ export const getHttpCache = async ({ input, init, expect }) => {
     const cache = await caches.open(CACHE_NAME);
     const response = await cache.match(request);
     if (response) {
+      if (isCacheResponseExpired(response)) {
+        await cache.delete(request);
+        return null;
+      }
       const res = await parseResponse(response, expect);
       return res;
     }
@@ -95,20 +140,26 @@ export const putHttpCache = async ({
   input,
   init,
   data,
-  maxAge = DEFAULT_CACHE_TIMEOUT, // todo: 从设置里面读取最大缓存时间
+  maxAge = DEFAULT_CACHE_TIMEOUT,
 }) => {
   try {
     const req = await newCacheReq(input, init);
     const cache = await caches.open(CACHE_NAME);
+    const parsedMaxAge = Number(maxAge);
+    const ttlSeconds =
+      Number.isFinite(parsedMaxAge) && parsedMaxAge > 0
+        ? Math.floor(parsedMaxAge)
+        : DEFAULT_CACHE_TIMEOUT;
     const res = new Response(JSON.stringify(data), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": `max-age=${maxAge}`,
+        "Cache-Control": `max-age=${ttlSeconds}`,
+        [HEADER_CACHED_AT]: String(Date.now()),
       },
     });
-    // res.headers.set("Cache-Control", `max-age=${maxAge}`);
     await cache.put(req, res);
+    await evictOverflowCacheEntries(cache);
   } catch (err) {
     kissLog("put cache", err);
   }
@@ -121,13 +172,14 @@ export const putHttpCache = async ({
  * @returns {Promise<*>}
  */
 export const getHttpCachePolyfill = (input, init) => {
+  const safeInit = stripInitSignal(init);
   // 插件前端：发送消息查询
   if (isExt && !isBg()) {
-    return sendBgMsg(MSG_GET_HTTPCACHE, { input, init });
+    return sendBgMsg(MSG_GET_HTTPCACHE, { input, init: safeInit });
   }
 
   // 后台或非扩展页面：直接本地查询
-  return getHttpCache({ input, init });
+  return getHttpCache({ input, init: safeInit });
 };
 
 /**
@@ -138,11 +190,12 @@ export const getHttpCachePolyfill = (input, init) => {
  * @returns {Promise<void>}
  */
 export const putHttpCachePolyfill = (input, init, data) => {
+  const safeInit = stripInitSignal(init);
   // 插件前端：发送消息写入
   if (isExt && !isBg()) {
-    return sendBgMsg(MSG_PUT_HTTPCACHE, { input, init, data });
+    return sendBgMsg(MSG_PUT_HTTPCACHE, { input, init: safeInit, data });
   }
 
   // 后台或非扩展页面：直接本地写入
-  return putHttpCache({ input, init, data });
+  return putHttpCache({ input, init: safeInit, data });
 };

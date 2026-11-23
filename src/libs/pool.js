@@ -10,18 +10,15 @@ const httpStatus = (error) => {
     : 0;
 };
 
+const NETWORK_ERROR_PATTERN =
+  /failed to fetch|networkerror|network error|load failed|fetch failed|net::err_|econnreset|etimedout|timeout/i;
+
 const isNetworkError = (error) => {
   const name = error?.name || "";
-  if (
-    name === "TypeError" ||
-    name === "NetworkError" ||
-    name === "TimeoutError"
-  ) {
+  if (name === "NetworkError" || name === "TimeoutError") {
     return true;
   }
-  return /failed to fetch|networkerror|network error|timeout/i.test(
-    String(error?.message || "")
-  );
+  return NETWORK_ERROR_PATTERN.test(String(error?.message || ""));
 };
 
 // 有 HTTP 状态时只重试 429 和 5xx。没有状态时只重试网络错误，4xx 不再重试。
@@ -70,22 +67,54 @@ class TaskPool {
     this.#retryInterval = retryInterval;
   }
 
+  #cleanupTask(task) {
+    if (task.externalSignal && task.onExternalAbort) {
+      task.externalSignal.removeEventListener("abort", task.onExternalAbort);
+      task.onExternalAbort = null;
+    }
+  }
+
   #rejectTask(task, error) {
     if (task.settled) return;
     task.settled = true;
+    this.#cleanupTask(task);
     task.reject(error);
   }
 
   #resolveTask(task, value) {
     if (task.settled) return;
     task.settled = true;
+    this.#cleanupTask(task);
     task.resolve(value);
+  }
+
+  #cancelTask(task, error = cancellationError()) {
+    if (task.settled) return;
+
+    const queueIndex = this.#pool.indexOf(task);
+    if (queueIndex !== -1) {
+      this.#pool.splice(queueIndex, 1);
+    }
+
+    if (task.retryTimer !== null) {
+      clearTimeout(task.retryTimer);
+      this.#retryTimers.delete(task.retryTimer);
+      task.retryTimer = null;
+      this.#pendingRetries.delete(task);
+    }
+
+    if (task.controller && !task.controller.signal.aborted) {
+      task.controller.abort(error);
+    }
+
+    this.#rejectTask(task, error);
   }
 
   #isCancelled(task, signal) {
     return (
       task.settled ||
       task.generation !== this.#generation ||
+      Boolean(task.externalSignal?.aborted) ||
       Boolean(signal?.aborted)
     );
   }
@@ -129,15 +158,39 @@ class TaskPool {
   }
 
   #scheduleRetry(task) {
+    if (
+      task.settled ||
+      task.generation !== this.#generation ||
+      task.externalSignal?.aborted
+    ) {
+      this.#rejectTask(task, cancellationError());
+      return;
+    }
+
+    // 429/5xx 或网络异常采用指数退避 + 抖动并排入队尾，避免重试插队放大限流风暴。
+    const baseDelay = this.#retryInterval * Math.pow(2, task.retry);
+    const delay = Math.max(
+      0,
+      Math.round(baseDelay * (0.75 + Math.random() * 0.5))
+    );
+
     const timer = setTimeout(() => {
       this.#retryTimers.delete(timer);
       this.#pendingRetries.delete(task);
-      if (task.settled || task.generation !== this.#generation) return;
+      task.retryTimer = null;
+      if (
+        task.settled ||
+        task.generation !== this.#generation ||
+        task.externalSignal?.aborted
+      ) {
+        return;
+      }
       task.retry += 1;
       task.controller = null;
-      this.#pool.unshift(task);
+      this.#pool.push(task);
       this.#scheduleNext();
-    }, this.#retryInterval);
+    }, delay);
+    task.retryTimer = timer;
     this.#retryTimers.add(timer);
     this.#pendingRetries.add(task);
   }
@@ -148,8 +201,19 @@ class TaskPool {
    * @param {object} task - 任务对象，包含执行函数、参数、Promise的回调和当前重试次数
    */
   async #execute(task) {
-    if (task.settled || task.generation !== this.#generation) {
-      this.#rejectTask(task, cancellationError("The task pool was cleared."));
+    if (
+      task.settled ||
+      task.generation !== this.#generation ||
+      task.externalSignal?.aborted
+    ) {
+      this.#rejectTask(
+        task,
+        cancellationError(
+          task.externalSignal?.aborted
+            ? "The operation was aborted."
+            : "The task pool was cleared."
+        )
+      );
       this.#scheduleNext();
       return;
     }
@@ -198,11 +262,17 @@ class TaskPool {
    * 向任务池中添加一个新任务
    * @param {Function} fn - 要执行的异步函数，签名为 (args, signal) => Promise
    * @param {*} args - 函数的参数
+   * @param {Object} [options] - 单任务调度选项
+   * @param {AbortSignal} [options.signal] - 单任务取消信号
    * @returns {Promise} 返回一个在任务完成后 resolve 的 Promise
    */
-  push(fn, args) {
+  push(fn, args, { signal } = {}) {
+    if (signal?.aborted) {
+      return Promise.reject(cancellationError());
+    }
+
     return new Promise((resolve, reject) => {
-      this.#pool.push({
+      const task = {
         fn,
         args,
         resolve,
@@ -210,8 +280,23 @@ class TaskPool {
         retry: 0,
         generation: this.#generation,
         controller: null,
+        retryTimer: null,
+        externalSignal: signal || null,
+        onExternalAbort: null,
         settled: false,
-      });
+      };
+
+      if (signal) {
+        task.onExternalAbort = () =>
+          this.#cancelTask(task, cancellationError());
+        signal.addEventListener("abort", task.onExternalAbort, { once: true });
+        if (signal.aborted) {
+          this.#cancelTask(task, cancellationError());
+          return;
+        }
+      }
+
+      this.#pool.push(task);
       this.#scheduleNext();
     });
   }
@@ -222,10 +307,10 @@ class TaskPool {
    * @param {number} limit - 新的最大并发数
    */
   update(interval, limit) {
-    if (interval >= 0) {
+    if (Number.isFinite(interval) && interval >= 0) {
       this.#interval = interval;
     }
-    if (limit >= 1) {
+    if (Number.isFinite(limit) && limit >= 1) {
       this.#limit = limit;
     }
 
@@ -256,6 +341,7 @@ class TaskPool {
     }
     this.#retryTimers.clear();
     for (const task of this.#pendingRetries) {
+      task.retryTimer = null;
       this.#rejectTask(task, error);
     }
     this.#pendingRetries.clear();
@@ -279,13 +365,18 @@ let fetchPool;
  * @returns {TaskPool}
  */
 export const getFetchPool = (interval, limit) => {
+  const hasInterval = Number.isFinite(interval) && interval >= 0;
+  const hasLimit = Number.isFinite(limit) && limit >= 1;
   if (!fetchPool) {
     fetchPool = new TaskPool(
-      interval ?? DEFAULT_FETCH_INTERVAL,
-      limit ?? DEFAULT_FETCH_LIMIT
+      hasInterval ? interval : DEFAULT_FETCH_INTERVAL,
+      hasLimit ? limit : DEFAULT_FETCH_LIMIT
     );
-  } else if (interval && limit) {
-    fetchPool.update(interval, limit);
+  } else if (hasInterval || hasLimit) {
+    fetchPool.update(
+      hasInterval ? interval : undefined,
+      hasLimit ? limit : undefined
+    );
   }
   return fetchPool;
 };

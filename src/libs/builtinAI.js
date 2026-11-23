@@ -1,5 +1,39 @@
 import { kissLog, logger } from "./log";
 
+const createAbortError = () =>
+  new DOMException("The operation was aborted.", "AbortError");
+
+const isAbortError = (error) => error?.name === "AbortError";
+
+const raceWithAbort = (promise, signal) => {
+  if (!signal) return promise;
+  if (signal.aborted) {
+    return Promise.reject(createAbortError());
+  }
+  let onAbort;
+  const abortPromise = new Promise((_, reject) => {
+    onAbort = () => reject(createAbortError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+  return Promise.race([promise, abortPromise]).finally(() => {
+    signal.removeEventListener("abort", onAbort);
+  });
+};
+
+const destroyEntry = (entry) => {
+  if (!entry) return;
+  if (typeof entry.then === "function") {
+    entry.then((instance) => instance?.destroy?.()).catch(() => {});
+    return;
+  }
+  try {
+    entry.destroy?.();
+  } catch {
+    // 底层实例可能已释放
+  }
+};
+
 /**
  * Chrome 浏览器内置翻译
  */
@@ -11,8 +45,8 @@ class ChromeTranslator {
   #translatorMap = new Map();
   // 缓存全局唯一的本地 LanguageDetector 实例 Promise
   #detectorPromise = null;
-  // 缓存上一次通过置信度阈值的可靠语言识别结果
-  #lastReliableDetectedLanguage = "";
+  // 缓存代数：重置时递增，防止在途初始化完成后回写旧实例覆盖新缓存
+  #generation = 0;
 
   constructor(options = {}) {
     // 支持接收模型下载进度的回调通知
@@ -26,26 +60,49 @@ class ChromeTranslator {
     kissLog(`Downloading ${type} model: ${progress}%`);
   }
 
+  #resetDetector() {
+    const current = this.#detectorPromise;
+    this.#detectorPromise = null;
+    destroyEntry(current);
+  }
+
+  #resetTranslators() {
+    this.#generation += 1;
+    const entries = [...this.#translatorMap.values()];
+    this.#translatorMap.clear();
+    for (const entry of entries) {
+      destroyEntry(entry);
+    }
+  }
+
   /**
    * 单例模式获取或初始化本地语言检测器 (LanguageDetector)
    */
   #getDetectorPromise() {
     if (!this.#detectorPromise) {
-      this.#detectorPromise = (async () => {
+      const detectorPromise = (async () => {
         try {
           const availability = await LanguageDetector.availability();
           if (availability === "unavailable") {
             throw new Error("LanguageDetector unavailable");
           }
 
-          return await LanguageDetector.create({
+          const detector = await LanguageDetector.create({
             monitor: (m) => this._monitorProgress(m, "detector"),
           });
+          if (this.#detectorPromise !== detectorPromise) {
+            destroyEntry(detector);
+            throw new Error("LanguageDetector cache was reset");
+          }
+          return detector;
         } catch (error) {
-          this.#detectorPromise = null; // 初始化失败时重置缓存，以便下次能够重试
+          if (this.#detectorPromise === detectorPromise) {
+            this.#detectorPromise = null; // 初始化失败时重置缓存，以便下次能够重试
+          }
           throw error;
         }
       })();
+      this.#detectorPromise = detectorPromise;
     }
 
     return this.#detectorPromise;
@@ -62,6 +119,7 @@ class ChromeTranslator {
       return this.#translatorMap.get(key);
     }
 
+    const generation = this.#generation;
     const translatorPromise = (async () => {
       try {
         const avail = await Translator.availability({
@@ -79,11 +137,23 @@ class ChromeTranslator {
           targetLanguage,
           monitor: (m) => this._monitorProgress(m, `translator (${key})`),
         });
+        if (
+          generation !== this.#generation ||
+          this.#translatorMap.get(key) !== translatorPromise
+        ) {
+          destroyEntry(translator);
+          throw new Error("Translator cache was reset during initialization");
+        }
         this.#translatorMap.set(key, translator);
 
         return translator;
       } catch (error) {
-        this.#translatorMap.delete(key); // 创建失败立刻移出缓存，以允许重新发起初始化
+        if (
+          generation === this.#generation &&
+          this.#translatorMap.get(key) === translatorPromise
+        ) {
+          this.#translatorMap.delete(key); // 创建失败立刻移出缓存，以允许重新发起初始化
+        }
         throw error;
       }
     })();
@@ -105,29 +175,36 @@ class ChromeTranslator {
   /**
    * 检测一段文本的语言类别。
    * @param {string} text 待识别文本
-   * @param {number} confidenceThreshold 置信度过滤阈值，默认 0.4。低于此置信度则判定为识别失败
+   * @param {number} [confidenceThreshold=0.4] 置信度过滤阈值，默认 0.4。低于此置信度则判定为识别失败
+   * @param {Object} [options] 调用选项
+   * @param {AbortSignal} [options.signal] 取消信号
    * @returns {Promise<[string, string]>} [语言简写代码, 报错信息]
    */
-  async detectLanguage(text, confidenceThreshold = 0.4) {
+  async detectLanguage(text, confidenceThreshold = 0.4, { signal } = {}) {
     if (!text) {
       return ["", "Input text cannot be empty."];
     }
+    if (signal?.aborted) {
+      throw createAbortError();
+    }
 
     try {
-      const detector = await this.#getDetectorPromise();
-      const results = await detector.detect(text);
+      const detector = await raceWithAbort(this.#getDetectorPromise(), signal);
+      if (signal?.aborted) {
+        throw createAbortError();
+      }
+      const results = await raceWithAbort(
+        signal ? detector.detect(text, { signal }) : detector.detect(text),
+        signal
+      );
 
       if (!results || results.length === 0) {
         return ["", "No language could be detected."];
       }
 
       const { detectedLanguage, confidence } = results[0];
-      // 过滤低置信度的噪音识别结果，防止误报
+      // 过滤低置信度的噪音识别结果，防止误报；不再复用跨标签页的历史语言。
       if (confidence < confidenceThreshold) {
-        if (this.#lastReliableDetectedLanguage) {
-          return [this.#lastReliableDetectedLanguage, ""];
-        }
-
         return [
           "",
           `Confidence of test results (${detectedLanguage} ${confidence.toFixed(
@@ -136,9 +213,13 @@ class ChromeTranslator {
         ];
       }
 
-      this.#lastReliableDetectedLanguage = detectedLanguage;
       return [detectedLanguage, ""];
     } catch (error) {
+      if (isAbortError(error) || signal?.aborted) {
+        throw isAbortError(error) ? error : createAbortError();
+      }
+      // 底层 detector 发生异常时主动重置，避免失效实例持续卡死后续识别。
+      this.#resetDetector();
       kissLog("detectLanguage", error, `(${text})`);
       return ["", error.message];
     }
@@ -148,19 +229,32 @@ class ChromeTranslator {
    * 本地翻译单条文本核心方法。
    * @param {string} text 原文字符串
    * @param {string} targetLanguage 目标语种
-   * @param {string} sourceLanguage 源语种。若为 "auto" 则先调检测 API
+   * @param {string} [sourceLanguage="auto"] 源语种。若为 "auto" 则先调检测 API
+   * @param {Object} [options] 调用选项
+   * @param {AbortSignal} [options.signal] 取消信号
    * @returns {Promise<[string, string, string]>} [译文字符串, 最终源语言代码, 报错信息]
    */
-  async translateText(text, targetLanguage, sourceLanguage = "auto") {
+  async translateText(
+    text,
+    targetLanguage,
+    sourceLanguage = "auto",
+    { signal } = {}
+  ) {
     if (!text || !targetLanguage || typeof text !== "string") {
       return ["", sourceLanguage, "Input text cannot be empty."];
+    }
+    if (signal?.aborted) {
+      throw createAbortError();
     }
 
     try {
       let finalSourceLanguage = sourceLanguage;
       if (sourceLanguage === "auto") {
-        const [detectedLanguage, detectionError] =
-          await this.detectLanguage(text);
+        const [detectedLanguage, detectionError] = await this.detectLanguage(
+          text,
+          0.4,
+          { signal }
+        );
         if (detectionError || !detectedLanguage) {
           const reason =
             detectionError || "Unable to determine source language.";
@@ -179,30 +273,36 @@ class ChromeTranslator {
         return [text, finalSourceLanguage, ""];
       }
 
-      const translator = await this.#createTranslator(
-        finalSourceLanguage,
-        targetLanguage
+      const translator = await raceWithAbort(
+        this.#createTranslator(finalSourceLanguage, targetLanguage),
+        signal
       );
-      const translatedText = await translator.translate(text);
+      if (signal?.aborted) {
+        throw createAbortError();
+      }
+      const translatedText = await raceWithAbort(
+        signal
+          ? translator.translate(text, { signal })
+          : translator.translate(text),
+        signal
+      );
 
       return [translatedText, finalSourceLanguage, ""];
     } catch (error) {
+      if (isAbortError(error) || signal?.aborted) {
+        throw isAbortError(error) ? error : createAbortError();
+      }
+
       kissLog("translateText", error, `(${text})`);
 
-      // REVIEW: 极其优秀的大模型热重载与防死锁设计！
-      // Chrome 127+ 本地 AI (Gemini Nano) 尚处于实验阶段，稳定性较差。
-      // 在处理高并发或长句子时极其容易触发 WAF 级别的底层进程崩溃，并返回 "Other generic failures occurred" 异常。
-      // 一旦该错误发生，之前缓存的 translator 实例会全部失效卡死。
-      // 此处捕获该异常后，主动执行 clear() 清空翻译器 Map 缓存。
-      // 如此一来，在下一次请求进入时，程序会重新向浏览器底层申请并创建全新的翻译实例，
-      // 从而神奇地实现了本地模型的无缝热重启，极大地增强了稳定性，非常高级。
+      // Chrome 本地 AI 出现底层通用崩溃时，销毁并清空缓存实例以便下次自动重建。
       if (
         error &&
         error.message &&
         error.message.includes("Other generic failures occurred")
       ) {
         logger.info("Generic failure detected, resetting translator cache.");
-        this.#translatorMap.clear();
+        this.#resetTranslators();
       }
 
       return ["", sourceLanguage, error.message];
@@ -214,6 +314,10 @@ class ChromeTranslator {
 const chromeTranslator = new ChromeTranslator();
 
 export const chromeDetect = (args) =>
-  chromeTranslator.detectLanguage(args.text);
+  chromeTranslator.detectLanguage(args.text, 0.4, {
+    signal: args?.signal || args?.opts?.signal,
+  });
 export const chromeTranslate = (args) =>
-  chromeTranslator.translateText(args.text, args.to, args.from);
+  chromeTranslator.translateText(args.text, args.to, args.from, {
+    signal: args?.signal || args?.opts?.signal,
+  });

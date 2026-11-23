@@ -49,9 +49,11 @@ export const fetchData = async (
 
   if (usePool) {
     const fetchPool = getFetchPool(fetchInterval, fetchLimit);
+    const taskSignal = mergeAbortSignals([init?.signal, opts?.signal]);
     return fetchPool.push(
       (args, signal) => fnPolyfill(attachPoolSignal(args, signal)),
-      { fn: fetchHandle, input, init, opts }
+      { fn: fetchHandle, input, init, opts },
+      { signal: taskSignal }
     );
   }
 
@@ -81,37 +83,50 @@ export async function* fetchStream(
   }
 
   if (usePool) {
+    const callerSignal = mergeAbortSignals([init?.signal, opts.signal]);
+    if (callerSignal?.aborted) {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }
+
     const fetchPool = getFetchPool(fetchInterval, fetchLimit);
     const asyncQueue = createAsyncQueue();
     const streamController = new AbortController();
+    const taskSignal = mergeAbortSignals([
+      callerSignal,
+      streamController.signal,
+    ]);
 
     const streamPromise = fetchPool
-      .push(async (_args, poolSignal) => {
-        const streamOpts = {
-          ...opts,
-          signal: mergeAbortSignals([
-            opts.signal,
-            streamController.signal,
-            poolSignal,
-          ]),
-        };
-        try {
-          for await (const chunk of requestStream(input, init, streamOpts)) {
-            asyncQueue.push(chunk);
+      .push(
+        async (_args, poolSignal) => {
+          const streamOpts = {
+            ...opts,
+            signal: mergeAbortSignals([
+              callerSignal,
+              streamController.signal,
+              poolSignal,
+            ]),
+          };
+          try {
+            for await (const chunk of requestStream(input, init, streamOpts)) {
+              asyncQueue.push(chunk);
+            }
+            asyncQueue.finish();
+          } catch (e) {
+            asyncQueue.error(e);
           }
-          asyncQueue.finish();
-        } catch (e) {
-          asyncQueue.error(e);
-        }
-        return null;
-      })
+          return null;
+        },
+        undefined,
+        { signal: taskSignal }
+      )
       .catch((error) => {
-        // Clearing the pool can reject this task before its producer starts.
+        // 清空任务池或排队期间取消会直接 reject，需同步结束异步队列避免消费端挂起。
         asyncQueue.error(error);
       });
 
     try {
-      yield* asyncQueue.iterate();
+      yield* asyncQueue.iterate(callerSignal);
     } finally {
       // 消费方提前停止读取时，主动中止池内任务，避免长连接继续占用请求额度。
       streamController.abort();

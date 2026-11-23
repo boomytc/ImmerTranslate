@@ -41,11 +41,22 @@ export async function* fetchStreamNative(input, init = {}, opts = {}) {
     throw await createHttpError(response);
   }
 
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error("Stream response body is unavailable.");
+  }
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const parseSSE = createSSEParser();
+  const cancelReaderSafely = async () => {
+    try {
+      await reader.cancel?.();
+    } catch {
+      // 底层流可能已关闭或中止，取消失败不应覆盖上游错误。
+    }
+  };
   const cancelOnAbort = () => {
-    void reader.cancel?.();
+    void cancelReaderSafely();
   };
   signal?.addEventListener?.("abort", cancelOnAbort, { once: true });
 
@@ -58,12 +69,52 @@ export async function* fetchStreamNative(input, init = {}, opts = {}) {
         yield data;
       }
     }
+
+    const trailing = decoder.decode();
+    if (trailing) {
+      for (const data of parseSSE(trailing)) {
+        yield data;
+      }
+    }
+    for (const data of parseSSE.flush()) {
+      yield data;
+    }
   } finally {
     signal?.removeEventListener?.("abort", cancelOnAbort);
     // 当调用方提前结束 async generator 时，主动释放 reader 锁并推动底层连接关闭。
-    await reader.cancel?.();
+    await cancelReaderSafely();
   }
 }
+
+const deserializePortError = (rawError) => {
+  if (rawError && typeof rawError === "object") {
+    const err = new Error(rawError.message || "Stream request failed.");
+    if (rawError.name) {
+      err.name = rawError.name;
+    }
+    const status = Number(rawError.status);
+    if (Number.isInteger(status) && status >= 100 && status <= 599) {
+      err.status = status;
+    }
+    return err;
+  }
+
+  const message =
+    typeof rawError === "string" && rawError
+      ? rawError
+      : "Stream request failed.";
+  const err = new Error(message);
+  try {
+    const parsed = JSON.parse(message);
+    const status = Number(parsed?.status);
+    if (Number.isInteger(status) && status >= 100 && status <= 599) {
+      err.status = status;
+    }
+  } catch {
+    // 非 JSON 字符串忽略
+  }
+  return err;
+};
 
 /**
  * WebExtension content script 通过 Port 代理发起 SSE 请求。
@@ -129,7 +180,7 @@ async function* fetchStreamViaPort(input, init, opts) {
         settleDone();
         break;
       case "error":
-        settleError(new Error(message.error || "Stream request failed."));
+        settleError(deserializePortError(message.error));
         break;
       default:
         break;

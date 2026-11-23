@@ -45,6 +45,8 @@ const TRAD_CHARS = new Set(
  * @param {string} text 待检测文本
  * @returns {string} 语言代码 (zh-CN / zh-TW / ja / ko / ru / el / en / de / fr / es，无法确定时返回 "")
  */
+const SCRIPT_RATIO_THRESHOLD = 0.3;
+
 export function quickDetectLang(text) {
   const count = (re) => (text.match(re) || []).length;
   const cjk = count(RE_CJK);
@@ -55,12 +57,17 @@ export function quickDetectLang(text) {
   const greek = count(RE_GREEK);
   const latin = count(RE_LATIN);
 
-  // 日语文本必然夹杂假名
-  if (hiragana > 0 || katakana > 0) return "ja";
-  if (hangul > 0) return "ko";
-  if (cyrillic > 0) return "ru";
-  if (greek > 0) return "el";
-  if (cjk > 0) return detectZhVariant(text);
+  const total = cjk + hiragana + katakana + hangul + cyrillic + greek + latin;
+  if (total === 0) return "";
+
+  const kana = hiragana + katakana;
+  // 按有效文字字符占比判定，避免英文公式/正文里夹杂单个希腊字母或汉字就短路误判。
+  if (kana > 0 && (kana + cjk) / total >= SCRIPT_RATIO_THRESHOLD) return "ja";
+  if (hangul / total >= SCRIPT_RATIO_THRESHOLD) return "ko";
+  if (cyrillic / total >= SCRIPT_RATIO_THRESHOLD) return "ru";
+  // 单个希腊字母常见于数学/物理符号，至少出现 2 个且占比达标才直接判定为希腊语。
+  if (greek >= 2 && greek / total >= SCRIPT_RATIO_THRESHOLD) return "el";
+  if (cjk / total >= SCRIPT_RATIO_THRESHOLD) return detectZhVariant(text);
 
   // 拉丁字符集区分英/德/法/西：依据变音字母与高频词计分
   return detectLatinVariant(text, latin) || "";
@@ -150,14 +157,19 @@ export const detectLangFast = async (text) => {
   if (detectCache.has(sample)) return detectCache.get(sample);
 
   let lang = quickDetectLang(sample);
+  let failed = false;
 
   if (!lang) {
+    let timerId = null;
     try {
       const res = await Promise.race([
         Promise.resolve(browser?.i18n?.detectLanguage?.(sample)),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("detect timeout")), DETECT_TIMEOUT)
-        ),
+        new Promise((_, reject) => {
+          timerId = setTimeout(
+            () => reject(new Error("detect timeout")),
+            DETECT_TIMEOUT
+          );
+        }),
       ]);
       const detected = res?.languages?.[0]?.language;
       const normalizedLang = normalizeLanguageCode(detected);
@@ -168,10 +180,17 @@ export const detectLangFast = async (text) => {
         lang = normalizedLang;
       }
     } catch (err) {
+      failed = true;
       kissLog("detect lang fast", err);
+    } finally {
+      if (timerId !== null) {
+        clearTimeout(timerId);
+      }
     }
   }
 
-  setCache(sample, lang || "");
+  if (!failed) {
+    setCache(sample, lang || "");
+  }
   return lang || "";
 };

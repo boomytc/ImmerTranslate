@@ -3,10 +3,27 @@ import {
   OPT_TRANS_CLAUDE,
   OPT_TRANS_GEMINI,
 } from "../config/api";
+import { apiRequiresKey } from "./apiKey";
 import { fetchHandle, fnPolyfill } from "./request";
 
 // 模型列表 URL 中可显式放置该占位符；存在占位符时不会额外注入 Authorization 头。
 const MODEL_KEY_PLACEHOLDER = "{{key}}";
+
+/**
+ * 从可能包含多行或逗号分隔的多 Key 配置中提取首个有效 Key，
+ * 避免直接拼入 HTTP Header 时因换行符触发 Fetch TypeError。
+ *
+ * @param {string} [key=""] 原始 Key 配置文本。
+ * @returns {string} 首个有效 Key；无有效值时返回空字符串。
+ */
+export function extractFirstApiKey(key = "") {
+  return (
+    String(key || "")
+      .split(/\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean)[0] || ""
+  );
+}
 
 /**
  * 判断 URL 是否为 Google Gemini 原生模型列表端点。
@@ -217,13 +234,14 @@ const appendQueryParam = (url, name, value) => {
  */
 export function createModelListRequest({ apiType, modelListUrl, key }) {
   let trimmedUrl = (modelListUrl || "").trim();
-  const trimmedKey = (key || "").trim();
+  const trimmedKey = extractFirstApiKey(key);
+  const requiresKey = apiRequiresKey({ apiType });
   if (apiType === OPT_TRANS_GEMINI) {
     trimmedUrl = resolveGeminiCatalogUrl(trimmedUrl);
   }
 
-  // 用户没有同时配置模型列表 URL 和 Key 时，不发起网络请求。
-  if (!trimmedUrl || !trimmedKey) {
+  // 必须配置模型列表 URL；需要 Key 的服务在缺 Key 时不发起网络请求，本地免 Key 服务（如 Ollama）放行。
+  if (!trimmedUrl || (requiresKey && !trimmedKey)) {
     return null;
   }
 
@@ -243,7 +261,9 @@ export function createModelListRequest({ apiType, modelListUrl, key }) {
   // Google Gemini 原生 REST API 不使用 Bearer header，而是通过 key query 参数鉴权。
   if (apiType === OPT_TRANS_GEMINI || isGeminiNativeModelListUrl(trimmedUrl)) {
     return {
-      input: appendQueryParam(trimmedUrl, "key", trimmedKey),
+      input: trimmedKey
+        ? appendQueryParam(trimmedUrl, "key", trimmedKey)
+        : trimmedUrl,
       init: {
         method: "GET",
       },
@@ -270,21 +290,29 @@ export function createModelListRequest({ apiType, modelListUrl, key }) {
       input: dashscopeUrl,
       init: {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${trimmedKey}`,
-        },
+        ...(trimmedKey
+          ? {
+              headers: {
+                Authorization: `Bearer ${trimmedKey}`,
+              },
+            }
+          : {}),
       },
     };
   }
 
-  // OpenAI 兼容：对话地址或 API 根都会收成 `{base}/models`。
+  // OpenAI 兼容：对话地址或 API 根都会收成 `{base}/models`；本地无 Key 服务不附带空 Authorization 头。
   return {
     input: resolveOpenAIModelListUrl(trimmedUrl),
     init: {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${trimmedKey}`,
-      },
+      ...(trimmedKey
+        ? {
+            headers: {
+              Authorization: `Bearer ${trimmedKey}`,
+            },
+          }
+        : {}),
     },
   };
 }
@@ -573,7 +601,10 @@ export async function fetchModelCatalog({
       },
     });
 
-  if (apiType === OPT_TRANS_CLAUDE) {
+  const hasKeyPlaceholder = String(modelListUrl || "").includes(
+    MODEL_KEY_PLACEHOLDER
+  );
+  if (apiType === OPT_TRANS_CLAUDE && !hasKeyPlaceholder) {
     const urls = buildAnthropicModelListUrls(modelListUrl);
     let lastError;
     for (let index = 0; index < urls.length; index += 1) {
