@@ -3,7 +3,8 @@ import Select from "@mui/material/Select";
 import { useRef } from "react";
 
 function splitLanguageName(name) {
-  const [primary, ...secondaryParts] = name.split(" - ");
+  const normalized = String(name || "");
+  const [primary, ...secondaryParts] = normalized.split(" - ");
   const secondary = secondaryParts.join(" - ").trim();
   return {
     primary,
@@ -21,18 +22,24 @@ export default function CompactLanguageSelect({
   onChange,
 }) {
   const selectRef = useRef(null);
+  const normalizedValue = value ?? "";
+  const safeOptions =
+    normalizedValue !== "" && !options.some(([key]) => key === normalizedValue)
+      ? [[normalizedValue, String(normalizedValue)], ...options]
+      : options;
 
   return (
     <Select
       ref={selectRef}
       className="kt-popup-language-select"
-      value={value}
+      value={normalizedValue}
       variant="standard"
       disableUnderline
       inputProps={{ "aria-label": ariaLabel }}
       renderValue={(selectedValue) => {
         const selectedName =
-          options.find(([key]) => key === selectedValue)?.[1] || selectedValue;
+          safeOptions.find(([key]) => key === selectedValue)?.[1] ??
+          selectedValue;
         const { primary, secondary } = splitLanguageName(selectedName);
         const displayName = secondary ? `${primary} - ${secondary}` : primary;
         return (
@@ -60,7 +67,7 @@ export default function CompactLanguageSelect({
       }}
       onChange={onChange}
     >
-      {options.map(([key, name]) => {
+      {safeOptions.map(([key, name]) => {
         const { primary, secondary } = splitLanguageName(name);
         return (
           <MenuItem key={key} value={key}>

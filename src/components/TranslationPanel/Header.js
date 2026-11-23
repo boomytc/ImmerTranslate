@@ -195,6 +195,7 @@ export default function TranslationPanelHeader({
           id={menuButtonId}
           ref={menuButtonRef}
           title={i18n("more")}
+          aria-label={i18n("more")}
           aria-expanded={showMore}
           aria-haspopup="menu"
           aria-controls={showMore ? menuId : undefined}
@@ -215,7 +216,11 @@ export default function TranslationPanelHeader({
 
         {/* Close the translation panel. */}
         {onClose && (
-          <IconButton title={i18n("close")} onClick={onClose}>
+          <IconButton
+            title={i18n("close")}
+            aria-label={i18n("close")}
+            onClick={onClose}
+          >
             <CloseIcon />
           </IconButton>
         )}

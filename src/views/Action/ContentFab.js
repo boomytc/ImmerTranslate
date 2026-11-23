@@ -598,22 +598,26 @@ export function ContentFabContent({
               onKeyDownCapture={handleMenuNavigation}
             >
               {items.map(
-                ({ label, icon: Icon, action, disabled, pressed }, index) => (
-                  <MenuItem
-                    className={`kt-content-fab-menu__item ${
-                      index === 0 ? "kt-content-fab-menu__item--hero" : ""
-                    }`}
-                    disabled={disabled}
-                    aria-pressed={pressed}
-                    onClick={disabled ? undefined : action}
-                    key={label}
-                  >
-                    <ListItemIcon>
-                      <Icon />
-                    </ListItemIcon>
-                    <ListItemText>{label}</ListItemText>
-                  </MenuItem>
-                )
+                ({ label, icon: Icon, action, disabled, pressed }, index) => {
+                  const isToggle = pressed !== undefined;
+                  return (
+                    <MenuItem
+                      className={`kt-content-fab-menu__item ${
+                        index === 0 ? "kt-content-fab-menu__item--hero" : ""
+                      }`}
+                      role={isToggle ? "menuitemcheckbox" : "menuitem"}
+                      disabled={disabled}
+                      aria-checked={isToggle ? Boolean(pressed) : undefined}
+                      onClick={disabled ? undefined : action}
+                      key={label}
+                    >
+                      <ListItemIcon>
+                        <Icon />
+                      </ListItemIcon>
+                      <ListItemText>{label}</ListItemText>
+                    </MenuItem>
+                  );
+                }
               )}
             </MenuList>
             <FabQuickOptions

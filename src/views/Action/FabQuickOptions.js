@@ -120,6 +120,9 @@ export default function FabQuickOptions({
 
   useEffect(() => {
     setModelOverride(null);
+  }, [rule?.apiSlug, activeApi?.model]);
+
+  useEffect(() => {
     setCatalogModels([]);
   }, [rule?.apiSlug]);
 
@@ -247,6 +250,13 @@ export default function FabQuickOptions({
     });
   };
 
+  const hasConfiguredCurrentApi = Boolean(
+    rule?.apiSlug && configuredApis.some((api) => api.apiSlug === rule.apiSlug)
+  );
+  const unavailableCurrentApiLabel = activeApi
+    ? `${getApiDisplayName(activeApi)} (${i18n("unavailable_option")})`
+    : `${rule?.apiSlug || ""} (${i18n("unavailable_option")})`;
+
   const normalizedFabSize =
     typeof currentFabSize === "number" && Number.isFinite(currentFabSize)
       ? Math.round(currentFabSize)
@@ -305,6 +315,11 @@ export default function FabQuickOptions({
               >
                 {!rule.apiSlug && (
                   <option value="">{i18n("translate_service")}</option>
+                )}
+                {rule.apiSlug && !hasConfiguredCurrentApi && (
+                  <option value={rule.apiSlug} disabled>
+                    {unavailableCurrentApiLabel}
+                  </option>
                 )}
                 {configuredApis.map((api) => (
                   <option key={api.apiSlug} value={api.apiSlug}>

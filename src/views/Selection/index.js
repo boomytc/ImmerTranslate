@@ -11,7 +11,6 @@ import { SELECTION_STYLES } from "./styles";
 import { normalizeFabAppearance } from "../../config/fab";
 
 function SelectionContent({
-  contextMenuType,
   tranboxSetting,
   transApis,
   prompts,
@@ -66,9 +65,9 @@ function SelectionContent({
   useTranboxShortcuts({
     showBox,
     setShowBox,
+    hideClickAway,
     handleOpenTranbox,
     handleToggleTranbox,
-    contextMenuType,
   });
 
   return (
@@ -120,7 +119,6 @@ function SelectionContent({
  * Entry point for selection translation interactions.
  *
  * @param {Object} props
- * @param {string} props.contextMenuType - Browser context menu type or configuration.
  * @param {Object} props.tranboxSetting - Selection translation panel settings.
  * @param {Array} props.transApis - Enabled translation API settings.
  * @param {Object} props.langDetector - Language detector settings.

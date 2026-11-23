@@ -14,10 +14,10 @@ export const ACTION_STYLES = String.raw`${FLOATING_BUTTON_STYLES}
 .kt-content-fab-menu__item--hero .MuiListItemText-root .MuiTypography-root, .kt-content-fab-menu__item:first-child .MuiListItemText-root .MuiTypography-root { font-size: 13px !important; font-weight: 700; }
 @media (hover: hover) {
   .kt-content-fab-menu__item:hover { background: var(--kt-sf3); color: var(--kt-on); }
-  .kt-content-fab-menu__item[aria-pressed="true"]:hover { background: var(--kt-pric); color: var(--kt-onpric); }
+  .kt-content-fab-menu__item[aria-checked="true"]:hover { background: var(--kt-pric); color: var(--kt-onpric); }
 }
-.kt-content-fab-menu__item[aria-pressed="true"] { background: var(--kt-pric); color: var(--kt-onpric); border-color: transparent; }
-.kt-content-fab-menu__item[aria-pressed="true"] .MuiListItemIcon-root { color: var(--kt-onpric); }
+.kt-content-fab-menu__item[aria-checked="true"] { background: var(--kt-pric); color: var(--kt-onpric); border-color: transparent; }
+.kt-content-fab-menu__item[aria-checked="true"] .MuiListItemIcon-root { color: var(--kt-onpric); }
 .kt-content-fab-menu__item:active { transform: scale(.97); }
 .kt-content-fab-menu__item .MuiListItemIcon-root { min-width: 20px; color: var(--kt-pri); }
 .kt-content-fab-menu__item svg { width: 18px; height: 18px; }

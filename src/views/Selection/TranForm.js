@@ -733,6 +733,7 @@ export default function TranForm({
                         size="small"
                         onClick={handlePaste}
                         title={i18n("paste")}
+                        aria-label={i18n("paste")}
                       >
                         <ContentPasteIcon fontSize="inherit" />
                       </IconButton>

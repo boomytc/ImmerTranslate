@@ -18,13 +18,7 @@ import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Snackbar from "@mui/material/Snackbar";
 import Switch from "@mui/material/Switch";
-import {
-  sendBgMsg,
-  sendTabMsg,
-  sendTopFrameMsg,
-  getCurTab,
-} from "../../libs/msg";
-import { isExt } from "../../libs/client";
+import { sendTabMsg, sendTopFrameMsg, getCurTab } from "../../libs/msg";
 import { useI18n } from "../../hooks/I18n";
 import {
   API_SPE_TYPES,
@@ -35,7 +29,6 @@ import {
   MSG_RULE_EDITOR,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
-  MSG_SAVE_RULE,
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
   OPT_TRANS_QWENMT,
@@ -169,7 +162,6 @@ export default function PopupCont({
   onPageUnavailable,
   capabilities,
   isTopFrame = true,
-  isContent = false,
   pageSwitch: pageSwitchFromPage = null,
 }) {
   const i18n = useI18n();
@@ -461,12 +453,12 @@ export default function PopupCont({
   const pendingSiteServiceRef = useRef("");
   const previousSiteServiceRef = useRef("");
 
-  const pageHref = currentHref || (isContent ? window.location?.href : "");
+  const pageHref = currentHref;
 
   const persistSiteService = useCallback(
     (href, apiSlug, previous) => {
       void writeSiteApiSlug(href, apiSlug, {
-        throughBackground: isExt && isContent,
+        throughBackground: false,
       })
         .then((response) => {
           if (response?.error) throw new Error(response.error);
@@ -480,7 +472,7 @@ export default function PopupCont({
           showMessage(i18n("error_got_some_wrong"), "error");
         });
     },
-    [i18n, isContent, putRuleValue, showMessage]
+    [i18n, putRuleValue, showMessage]
   );
 
   const handleSelectService = useCallback(
@@ -605,25 +597,20 @@ export default function PopupCont({
     if (!selectedDomain) return;
     try {
       const currentRule = popupSavedRule(ruleRef.current, selectedDomain);
-      const response =
-        isExt && isContent
-          ? await sendBgMsg(MSG_SAVE_RULE, currentRule)
-          : await saveRule(currentRule);
+      const response = await saveRule(currentRule);
       if (response?.error) throw new Error(response.error);
       showMessage(`${i18n("save_rule")}: ${selectedDomain}`);
     } catch (error) {
       kissLog("save rule", error);
       showMessage(i18n("error_got_some_wrong"), "error");
     }
-  }, [i18n, isContent, selectedDomain, showMessage]);
+  }, [i18n, selectedDomain, showMessage]);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const href = isContent
-          ? window.location?.href
-          : targetTabUrl || (await getCurTab())?.url || "";
+        const href = targetTabUrl || (await getCurTab())?.url || "";
         if (!active || !href) return;
         const options = getDomainOptions(href);
         setCurrentHref(href);
@@ -636,7 +623,7 @@ export default function PopupCont({
     return () => {
       active = false;
     };
-  }, [isContent, hasTargetTab, targetTabUrl]);
+  }, [hasTargetTab, targetTabUrl]);
 
   const services = useMemo(
     () =>
@@ -1125,7 +1112,7 @@ export default function PopupCont({
       setSiteDraft(next);
       try {
         const response = await writeSiteTransOpen(currentHref, next, rules, {
-          throughBackground: isExt && isContent,
+          throughBackground: false,
           pattern: sitePattern,
         });
         if (response?.error) throw new Error(response.error);
@@ -1139,7 +1126,6 @@ export default function PopupCont({
     [
       currentHref,
       i18n,
-      isContent,
       rules,
       rulesLoading,
       showMessage,
@@ -1394,7 +1380,11 @@ export default function PopupCont({
                   )}
                 </span>
               </div>
-              <div className="kt-popup-site__actions">
+              <div
+                className={`kt-popup-site__actions${
+                  pageBlocked ? " kt-popup-site__actions--single" : ""
+                }`}
+              >
                 <Button
                   variant="contained"
                   color="secondary"

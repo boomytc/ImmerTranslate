@@ -37,15 +37,6 @@ export const POPUP_STYLES = String.raw`
 /* Autosize can leave inline overflow:hidden when the stretched frame is shorter. */
 .kt-popup-shell--window .kt-translation-result textarea:not([aria-hidden="true"]) { flex: 1; height: auto !important; min-height: 140px; overflow-y: auto !important; resize: none !important; }
 
-.kt-chrome-bubble.MuiPaper-root {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--kt-border, var(--kt-linev));
-  border-radius: var(--kt-radius-xl, 22px);
-  background: var(--kt-sf0);
-  box-shadow: var(--kt-shadow-menu, var(--kt-shadow-2));
-}
-
 .kt-popup-chrome {
   position: sticky;
   top: 0;
@@ -245,6 +236,7 @@ export const POPUP_STYLES = String.raw`
 .kt-popup-site__badge { max-width: 50%; flex: 0 1 auto; padding: 3px 7px; border-radius: 999px; background: var(--kt-terc); color: var(--kt-onterc); font-size: 10.5px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .kt-popup-site__badge--blocked { background: var(--kt-errc); color: var(--kt-onerrc); }
 .kt-popup-site__actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-top: 4px; }
+.kt-popup-site__actions--single { grid-template-columns: minmax(0, 1fr); }
 .kt-popup-site__actions .MuiButton-root { min-width: 0; min-height: 34px; padding: 5px 8px; font-size: 11.5px; line-height: 1.35; overflow-wrap: anywhere; white-space: normal; }
 .kt-popup-blacklist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 .kt-popup-blacklist li { display: flex; align-items: center; gap: 6px; }
