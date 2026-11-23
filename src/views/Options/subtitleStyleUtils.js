@@ -1,4 +1,7 @@
-import { splitCssDeclarations } from "../../libs/cssDeclarations";
+import {
+  parseCssDeclaration,
+  splitCssDeclarations,
+} from "../../libs/cssDeclarations";
 
 export { splitCssDeclarations };
 
@@ -11,11 +14,9 @@ export const parseCssToObject = (cssString) => {
 
   const properties = splitCssDeclarations(cssString).filter((p) => p.trim());
   properties.forEach((prop) => {
-    const colonIndex = prop.indexOf(":");
-    if (colonIndex > 0) {
-      const key = prop.substring(0, colonIndex).trim();
-      const value = prop.substring(colonIndex + 1).trim();
-      result[key] = value;
+    const parsed = parseCssDeclaration(prop);
+    if (parsed) {
+      result[parsed.property] = parsed.value;
     }
   });
   return result;
@@ -232,7 +233,12 @@ const buildPaddingRange = (vertical, horizontal, unit) => {
 export const parsePadding = (paddingStr) => {
   if (!paddingStr) return buildPaddingRange(0.5, 1, "em");
 
-  const parts = paddingStr.trim().split(/\s+/);
+  const normalized = String(paddingStr)
+    .replace(/\s*!important\s*$/i, "")
+    .trim();
+  if (!normalized) return buildPaddingRange(0.5, 1, "em");
+
+  const parts = normalized.split(/\s+/);
   const parseToken = (token) => {
     const match = token.match(/^([\d.]+)([a-z%]*)$/i);
     if (!match) return null;
@@ -277,7 +283,10 @@ export const colorToHex = (colorStr) => {
     orange: "#ffa500",
     transparent: "#ffffff",
   };
-  const lower = String(colorStr).toLowerCase().trim();
+  const lower = String(colorStr)
+    .replace(/\s*!important\s*$/i, "")
+    .toLowerCase()
+    .trim();
   if (namedColors[lower]) return namedColors[lower];
   if (lower.startsWith("#")) {
     if (/^#[0-9a-f]{3}$/.test(lower) || /^#[0-9a-f]{4}$/.test(lower)) {

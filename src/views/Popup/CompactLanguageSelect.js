@@ -18,7 +18,7 @@ function splitLanguageName(name) {
 export default function CompactLanguageSelect({
   ariaLabel,
   value,
-  options,
+  options = [],
   onChange,
 }) {
   const selectRef = useRef(null);

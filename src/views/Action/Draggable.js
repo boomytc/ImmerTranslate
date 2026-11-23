@@ -415,6 +415,9 @@ export default function Draggable({
 
   // Finish dragging without forwarding the event to underlying elements.
   const finishDrag = (e, cancelled = false) => {
+    if (!origin || (!cancelled && e.button !== 0)) {
+      return;
+    }
     e.stopPropagation();
     const wasDragged = draggedRef.current;
     if (snapEdge && wasDragged) {

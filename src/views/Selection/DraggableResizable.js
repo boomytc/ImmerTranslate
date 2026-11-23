@@ -143,6 +143,9 @@ function Pointer({
 
   // Handle pointer end.
   function handlePointerUp(e) {
+    if (!origin || (e.type === "pointerup" && e.button !== 0)) {
+      return;
+    }
     e.stopPropagation();
     setOrigin(null);
   }

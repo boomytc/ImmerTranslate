@@ -109,3 +109,48 @@ export const splitCssDeclarations = (cssString) => {
   parts.push(buffer);
   return parts;
 };
+
+/**
+ * Parse a single CSS declaration into `{ property, value }`, skipping CSS
+ * comments so colons inside comments cannot hijack the declaration separator.
+ *
+ * @param {string} declaration Single CSS declaration text.
+ * @returns {{ property: string, value: string } | null}
+ */
+export const parseCssDeclaration = (declaration) => {
+  if (!declaration) return null;
+
+  let property = "";
+  let inComment = false;
+
+  for (let i = 0; i < declaration.length; i++) {
+    const char = declaration[i];
+
+    if (inComment) {
+      if (char === "*" && declaration[i + 1] === "/") {
+        inComment = false;
+        i += 1;
+      }
+      continue;
+    }
+
+    if (char === "/" && declaration[i + 1] === "*") {
+      inComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (char === ":") {
+      const normalizedProperty = property.trim();
+      if (!normalizedProperty) return null;
+      return {
+        property: normalizedProperty,
+        value: declaration.slice(i + 1).trim(),
+      };
+    }
+
+    property += char;
+  }
+
+  return null;
+};

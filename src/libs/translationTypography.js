@@ -1,5 +1,5 @@
 import { APP_LCNAME } from "../config/app";
-import { splitCssDeclarations } from "./cssDeclarations";
+import { parseCssDeclaration, splitCssDeclarations } from "./cssDeclarations";
 
 /**
  * Page bilingual nodes must follow the source paragraph's typography.
@@ -178,15 +178,10 @@ export function applySourceTypography(node, source, styleCode = "") {
 export function clearInlineCss(node, cssText) {
   if (!cssText || !node?.style?.removeProperty) return;
   splitCssDeclarations(cssText).forEach((part) => {
-    const separator = part.indexOf(":");
-    if (separator === -1) return;
-    const property = part
-      .slice(0, separator)
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .trim();
-    if (!property) return;
+    const parsed = parseCssDeclaration(part);
+    if (!parsed) return;
     try {
-      node.style.removeProperty(property);
+      node.style.removeProperty(parsed.property);
     } catch {
       // Ignore invalid property names.
     }
@@ -196,18 +191,12 @@ export function clearInlineCss(node, cssText) {
 export function applyInlineCss(node, cssText) {
   if (!cssText || !node?.style?.setProperty) return;
   splitCssDeclarations(cssText).forEach((part) => {
-    const separator = part.indexOf(":");
-    if (separator === -1) return;
-    const property = part
-      .slice(0, separator)
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .trim();
-    let value = part.slice(separator + 1).trim();
-    if (!property || !value) return;
-    value = value.replace(/!important\s*$/i, "").trim();
+    const parsed = parseCssDeclaration(part);
+    if (!parsed || !parsed.value) return;
+    const value = parsed.value.replace(/!important\s*$/i, "").trim();
     if (!value) return;
     try {
-      node.style.setProperty(property, value, "important");
+      node.style.setProperty(parsed.property, value, "important");
     } catch {
       // A bad user declaration must not drop the rest of the rule.
     }
