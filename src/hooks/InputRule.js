@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { DEFAULT_INPUT_RULE } from "../config";
 import { useSetting } from "./Setting";
 
@@ -9,8 +10,11 @@ export function useInputRule() {
   const { setting, updateChild } = useSetting();
   // 获取当前配置，若无则使用默认输入规则
   const inputRule = setting?.inputRule || DEFAULT_INPUT_RULE;
-  // 获取局部更新配置中 inputRule 部分的更新函数
-  const updateInputRule = updateChild("inputRule");
+  // 获取局部更新配置中 inputRule 部分的稳定更新函数
+  const updateInputRule = useCallback(
+    (obj) => updateChild("inputRule")(obj),
+    [updateChild]
+  );
 
   return { inputRule, updateInputRule };
 }

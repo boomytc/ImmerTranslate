@@ -11,10 +11,12 @@ export function useStorage(key, defaultVal = null, syncKey = "") {
     data: defaultVal,
     isLoading: true,
   });
+  const defaultValRef = useRef(defaultVal);
+  defaultValRef.current = defaultVal;
   const scopeRef = useRef(null);
 
   useEffect(() => {
-    const state = getStorageState(key, defaultVal);
+    const state = getStorageState(key, defaultValRef.current);
     state.configureSync(
       syncKey,
       syncKey && isOptions()
@@ -34,7 +36,7 @@ export function useStorage(key, defaultVal = null, syncKey = "") {
       scope.active = false;
       unsubscribe();
     };
-  }, [key, defaultVal, syncKey]);
+  }, [key, syncKey]);
 
   const save = useCallback(
     (valueOrFn) => {

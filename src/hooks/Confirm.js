@@ -3,6 +3,7 @@ import {
   useContext,
   createContext,
   useCallback,
+  useEffect,
   useRef,
   useMemo,
 } from "react";
@@ -47,6 +48,12 @@ export function ConfirmProvider({ children }) {
   const confirm = useCallback(
     (config) => {
       return new Promise((resolve) => {
+        // 若已有未决确认框，先以 false 结束旧 Promise，避免并发调用永久悬空。
+        const previousResolve = resolveRef.current;
+        if (previousResolve) {
+          resolveRef.current = null;
+          previousResolve(false);
+        }
         // 合并默认本地化翻译和外部自定义配置
         setDialogConfig({ ...translatedDefaults, ...config });
         // 保存 resolve 句柄，等待用户交互触发
@@ -57,26 +64,35 @@ export function ConfirmProvider({ children }) {
   );
 
   // 处理关闭/取消操作
-  const handleClose = () => {
-    if (resolveRef.current) {
-      resolveRef.current(false);
+  const handleClose = useCallback(() => {
+    const resolve = resolveRef.current;
+    resolveRef.current = null;
+    if (resolve) {
+      resolve(false);
     }
     setDialogConfig(null);
-  };
+  }, []);
 
   // 处理确认操作
-  const handleConfirm = () => {
-    if (resolveRef.current) {
-      resolveRef.current(true);
+  const handleConfirm = useCallback(() => {
+    const resolve = resolveRef.current;
+    resolveRef.current = null;
+    if (resolve) {
+      resolve(true);
     }
     setDialogConfig(null);
-  };
+  }, []);
 
-  // REVIEW: 如果在 Dialog 打开的情况下，ConfirmProvider 组件突然被卸载(Unmount)（例如用户关闭弹出页或切换视图），
-  // 则 resolveRef.current 对应的 Promise 将保持在永远 pending 的状态。
-  // 建议增加 useEffect 监听卸载事件，并在 cleanup 时执行：
-  // if (resolveRef.current) resolveRef.current(false);
-  // 以妥善完成外部可能正在 await 的异步任务。
+  // 组件卸载时结算尚未完成的确认 Promise，防止调用方永久等待。
+  useEffect(() => {
+    return () => {
+      const resolve = resolveRef.current;
+      resolveRef.current = null;
+      if (resolve) {
+        resolve(false);
+      }
+    };
+  }, []);
 
   return (
     <ConfirmContext.Provider value={confirm}>

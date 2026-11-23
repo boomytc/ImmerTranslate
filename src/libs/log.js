@@ -175,5 +175,3 @@ export const logger = new Logger();
 // REVIEW: info 的快捷别名导出后，日常拦截异常时 debug 或 warn 用得也很多。
 // 可以考虑后续提供类似的快捷别名或直接鼓励大家使用 logger.warn/error 以保持日志语义清晰。
 export const kissLog = logger.info.bind(logger);
-
-// TODO：debug日志埋点

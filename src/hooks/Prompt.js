@@ -5,7 +5,10 @@ import {
   normalizePrompt,
   removePromptReferences,
 } from "../config";
+import { cloneStorageValue } from "../libs/storageEquality";
 import { useSetting } from "./Setting";
+
+const EMPTY_PROMPTS = [];
 
 function createPromptSlug() {
   return `prompt_${crypto.randomUUID()}`;
@@ -24,7 +27,7 @@ function createPromptName(sourcePrompt, sourcePromptName = "") {
 export function usePromptList() {
   const { setting, updateSetting } = useSetting();
   const customPrompts = useMemo(
-    () => setting?.prompts || [],
+    () => setting?.prompts || EMPTY_PROMPTS,
     [setting?.prompts]
   );
 
@@ -33,13 +36,13 @@ export function usePromptList() {
   const addPrompt = useCallback(
     (sourcePrompt = {}, sourcePromptName = "") => {
       const source = normalizePrompt(sourcePrompt);
-      const prompt = {
+      const prompt = cloneStorageValue({
         ...source,
         slug: createPromptSlug(),
         // 自定义提示词副本要保存当次生成的显示名称，不继承预设提示词的 i18n key。
         nameKey: "",
         name: createPromptName(source, sourcePromptName),
-      };
+      });
 
       updateSetting((prev) => ({
         ...prev,
@@ -54,11 +57,11 @@ export function usePromptList() {
   const updatePrompt = useCallback(
     (promptSlug, updateData) => {
       if (!promptSlug || isPresetPromptSlug(promptSlug)) {
-        return;
+        return Promise.resolve();
       }
 
-      const patch = normalizePrompt({ ...updateData, slug: promptSlug });
-      updateSetting((prev) => ({
+      const patch = cloneStorageValue(updateData || {});
+      return updateSetting((prev) => ({
         ...prev,
         prompts: (prev?.prompts || []).map((prompt) => {
           if (normalizePrompt(prompt).slug !== promptSlug) {
@@ -75,10 +78,10 @@ export function usePromptList() {
   const deletePrompt = useCallback(
     (promptSlug) => {
       if (!promptSlug || isPresetPromptSlug(promptSlug)) {
-        return;
+        return Promise.resolve();
       }
 
-      updateSetting((prev) => ({
+      return updateSetting((prev) => ({
         ...removePromptReferences(prev || {}, promptSlug),
         prompts: (prev?.prompts || []).filter(
           (prompt) => normalizePrompt(prompt).slug !== promptSlug

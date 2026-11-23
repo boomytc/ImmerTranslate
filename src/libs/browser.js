@@ -23,33 +23,38 @@ export const browser = _browser();
 export const APP_CONTEXT_KEY = "__IMMERTRANSLATE_CONTEXT__";
 
 /**
- * 获取当前脚本在浏览器扩展中的具体执行环境上下文
- * @returns {string} 返回 "background" | "content" | "options" | "popup" | "undefined"
- *
- * REVIEW:
- * 在此处的 `getContext` 中，目前完全依赖 `globalThis[APP_CONTEXT_KEY]` 来进行判断。
- * 如果该变量在某些入口点 (如 Options, Popup React 根节点) 忘记预先挂载，则默认会返回 "undefined"，
- * 导致 isOptions() 或 isBg() 的行为产生非预期判定。
- * 建议保留以前被注释掉的 fallback 判定逻辑（例如校验 window.location 协议及 path ），以提升容错率。
+ * 获取当前脚本在浏览器扩展中的具体执行环境上下文。
+ * 优先读取入口显式挂载的上下文标记，缺失时按运行环境与扩展 URL 回退判定。
+ * @returns {string} 返回 "background" | "content" | "options" | "popup" | "sidepanel" | "undefined"
  */
 export const getContext = () => {
   const context = globalThis[APP_CONTEXT_KEY];
   if (context) return context;
 
-  // if (typeof window === "undefined" || typeof document === "undefined") {
-  //   return "background";
-  // }
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return browser?.runtime?.id ? "background" : "undefined";
+  }
 
-  // const extensionOrigin = browser.runtime.getURL("");
-  // if (!window.location.href.startsWith(extensionOrigin)) {
-  //   return "content";
-  // }
+  try {
+    const extensionOrigin =
+      typeof browser?.runtime?.getURL === "function"
+        ? browser.runtime.getURL("")
+        : "";
+    if (!extensionOrigin) {
+      return "undefined";
+    }
+    if (!window.location?.href?.startsWith(extensionOrigin)) {
+      return "content";
+    }
 
-  // const pathname = window.location.pathname;
-  // if (pathname.includes("popup")) return "popup";
-  // if (pathname.includes("options")) return "options";
-  // if (pathname.includes("sidepanel")) return "sidepanel";
-  // if (pathname.includes("background")) return "background";
+    const pathname = (window.location?.pathname || "").toLowerCase();
+    if (pathname.includes("popup")) return "popup";
+    if (pathname.includes("options")) return "options";
+    if (pathname.includes("sidepanel")) return "sidepanel";
+    if (pathname.includes("background")) return "background";
+  } catch {
+    return "undefined";
+  }
 
   return "undefined";
 };

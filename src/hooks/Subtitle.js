@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { DEFAULT_SUBTITLE_SETTING } from "../config";
 import { useSetting } from "./Setting";
 
@@ -9,8 +10,11 @@ export function useSubtitle() {
   const { setting, updateChild } = useSetting();
   // 获取当前字幕的设置数据，若未设置则加载系统预设的默认值
   const subtitleSetting = setting?.subtitleSetting || DEFAULT_SUBTITLE_SETTING;
-  // 生成专门用于修改全局配置中 subtitleSetting 分支的原子更新方法
-  const updateSubtitle = updateChild("subtitleSetting");
+  // 生成专门用于修改全局配置中 subtitleSetting 分支的稳定更新方法
+  const updateSubtitle = useCallback(
+    (obj) => updateChild("subtitleSetting")(obj),
+    [updateChild]
+  );
 
   return { subtitleSetting, updateSubtitle };
 }

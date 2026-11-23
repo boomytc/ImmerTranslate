@@ -69,6 +69,8 @@ const deriveSyncKey = async (syncKey, salt) => {
   );
 };
 
+const isNonEmptyString = (val) => typeof val === "string" && val.length > 0;
+
 /**
  * 识别同步加密 envelope。无法识别时返回 null。
  * @param {string} value 远端同步包中的 value 字符串
@@ -82,7 +84,9 @@ const parseSyncValueEnvelope = (value) => {
       parsed.version &&
       parsed.alg &&
       parsed.kdf &&
-      parsed.data
+      isNonEmptyString(parsed.salt) &&
+      isNonEmptyString(parsed.iv) &&
+      isNonEmptyString(parsed.data)
     ) {
       return parsed;
     }
@@ -145,14 +149,14 @@ export const decryptSyncValue = async (value, syncKey) => {
     throw new Error("Unsupported sync encryption format");
   }
 
-  const key = await deriveSyncKey(syncKey, base64ToBytes(envelope.salt));
+  const subtle = getSubtleCrypto();
   let decrypted;
   try {
-    decrypted = await getSubtleCrypto().decrypt(
-      { name: SYNC_CRYPTO_ALG, iv: base64ToBytes(envelope.iv) },
-      key,
-      base64ToBytes(envelope.data)
-    );
+    const salt = base64ToBytes(envelope.salt);
+    const iv = base64ToBytes(envelope.iv);
+    const data = base64ToBytes(envelope.data);
+    const key = await deriveSyncKey(syncKey, salt);
+    decrypted = await subtle.decrypt({ name: SYNC_CRYPTO_ALG, iv }, key, data);
   } catch (err) {
     const rejected = new Error("Sync passphrase rejected");
     rejected.code = "SYNC_DECRYPT_FAILED";

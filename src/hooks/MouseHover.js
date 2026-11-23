@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { DEFAULT_MOUSE_HOVER_SETTING } from "../config";
 import { useSetting } from "./Setting";
 
@@ -10,8 +11,11 @@ export function useMouseHoverSetting() {
   // 获取当前的鼠标悬浮设置，若未配置则加载默认的悬浮触发规则
   const mouseHoverSetting =
     setting?.mouseHoverSetting || DEFAULT_MOUSE_HOVER_SETTING;
-  // 生成专用于修改 mouseHoverSetting 的原子更新函数
-  const updateMouseHoverSetting = updateChild("mouseHoverSetting");
+  // 生成专用于修改 mouseHoverSetting 的稳定更新函数
+  const updateMouseHoverSetting = useCallback(
+    (obj) => updateChild("mouseHoverSetting")(obj),
+    [updateChild]
+  );
 
   return { mouseHoverSetting, updateMouseHoverSetting };
 }

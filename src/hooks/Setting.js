@@ -23,8 +23,9 @@ import { cloneStorageValue, isSameStorageValue } from "../libs/storageEquality";
 // Share settings and their persistence operations with descendant components.
 const SettingContext = createContext({
   setting: DEFAULT_SETTING,
-  updateSetting: () => {},
-  reloadSetting: () => {},
+  updateSetting: () => Promise.resolve(),
+  updateChild: () => () => Promise.resolve(),
+  reloadSetting: () => Promise.resolve(),
 });
 
 /** Normalize settings in memory and persist only user mutations. */
@@ -34,7 +35,7 @@ export function SettingProvider({ children, context }) {
   const {
     data: rawSetting,
     isLoading,
-    update,
+    save,
     reload,
   } = useStorage(STOKEY_SETTING, DEFAULT_SETTING, KV_SETTING_KEY);
   const setting = useMemo(
@@ -45,7 +46,7 @@ export function SettingProvider({ children, context }) {
 
   // Keep the Options logger and extension background logger in sync.
   useEffect(() => {
-    if (!isOptionsPage) return;
+    if (!isOptionsPage || isLoading || logLevel === undefined) return;
 
     (async () => {
       try {
@@ -57,13 +58,13 @@ export function SettingProvider({ children, context }) {
         logger.error("Failed to fetch log level, using default.", error);
       }
     })();
-  }, [isOptionsPage, logLevel]);
+  }, [isOptionsPage, isLoading, logLevel]);
 
   const updateSetting = useCallback(
     (objOrFn) => {
       const input =
         typeof objOrFn === "function" ? objOrFn : cloneStorageValue(objOrFn);
-      return update((previous) => {
+      return save((previous) => {
         // Rebase user edits on the latest normalized value inside the lock.
         const current = normalizeStoredSetting(previous);
         const patch = typeof input === "function" ? input(current) : input;
@@ -72,13 +73,13 @@ export function SettingProvider({ children, context }) {
         return isSameStorageValue(current, next) ? previous : next;
       });
     },
-    [update]
+    [save]
   );
 
   // Merge a child patch against the current value when the reducer is replayed.
   const updateChild = useCallback(
     (key) => (obj) => {
-      const patch = { ...obj };
+      const patch = cloneStorageValue(obj || {});
       return updateSetting((prev) => ({
         ...prev,
         [key]: { ...(prev?.[key] || {}), ...patch },

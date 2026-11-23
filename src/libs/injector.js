@@ -20,24 +20,6 @@ export const injectInlineJs = (code, id = `${APP_LCNAME}-inline-js`) => {
   (document.head || document.documentElement).appendChild(el);
 };
 
-// 注入行内 JavaScript 脚本（免 Trusted Types 版）。
-// REVIEW: 此函数直接对 textContent 赋值了未做 Trusted Types 包装的原始 code 字符串。
-// 在严格启用了 CSP (Trusted Types 限制) 的网站（例如 GitHub/Google）中，该方法会抛出安全异常并导致注入失败。
-// 建议非必要时统一使用 injectInlineJs。
-export const injectInlineJsBg = (code, id = `${APP_LCNAME}-inline-js`) => {
-  if (document.getElementById(id)) {
-    return;
-  }
-
-  const el = document.createElement("script");
-  el.setAttribute("data-source", `${INJECT_SOURCE_PREFIX} injectInlineJsBg`);
-  el.type = "text/javascript";
-  el.id = id;
-  el.textContent = code;
-  // 兼容 DOM 尚未加载完全的情况，若 document.head 不存在，则注入到 documentElement <html> 中
-  (document.head || document.documentElement).appendChild(el);
-};
-
 // 向页面注入外部引用的 JavaScript 脚本文件。
 export const injectExternalJs = (src, id = `${APP_LCNAME}-external-js`) => {
   if (document.getElementById(id)) {
@@ -54,9 +36,18 @@ export const injectExternalJs = (src, id = `${APP_LCNAME}-external-js`) => {
 };
 
 // 向页面注入行内 CSS 样式。
-export const injectInternalCss = (styles) => {
+// 该函数会被 browser.scripting.executeScript 序列化到页面 MAIN world 执行，
+// 因此保持完全自包含，不引用外层模块变量；sourcePrefix 由参数传入。
+export const injectInternalCss = (
+  styles,
+  sourcePrefix = "immertranslate-inject"
+) => {
+  if (typeof styles !== "string" || !styles) {
+    return;
+  }
+
   const el = document.createElement("style");
-  el.setAttribute("data-source", `${INJECT_SOURCE_PREFIX} injectInternalCss`);
+  el.setAttribute("data-source", `${sourcePrefix} injectInternalCss`);
   el.textContent = styles;
-  document.head?.appendChild(el);
+  (document.head || document.documentElement)?.appendChild(el);
 };

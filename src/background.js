@@ -15,7 +15,6 @@ import {
   MSG_TRANSBOX_TOGGLE,
   MSG_CONTEXT_MENUS,
   MSG_COMMAND_SHORTCUTS,
-  MSG_INJECT_JS,
   MSG_INSTALL_LOCATION_HOOK,
   MSG_INJECT_CSS,
   MSG_UPDATE_CSP,
@@ -49,7 +48,7 @@ import { tryClearCaches, getHttpCache, putHttpCache } from "./libs/cache";
 import { sendTabMsg, broadcastPageCommand } from "./libs/msg";
 import { saveRuleMessage } from "./libs/rules";
 import { getCurTabId } from "./libs/msg";
-import { injectInlineJsBg, injectInternalCss } from "./libs/injector";
+import { INJECT_SOURCE_PREFIX, injectInternalCss } from "./libs/injector";
 import { kissLog, logger } from "./libs/log";
 import { chromeDetect, chromeTranslate } from "./libs/builtinAI";
 import { installStorageCoordinator } from "./libs/storageCoordination";
@@ -60,6 +59,39 @@ import { APP_CONTEXT_KEY } from "./libs/browser";
 
 globalThis[APP_CONTEXT_KEY] = "background";
 installStorageCoordinator();
+
+let logLevelRestored = false;
+let logLevelRestorePromise = null;
+let logLevelRevision = 0;
+
+function applyLogLevel(level) {
+  logLevelRevision += 1;
+  logLevelRestored = true;
+  logger.setLevel(level);
+}
+
+function ensureLogLevelRestored() {
+  if (logLevelRestored) return Promise.resolve();
+  if (!logLevelRestorePromise) {
+    const startRevision = logLevelRevision;
+    logLevelRestorePromise = getSettingWithDefault()
+      .then(({ logLevel }) => {
+        if (logLevelRevision === startRevision && logLevel !== undefined) {
+          logger.setLevel(logLevel);
+        }
+        logLevelRestored = true;
+      })
+      .catch((err) => {
+        kissLog("restore logLevel error", err);
+      })
+      .finally(() => {
+        logLevelRestorePromise = null;
+      });
+  }
+  return logLevelRestorePromise;
+}
+
+void ensureLogLevelRestored();
 
 let openingOptionsPage = false;
 
@@ -212,12 +244,141 @@ const CSP_REMOVE_HEADERS = [
 ];
 
 // 独立窗口 (TranBox 独立窗口模式) 的全局状态变量
+const SEPARATE_WINDOW_SESSION_KEY = `${STOKEY_SEPARATE_WINDOW}_session`;
 let separateWindowId = null; // 当前已打开窗口的 ID
 let lastKnownBounds = null; // 缓存窗口最后一次有效的屏幕位置坐标与大小
 let separateWindowFitPending = false; // Whether a default-sized window still needs content fitting.
 let separateWindowFitSize = null;
 let separateWindowBoundsRevision = 0;
 let separateWindowBoundsRead = 0;
+let separateWindowHydrated = false;
+let separateWindowHydratePromise = null;
+
+function getSessionStorage() {
+  return browser.storage?.session || null;
+}
+
+function persistSeparateWindowSession() {
+  const sessionStorage = getSessionStorage();
+  if (!sessionStorage) return;
+
+  if (separateWindowId === null) {
+    if (typeof sessionStorage.remove === "function") {
+      void Promise.resolve(
+        sessionStorage.remove([SEPARATE_WINDOW_SESSION_KEY])
+      ).catch((err) => {
+        kissLog("clear separate window session state", err);
+      });
+    }
+    return;
+  }
+
+  if (typeof sessionStorage.set === "function") {
+    void Promise.resolve(
+      sessionStorage.set({
+        [SEPARATE_WINDOW_SESSION_KEY]: {
+          separateWindowId,
+          lastKnownBounds,
+          separateWindowFitPending,
+          separateWindowFitSize,
+        },
+      })
+    ).catch((err) => {
+      kissLog("save separate window session state", err);
+    });
+  }
+}
+
+async function findSeparateWindowIdFromContexts() {
+  const getContexts = browser.runtime?.getContexts;
+  if (typeof getContexts !== "function") return null;
+  try {
+    const popupBase = browser.runtime.getURL("popup.html");
+    const contexts = await getContexts({
+      documentUrls: [`${popupBase}#tranbox`],
+    });
+    const hit = (contexts || []).find(
+      (item) => Number.isInteger(item?.windowId) && item.windowId >= 0
+    );
+    if (hit) return hit.windowId;
+
+    const popupContexts = await getContexts({
+      documentUrls: [popupBase, `${popupBase}*`],
+    });
+    const hashHit = (popupContexts || []).find(
+      (item) =>
+        typeof item?.documentUrl === "string" &&
+        item.documentUrl.includes("#tranbox") &&
+        Number.isInteger(item?.windowId) &&
+        item.windowId >= 0
+    );
+    return hashHit ? hashHit.windowId : null;
+  } catch (err) {
+    kissLog("find separate window context", err);
+    return null;
+  }
+}
+
+async function ensureSeparateWindowState() {
+  if (separateWindowHydrated) return;
+  if (!separateWindowHydratePromise) {
+    separateWindowHydratePromise = (async () => {
+      try {
+        const sessionStorage = getSessionStorage();
+        if (
+          separateWindowId === null &&
+          typeof sessionStorage?.get === "function"
+        ) {
+          const stored = await sessionStorage.get(SEPARATE_WINDOW_SESSION_KEY);
+          const saved = stored?.[SEPARATE_WINDOW_SESSION_KEY];
+          if (
+            separateWindowId === null &&
+            saved &&
+            Number.isInteger(saved.separateWindowId)
+          ) {
+            separateWindowId = saved.separateWindowId;
+            lastKnownBounds = saved.lastKnownBounds || null;
+            separateWindowFitPending = Boolean(saved.separateWindowFitPending);
+            separateWindowFitSize = saved.separateWindowFitSize || null;
+          }
+        }
+
+        if (separateWindowId === null) {
+          const contextWindowId = await findSeparateWindowIdFromContexts();
+          if (separateWindowId === null && contextWindowId !== null) {
+            separateWindowId = contextWindowId;
+            try {
+              const win = await browser.windows.get(contextWindowId);
+              if (
+                win &&
+                win.state === "normal" &&
+                [win.left, win.top, win.width, win.height].every(
+                  Number.isFinite
+                )
+              ) {
+                lastKnownBounds = {
+                  left: Math.round(win.left),
+                  top: Math.round(win.top),
+                  width: Math.round(win.width),
+                  height: Math.round(win.height),
+                };
+              }
+            } catch {
+              // 窗口可能在恢复期间已关闭，由后续调用处理。
+            }
+            persistSeparateWindowSession();
+          }
+        }
+      } catch (err) {
+        kissLog("hydrate separate window state", err);
+      } finally {
+        separateWindowHydrated = true;
+        separateWindowHydratePromise = null;
+      }
+    })();
+  }
+  await separateWindowHydratePromise;
+}
 
 // Start near the expected content size to reduce visible resizing during rendering.
 // MSG_FIT_SEPARATE_WINDOW adjusts the initial height after layout.
@@ -274,6 +435,7 @@ async function centerOnFocusedWindow({ width, height }) {
  * @returns {Promise<void>}
  */
 async function fitSeparateWindow(args) {
+  await ensureSeparateWindowState();
   if (!separateWindowFitPending || separateWindowId === null) return;
 
   const { width, height, availWidth, availHeight, availLeft, availTop } =
@@ -282,6 +444,7 @@ async function fitSeparateWindow(args) {
   const windowId = separateWindowId;
   const initialSize = separateWindowFitSize;
   separateWindowFitPending = false;
+  persistSeparateWindowSession();
 
   // Leave room around the screen edges and taskbar.
   const maxWidth = Number.isFinite(availWidth) ? availWidth - 40 : Infinity;
@@ -327,6 +490,7 @@ async function fitSeparateWindow(args) {
     }
     // Bounds events from our own update must not count as a user resize.
     separateWindowFitSize = null;
+    persistSeparateWindowSession();
     const boundsRevision = separateWindowBoundsRevision;
     const updatedWindow = await browser.windows.update(windowId, nextBounds);
     if (boundsRevision === separateWindowBoundsRevision) {
@@ -346,6 +510,7 @@ function cacheSeparateWindowBounds(win) {
   if (win.state && win.state !== "normal") {
     separateWindowFitPending = false;
     separateWindowFitSize = null;
+    persistSeparateWindowSession();
     return;
   }
   if (
@@ -369,6 +534,7 @@ function cacheSeparateWindowBounds(win) {
     height: Math.round(win.height),
   };
   separateWindowBoundsRevision += 1;
+  persistSeparateWindowSession();
 }
 
 /**
@@ -390,7 +556,9 @@ async function persistSeparateWindowBounds(bounds) {
  */
 async function openSeparateWindowWithSavedBounds() {
   try {
-    // REVIEW: 窗口单例机制。若窗口已存在且被创建过，则通过查询所有窗口状态直接聚焦，避免重复创建
+    await ensureSeparateWindowState();
+
+    // 窗口单例机制。若窗口已存在，直接聚焦避免重复创建。
     if (separateWindowId !== null) {
       const allWindows = await browser.windows.getAll();
       const existingWin = allWindows.find((w) => w.id === separateWindowId);
@@ -399,6 +567,11 @@ async function openSeparateWindowWithSavedBounds() {
         kissLog("Separate window is ready");
         return existingWin;
       }
+      separateWindowId = null;
+      lastKnownBounds = null;
+      separateWindowFitPending = false;
+      separateWindowFitSize = null;
+      persistSeparateWindowSession();
     }
 
     const stored = await browser.storage.local.get(STOKEY_SEPARATE_WINDOW);
@@ -438,6 +611,7 @@ async function openSeparateWindowWithSavedBounds() {
     separateWindowFitSize = saved
       ? null
       : { width: Math.round(win.width), height: Math.round(win.height) };
+    persistSeparateWindowSession();
 
     return win;
   } catch (err) {
@@ -472,6 +646,12 @@ async function updateCacheFromActual(windowId) {
  * 此时只实时更新内存中的 lastKnownBounds 缓存，不频繁写入 Storage，防止 Storage API 限频报错。
  */
 browser.windows?.onBoundsChanged?.addListener?.((win) => {
+  if (!separateWindowHydrated) {
+    void ensureSeparateWindowState().then(() => {
+      cacheSeparateWindowBounds(win);
+    });
+    return;
+  }
   cacheSeparateWindowBounds(win);
 });
 
@@ -481,12 +661,14 @@ browser.windows?.onBoundsChanged?.addListener?.((win) => {
  * 并释放全局引用。该时机设计得非常好，能极大节约 IO 开销。
  */
 browser.windows?.onRemoved?.addListener?.(async (windowId) => {
+  await ensureSeparateWindowState();
   if (windowId === separateWindowId) {
     const bounds = lastKnownBounds;
     separateWindowId = null;
     lastKnownBounds = null;
     separateWindowFitPending = false;
     separateWindowFitSize = null;
+    persistSeparateWindowSession();
     await persistSeparateWindowBounds(bounds);
   }
 });
@@ -528,33 +710,44 @@ async function rebuildContextMenus(contextMenuType = 1) {
   }
 }
 
+function validTabId(tab) {
+  return Number.isInteger(tab?.id) && tab.id >= 0 ? tab.id : undefined;
+}
+
 /**
  * 右键菜单动作。菜单项和点击都从这里取。
  * 显隐划词面板只留给快捷键，不在这张表里。
  */
 const contextMenuActions = {
   [CMD_TOGGLE_TRANSLATE]: {
-    handle: () => broadcastPageCommand(MSG_TRANS_TOGGLE),
+    handle: (_info, tabId) => broadcastPageCommand(MSG_TRANS_TOGGLE, tabId),
     modes: {
       1: { title: "toggle_translate", contexts: ["page"] },
       2: { title: "toggle_translate", contexts: ["page", "selection"] },
     },
   },
   [CMD_TOGGLE_TRANSLATE_ONLY]: {
-    handle: () => broadcastPageCommand(MSG_TRANS_TOGGLE_ONLY),
+    handle: (_info, tabId) =>
+      broadcastPageCommand(MSG_TRANS_TOGGLE_ONLY, tabId),
     modes: {
       2: { title: "toggle_translate_only", contexts: ["page", "selection"] },
     },
   },
   [CMD_TOGGLE_STYLE]: {
-    handle: () => broadcastPageCommand(MSG_TRANS_TOGGLE_STYLE),
+    handle: (_info, tabId) =>
+      broadcastPageCommand(MSG_TRANS_TOGGLE_STYLE, tabId),
     modes: {
       2: { title: "toggle_style", contexts: ["page", "selection"] },
     },
   },
   [CMD_OPEN_TRANBOX]: {
-    handle: (info) =>
-      sendTabMsg(MSG_OPEN_TRANBOX, { text: info.selectionText }),
+    handle: (info, tabId) =>
+      sendTabMsg(
+        MSG_OPEN_TRANBOX,
+        { text: info.selectionText },
+        undefined,
+        tabId
+      ),
     modes: {
       1: { title: "translate_selection", contexts: ["selection"] },
       2: { title: "open_tranbox", contexts: ["page", "selection"] },
@@ -598,9 +791,12 @@ function contextMenuItems(contextMenuType) {
 /**
  * 监听全局右键菜单的点击项，按菜单 id 走 contextMenuActions。
  */
-browser?.contextMenus?.onClicked?.addListener?.((info) => {
+browser?.contextMenus?.onClicked?.addListener?.((info, tab) => {
   const action = contextMenuActions[info.menuItemId];
-  if (action) action.handle(info);
+  if (!action) return;
+  Promise.resolve(action.handle(info, validTabId(tab))).catch((err) =>
+    kissLog("context menu action error", info.menuItemId, err)
+  );
 });
 
 /**
@@ -647,15 +843,36 @@ function contextMenuLastError() {
   return runtime?.lastError;
 }
 
+let cspRulesQueue = Promise.resolve();
+
+function normalizeOriginHeader(input) {
+  try {
+    const parsed = new URL(
+      /^[a-z]+:\/\//i.test(input) ? input : `https://${input}`
+    );
+    return parsed.origin && parsed.origin !== "null" ? parsed.origin : "";
+  } catch (err) {
+    kissLog("normalizeOriginHeader error", input, err);
+    return "";
+  }
+}
+
 /**
  * 动态更新浏览器的 CSP (Content Security Policy) 和跨域 Origin 修改策略。
  * 利用 Chrome MV3 declarativeNetRequest (DNR) 动态配置规则，
  * 实现“剥离第三方 CSP 限制”和“伪装 Origin 请求头以绕过跨域防护”的能力。
+ * 并发调用通过队列串行执行，避免旧规则读取与批量更新相互覆盖。
  * @param {Object} params
  * @param {Array<string>|string} params.csplist 需移除 CSP 响应头的域名规则列表
  * @param {Array<string>|string} params.orilist 需伪装 Origin 请求头的请求过滤列表
  */
-async function updateCspRules({ csplist, orilist }) {
+function updateCspRules(params = {}) {
+  const task = cspRulesQueue.catch(() => {}).then(() => applyCspRules(params));
+  cspRulesQueue = task;
+  return task;
+}
+
+async function applyCspRules({ csplist, orilist } = {}) {
   try {
     // 1. 获取当前所有已注册的动态 DNR 规则
     const oldRules = await browser.declarativeNetRequest.getDynamicRules();
@@ -671,6 +888,8 @@ async function updateCspRules({ csplist, orilist }) {
           .split(/\n|,/)
           .map((url) => url.trim())
           .filter(Boolean);
+      } else if (!Array.isArray(processedCspList)) {
+        processedCspList = [];
       }
 
       // 获取所有属于 CSP 段的旧规则 ID，准备予以清理
@@ -707,6 +926,8 @@ async function updateCspRules({ csplist, orilist }) {
           .split(/\n|,/)
           .map((url) => url.trim())
           .filter(Boolean);
+      } else if (!Array.isArray(processedOriList)) {
+        processedOriList = [];
       }
 
       // 获取所有属于 Origin 修改段的旧规则 ID，准备清理
@@ -715,32 +936,38 @@ async function updateCspRules({ csplist, orilist }) {
         .map((rule) => rule.id);
       idsToRemove.push(...oldOriRuleIds);
 
-      // 将发往特定翻译源的 xmlhttprequest 请求的 Origin 修改为目标源域名，伪装成同源请求
-      const newOriRules = processedOriList.map((url, index) => {
-        const condition = {
-          urlFilter: url,
-          resourceTypes: ["xmlhttprequest"],
-        };
+      // 将发往特定翻译源的 xmlhttprequest 请求的 Origin 修改为目标源 origin，伪装成同源请求
+      const newOriRules = processedOriList
+        .map((url) => ({
+          url,
+          origin: normalizeOriginHeader(url),
+        }))
+        .filter(({ origin }) => Boolean(origin))
+        .map(({ url, origin }, index) => {
+          const condition = {
+            urlFilter: url,
+            resourceTypes: ["xmlhttprequest"],
+          };
 
-        // 仅对“非目标站点本身”的页面发起的请求伪装 Origin。
-        // 否则会篡改用户在目标站点（如有道）自身页面上发出的请求的 Origin，
-        // 反而触发该站点的跨域校验失败 (CORS AllowOriginMismatch)。详见 issue #759。
-        const initiatorDomain = getRegistrableDomain(url);
-        if (initiatorDomain) {
-          condition.excludedInitiatorDomains = [initiatorDomain];
-        }
+          // 仅对“非目标站点本身”的页面发起的请求伪装 Origin。
+          // 否则会篡改用户在目标站点（如有道）自身页面上发出的请求的 Origin，
+          // 反而触发该站点的跨域校验失败 (CORS AllowOriginMismatch)。详见 issue #759。
+          const initiatorDomain = getRegistrableDomain(origin);
+          if (initiatorDomain) {
+            condition.excludedInitiatorDomains = [initiatorDomain];
+          }
 
-        return {
-          id: ORI_RULE_START_ID + index,
-          action: {
-            type: "modifyHeaders",
-            requestHeaders: [
-              { header: "Origin", operation: "set", value: url },
-            ],
-          },
-          condition,
-        };
-      });
+          return {
+            id: ORI_RULE_START_ID + index,
+            action: {
+              type: "modifyHeaders",
+              requestHeaders: [
+                { header: "Origin", operation: "set", value: origin },
+              ],
+            },
+            condition,
+          };
+        });
       rulesToAdd.push(...newOriRules);
     }
 
@@ -792,7 +1019,7 @@ browser.runtime.onStartup.addListener(async () => {
   const { clearCache, contextMenuType, csplist, orilist, logLevel } =
     await getSettingWithDefault();
 
-  logger.setLevel(logLevel);
+  applyLogLevel(logLevel);
 
   if (clearCache) {
     tryClearCaches();
@@ -805,16 +1032,22 @@ browser.runtime.onStartup.addListener(async () => {
 });
 
 /**
- * 辅助函数：向前台当前活动标签页的所有框架 (Frames) 中注入指定的 JS 脚本或样式逻辑。
+ * 辅助函数：向前台目标标签页注入指定的 JS 脚本或样式逻辑。
+ * 优先定向到消息发送方所在的标签页与 frame，避免切页后错注到其他标签页。
  * @param {Function} func 待注入的函数
- * @param {*} args 传递给注入函数的入参
+ * @param {*} args 传递给注入函数的入参（数组时展开传递）
+ * @param {Object} [sender] runtime.onMessage 的发送方上下文
  */
-const injectToCurrentTab = async (func, args) => {
-  const tabId = await getCurTabId();
+const injectToCurrentTab = async (func, args, sender) => {
+  const tabId = validTabId(sender?.tab) ?? (await getCurTabId());
+  if (!Number.isInteger(tabId)) return;
+  const target = Number.isInteger(sender?.frameId)
+    ? { tabId, frameIds: [sender.frameId] }
+    : { tabId, allFrames: true };
   return browser.scripting.executeScript({
-    target: { tabId, allFrames: true },
-    func: func,
-    args: [args],
+    target,
+    func,
+    args: Array.isArray(args) ? args : [args],
     world: "MAIN", // 运行在前台页面的真实主环境 (MAIN world)，而非隔离环境 (ISOLATED)
   });
 };
@@ -831,26 +1064,28 @@ const messageHandlers = {
   [MSG_OPEN_OPTIONS]: (args) => openOptionsPage(args), // 打开设置选项页
   [MSG_SAVE_RULE]: (args) => saveRuleMessage(args), // 写入/保存规则
   [MSG_EDIT_RULE]: (args) => writeSiteRule(args),
-  [MSG_INJECT_JS]: (args) => injectToCurrentTab(injectInlineJsBg, args), // 注入 JS 代码到前台
   [MSG_INSTALL_LOCATION_HOOK]: (_args, sender) => {
     const injection = locationHookInjection(sender);
     if (!injection) return;
     return browser.scripting.executeScript(injection);
   },
-  [MSG_INJECT_CSS]: (args) => injectToCurrentTab(injectInternalCss, args), // 注入 CSS 样式到前台
+  [MSG_INJECT_CSS]: (args, sender) =>
+    injectToCurrentTab(injectInternalCss, [args, INJECT_SOURCE_PREFIX], sender), // 注入 CSS 样式到前台
   [MSG_UPDATE_CSP]: (args) => updateCspRules(args), // 触发 CSP 重写规则变更
   [MSG_CONTEXT_MENUS]: (args) => addContextMenus(args), // 切换右键菜单样式
   [MSG_COMMAND_SHORTCUTS]: () => browser.commands.getAll(), // 获取 manifest 注册的所有快捷键
   [MSG_BUILTINAI_DETECT]: (args) => chromeDetect(args), // 触发 Chrome 127+ 内置 Gemini AI 语言检测
   [MSG_BUILTINAI_TRANSLATE]: (args) => chromeTranslate(args), // 触发 Chrome 内置 AI 翻译接口
-  [MSG_SET_LOGLEVEL]: (args) => logger.setLevel(args), // 修改运行时的日志记录等级
+  [MSG_SET_LOGLEVEL]: (args) => applyLogLevel(args), // 修改运行时的日志记录等级
   [MSG_CLEAR_CACHES]: () => tryClearCaches(), // 清空翻译缓存
   [MSG_OPEN_SEPARATE_WINDOW]: () => openSeparateWindowWithSavedBounds(), // 打开独立翻译小窗口
   [MSG_FIT_SEPARATE_WINDOW]: (args) => fitSeparateWindow(args), // Fit the separate window to its content.
-  [MSG_UPDATE_SEPARATE_WINDOW_BOUNDS]: (args) =>
-    args?.windowId === separateWindowId
+  [MSG_UPDATE_SEPARATE_WINDOW_BOUNDS]: async (args) => {
+    await ensureSeparateWindowState();
+    return args?.windowId === separateWindowId
       ? updateCacheFromActual(args.windowId)
-      : undefined,
+      : undefined;
+  },
   [MSG_UPDATE_ICON]: (args, sender) => updateIcon(args, sender?.tab?.id), // 变更页面的插件高亮图标
   // Content scripts publish the current page rule so an open toolbar popup can
   // listen. The popup receives the same runtime message; nothing else to do.
@@ -860,10 +1095,18 @@ const messageHandlers = {
 /**
  * 注册全局统一的 runtime.onMessage 消息通道监听器。
  */
-browser.runtime.onMessage.addListener(async ({ action, args }, sender) => {
+browser.runtime.onMessage.addListener(async (message, sender) => {
+  if (!message || typeof message !== "object") {
+    throw new Error("Invalid message payload");
+  }
+  const { action, args } = message;
   const handler = messageHandlers[action];
   if (!handler) {
     throw new Error(`Message action is unavailable: ${action}`);
+  }
+
+  if (action !== MSG_SET_LOGLEVEL) {
+    void ensureLogLevelRestored();
   }
 
   // 执行对应的处理器并回传结果给发送方 (Content Script / Popup)
@@ -874,32 +1117,46 @@ browser.runtime.onMessage.addListener(async ({ action, args }, sender) => {
  * 监听浏览器系统快捷键事件 (browser.commands)。
  * 用户在 manifest 中声明的快捷键按下时，后台直接将对应的翻译指令广播给前台 content 脚本。
  */
-browser.commands?.onCommand?.addListener?.((command) => {
+browser.commands?.onCommand?.addListener?.((command, tab) => {
+  const tabId = validTabId(tab);
+  let result;
   switch (command) {
     case CMD_TOGGLE_TRANSLATE:
-      broadcastPageCommand(MSG_TRANS_TOGGLE);
+      result = broadcastPageCommand(MSG_TRANS_TOGGLE, tabId);
       break;
     case CMD_TOGGLE_TRANSLATE_ONLY:
-      broadcastPageCommand(MSG_TRANS_TOGGLE_ONLY);
+      result = broadcastPageCommand(MSG_TRANS_TOGGLE_ONLY, tabId);
       break;
     case CMD_OPEN_TRANBOX:
-      sendTabMsg(MSG_OPEN_TRANBOX);
+      result = sendTabMsg(MSG_OPEN_TRANBOX, undefined, undefined, tabId);
       break;
     case CMD_TOGGLE_TRANBOX:
-      sendTabMsg(MSG_TRANSBOX_TOGGLE);
+      result = sendTabMsg(MSG_TRANSBOX_TOGGLE, undefined, undefined, tabId);
       break;
     case CMD_TOGGLE_STYLE:
-      broadcastPageCommand(MSG_TRANS_TOGGLE_STYLE);
+      result = broadcastPageCommand(MSG_TRANS_TOGGLE_STYLE, tabId);
       break;
     case CMD_OPEN_OPTIONS:
-      openOptionsPage();
+      result = openOptionsPage();
       break;
     case CMD_OPEN_SEPARATE_WINDOW:
-      messageHandlers[MSG_OPEN_SEPARATE_WINDOW]();
+      result = messageHandlers[MSG_OPEN_SEPARATE_WINDOW]();
       break;
     default:
+      return;
   }
+  Promise.resolve(result).catch((err) =>
+    kissLog("command action error", command, err)
+  );
 });
+
+const validHttpStatus = (status) =>
+  typeof status === "number" &&
+  Number.isInteger(status) &&
+  status >= 100 &&
+  status <= 599
+    ? status
+    : undefined;
 
 /**
  * 专门处理 SSE/翻译大模型的流式数据请求通道。
@@ -908,7 +1165,7 @@ browser.commands?.onCommand?.addListener?.((command) => {
  * @param {Object} args 流式请求参数 (包含接口 input, fetch 配置 init 等)
  */
 async function handleStreamFetch(port, args) {
-  const { input, init, opts } = args;
+  const { input, init, opts } = args || {};
   const controller = new AbortController();
   let disconnected = false;
   const handleDisconnect = () => {
@@ -916,27 +1173,41 @@ async function handleStreamFetch(port, args) {
     // 前台 Port 断开代表调用方已停止消费流，必须同步中止后台 fetch。
     controller.abort();
   };
+  const safePostMessage = (message) => {
+    if (disconnected) return false;
+    try {
+      port.postMessage(message);
+      return true;
+    } catch {
+      handleDisconnect();
+      return false;
+    }
+  };
   port.onDisconnect.addListener(handleDisconnect);
 
   try {
     for await (const chunk of fetchStreamNative(input, init, {
-      httpTimeout: opts.httpTimeout,
+      httpTimeout: opts?.httpTimeout,
       signal: controller.signal,
     })) {
       if (disconnected) break;
       // 实时向发送端传送当前收到的流式增量文本块
-      port.postMessage({ type: "delta", data: chunk });
+      if (!safePostMessage({ type: "delta", data: chunk })) break;
     }
     // 只有 Port 仍连接时才发送完成信号，避免断开后继续 postMessage。
-    if (!disconnected) {
-      port.postMessage({ type: "done" });
-    }
+    safePostMessage({ type: "done" });
   } catch (error) {
     // 过滤用户主动取消导致的 AbortError，保留真正的远端请求错误。
-    if (error.name !== "AbortError") {
-      if (!disconnected) {
-        port.postMessage({ type: "error", error: error.message });
-      }
+    if (error?.name !== "AbortError") {
+      const status = validHttpStatus(error?.status);
+      safePostMessage({
+        type: "error",
+        error: {
+          message: error?.message || String(error),
+          name: error?.name || "Error",
+          ...(status !== undefined ? { status } : {}),
+        },
+      });
     }
   } finally {
     port.onDisconnect.removeListener?.(handleDisconnect);

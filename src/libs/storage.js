@@ -454,13 +454,11 @@ export const normalizeStoredSetting = (rawSetting) =>
   mergeSettingWithDefault(rawSetting);
 export const getSettingWithDefault = async () =>
   normalizeStoredSetting(await getSetting());
-export const setSetting = async (val) => setObj(STOKEY_SETTING, val);
 
 // --- 用户翻译规则 (Rules) 数据存取 ---
 export const getRules = () => getObj(STOKEY_RULES);
 export const getRulesWithDefault = async () =>
   (await getRules()) || DEFAULT_RULES;
-export const setRules = (val) => setObj(STOKEY_RULES, val);
 
 // --- 悬浮球 (Fab Button) 位置及偏好存取 ---
 export const getFab = () => getObj(STOKEY_FAB);
@@ -472,7 +470,11 @@ export const putFab = (obj) => putObj(STOKEY_FAB, obj);
 export const getTranBox = () => getObj(STOKEY_TRANBOX);
 export const putTranBox = (obj) => putObj(STOKEY_TRANBOX, obj);
 // 节流处理高频更新的 TranBox 位置写入
-export const debouncePutTranBox = debounce(putTranBox, 300);
+export const debouncePutTranBox = debounce((obj) => {
+  putTranBox(obj).catch((err) => {
+    kissLog("put tranbox error", err);
+  });
+}, 300);
 
 // --- 云同步元数据 (Sync Settings & Timestamps) 存取 ---
 export const getSync = () => getObj(STOKEY_SYNC);

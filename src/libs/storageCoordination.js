@@ -6,7 +6,6 @@ const LOCK_NAME = "kiss-storage-transaction";
 export const STORAGE_LOCK_HOLD_TIMEOUT_MS = 10000;
 let queue = Promise.resolve();
 let installed = false;
-let backgroundHold = 0;
 // Each extension page loads this module in its own window, so pagehide only
 // drops ports in the document that is entering the back/forward cache.
 const pageEvents = typeof window !== "undefined" ? window : undefined;
@@ -94,18 +93,28 @@ function withBackgroundLock(operation, markSettled) {
     const stopPageHide = () => {
       pageEvents?.removeEventListener("pagehide", onPageHide);
     };
-    const onDisconnect = () => {
+    const handleDisconnect = ({ forceSettle = false } = {}) => {
+      if (disconnected) {
+        if (forceSettle) settle();
+        return;
+      }
       disconnected = true;
       stopPageHide();
+      port.onDisconnect.removeListener(onDisconnect);
       const error = disconnectedError();
-      commitReply?.reject(error);
+      const pendingCommitReply = commitReply;
+      commitReply = undefined;
+      pendingCommitReply?.reject(error);
       // The caller must observe the disconnect even while its operation is
       // still awaiting a frozen frame. An acknowledged commit still resolves.
       if (!finished && !commitAcknowledged) {
         finished = true;
         reject(error);
       }
-      if (!granted) settle();
+      if (forceSettle || !granted) settle();
+    };
+    const onDisconnect = () => {
+      handleDisconnect();
     };
     port.onDisconnect.addListener(onDisconnect);
     const onPageHide = (event) => {
@@ -123,7 +132,9 @@ function withBackgroundLock(operation, markSettled) {
       } catch {
         // The browser may already have closed this port.
       }
-      settle();
+      // Client-initiated port.disconnect() does not fire port.onDisconnect on
+      // this side; run shared disconnect cleanup so callers enter recovery.
+      handleDisconnect({ forceSettle: true });
     };
     pageEvents?.addEventListener("pagehide", onPageHide);
     port.onMessage.addListener(async (message) => {
@@ -197,13 +208,6 @@ function withBackgroundLock(operation, markSettled) {
 
 /** Only short storage operations belong here; network requests must run outside. */
 export function withStorageLock(operation) {
-  // Reject only while this background turn is already inside the lock. A second
-  // background call made before that turn starts still queues behind it.
-  if (isExt && isBg?.() && backgroundHold > 0) {
-    return Promise.reject(
-      storageFailure(new Error("Background storage lock cannot be re-entered"))
-    );
-  }
   if (isExt && !isBg?.()) {
     // The caller learns about a dropped port immediately. This page's queue
     // still waits until the in-flight operation finishes, so the next local
@@ -230,17 +234,7 @@ export function withStorageLock(operation) {
   }
   return enqueue(() => {
     if (isExt) {
-      backgroundHold += 1;
-      try {
-        return Promise.resolve(
-          operation({ commit: commitExtensionWrites })
-        ).finally(() => {
-          backgroundHold -= 1;
-        });
-      } catch (error) {
-        backgroundHold -= 1;
-        throw error;
-      }
+      return Promise.resolve(operation({ commit: commitExtensionWrites }));
     }
     throw new Error("Cross-page storage coordination is unavailable");
   }).catch((error) => {

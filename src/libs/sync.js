@@ -1,5 +1,7 @@
 import {
   APP_LCNAME,
+  GLOBAL_KEY,
+  GLOBLA_RULE,
   KV_SETTING_KEY,
   KV_RULES_KEY,
   OPT_SYNCTYPE_WEBDAV,
@@ -177,7 +179,10 @@ const syncByGist = async (
   const gist = await apiGetGist(gistId, syncKey);
   const file = gist.files?.[filename] || gist.files?.[data.key];
   if (file && !forceWrite) {
-    const fileContent = file.content || (await apiFetchText(file.raw_url));
+    const fileContent =
+      file.truncated || !file.content
+        ? await apiFetchText(file.raw_url)
+        : file.content;
     const gistData = JSON.parse(fileContent);
     if (gistData.updateAt >= data.updateAt) {
       return gistData;
@@ -305,7 +310,7 @@ const forceSyncDataWithEncryptKey = async (
 
   const originalKeyMeta = { ...(syncMeta[key] || {}) };
   // 口令轮换会改变密文内容，必须提升 updateAt 让其他设备感知新版本。
-  const updateAt = Math.max(Date.now(), originalKeyMeta.updateAt || 0);
+  const updateAt = Math.max(Date.now(), (originalKeyMeta.updateAt || 0) + 1);
   const args = {
     syncUrl,
     syncUser,
@@ -323,7 +328,7 @@ const forceSyncDataWithEncryptKey = async (
 
   const res = await syncByType(syncType, data, args, { forceWrite: true });
   if (!res) {
-    throw new Error("sync data got err", key);
+    throw new Error(`sync data got err: ${key}`);
   }
 
   let committed = false;
@@ -487,7 +492,7 @@ export const syncData = async (
   const remoteRes = await syncByType(syncType, encryptedData, args);
 
   if (!remoteRes) {
-    throw new Error("sync data got err", key);
+    throw new Error(`sync data got err: ${key}`);
   }
 
   const res = await decryptSyncData(remoteRes, syncEncryptKey);
@@ -561,6 +566,22 @@ export const syncData = async (
   return result;
 };
 
+function normalizeRemoteSyncValue(storageKey, value) {
+  if (storageKey === STOKEY_RULES) {
+    const checked = checkRules(value);
+    return checked.some((rule) => rule.pattern === GLOBAL_KEY)
+      ? checked
+      : [...checked, { ...GLOBLA_RULE }];
+  }
+  if (storageKey === STOKEY_SETTING) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Invalid synced setting data");
+    }
+    return value;
+  }
+  return value;
+}
+
 function syncStoredValue(key, storageKey, options = {}) {
   return enqueueStorageSync(storageKey, async () => {
     let originalState;
@@ -613,6 +634,9 @@ function syncStoredValue(key, storageKey, options = {}) {
     if (!result) return result;
     const commitDownloadedValue = async ({ expectedConfig } = {}) => {
       let destinationValid = true;
+      const storedValue = result.isNew
+        ? normalizeRemoteSyncValue(storageKey, result.value)
+        : result.value;
       const commitState = findStorageState(storageKey);
       const enqueueCommit = commitState
         ? commitState.enqueueWrite
@@ -622,10 +646,6 @@ function syncStoredValue(key, storageKey, options = {}) {
           const committed = await result.commit({
             applyValue: async (transaction) => {
               if (result.isNew) {
-                const storedValue =
-                  storageKey === STOKEY_RULES
-                    ? checkRules(result.value)
-                    : result.value;
                 await transaction.setObj(storageKey, storedValue);
               }
             },
@@ -649,11 +669,7 @@ function syncStoredValue(key, storageKey, options = {}) {
           const currentState = findStorageState(storageKey);
           if (committed && currentState && isCurrent()) {
             if (result.isNew) {
-              currentState.acceptValue(
-                storageKey === STOKEY_RULES
-                  ? checkRules(result.value)
-                  : result.value
-              );
+              currentState.acceptValue(storedValue);
             } else if (options.persistMeta !== false) {
               currentState.markSynced(currentState.revision);
             }
@@ -776,12 +792,36 @@ export const changeSyncEncryptKey = async ({
     newEncryptKey,
     expectedConfig
   );
-  await forceSyncDataWithEncryptKey(
-    KV_RULES_KEY,
-    STOKEY_RULES,
-    newEncryptKey,
-    expectedConfig
-  );
+  try {
+    await forceSyncDataWithEncryptKey(
+      KV_RULES_KEY,
+      STOKEY_RULES,
+      newEncryptKey,
+      expectedConfig
+    );
+  } catch (rulesError) {
+    // 第二个文件回写失败时，尝试用旧口令回滚第一个文件，避免两端密文口令分裂。
+    try {
+      await forceSyncDataWithEncryptKey(
+        KV_SETTING_KEY,
+        STOKEY_SETTING,
+        oldEncryptKey,
+        expectedConfig
+      );
+    } catch (rollbackError) {
+      kissLog("rollback sync encrypt key failed", rollbackError);
+      const combined = new Error(
+        `Failed to re-encrypt rules and rollback setting with old passphrase: ${rulesError?.message || rulesError}`
+      );
+      combined.cause = { error: rulesError, rollbackError };
+      throw combined;
+    }
+    const wrapped = new Error(
+      `Failed to re-encrypt rules; setting rolled back to old passphrase: ${rulesError?.message || rulesError}`
+    );
+    wrapped.cause = rulesError;
+    throw wrapped;
+  }
 
   await putSync(
     { syncEncryptKey: newEncryptKey },

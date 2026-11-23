@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import { DEFAULT_SHORTCUTS } from "../config";
+import { cloneStorageValue } from "../libs/storageEquality";
 import { useSetting } from "./Setting";
+
+const EMPTY_SHORTCUT = [];
 
 /**
  * 快捷键配置项的读取与更新自定义 Hook
@@ -12,14 +15,15 @@ export function useShortcut(action) {
   // 获取当前的快捷键映射，若未配置则加载默认的快捷键集合
   const shortcuts = setting?.shortcuts || DEFAULT_SHORTCUTS;
   // 获取当前动作 action 绑定的快捷键（可能是一个数组，包含按键名）
-  const shortcut = shortcuts[action] || [];
+  const shortcut = shortcuts[action] || EMPTY_SHORTCUT;
 
   // 更新该操作 action 的快捷键值并持久化
   const setShortcut = useCallback(
     (val) => {
-      updateSetting((prev) => ({
+      const nextVal = cloneStorageValue(val);
+      return updateSetting((prev) => ({
         ...prev,
-        shortcuts: { ...(prev?.shortcuts || {}), [action]: val },
+        shortcuts: { ...(prev?.shortcuts || {}), [action]: nextVal },
       }));
     },
     [action, updateSetting]

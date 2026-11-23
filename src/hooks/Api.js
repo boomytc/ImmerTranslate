@@ -5,6 +5,7 @@ import {
   getApiDisplayName,
   normalizeApiThinkingSettings,
 } from "../config";
+import { cloneStorageValue } from "../libs/storageEquality";
 import { useSetting } from "./Setting";
 
 // 内部辅助 Hook，获取翻译 API 的排序状态和更新配置的方法
@@ -13,9 +14,9 @@ function useApiState() {
   // 统一排序，所有使用transApis的地方都是按照 sortOrder 从小到大排序好的
   const transApis = useMemo(
     () =>
-      [
-        ...normalizeApiThinkingSettings(setting?.transApis || []),
-      ].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+      [...normalizeApiThinkingSettings(setting?.transApis || [])].sort(
+        (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)
+      ),
     [setting?.transApis]
   );
 
@@ -193,14 +194,14 @@ export function useApiList() {
       // 使用类型名拼合 UUID 保证 apiSlug 唯一，代表具体 API 实例
       const apiSlug = `${apiType}_${getUuid()}`;
       const apiName = `${apiType}_${uuid.slice(0, 8)}`;
-      const newApi = {
+      const newApi = cloneStorageValue({
         ...defaultApiOpt,
         apiSlug,
         apiName,
         apiType,
         isDisabled: false,
         sortOrder: 0,
-      };
+      });
       updateSetting((prev) => ({
         ...prev,
         transApis: [...(prev?.transApis || []), newApi],
@@ -216,11 +217,11 @@ export function useApiList() {
       const uuid = getUuid();
       const apiSlug = `${sourceApi.apiType}_${uuid}`;
       const apiName = `${sourceApi.apiName} - copy`;
-      const newApi = {
+      const newApi = cloneStorageValue({
         ...sourceApi,
         apiSlug,
         apiName,
-      };
+      });
       updateSetting((prev) => ({
         ...prev,
         transApis: [...(prev?.transApis || []), newApi],
@@ -234,11 +235,12 @@ export function useApiList() {
   const deleteApis = useCallback(
     (apiSlugs) => {
       if (!Array.isArray(apiSlugs) || apiSlugs.length === 0) {
-        return;
+        return Promise.resolve();
       }
 
-      updateSetting((prev) => {
-        const apiSlugSet = new Set(apiSlugs);
+      const targetSlugs = cloneStorageValue(apiSlugs);
+      return updateSetting((prev) => {
+        const apiSlugSet = new Set(targetSlugs);
 
         return {
           ...prev,
@@ -254,7 +256,7 @@ export function useApiList() {
   // 删除一个翻译 API 配置项
   const deleteApi = useCallback(
     (apiSlug) => {
-      deleteApis([apiSlug]);
+      return deleteApis([apiSlug]);
     },
     [deleteApis]
   );
@@ -263,11 +265,12 @@ export function useApiList() {
   const pinApis = useCallback(
     (apiSlugs) => {
       if (!Array.isArray(apiSlugs) || apiSlugs.length === 0) {
-        return;
+        return Promise.resolve();
       }
 
-      updateSetting((prev) => {
-        const apiSlugSet = new Set(apiSlugs);
+      const targetSlugs = cloneStorageValue(apiSlugs);
+      return updateSetting((prev) => {
+        const apiSlugSet = new Set(targetSlugs);
         const nextApis = getDisplayOrderedApis(prev?.transApis || []).map(
           (api) =>
             apiSlugSet.has(api.apiSlug) && !api.isDisabled
@@ -288,11 +291,12 @@ export function useApiList() {
   const disableApis = useCallback(
     (apiSlugs) => {
       if (!Array.isArray(apiSlugs) || apiSlugs.length === 0) {
-        return;
+        return Promise.resolve();
       }
 
-      updateSetting((prev) => {
-        const apiSlugSet = new Set(apiSlugs);
+      const targetSlugs = cloneStorageValue(apiSlugs);
+      return updateSetting((prev) => {
+        const apiSlugSet = new Set(targetSlugs);
         const nextApis = getDisplayOrderedApis(prev?.transApis || []).map(
           (api) =>
             apiSlugSet.has(api.apiSlug)
@@ -313,11 +317,12 @@ export function useApiList() {
   const enableApis = useCallback(
     (apiSlugs) => {
       if (!Array.isArray(apiSlugs) || apiSlugs.length === 0) {
-        return;
+        return Promise.resolve();
       }
 
-      updateSetting((prev) => {
-        const apiSlugSet = new Set(apiSlugs);
+      const targetSlugs = cloneStorageValue(apiSlugs);
+      return updateSetting((prev) => {
+        const apiSlugSet = new Set(targetSlugs);
         const nextApis = getDisplayOrderedApis(prev?.transApis || []).map(
           (api) => {
             if (!apiSlugSet.has(api.apiSlug) || !api.isDisabled) {
@@ -340,7 +345,7 @@ export function useApiList() {
   // Sort enabled, non-pinned APIs alphabetically by their visible names.
   const alphaSortApis = useCallback(
     (direction = API_SORT_MODES.ASC) => {
-      updateSetting((prev) => {
+      return updateSetting((prev) => {
         return {
           ...prev,
           transApis: sortApisAlphabetically(prev?.transApis || [], direction),
@@ -352,9 +357,11 @@ export function useApiList() {
 
   const reorderApis = useCallback(
     (activeSlug, overSlug) => {
-      if (!activeSlug || !overSlug || activeSlug === overSlug) return;
+      if (!activeSlug || !overSlug || activeSlug === overSlug) {
+        return Promise.resolve();
+      }
 
-      updateSetting((prev) => {
+      return updateSetting((prev) => {
         const apis = [...(prev?.transApis || [])].sort(
           (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)
         );
@@ -412,10 +419,11 @@ export function useApiItem(apiSlug) {
   // 更新当前 API 项的某些属性数据，并防止 Slug 被意外更改
   const update = useCallback(
     (updateData) => {
-      updateSetting((prev) => ({
+      const patch = cloneStorageValue(updateData);
+      return updateSetting((prev) => ({
         ...prev,
         transApis: (prev?.transApis || []).map((item) =>
-          item.apiSlug === apiSlug ? { ...item, ...updateData, apiSlug } : item
+          item.apiSlug === apiSlug ? { ...item, ...patch, apiSlug } : item
         ),
       }));
     },
@@ -424,12 +432,13 @@ export function useApiItem(apiSlug) {
 
   // Reset provider options while preserving identity, credentials, and list state.
   const reset = useCallback(() => {
-    updateSetting((prev) => ({
+    return updateSetting((prev) => ({
       ...prev,
       transApis: (prev?.transApis || []).map((item) => {
         if (item.apiSlug === apiSlug) {
-          const defaultApiOpt =
-            DEFAULT_API_LIST.find((da) => da.apiType === item.apiType) || {};
+          const defaultApiOpt = cloneStorageValue(
+            DEFAULT_API_LIST.find((da) => da.apiType === item.apiType) || {}
+          );
           return {
             ...defaultApiOpt,
             apiSlug: item.apiSlug,

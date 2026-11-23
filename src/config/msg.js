@@ -39,7 +39,6 @@ export const MSG_TRANSINPUT_TOGGLE = "toggle_input_translation"; // 切换输入
 export const MSG_INPUT_TRANSLATE = "input_translate"; // 触发输入框即时翻译
 export const MSG_CONTEXT_MENUS = "context_menus"; // 更新或创建右键上下文菜单
 export const MSG_COMMAND_SHORTCUTS = "command_shortcuts"; // 获取扩展注册的全局快捷键
-export const MSG_INJECT_JS = "inject_js"; // 在主文档环境中注入并运行 inline JS
 export const MSG_INSTALL_LOCATION_HOOK = "install_location_hook"; // 在页面主世界包住 history.pushState/replaceState
 export const MSG_INJECT_CSS = "inject_css"; // 在主文档或 Shadow Root 中注入自定义 CSS
 export const MSG_UPDATE_CSP = "update_csp"; // 请求后台脚本动态更新内容安全策略(CSP)及请求头 Origin

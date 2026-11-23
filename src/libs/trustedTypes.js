@@ -5,6 +5,38 @@
 
 import DOMPurify from "dompurify";
 import { APP_LCNAME } from "../config/app";
+import { browser } from "./browser";
+
+const validateScriptURL = (urlString) => {
+  if (typeof urlString !== "string" || !urlString.trim()) {
+    throw new TypeError("Invalid script URL");
+  }
+
+  const extensionPrefix =
+    typeof browser?.runtime?.getURL === "function"
+      ? browser.runtime.getURL("")
+      : "";
+  if (extensionPrefix) {
+    const normalized = new URL(urlString).href;
+    if (!normalized.startsWith(extensionPrefix)) {
+      throw new TypeError("Blocked untrusted script URL");
+    }
+    return normalized;
+  }
+
+  // 非扩展环境下仅放行同源脚本地址，避免放行任意第三方脚本。
+  if (
+    typeof globalThis.location?.origin === "string" &&
+    globalThis.location.origin !== "null"
+  ) {
+    const parsed = new URL(urlString, globalThis.location.href);
+    if (parsed.origin === globalThis.location.origin) {
+      return parsed.href;
+    }
+  }
+
+  throw new TypeError("Blocked untrusted script URL");
+};
 
 // JSDoc 类型的 Trusted Types 辅助工具类
 export const trustedTypesHelper = (() => {
@@ -26,21 +58,11 @@ export const trustedTypesHelper = (() => {
       policy = globalThis.trustedTypes.createPolicy(POLICY_NAME, {
         // 使用 DOMPurify 清洗注入的 HTML，保证译文容器中没有恶意代码
         createHTML: (string) => DOMPurify.sanitize(string),
-
-        // REVIEW: createScript 和 createScriptURL 目前只是原样返回，仅能绕过 CSP 检测，但无法拦截恶意的恶意脚本字符串注入。
-        // 如果插件以后会接收外部不受信源的脚本，建议在这里进行正则或者白名单过滤。
         createScript: (string) => string,
-        createScriptURL: (string) => string,
+        createScriptURL: (string) => validateScriptURL(string),
       });
-    } catch (err) {
-      // 避免在某些重复执行的生命周期中抛出 Policy 命名重复错误
-      if (err?.message?.includes("already exists")) {
-        policy = globalThis.trustedTypes.policies?.get(POLICY_NAME) || null;
-      }
-
-      if (!policy) {
-        policyUnavailable = true;
-      }
+    } catch {
+      policyUnavailable = true;
     }
 
     return policy;
@@ -68,14 +90,14 @@ export const trustedTypesHelper = (() => {
         : scriptString;
     },
     /**
-     * 创建符合可信类型的 ScriptURL 脚本地址，若不支持则原样返回
+     * 创建符合可信类型的 ScriptURL 脚本地址，并校验其属于受信任来源
      * @param {string} urlString
      */
     createScriptURL: (urlString) => {
       const trustedPolicy = createPolicy();
       return trustedPolicy
         ? trustedPolicy.createScriptURL(urlString)
-        : urlString;
+        : validateScriptURL(urlString);
     },
     /**
      * 判断当前 Trusted Types 策略是否生效

@@ -2,10 +2,12 @@ import { useCallback, useMemo } from "react";
 import { useSetting } from "./Setting";
 import { DEFAULT_CUSTOM_STYLES, OPT_STYLE_ALL } from "../config/styles";
 import { builtinStylesMap } from "../libs/style";
+import { cloneStorageValue } from "../libs/storageEquality";
 import { useI18n } from "./I18n";
 
 export const STYLE_SOURCE_BUILTIN = "builtin";
 export const STYLE_SOURCE_CUSTOM = "custom";
+const EMPTY_CUSTOM_STYLES = [];
 
 export function getCompactStylePreviewCode(style) {
   if (style?.source !== STYLE_SOURCE_BUILTIN || style?.isBuiltin !== true) {
@@ -25,7 +27,7 @@ export function toPersistedCustomStyle(style = {}) {
 // 内部状态 Hook，解构并提供用户自定义样式列表和更新方法
 function useStyleState() {
   const { setting, updateSetting } = useSetting();
-  const customStyles = setting?.customStyles || [];
+  const customStyles = setting?.customStyles || EMPTY_CUSTOM_STYLES;
 
   return { customStyles, updateSetting };
 }
@@ -42,12 +44,12 @@ export function useStyleList() {
     const uuid = crypto.randomUUID();
     const styleSlug = `custom_${crypto.randomUUID()}`;
     const styleName = `Style_${uuid.slice(0, 8)}`;
-    const newStyle = {
+    const newStyle = cloneStorageValue({
       ...defaultStyle,
       styleSlug,
       styleName,
-    };
-    updateSetting((prev) => ({
+    });
+    return updateSetting((prev) => ({
       ...prev,
       customStyles: [...(prev?.customStyles || []), newStyle],
     }));
@@ -56,7 +58,7 @@ export function useStyleList() {
   // 删除特定的自定义 CSS 样式项
   const deleteStyle = useCallback(
     (styleSlug) => {
-      updateSetting((prev) => ({
+      return updateSetting((prev) => ({
         ...prev,
         customStyles: (prev?.customStyles || []).filter(
           (item) => item.styleSlug !== styleSlug
@@ -69,10 +71,11 @@ export function useStyleList() {
   // 更新特定自定义样式的属性数据（例如 styleName 或 styleCode 等）
   const updateStyle = useCallback(
     (styleSlug, updateData) => {
-      updateSetting((prev) => ({
+      const patch = cloneStorageValue(updateData);
+      return updateSetting((prev) => ({
         ...prev,
         customStyles: (prev?.customStyles || []).map((item) =>
-          item.styleSlug === styleSlug ? { ...item, ...updateData } : item
+          item.styleSlug === styleSlug ? { ...item, ...patch } : item
         ),
       }));
     },

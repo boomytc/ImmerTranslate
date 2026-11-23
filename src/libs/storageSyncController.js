@@ -1,8 +1,31 @@
-import { STOKEY_SYNC } from "../config";
+import {
+  GLOBAL_KEY,
+  GLOBLA_RULE,
+  STOKEY_RULES,
+  STOKEY_SETTING,
+  STOKEY_SYNC,
+} from "../config";
 import { storage } from "./storage";
 import { isSameStorageValue } from "./storageEquality";
 import { kissLog } from "./log";
+import { checkRules } from "./rules";
 import { syncData } from "./sync";
+
+function normalizeSyncedValue(key, value) {
+  if (key === STOKEY_RULES) {
+    const checked = checkRules(value);
+    return checked.some((rule) => rule.pattern === GLOBAL_KEY)
+      ? checked
+      : [...checked, { ...GLOBLA_RULE }];
+  }
+  if (key === STOKEY_SETTING) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Invalid synced setting data");
+    }
+    return value;
+  }
+  return value;
+}
 
 /** Run synchronization independently of the lifetime of a React subscriber. */
 export function syncStorageState(key, syncKey, state, revision, value) {
@@ -33,11 +56,14 @@ export function syncStorageState(key, syncKey, state, revision, value) {
         syncConfig: request.config,
       });
       if (!result) return;
+      const nextValue = result.isNew
+        ? normalizeSyncedValue(key, result.value)
+        : result.value;
       const accepted = await state.enqueueWrite(async () => {
         try {
           const committed = await result.commit({
             applyValue: async (transaction) => {
-              if (result.isNew) await transaction.setObj(key, result.value);
+              if (result.isNew) await transaction.setObj(key, nextValue);
             },
             isCurrent,
             shouldRetry: () =>
@@ -47,7 +73,7 @@ export function syncStorageState(key, syncKey, state, revision, value) {
           });
           // Accept the receipt before queued invalidation reads can run.
           if (committed && isCurrent()) {
-            if (result.isNew) state.acceptValue(result.value);
+            if (result.isNew) state.acceptValue(nextValue);
             else state.markSynced(revision);
           }
           return committed;

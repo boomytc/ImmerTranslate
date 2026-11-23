@@ -198,9 +198,9 @@ export function getStorageState(key, defaultValue) {
         ? null
         : (value ?? defaultValue);
     if (!isSameStorageValue(base, current)) dirty = false;
-    adoptBase(current);
     recovering = false;
-    publish();
+    lastError = null;
+    adoptBase(current);
   };
   const load = () => {
     const requestReadVersion = ++readVersion;

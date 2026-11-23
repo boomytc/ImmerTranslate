@@ -1,7 +1,10 @@
 import { STOKEY_RULES, DEFAULT_RULES, KV_RULES_KEY } from "../config";
 import { useStorage } from "./Storage";
 import { checkRules } from "../libs/rules";
+import { cloneStorageValue } from "../libs/storageEquality";
 import { useCallback } from "react";
+
+const EMPTY_RULES = [];
 
 /**
  * 翻译规则列表增删改查管理的自定义 Hook
@@ -9,7 +12,7 @@ import { useCallback } from "react";
 export function useRules() {
   // 使用 useStorage 管理翻译规则的持久化读写
   const {
-    data: list = [],
+    data: list = EMPTY_RULES,
     save,
     isLoading,
   } = useStorage(STOKEY_RULES, DEFAULT_RULES, KV_RULES_KEY);
@@ -17,14 +20,15 @@ export function useRules() {
   // 添加单条规则，但限制通配符 "*" 规则的添加，且过滤重复 pattern 规则
   const add = useCallback(
     (rule) => {
-      save((prev) => {
+      const nextRule = cloneStorageValue(rule);
+      return save((prev) => {
         if (
-          rule.pattern === "*" ||
-          prev.some((item) => item.pattern === rule.pattern)
+          nextRule.pattern === "*" ||
+          prev.some((item) => item.pattern === nextRule.pattern)
         ) {
           return prev;
         }
-        return [rule, ...prev];
+        return [nextRule, ...prev];
       });
     },
     [save]
@@ -33,7 +37,7 @@ export function useRules() {
   // 删除单条特定 pattern 的规则，不允许直接删除默认通配符 "*" 规则
   const del = useCallback(
     (pattern) => {
-      save((prev) => {
+      return save((prev) => {
         if (pattern === "*") {
           return prev;
         }
@@ -45,15 +49,16 @@ export function useRules() {
 
   // 清空所有规则，但保留默认通配符 "*" 规则
   const clear = useCallback(() => {
-    save((prev) => prev.filter((item) => item.pattern === "*"));
+    return save((prev) => prev.filter((item) => item.pattern === "*"));
   }, [save]);
 
   // 修改/替换特定 pattern 规则的内部属性数据
   const put = useCallback(
     (pattern, obj) => {
-      save((prev) => {
+      const patch = cloneStorageValue(obj);
+      return save((prev) => {
         return prev.map((item) =>
-          item.pattern === pattern ? { ...item, ...obj } : item
+          item.pattern === pattern ? { ...item, ...patch } : item
         );
       });
     },
@@ -63,9 +68,10 @@ export function useRules() {
   // 批量合并新规则数组
   const merge = useCallback(
     (rules) => {
-      save((prev) => {
+      const nextRules = cloneStorageValue(rules);
+      return save((prev) => {
         // 先对导入的规则列表进行基本的格式与字段合法性校验
-        const adds = checkRules(rules);
+        const adds = checkRules(nextRules);
         if (adds.length === 0) {
           return prev;
         }
