@@ -1,4 +1,12 @@
 #!/usr/bin/env zx
+import { $, cd, chalk, fs, quote } from "zx";
+
+// 在 Windows 上使用 cmd.exe，避免 zx 默认使用 WSL bash 导致 node not found
+if (process.platform === "win32") {
+  $.shell = "cmd.exe";
+  $.prefix = "";
+  $.quote = quote;
+}
 
 console.log(chalk.cyan("\nStarting compression tasks...\n"));
 
@@ -12,7 +20,7 @@ for (const file of await fs.readdir(".")) {
 
 /**
  * 定义打包任务配置
- * * @property {string} output - 输出文件名
+ * @property {string} output - 输出文件名
  * @property {string} source - 要打包的源（文件或目录名）
  * @property {string} [cwd]  - (可选) 执行打包命令时所在的目录。
  */
@@ -26,8 +34,8 @@ try {
     console.log(`Zipping folder ${task.source}...`);
     await $`bestzip ${task.output} ${task.source}`;
   }
-  console.log(chalk.green("\n✅ All zip files created successfully."));
+  console.log(chalk.green("\nAll zip files created successfully."));
 } catch (err) {
-  console.error(chalk.red("❌ Error during zipping:"), err);
+  console.error(chalk.red("Error during zipping:"), err);
   process.exit(1);
 }

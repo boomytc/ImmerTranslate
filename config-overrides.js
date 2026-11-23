@@ -43,9 +43,9 @@ const extWebpack = (config, env) => {
   config.output.filename = "[name].js";
   config.output.assetModuleFilename = "media/[name][ext]";
 
-  // REVIEW: 在 Webpack 5 环境下只设置 default: false 依然有触发 vendors 分包切片的可能，更安全的做法是直接设为 false 或显式清空 vendors 缓存组
-  config.optimization.splitChunks = { cacheGroups: { default: false } };
-  config.optimization.runtimeChunk = false; // 禁用 runtime 独立分包
+  // 禁用代码分包与 runtime 独立分包，避免拆出未在 manifest 声明的公共 chunk
+  config.optimization.splitChunks = false;
+  config.optimization.runtimeChunk = false;
 
   // 3. 过滤掉原本 react-scripts 针对单页应用的插件实例
   config.plugins = config.plugins.filter(

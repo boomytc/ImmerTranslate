@@ -33,7 +33,7 @@
     "version:set": "zx src/scripts/update-version.mjs set",
     "build:chrome": "zx src/scripts/build-task.mjs --target=chrome",
     "build:edge": "zx src/scripts/build-task.mjs --target=edge",
-    "format": "prettier --write \"**/*.{js,json,html}\"",
+    "format": "prettier --write \"**/*.{js,mjs,json,html,md,yml}\"",
     "build": "pnpm sync-version && node src/scripts/clean-build.mjs && pnpm build:chrome && pnpm build:edge",
     "zip": "zx src/scripts/archive.mjs",
     "build+zip": "cross-env CI=true pnpm build && pnpm zip",

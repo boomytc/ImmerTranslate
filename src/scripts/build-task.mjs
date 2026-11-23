@@ -68,11 +68,8 @@ try {
   target = parseBuildTarget(getScriptArgs());
   const buildRoot = "build";
   const targetDir = path.join(buildRoot, target);
-  const inDest = (file) => path.join(targetDir, file);
 
-  console.log(
-    chalk.blue(`\n🚀 Starting build task for: ${chalk.bold(target)}`)
-  );
+  console.log(chalk.blue(`\nStarting build task for: ${chalk.bold(target)}`));
 
   if (target === "edge") {
     const chromeDir = path.join(buildRoot, "chrome");
@@ -83,7 +80,7 @@ try {
     }
     await fs.remove(targetDir);
     await fs.copy(chromeDir, targetDir);
-    console.log(chalk.green("✅ Copied Chrome build to Edge."));
+    console.log(chalk.green("Copied Chrome build to Edge."));
   } else {
     await fs.remove(targetDir);
     process.env.BUILD_PATH = `./${targetDir}`;
@@ -100,18 +97,11 @@ try {
     await $({ stdio: "inherit" })`react-app-rewired build`;
   }
 
-  // 后处理：文件清理
-  console.log(chalk.gray(`Running post-build cleanups...`));
-
-  await fs.remove(inDest("content.html"));
-
   console.log(
-    chalk.green(`✅ Build task for [${target}] completed successfully!`)
+    chalk.green(`Build task for [${target}] completed successfully!`)
   );
 } catch (err) {
-  console.error(
-    chalk.red(`\n❌ Build failed${target ? ` for ${target}` : ""}:`)
-  );
+  console.error(chalk.red(`\nBuild failed${target ? ` for ${target}` : ""}:`));
   if (!(err instanceof ProcessOutput)) {
     console.error(err);
   }

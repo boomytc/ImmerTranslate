@@ -33,7 +33,7 @@ pnpm check          # 测试残留、格式、版本与 CHANGELOG、双端构建
 
 ## 3. 版本
 
-- `package.json` 的 `version` 是更新日期，格式 `YY.MMDD.HHMM`，例如 `26.1119.1740`。`.env` 中的 `REACT_APP_VERSION` 与 `public/manifest.json` 中的 `version` 由 `pnpm sync-version` 同步，禁止手工分别改。指定时刻用 `pnpm version:set -- 26.1119.1740`。
+- `package.json` 的 `version` 是更新日期，格式 `YY.MMDD.HHMM`，例如 `26.1119.1740`。`.env` 中的 `REACT_APP_VERSION` 与 `public/manifest.json` 中的 `version`（每段无前导零整数，例如 `26.0115.0830` 对应 `26.115.830`）、`version_name`（完整 `YY.MMDD.HHMM`）由 `pnpm sync-version` 同步，禁止手工分别改。指定时刻用 `pnpm version:set -- 26.1119.1740`。
 - `CHANGELOG.md` 顶部是唯一、非空的 `## <日期>`，用通俗中文说明当前能看到的行为。时刻没变时不另起一节。
 - 开发在 `main` 分支进行。不要 force push。
 - 检查和构建在本机完成，仓库不使用 GitHub Actions。
