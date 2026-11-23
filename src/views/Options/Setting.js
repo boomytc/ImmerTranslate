@@ -302,6 +302,18 @@ export default function Settings() {
     halfHide,
     fabClickAction = 0,
   } = normalizeFabConfig(fab);
+  const [hiddenSitesDraft, setHiddenSitesDraft] = useState(null);
+  const hiddenSitesValue = hiddenSitesDraft ?? hiddenSites;
+  const commitHiddenSites = (value) => {
+    setHiddenSitesDraft(null);
+    if (value !== hiddenSites) updateFab({ hiddenSites: value });
+  };
+  const [shownSitesDraft, setShownSitesDraft] = useState(null);
+  const shownSitesValue = shownSitesDraft ?? shownSites;
+  const commitShownSites = (value) => {
+    setShownSitesDraft(null);
+    if (value !== shownSites) updateFab({ shownSites: value });
+  };
 
   return (
     <Box>
@@ -317,7 +329,20 @@ export default function Settings() {
         >
           <UploadButton text={i18n("import")} handleImport={handleImport} />
           <DownloadButton
-            handleData={() => JSON.stringify(setting, null, 2)}
+            handleData={() =>
+              JSON.stringify(
+                {
+                  ...setting,
+                  ...(blacklistDraft !== null
+                    ? { blacklist: blacklistDraft }
+                    : {}),
+                  ...(orilistDraft !== null ? { orilist: orilistDraft } : {}),
+                  ...(csplistDraft !== null ? { csplist: csplistDraft } : {}),
+                },
+                null,
+                2
+              )
+            }
             text={i18n("export")}
             fileName={`${APP_LCNAME}-setting_${Date.now()}.json`}
           />
@@ -473,10 +498,11 @@ export default function Settings() {
               multiline
               maxRows={10}
               name="hiddenSites"
-              value={hiddenSites}
+              value={hiddenSitesValue}
               label={i18n("fab_hidden_sites")}
               helperText={i18n("fab_exception_list_helper")}
-              onChange={(e) => updateFab({ hiddenSites: e.target.value })}
+              onChange={(e) => setHiddenSitesDraft(e.target.value)}
+              onBlur={(e) => commitHiddenSites(e.target.value)}
             />
             <TextField
               fullWidth
@@ -484,10 +510,11 @@ export default function Settings() {
               multiline
               maxRows={10}
               name="shownSites"
-              value={shownSites}
+              value={shownSitesValue}
               label={i18n("fab_shown_sites")}
               helperText={i18n("fab_exception_list_helper")}
-              onChange={(e) => updateFab({ shownSites: e.target.value })}
+              onChange={(e) => setShownSitesDraft(e.target.value)}
+              onBlur={(e) => commitShownSites(e.target.value)}
             />
           </Stack>
         </SettingsSection>

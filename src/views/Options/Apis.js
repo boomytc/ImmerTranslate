@@ -2200,6 +2200,7 @@ export default function Apis() {
     reorderApis,
   } = useApiList();
   const confirm = useConfirm();
+  const alert = useAlert();
 
   const [detailKey, setDetailKey] = useState(0);
   const [detailDirty, setDetailDirty] = useState(false);
@@ -2406,18 +2407,33 @@ export default function Apis() {
 
   const handlePinCheckedApis = useCallback(async () => {
     if (!(await prepareListMutation())) return;
-    pinApis(checkedApiSlugs);
-  }, [checkedApiSlugs, pinApis, prepareListMutation]);
+    try {
+      await pinApis(checkedApiSlugs);
+    } catch (err) {
+      kissLog("pin apis", err);
+      alert.error(i18n("error_got_some_wrong"));
+    }
+  }, [alert, checkedApiSlugs, i18n, pinApis, prepareListMutation]);
 
   const handleEnableCheckedApis = useCallback(async () => {
     if (!(await prepareListMutation())) return;
-    enableApis(checkedApiSlugs);
-  }, [checkedApiSlugs, enableApis, prepareListMutation]);
+    try {
+      await enableApis(checkedApiSlugs);
+    } catch (err) {
+      kissLog("enable apis", err);
+      alert.error(i18n("error_got_some_wrong"));
+    }
+  }, [alert, checkedApiSlugs, enableApis, i18n, prepareListMutation]);
 
   const handleDisableCheckedApis = useCallback(async () => {
     if (!(await prepareListMutation())) return;
-    disableApis(checkedApiSlugs);
-  }, [checkedApiSlugs, disableApis, prepareListMutation]);
+    try {
+      await disableApis(checkedApiSlugs);
+    } catch (err) {
+      kissLog("disable apis", err);
+      alert.error(i18n("error_got_some_wrong"));
+    }
+  }, [alert, checkedApiSlugs, disableApis, i18n, prepareListMutation]);
 
   const handleAlphaSortApis = useCallback(
     async (direction) => {
@@ -2427,9 +2443,14 @@ export default function Apis() {
       }
       setSortAnchorEl(null);
       if (!(await prepareListMutation())) return;
-      alphaSortApis(direction);
+      try {
+        await alphaSortApis(direction);
+      } catch (err) {
+        kissLog("sort apis", err);
+        alert.error(i18n("error_got_some_wrong"));
+      }
     },
-    [alphaSortApis, apiSortMode, prepareListMutation]
+    [alert, alphaSortApis, apiSortMode, i18n, prepareListMutation]
   );
 
   const handleDeleteCheckedApis = useCallback(async () => {
@@ -2450,9 +2471,15 @@ export default function Apis() {
       return;
     }
 
-    deleteApis(checkedApiSlugs);
-    setCheckedApiSlugs([]);
+    try {
+      await deleteApis(checkedApiSlugs);
+      setCheckedApiSlugs([]);
+    } catch (err) {
+      kissLog("delete apis", err);
+      alert.error(i18n("error_got_some_wrong"));
+    }
   }, [
+    alert,
     checkedApiCount,
     checkedApiSlugs,
     confirm,

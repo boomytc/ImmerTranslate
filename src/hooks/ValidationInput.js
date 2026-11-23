@@ -150,8 +150,9 @@ function ValidationInput({
 
     const trimmed = String(localValue ?? "").trim();
     const parsed = trimmed !== "" ? Number(trimmed) : NaN;
-    const hasPropValue = value !== "" && value !== null && value !== undefined;
-    const parsedProp = hasPropValue ? Number(value) : NaN;
+    const propTrimmed =
+      value === null || value === undefined ? "" : String(value).trim();
+    const parsedProp = propTrimmed !== "" ? Number(propTrimmed) : NaN;
     const fallback = Number.isFinite(parsedProp) ? parsedProp : (min ?? 0);
     const base = Number.isFinite(parsed) ? parsed : fallback;
     const parsedStep = Number(propStep);

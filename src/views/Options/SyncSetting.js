@@ -95,6 +95,8 @@ export default function SyncSetting() {
   const [showNewEncryptKey, setShowNewEncryptKey] = useState(false);
   const [showConfirmEncryptKey, setShowConfirmEncryptKey] = useState(false);
   const [fieldDrafts, setFieldDrafts] = useState({});
+  const fieldDraftsRef = useRef({});
+  const pendingCommitsRef = useRef(new Set());
   const syncMethodRefs = useRef([]);
   const { reloadSetting } = useSetting();
 
@@ -114,8 +116,45 @@ export default function SyncSetting() {
     }
   };
 
+  const clearMatchingDrafts = (committedPatch) => {
+    setFieldDrafts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(committedPatch).forEach(([field, val]) => {
+        if (field in next && next[field] === val) {
+          delete next[field];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  };
+
+  const restoreDraftsOnFailure = (failedPatch) => {
+    const nextRef = { ...fieldDraftsRef.current };
+    Object.entries(failedPatch).forEach(([field, val]) => {
+      if (!(field in nextRef)) {
+        nextRef[field] = val;
+      }
+    });
+    fieldDraftsRef.current = nextRef;
+    setFieldDrafts((prev) => {
+      const next = { ...prev };
+      Object.entries(failedPatch).forEach(([field, val]) => {
+        if (!(field in next)) {
+          next[field] = val;
+        }
+      });
+      return next;
+    });
+  };
+
   const handleFieldChange = (e) => {
     const { name, value } = e.target;
+    fieldDraftsRef.current = {
+      ...fieldDraftsRef.current,
+      [name]: value,
+    };
     setFieldDrafts((prev) => ({
       ...prev,
       [name]: value,
@@ -123,41 +162,100 @@ export default function SyncSetting() {
   };
 
   const commitField = async (name, value) => {
-    setFieldDrafts((prev) => {
-      if (!(name in prev)) return prev;
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-    if (value !== (sync?.[name] ?? "")) {
-      try {
-        await updateSync({ [name]: value });
-      } catch (err) {
-        kissLog("save sync field", err);
-        alert.error(getSyncErrorMessage(err));
+    const hadDraft = name in fieldDraftsRef.current;
+    if (hadDraft) {
+      const nextRef = { ...fieldDraftsRef.current };
+      delete nextRef[name];
+      fieldDraftsRef.current = nextRef;
+    }
+
+    if (value === (sync?.[name] ?? "")) {
+      clearMatchingDrafts({ [name]: value });
+      return;
+    }
+
+    const patch = { [name]: value };
+    const entry = { alerted: false };
+    const writePromise = Promise.resolve(updateSync(patch)).then(
+      () => {
+        clearMatchingDrafts(patch);
+      },
+      (err) => {
+        restoreDraftsOnFailure(patch);
+        throw err;
       }
+    );
+    entry.promise = writePromise;
+    pendingCommitsRef.current.add(entry);
+
+    try {
+      await writePromise;
+    } catch (err) {
+      entry.alerted = true;
+      kissLog("save sync field", err);
+      alert.error(getSyncErrorMessage(err));
+    } finally {
+      pendingCommitsRef.current.delete(entry);
     }
   };
 
   const flushFieldDrafts = async () => {
+    const currentDrafts = fieldDraftsRef.current;
     const patch = {};
+    const unchanged = {};
     ["syncUrl", "syncUser", "syncKey"].forEach((field) => {
-      if (
-        field in fieldDrafts &&
-        fieldDrafts[field] !== (sync?.[field] ?? "")
-      ) {
-        patch[field] = fieldDrafts[field];
+      if (!(field in currentDrafts)) return;
+      if (currentDrafts[field] !== (sync?.[field] ?? "")) {
+        patch[field] = currentDrafts[field];
+      } else {
+        unchanged[field] = currentDrafts[field];
       }
     });
-    setFieldDrafts({});
+    fieldDraftsRef.current = {};
+    if (Object.keys(unchanged).length > 0) {
+      clearMatchingDrafts(unchanged);
+    }
+
     if (Object.keys(patch).length > 0) {
-      await updateSync(patch);
+      const entry = { alerted: false };
+      const writePromise = Promise.resolve(updateSync(patch)).then(
+        () => {
+          clearMatchingDrafts(patch);
+        },
+        (err) => {
+          restoreDraftsOnFailure(patch);
+          throw err;
+        }
+      );
+      entry.promise = writePromise;
+      pendingCommitsRef.current.add(entry);
+      const cleanup = () => {
+        pendingCommitsRef.current.delete(entry);
+      };
+      writePromise.then(cleanup, cleanup);
+    }
+
+    const inFlight = [...pendingCommitsRef.current];
+    for (const entry of inFlight) {
+      try {
+        await entry.promise;
+      } catch (err) {
+        if (entry.alerted && err && typeof err === "object") {
+          err._syncFieldAlerted = true;
+        }
+        throw err;
+      }
     }
   };
 
   const handleSyncTypeChange = async (syncTypeValue) => {
     if (syncTypeValue === syncType) return;
-    await updateSync({ syncType: syncTypeValue });
+    try {
+      await updateSync({ syncType: syncTypeValue });
+    } catch (err) {
+      kissLog("save sync type", err);
+      alert.error(getSyncErrorMessage(err));
+    }
   };
 
   const handleSyncTypeKeyDown = (event, currentIndex) => {
@@ -197,8 +295,10 @@ export default function SyncSetting() {
       reloadSetting();
       alert.success(i18n("sync_success"));
     } catch (err) {
-      kissLog("sync all", err);
-      alert.error(getSyncErrorMessage(err));
+      if (!err?._syncFieldAlerted) {
+        kissLog("sync all", err);
+        alert.error(getSyncErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -262,6 +362,7 @@ export default function SyncSetting() {
           syncKey: updatedConfig.syncKey || "",
           syncEncryptKey: updatedConfig.syncEncryptKey || "",
         });
+        fieldDraftsRef.current = {};
         setFieldDrafts({});
         alert.success(i18n("import_success"));
       } else {

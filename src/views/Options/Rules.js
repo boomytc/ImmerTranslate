@@ -130,6 +130,16 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     transOrder,
   } = formValues;
 
+  const parsedRevertDelay =
+    transOnlyRevertDelay !== "" &&
+    transOnlyRevertDelay !== null &&
+    transOnlyRevertDelay !== undefined
+      ? Number(transOnlyRevertDelay)
+      : NaN;
+  const revertDelayValue = Number.isFinite(parsedRevertDelay)
+    ? parsedRevertDelay
+    : Number(GLOBLA_RULE.transOnlyRevertDelay);
+
   const isGlobalRule = rule?.pattern === GLOBAL_KEY;
   const globalRule = rules?.list?.find((item) => item.pattern === GLOBAL_KEY);
   const effectiveWrapOriginal =
@@ -489,10 +499,15 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                   isFloat
                   min={0}
                   name="transOnlyRevertDelay"
-                  value={transOnlyRevertDelay}
+                  value={revertDelayValue}
                   label={i18n("transonly_revert_delay")}
                   disabled={disabled}
-                  onChange={handleChange}
+                  onChange={(e) =>
+                    updateFormValue(
+                      "transOnlyRevertDelay",
+                      String(e.target.value)
+                    )
+                  }
                   inputProps={{ step: 0.1 }}
                 />
               </Grid>
