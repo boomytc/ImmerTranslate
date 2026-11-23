@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   API_SPE_TYPES,
-  EVENT_KISS_INNER,
-  MSG_TRANS_CURRULE,
   MSG_TRANS_PUTRULE,
   MSG_TRANS_SET_MODEL,
   OPT_LANGS_TO,
@@ -22,6 +20,7 @@ import { kissLog } from "../../libs/log";
 import { fetchModelCatalog } from "../../libs/modelList";
 import {
   readSiteTransOpen,
+  SITE_TRANS_OPEN,
   siteRulePattern,
   SITE_TRANS_OPEN_OPTIONS,
   writeSiteApiSlug,
@@ -48,7 +47,7 @@ const uniqueModels = (values) => {
  * MSG_TRANS_CURRULE and this menu does too.
  */
 export default function FabQuickOptions({
-  getFabPageState,
+  pageRule,
   processActions,
   onPageRule,
   onHideOnSite,
@@ -59,45 +58,21 @@ export default function FabQuickOptions({
   const { setting, updateSetting } = useSetting();
   const { list: rules = [], isLoading: rulesLoading } = useRules();
   const { allTextStyles } = useAllTextStyles();
-  const [rule, setRule] = useState(null);
+  const rule = pageRule;
   const [catalogModels, setCatalogModels] = useState([]);
   const [modelOverride, setModelOverride] = useState(null);
   const [siteDraft, setSiteDraft] = useState(null);
   const href = window.location.href;
   const sitePattern = siteRulePattern(href, rules);
-  const storedSiteTransOpen = readSiteTransOpen(href, rules, sitePattern);
+  const storedSiteTransOpen = useMemo(() => {
+    try {
+      return readSiteTransOpen(href, rules, sitePattern);
+    } catch (error) {
+      kissLog("read site transOpen", error);
+      return SITE_TRANS_OPEN.FOLLOW_GLOBAL;
+    }
+  }, [href, rules, sitePattern]);
   const siteTransOpen = siteDraft ?? storedSiteTransOpen;
-
-  useEffect(() => {
-    if (!getFabPageState) return undefined;
-    let active = true;
-    (async () => {
-      try {
-        const response = await getFabPageState();
-        if (active && response?.rule) setRule(response.rule);
-      } catch {
-        // The action list stays usable when the page rule cannot be read.
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [getFabPageState]);
-
-  useEffect(() => {
-    const onRule = (event) => {
-      if (event.detail?.action !== MSG_TRANS_CURRULE || !event.detail.rule) {
-        return;
-      }
-      setRule(event.detail.rule);
-    };
-    document.addEventListener(EVENT_KISS_INNER, onRule);
-    return () => document.removeEventListener(EVENT_KISS_INNER, onRule);
-  }, []);
-
-  useEffect(() => {
-    onPageRule?.(rule);
-  }, [onPageRule, rule]);
 
   const configuredApis = useMemo(
     () => configuredByokApis(setting?.transApis),
@@ -200,7 +175,7 @@ export default function FabQuickOptions({
   const setTranslationOnly = (enabled) => {
     if (enabled === translationOnly) return;
     const transOnly = enabled ? "true" : "false";
-    setRule((current) => ({ ...current, transOnly }));
+    onPageRule?.((current) => ({ ...current, transOnly }));
     void processActions?.({
       action: MSG_TRANS_PUTRULE,
       args: { transOnly },
@@ -223,7 +198,7 @@ export default function FabQuickOptions({
   const applyService = (apiSlug) => {
     if (!apiSlug || apiSlug === rule?.apiSlug) return;
     const previous = rule?.apiSlug;
-    setRule((current) => ({ ...current, apiSlug }));
+    onPageRule?.((current) => ({ ...current, apiSlug }));
     void (async () => {
       try {
         const response = await processActions?.({
@@ -235,7 +210,7 @@ export default function FabQuickOptions({
         if (saved?.error) throw new Error(saved.error);
       } catch (error) {
         kissLog("save site apiSlug", error);
-        setRule((current) =>
+        onPageRule?.((current) =>
           current?.apiSlug === apiSlug
             ? { ...current, apiSlug: previous }
             : current
@@ -251,7 +226,7 @@ export default function FabQuickOptions({
   };
   const applyToLang = (toLang) => {
     if (!toLang || toLang === rule?.toLang) return;
-    setRule((current) => ({ ...current, toLang }));
+    onPageRule?.((current) => ({ ...current, toLang }));
     void processActions?.({
       action: MSG_TRANS_PUTRULE,
       args: { toLang },
@@ -265,18 +240,20 @@ export default function FabQuickOptions({
 
   const applyTextStyle = (textStyle) => {
     if (!textStyle || textStyle === currentTextStyle) return;
-    setRule((current) => ({ ...current, textStyle }));
+    onPageRule?.((current) => ({ ...current, textStyle }));
     void processActions?.({
       action: MSG_TRANS_PUTRULE,
       args: { textStyle },
     });
   };
 
-  const matchedFabSize =
-    FAB_SIZE_PRESETS.find(
-      (preset) =>
-        Math.abs((currentFabSize || DEFAULT_FAB.size) - preset.size) <= 4
-    )?.size ?? FAB_SIZE_PRESETS[1].size;
+  const normalizedFabSize =
+    typeof currentFabSize === "number" && Number.isFinite(currentFabSize)
+      ? Math.round(currentFabSize)
+      : DEFAULT_FAB.size;
+  const hasPresetFabSize = FAB_SIZE_PRESETS.some(
+    (preset) => preset.size === normalizedFabSize
+  );
 
   return (
     <div className="kt-content-fab-menu__options">
@@ -469,7 +446,7 @@ export default function FabQuickOptions({
             className="kt-content-fab-menu__select kt-content-fab-menu__size-select"
             aria-labelledby="kt-fab-size-label"
             aria-label={i18n("fab_size")}
-            value={matchedFabSize}
+            value={normalizedFabSize}
             onChange={(event) => onChangeFabSize(Number(event.target.value))}
           >
             {FAB_SIZE_PRESETS.map(({ size, labelKey }) => (
@@ -477,6 +454,11 @@ export default function FabQuickOptions({
                 {i18n(labelKey)}
               </option>
             ))}
+            {!hasPresetFabSize && (
+              <option value={normalizedFabSize}>
+                {`${normalizedFabSize}px`}
+              </option>
+            )}
           </select>
         </label>
       )}

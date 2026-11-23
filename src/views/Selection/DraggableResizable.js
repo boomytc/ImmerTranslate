@@ -65,89 +65,77 @@ function Pointer({
   // Handle pointer movement.
   function handlePointerMove(e) {
     const { clientX, clientY } = e;
-    if (origin) {
-      // Calculate the displacement.
-      const dx = clientX - origin.clientX;
-      const dy = clientY - origin.clientY;
-      let x = position.x;
-      let y = position.y;
-      let w = size.w;
-      let h = size.h;
+    if (!origin) return;
 
-      // Calculate the new position (x, y) and size (w, h) for this direction.
-      switch (direction) {
-        case "Header": // Move without resizing.
-          x = origin.x + dx;
-          y = origin.y + dy;
-          break;
-        case "TopLeft": // Resize from the top-left corner.
-          x = origin.x + dx;
-          y = origin.y + dy;
-          w = origin.w - dx;
-          h = origin.h - dy;
-          break;
-        case "Top": // Resize from the top edge.
-          y = origin.y + dy;
-          h = origin.h - dy;
-          break;
-        case "TopRight": // Resize from the top-right corner.
-          y = origin.y + dy;
-          w = origin.w + dx;
-          h = origin.h - dy;
-          break;
-        case "Left": // Resize from the left edge.
-          x = origin.x + dx;
-          w = origin.w - dx;
-          break;
-        case "Right": // Resize from the right edge.
-          w = origin.w + dx;
-          break;
-        case "BottomLeft": // Resize from the bottom-left corner.
-          x = origin.x + dx;
-          w = origin.w - dx;
-          h = origin.h + dy;
-          break;
-        case "Bottom": // Resize from the bottom edge.
-          h = origin.h + dy;
-          break;
-        case "BottomRight": // Resize from the bottom-right corner.
-          w = origin.w + dx;
-          h = origin.h + dy;
-          break;
-        default:
-      }
+    const dx = clientX - origin.clientX;
+    const dy = clientY - origin.clientY;
+    const maxContentW = getMaxTranBoxContentWidth();
+    const maxContentH = getMaxTranBoxContentHeight();
+    const maxW = Math.min(maxSize.w, maxContentW);
+    const maxH = Math.min(maxSize.h, maxContentH);
+    const minW = Math.min(minSize.w, maxW);
+    const minH = Math.min(minSize.h, maxH);
 
-      // Clamp the width to [minSize.w, maxSize.w].
-      if (w < minSize.w) {
-        w = minSize.w;
-        x = position.x;
-      }
-      if (w > maxSize.w) {
-        w = maxSize.w;
-        x = position.x;
-      }
-      // Clamp the height to [minSize.h, maxSize.h].
-      if (h < minSize.h) {
-        h = minSize.h;
-        y = position.y;
-      }
-      if (h > maxSize.h) {
-        h = maxSize.h;
-        y = position.y;
-      }
-
-      // Keep the translation panel inside the viewport while dragging or resizing.
-      const nextSize = {
-        w: limitNumber(w, minSize.w, getMaxTranBoxContentWidth()),
-        h: limitNumber(h, minSize.h, getMaxTranBoxContentHeight()),
-      };
-
+    if (direction === "Header") {
+      const nextW = limitNumber(origin.w, minW, maxW);
+      const nextH = limitNumber(origin.h, minH, maxH);
       setPosition({
-        x: limitNumber(x, 0, getMaxTranBoxX(nextSize.w)),
-        y: limitNumber(y, 0, getMaxPositionY(nextSize.h)),
+        x: limitNumber(origin.x + dx, 0, getMaxTranBoxX(nextW)),
+        y: limitNumber(origin.y + dy, 0, getMaxPositionY(nextH)),
       });
-      setSize(nextSize);
+      setSize({ w: nextW, h: nextH });
+      return;
     }
+
+    let x = origin.x;
+    let y = origin.y;
+    let w = limitNumber(origin.w, minW, maxW);
+    let h = limitNumber(origin.h, minH, maxH);
+
+    const resizesLeft =
+      direction === "Left" ||
+      direction === "TopLeft" ||
+      direction === "BottomLeft";
+    const resizesRight =
+      direction === "Right" ||
+      direction === "TopRight" ||
+      direction === "BottomRight";
+    const resizesTop =
+      direction === "Top" ||
+      direction === "TopLeft" ||
+      direction === "TopRight";
+    const resizesBottom =
+      direction === "Bottom" ||
+      direction === "BottomLeft" ||
+      direction === "BottomRight";
+
+    if (resizesLeft) {
+      const minDx = Math.max(-origin.x, origin.w - maxW);
+      const maxDx = Math.max(minDx, origin.w - minW);
+      const clampedDx = limitNumber(dx, minDx, maxDx);
+      x = origin.x + clampedDx;
+      w = origin.w - clampedDx;
+    } else if (resizesRight) {
+      const rightMaxW = Math.max(minW, Math.min(maxW, maxContentW - origin.x));
+      w = limitNumber(origin.w + dx, minW, rightMaxW);
+    }
+
+    if (resizesTop) {
+      const minDy = Math.max(-origin.y, origin.h - maxH);
+      const maxDy = Math.max(minDy, origin.h - minH);
+      const clampedDy = limitNumber(dy, minDy, maxDy);
+      y = origin.y + clampedDy;
+      h = origin.h - clampedDy;
+    } else if (resizesBottom) {
+      const bottomMaxH = Math.max(minH, Math.min(maxH, maxContentH - origin.y));
+      h = limitNumber(origin.h + dy, minH, bottomMaxH);
+    }
+
+    setPosition({
+      x: limitNumber(x, 0, getMaxTranBoxX(w)),
+      y: limitNumber(y, 0, getMaxPositionY(h)),
+    });
+    setSize({ w, h });
   }
 
   // Handle pointer end.
@@ -196,8 +184,6 @@ export default function DraggableResizable({
   },
   setSize,
   setPosition,
-  onChangeSize,
-  onChangePosition,
   autoHeight,
   ...props
 }) {

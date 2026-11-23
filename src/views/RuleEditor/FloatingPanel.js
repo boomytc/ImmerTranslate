@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Box, ButtonBase, Paper, Portal, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import { limitNumber } from "../../libs/utils";
@@ -46,6 +52,10 @@ export default function FloatingPanel({
   const panel = useRef(null);
   const origin = useRef(null);
   const lastMove = useRef(null);
+  const keyMovePending = useRef(false);
+  const keyMoveTimer = useRef(null);
+  const onMoveEndRef = useRef(onMoveEnd);
+  onMoveEndRef.current = onMoveEnd;
   const [height, setHeight] = useState(0);
   const [notificationElement, setNotificationElement] = useState(null);
   const margin = Math.min(12, viewport.w / 4, viewport.h / 4);
@@ -78,6 +88,23 @@ export default function FloatingPanel({
         element.removeEventListener("wheel", containWheel)
       );
   }, [notificationElement]);
+
+  const flushKeyMove = useCallback(() => {
+    if (keyMoveTimer.current) {
+      window.clearTimeout(keyMoveTimer.current);
+      keyMoveTimer.current = null;
+    }
+    if (keyMovePending.current && lastMove.current) {
+      const target = lastMove.current;
+      keyMovePending.current = false;
+      lastMove.current = null;
+      onMoveEndRef.current?.(target);
+      return;
+    }
+    keyMovePending.current = false;
+  }, []);
+
+  useEffect(() => () => flushKeyMove(), [flushKeyMove]);
 
   const move = (x, y) => {
     const next = {
@@ -112,11 +139,14 @@ export default function FloatingPanel({
           flexDirection: "column",
           overflow: "hidden",
           border: "1px solid",
-          borderColor: "var(--kt-linev)",
-          borderRadius: "20px",
-          bgcolor: "var(--kt-sf0)",
+          borderColor:
+            "var(--kt-liquid-edge, var(--kt-border-strong, var(--kt-linev)))",
+          borderRadius: "var(--kt-radius-card, 20px)",
+          bgcolor: "var(--kt-liquid, var(--kt-sf0))",
+          WebkitBackdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
+          backdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
           color: "var(--kt-on)",
-          boxShadow: "var(--kt-shadow-2)",
+          boxShadow: "var(--kt-liquid-shadow, var(--kt-shadow-menu))",
         }}
       >
         <Box
@@ -127,9 +157,9 @@ export default function FloatingPanel({
             minHeight: HEADER_HEIGHT,
             px: 2,
             gap: 1,
-            bgcolor: "var(--kt-sf1)",
+            bgcolor: "var(--kt-glass-strong, var(--kt-sf1))",
             borderBottom: "1px solid",
-            borderColor: "var(--kt-linev)",
+            borderColor: "var(--kt-border, var(--kt-linev))",
             flexShrink: 0,
           }}
         >
@@ -172,10 +202,23 @@ export default function FloatingPanel({
               const direction = directions[event.key];
               if (!direction) return;
               event.preventDefault();
-              onMoveEnd?.(
-                move(left + direction[0] * 24, top + direction[1] * 24)
-              );
+              move(left + direction[0] * 24, top + direction[1] * 24);
+              keyMovePending.current = true;
+              if (keyMoveTimer.current) {
+                window.clearTimeout(keyMoveTimer.current);
+              }
+              keyMoveTimer.current = window.setTimeout(flushKeyMove, 250);
             }}
+            onKeyUp={(event) => {
+              if (
+                ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
+                  event.key
+                )
+              ) {
+                flushKeyMove();
+              }
+            }}
+            onBlur={flushKeyMove}
             sx={{
               flex: 1,
               minWidth: 0,
@@ -185,7 +228,7 @@ export default function FloatingPanel({
               py: 1,
               ml: -0.5,
               gap: 1,
-              borderRadius: "8px",
+              borderRadius: "var(--kt-radius-sm, 8px)",
               cursor: "grab",
               userSelect: "none",
               "&:active": { cursor: "grabbing" },
@@ -224,9 +267,9 @@ export default function FloatingPanel({
             component="footer"
             sx={{
               p: 2,
-              bgcolor: "var(--kt-sf1)",
+              bgcolor: "var(--kt-glass-strong, var(--kt-sf1))",
               borderTop: "1px solid",
-              borderColor: "var(--kt-linev)",
+              borderColor: "var(--kt-border, var(--kt-linev))",
               flexShrink: 0,
               maxHeight: viewport.h * 0.55,
               overflowY: "auto",

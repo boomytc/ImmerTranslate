@@ -1,4 +1,5 @@
 import { APP_CONSTS, APP_LCNAME } from "../config";
+import { mountShadowHost } from "./shadowHost";
 
 export const RULE_EDITOR_ID = "kiss-rule-editor";
 const OVERLAY_ID = "kiss-rule-highlights";
@@ -138,12 +139,12 @@ export class RuleHighlights {
     this.host.id = OVERLAY_ID;
     this.host.className = "notranslate";
     this.host.style.cssText =
-      "all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483646;";
+      "all:initial !important;display:block !important;position:fixed !important;inset:0 !important;width:100% !important;height:100% !important;pointer-events:none !important;z-index:2147483646 !important;";
     this.canvas = document.createElement("canvas");
     this.canvas.style.cssText =
       "position:fixed;inset:0;width:100%;height:100%;pointer-events:none";
     this.host.attachShadow({ mode: "open" }).append(this.canvas);
-    document.documentElement.append(this.host);
+    this.cleanupMount = mountShadowHost(this.host);
     this.entries = [];
     this.observed = new Set();
     this.visible = new Set();
@@ -179,15 +180,47 @@ export class RuleHighlights {
         this.visible.delete(element);
       }
     }
-    for (const element of next)
-      if (!this.observed.has(element)) this.visibility.observe(element);
+    const viewportWidth =
+      this.canvas.clientWidth ||
+      document.documentElement.clientWidth ||
+      window.innerWidth;
+    const viewportHeight =
+      this.canvas.clientHeight ||
+      document.documentElement.clientHeight ||
+      window.innerHeight;
+    const syncViewportCheck = entries.length <= 200;
+    for (const element of next) {
+      if (!this.observed.has(element)) {
+        this.visibility.observe(element);
+        if (syncViewportCheck && element.isConnected) {
+          const rect = element.getBoundingClientRect();
+          if (
+            (rect.width || rect.height) &&
+            rect.bottom >= -32 &&
+            rect.top <= viewportHeight + 32 &&
+            rect.right >= -32 &&
+            rect.left <= viewportWidth + 32
+          ) {
+            this.visible.add(element);
+          }
+        }
+      }
+    }
     this.observed = next;
     this.schedule();
   }
   draw() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = window.innerWidth * dpr;
-    this.canvas.height = window.innerHeight * dpr;
+    const width =
+      this.canvas.clientWidth ||
+      document.documentElement.clientWidth ||
+      window.innerWidth;
+    const height =
+      this.canvas.clientHeight ||
+      document.documentElement.clientHeight ||
+      window.innerHeight;
+    this.canvas.width = Math.round(width * dpr);
+    this.canvas.height = Math.round(height * dpr);
     const ctx = this.canvas.getContext("2d");
     ctx.scale(dpr, dpr);
     // Draw the active match last so overlapping containers cannot hide it.
@@ -214,9 +247,9 @@ export class RuleHighlights {
           !rect.width ||
           !rect.height ||
           rect.bottom < 0 ||
-          rect.top > window.innerHeight ||
+          rect.top > height ||
           rect.right < 0 ||
-          rect.left > window.innerWidth
+          rect.left > width
         )
           continue;
         if (current) ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -230,6 +263,8 @@ export class RuleHighlights {
     this.resize.disconnect();
     window.removeEventListener("scroll", this.schedule, true);
     window.removeEventListener("resize", this.schedule);
+    this.cleanupMount?.();
+    this.cleanupMount = null;
     this.host.remove();
   }
 }

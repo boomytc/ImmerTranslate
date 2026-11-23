@@ -18,27 +18,25 @@ import { useI18n } from "../../hooks/I18n";
  * @param {Function} props.setRealWord - Callback to record the resolved headword.
  * @param {Object} props.dict - Selected dictionary handler settings.
  */
-function DictBody({ text, setCopyText, setRealWord, dict }) {
+function DictBody({ text, setCopyText, setRealWord, dict, i18n }) {
   // Start an immediate asynchronous dictionary lookup with useAsyncNow.
   const { loading, error, data } = useAsyncNow(dict.apiFn, text);
 
   // Update the headword and copy text when dictionary data arrives.
   useEffect(() => {
-    if (!data) {
+    if (loading || !data) {
       return;
     }
 
-    // REVIEW: Changes to text or dict may apply stale data while the next lookup is loading.
-    // Confirm that data belongs to the current query before merging it with text.
     const realWord = dict.reWord(data) || text;
     const copyText = [realWord, dict.toText(data).join("\n")].join("\n");
     setRealWord(realWord);
     setCopyText(copyText);
-  }, [data, text, dict, setCopyText, setRealWord]);
+  }, [loading, data, text, dict, setCopyText, setRealWord]);
 
   // Build the audio and definition nodes.
-  const uiAudio = useMemo(() => dict.uiAudio(data), [data, dict]);
-  const uiTrans = useMemo(() => dict.uiTrans(data), [data, dict]);
+  const uiAudio = useMemo(() => dict.uiAudio(data, i18n), [data, dict, i18n]);
+  const uiTrans = useMemo(() => dict.uiTrans(data, i18n), [data, dict, i18n]);
 
   if (loading) {
     return <CircularProgress size={16} />;
@@ -49,7 +47,7 @@ function DictBody({ text, setCopyText, setRealWord, dict }) {
   }
 
   if (!data) {
-    return <Typography>Not found!</Typography>;
+    return <Typography>{i18n("dict_not_found")}</Typography>;
   }
 
   return (
@@ -103,10 +101,12 @@ export default function DictCont({ text, enDict }) {
       {/* Dictionary content. */}
       {dict && (
         <DictBody
+          key={`${enDict}:${text}`}
           text={text}
           setCopyText={setCopyText}
           setRealWord={setRealWord}
           dict={dict}
+          i18n={i18n}
         />
       )}
     </Stack>

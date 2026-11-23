@@ -2330,6 +2330,66 @@ export const I18N = {
     zh: `已不可用`,
     en: `Unavailable`,
   },
+  audio_pause: {
+    zh: `暂停`,
+    en: `Pause`,
+  },
+  dict_bilingual: {
+    zh: `英汉双解`,
+    en: `English-Chinese`,
+  },
+  dict_examples: {
+    zh: `例句`,
+    en: `Examples`,
+  },
+  dict_uk: {
+    zh: `英`,
+    en: `UK`,
+  },
+  dict_us: {
+    zh: `美`,
+    en: `US`,
+  },
+  dict_not_found: {
+    zh: `未找到释义`,
+    en: `Not found`,
+  },
+  dict_no_data: {
+    zh: `暂无字典数据或查询失败`,
+    en: `No dictionary data or lookup failed`,
+  },
+  sug_not_supported: {
+    zh: `不支持该联想服务`,
+    en: `Suggestion service not supported`,
+  },
+  zdic_radical: {
+    zh: `部首`,
+    en: `Radical`,
+  },
+  zdic_wubi: {
+    zh: `五笔`,
+    en: `Wubi`,
+  },
+  zdic_traditional: {
+    zh: `繁体`,
+    en: `Traditional`,
+  },
+  zdic_variant: {
+    zh: `异体`,
+    en: `Variant`,
+  },
+  zdic_en: {
+    zh: `英`,
+    en: `EN`,
+  },
+  zdic_de: {
+    zh: `德`,
+    en: `DE`,
+  },
+  zdic_fr: {
+    zh: `法`,
+    en: `FR`,
+  },
 };
 
 export const normalizeUiLang = (lang) =>

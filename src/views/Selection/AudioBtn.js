@@ -1,7 +1,8 @@
 import IconButton from "@mui/material/IconButton";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAudio } from "../../hooks/Audio";
+import { useI18n } from "../../hooks/I18n";
 import { canSpeak, speak } from "../../libs/speech";
 import queryString from "query-string";
 
@@ -11,7 +12,10 @@ import queryString from "query-string";
  * @param {Object} props
  * @param {string} props.src - Audio source URL.
  */
-export function AudioBtn({ src, title = "Speak", pauseTitle = "Pause" }) {
+export function AudioBtn({ src, title, pauseTitle }) {
+  const i18n = useI18n();
+  const effectiveTitle = title ?? i18n("read_aloud");
+  const effectivePauseTitle = pauseTitle ?? i18n("audio_pause");
   // Track audio loading and playback with useAudio.
   const { error, ready, playing, onPlay, onPause } = useAudio(src);
 
@@ -21,8 +25,8 @@ export function AudioBtn({ src, title = "Speak", pauseTitle = "Pause" }) {
       <IconButton
         disabled
         size="small"
-        title={title}
-        aria-label={title}
+        title={effectiveTitle}
+        aria-label={effectiveTitle}
         aria-busy={!error && !ready}
       >
         <VolumeUpIcon fontSize="inherit" />
@@ -37,8 +41,8 @@ export function AudioBtn({ src, title = "Speak", pauseTitle = "Pause" }) {
         color="primary"
         size="small"
         onClick={onPause}
-        title={pauseTitle}
-        aria-label={pauseTitle}
+        title={effectivePauseTitle}
+        aria-label={effectivePauseTitle}
         aria-pressed="true"
       >
         <VolumeUpIcon fontSize="inherit" />
@@ -51,8 +55,8 @@ export function AudioBtn({ src, title = "Speak", pauseTitle = "Pause" }) {
     <IconButton
       onClick={onPlay}
       size="small"
-      title={title}
-      aria-label={title}
+      title={effectiveTitle}
+      aria-label={effectiveTitle}
       aria-pressed="false"
     >
       <VolumeUpIcon fontSize="inherit" />
@@ -76,9 +80,20 @@ export function BaiduAudioBtn({ text, lan = "uk", spd = 3 }) {
   return <AudioBtn src={src} />;
 }
 
-export function BrowserTtsBtn({ text, lang = "en-US", title = "Speak" }) {
+export function BrowserTtsBtn({ text, lang = "en-US", title }) {
+  const i18n = useI18n();
+  const effectiveTitle = title ?? i18n("read_aloud");
   const [speaking, setSpeaking] = useState(false);
   const speakingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      speakingRef.current = false;
+    };
+  }, []);
 
   if (!text?.trim() || !canSpeak()) return null;
 
@@ -90,7 +105,7 @@ export function BrowserTtsBtn({ text, lang = "en-US", title = "Speak" }) {
     setSpeaking(true);
     const onEnd = () => {
       speakingRef.current = false;
-      setSpeaking(false);
+      if (mountedRef.current) setSpeaking(false);
     };
     const started = speak(text, lang, { onEnd });
 
@@ -104,8 +119,8 @@ export function BrowserTtsBtn({ text, lang = "en-US", title = "Speak" }) {
       aria-disabled={speaking}
       onClick={handleSpeak}
       size="small"
-      title={title}
-      aria-label={title}
+      title={effectiveTitle}
+      aria-label={effectiveTitle}
       aria-busy={speaking}
       aria-pressed={speaking}
       sx={{

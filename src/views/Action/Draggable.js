@@ -12,6 +12,7 @@ import { debounce } from "../../libs/utils";
 import Paper from "@mui/material/Paper";
 
 const FAB_EDGES = ["left", "right", "top", "bottom"];
+const DRAG_THRESHOLD_PX = 4;
 
 // Find the viewport edge nearest to the current position.
 export const getNearestEdge = ({
@@ -267,7 +268,17 @@ export default function Draggable({
         return;
       }
 
-      applyTransform(currentPosition.x, currentPosition.y);
+      const clampedX = limitNumber(
+        currentPosition.x,
+        0,
+        Math.max(0, newWindowWidth - width)
+      );
+      const clampedY = limitNumber(
+        currentPosition.y,
+        0,
+        Math.max(0, newWindowHeight - height)
+      );
+      applyTransform(clampedX, clampedY);
     };
 
     window.addEventListener("resize", onResize);
@@ -395,11 +406,14 @@ export default function Draggable({
   // Move the container by the current pointer displacement.
   const handlePointerMove = (e) => {
     if (!origin) return;
-    onMove && onMove();
-    draggedRef.current = true;
     const { clientX, clientY } = e;
     const dx = clientX - origin.clientX;
     const dy = clientY - origin.clientY;
+    if (!draggedRef.current) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      draggedRef.current = true;
+      onMove && onMove();
+    }
     let x = origin.x + dx;
     let y = origin.y + dy;
 

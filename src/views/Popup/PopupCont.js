@@ -1148,6 +1148,7 @@ export default function PopupCont({
     ]
   );
   const missingApiKey = isMissingRequiredApiKey(activeApiSetting);
+  const heroDisabled = !canTranslatePage || pageSwitch === PAGE_SWITCH.PAUSED;
   const heroActive = translationEnabled && !missingApiKey;
   const heroBusy = translationBusy && !missingApiKey;
   const pageShortcutLabel = shortcutMap.page.join("+");
@@ -1199,16 +1200,14 @@ export default function PopupCont({
       <div
         className={`kt-popup-hero ${
           heroActive ? "" : "kt-popup-hero--off"
-        } ${heroBusy ? "kt-popup-hero--busy" : ""}`}
+        } ${heroBusy ? "kt-popup-hero--busy" : ""} ${
+          heroDisabled ? "kt-popup-hero--disabled" : ""
+        }`}
         data-page-switch={pageSwitch || ""}
         aria-busy={translationTogglePending || heroBusy}
-        aria-disabled={!canTranslatePage || pageSwitch === PAGE_SWITCH.PAUSED}
+        aria-disabled={heroDisabled ? "true" : undefined}
         onClick={() => {
-          if (
-            canTranslatePage &&
-            !translationTogglePending &&
-            pageSwitch !== PAGE_SWITCH.PAUSED
-          ) {
+          if (!heroDisabled && !translationTogglePending) {
             void handleTransToggle(!translationEnabled);
           }
         }}
@@ -1365,68 +1364,75 @@ export default function PopupCont({
         </div>
       )}
 
-      <div className="kt-popup-site">
-        <div className="kt-popup-site__top">
-          <select
-            className="kt-popup-site__select"
-            value={selectedDomain}
-            aria-label={i18n("domain")}
-            title={selectedDomain}
-            onChange={(event) => setSelectedDomain(event.target.value)}
-          >
-            {domainOptions.map((domain) => (
-              <option key={domain} value={domain} title={domain}>
-                {truncateMiddle(domain)}
-              </option>
-            ))}
-          </select>
-          <span
-            className={`kt-popup-site__badge ${
-              pageBlocked ? "kt-popup-site__badge--blocked" : ""
-            }`}
-          >
-            {i18n(
-              pageBlocked ? "popup_domain_blocked" : "popup_domain_allowed"
-            )}
-          </span>
-        </div>
-        <div className="kt-popup-site__actions">
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleSaveRule}
-            disabled={!canTranslatePage || !domainOptions.length}
-          >
-            {i18n("save_rule")}
-          </Button>
-          {!pageBlocked && (
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={handleAddToBlacklist}
-              disabled={!domainOptions.length}
-            >
-              {i18n("add_to_blacklist")}
-            </Button>
-          )}
-        </div>
-        {pageBlocked && (
-          <ul className="kt-popup-blacklist" aria-label={i18n("blacklist")}>
-            {blacklistHits.map((entry, index) => (
-              <li key={`${entry}-${index}`}>
-                <span className="kt-popup-blacklist__entry">{entry}</span>
+      {(domainOptions.length > 0 || pageBlocked) && (
+        <div className="kt-popup-site">
+          {domainOptions.length > 0 && (
+            <>
+              <div className="kt-popup-site__top">
+                <select
+                  className="kt-popup-site__select"
+                  value={selectedDomain}
+                  aria-label={i18n("domain")}
+                  title={selectedDomain}
+                  onChange={(event) => setSelectedDomain(event.target.value)}
+                >
+                  {domainOptions.map((domain) => (
+                    <option key={domain} value={domain} title={domain}>
+                      {truncateMiddle(domain)}
+                    </option>
+                  ))}
+                </select>
+                <span
+                  className={`kt-popup-site__badge ${
+                    pageBlocked ? "kt-popup-site__badge--blocked" : ""
+                  }`}
+                >
+                  {i18n(
+                    pageBlocked
+                      ? "popup_domain_blocked"
+                      : "popup_domain_allowed"
+                  )}
+                </span>
+              </div>
+              <div className="kt-popup-site__actions">
                 <Button
                   variant="contained"
-                  color="error"
-                  onClick={() => void handleRemoveBlacklistEntry(entry)}
+                  color="secondary"
+                  onClick={handleSaveRule}
+                  disabled={!canTranslatePage}
                 >
-                  {i18n("remove_from_blacklist")}
+                  {i18n("save_rule")}
                 </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                {!pageBlocked && (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    onClick={handleAddToBlacklist}
+                  >
+                    {i18n("add_to_blacklist")}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+          {pageBlocked && (
+            <ul className="kt-popup-blacklist" aria-label={i18n("blacklist")}>
+              {blacklistHits.map((entry, index) => (
+                <li key={`${entry}-${index}`}>
+                  <span className="kt-popup-blacklist__entry">{entry}</span>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    onClick={() => void handleRemoveBlacklistEntry(entry)}
+                  >
+                    {i18n("remove_from_blacklist")}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {canTranslatePage && domainOptions.length > 0 && (
         <div className="kt-popup-site-policy">
@@ -1541,9 +1547,7 @@ export default function PopupCont({
                 key={size}
                 type="button"
                 className="kt-popup-fab-control__size-chip"
-                aria-pressed={
-                  Math.abs((fabData?.size || DEFAULT_FAB.size) - size) <= 4
-                }
+                aria-pressed={(fabData?.size || DEFAULT_FAB.size) === size}
                 disabled={fabLoading || !fabPageReady}
                 onClick={() => void handleUpdateFabSize(size)}
               >

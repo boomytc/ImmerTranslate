@@ -674,7 +674,7 @@ export default function TranForm({
                 style: {
                   resize: "vertical",
                   boxSizing: "border-box",
-                  paddingInlineEnd: 16,
+                  paddingInlineEnd: text && editText.trim() === text ? 64 : 36,
                 },
               }}
               sx={{

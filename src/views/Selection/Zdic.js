@@ -7,6 +7,8 @@ import {
   Box,
 } from "@mui/material";
 import { apiZdic } from "../../apis/zdic";
+import { useI18n } from "../../hooks/I18n";
+import { kissLog } from "../../libs/log";
 import { AudioBtn } from "./AudioBtn";
 
 /**
@@ -16,15 +18,19 @@ import { AudioBtn } from "./AudioBtn";
  * @param {string} props.text - 查询的汉字
  */
 export default function Zdic({ text }) {
+  const i18n = useI18n();
   // 存放汉典接口返回的数据
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
   // 监听 text 变化，发起汉典查询
   useEffect(() => {
-    if (!text) return;
+    setData(null);
+    if (!text) {
+      setLoading(false);
+      return undefined;
+    }
 
-    // NOTE: 此处引入 active 控制标记，能极好地避免 React 组件在异步请求未返回就被卸载（Unmount）后抛出 setState 警告，同时也能有效防范竞态条件（Race Condition）。
     let active = true;
     setLoading(true);
 
@@ -37,12 +43,11 @@ export default function Zdic({ text }) {
       })
       .catch((err) => {
         if (active) {
-          console.error("获取汉典数据失败:", err);
+          kissLog("zdic lookup", err);
           setLoading(false);
         }
       });
 
-    // 清理函数：将 active 置为 false
     return () => {
       active = false;
     };
@@ -65,7 +70,7 @@ export default function Zdic({ text }) {
         </Typography>
         <Divider />
         <Typography variant="body2" color="text.secondary">
-          暂无字典数据或查询失败
+          {i18n("dict_no_data")}
         </Typography>
       </Stack>
     );
@@ -82,16 +87,16 @@ export default function Zdic({ text }) {
       {/* 部首与五笔信息 */}
       {(data.bushou || data.wubi) && (
         <Typography variant="body2" color="text.secondary">
-          {data.bushou && `[部首]: ${data.bushou}  `}
-          {data.wubi && `[五笔]: ${data.wubi}`}
+          {data.bushou && `[${i18n("zdic_radical")}]: ${data.bushou}  `}
+          {data.wubi && `[${i18n("zdic_wubi")}]: ${data.wubi}`}
         </Typography>
       )}
 
       {/* 繁体与异体字信息 */}
       {(data.fanti || data.yiti) && (
         <Typography variant="body2" color="text.secondary">
-          {data.fanti && `[繁体]: ${data.fanti}  `}
-          {data.yiti && `[异体]: ${data.yiti}`}
+          {data.fanti && `[${i18n("zdic_traditional")}]: ${data.fanti}  `}
+          {data.yiti && `[${i18n("zdic_variant")}]: ${data.yiti}`}
         </Typography>
       )}
 
@@ -136,17 +141,17 @@ export default function Zdic({ text }) {
         <Stack spacing={0.5} mt={1}>
           {data.en && (
             <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-              [英]: {data.en}
+              {`[${i18n("zdic_en")}]: ${data.en}`}
             </Typography>
           )}
           {data.de && (
             <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-              [德]: {data.de}
+              {`[${i18n("zdic_de")}]: ${data.de}`}
             </Typography>
           )}
           {data.fr && (
             <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-              [法]: {data.fr}
+              {`[${i18n("zdic_fr")}]: ${data.fr}`}
             </Typography>
           )}
         </Stack>

@@ -112,6 +112,10 @@ export function ContentFabContent({
   } = normalizeFabAppearance(fabConfig);
   const fabSize = localSize ?? baseFabSize;
 
+  useEffect(() => {
+    setLocalSize(null);
+  }, [baseFabSize]);
+
   const handleSizeChange = useCallback(
     (newSize) => {
       const clamped = Math.round(
@@ -429,13 +433,29 @@ export function ContentFabContent({
     setOpen((current) => !current);
   }, [moved, opensMenu, runAction]);
 
-  // Close the menu and return focus to the FAB before menu items unmount.
-  const handleMenuKeyDown = useCallback(
+  // Close the menu on Escape from any control inside the panel and return focus to the FAB.
+  const handlePanelKeyDown = useCallback(
     (event) => {
-      if (event.key !== "Escape" && event.key !== "Tab") return;
+      if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
       closeMenu(true);
+    },
+    [closeMenu]
+  );
+
+  // Close the menu when keyboard focus leaves both the panel and the FAB anchor.
+  const handlePanelBlur = useCallback(
+    (event) => {
+      const nextTarget = event.relatedTarget;
+      if (
+        !nextTarget ||
+        menuRef.current?.contains(nextTarget) ||
+        anchorRef.current?.contains(nextTarget)
+      ) {
+        return;
+      }
+      closeMenu();
     },
     [closeMenu]
   );
@@ -518,14 +538,19 @@ export function ContentFabContent({
           popperOptions={{ strategy: "fixed" }}
           modifiers={FAB_POPPER_MODIFIERS}
         >
-          <Paper ref={menuRef} className="kt-content-fab-menu" elevation={0}>
+          <Paper
+            ref={menuRef}
+            className="kt-content-fab-menu"
+            elevation={0}
+            onKeyDown={handlePanelKeyDown}
+            onBlur={handlePanelBlur}
+          >
             <MenuList
               id="kt-content-fab-menu"
               className="kt-content-fab-menu__list"
               aria-labelledby="kt-content-fab-button"
               autoFocusItem
               onKeyDownCapture={handleMenuNavigation}
-              onKeyDown={handleMenuKeyDown}
             >
               {items.map(
                 ({ label, icon: Icon, action, disabled, pressed }, index) => (
@@ -547,7 +572,7 @@ export function ContentFabContent({
               )}
             </MenuList>
             <FabQuickOptions
-              getFabPageState={getFabPageState}
+              pageRule={pageRule}
               processActions={processActions}
               onPageRule={setPageRule}
               onHideOnSite={handleHideOnSite}
@@ -600,7 +625,7 @@ export function ContentFabContent({
 export default function ContentFab(props) {
   return (
     <SettingProvider context="fab">
-      <ThemeProvider>
+      <ThemeProvider isolateRem>
         <style>{ACTION_STYLES}</style>
         <ContentFabContent {...props} />
       </ThemeProvider>

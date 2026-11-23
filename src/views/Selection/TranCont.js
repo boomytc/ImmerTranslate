@@ -363,7 +363,7 @@ export default function TranCont({
           style: {
             resize: "vertical",
             boxSizing: "border-box",
-            paddingInlineEnd: 16,
+            paddingInlineEnd: 64,
           },
           "aria-busy": loading,
           "aria-label": resultLabel,

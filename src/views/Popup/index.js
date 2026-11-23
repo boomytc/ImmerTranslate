@@ -18,7 +18,6 @@ import {
   MSG_OPEN_SEPARATE_WINDOW,
   MSG_FIT_SEPARATE_WINDOW,
   SEPARATE_WINDOW_CONTENT_WIDTH,
-  STOKEY_SETTING,
   DEFAULT_SETTING,
   GLOBLA_RULE,
   OPT_POPUP_DEFAULT_VIEW_TEXT,
@@ -158,12 +157,9 @@ export function Trantab({ isSeparate = false }) {
   const [simpleStyle, setSimpleStyle] = useState(false);
   const i18n = useI18n();
   const { setting } = useSetting();
+  const autoTranslateClipboard = Boolean(setting?.autoTranslateClipboard);
   const shouldReadClipboardInitially =
-    isAutoTranslateClipboardSupported &&
-    (setting?.autoTranslateClipboard ?? false);
-  const [autoTranslateClipboard, setAutoTranslateClipboard] = useState(
-    setting?.autoTranslateClipboard ?? false
-  );
+    isAutoTranslateClipboardSupported && autoTranslateClipboard;
   const [autoFocusInput, setAutoFocusInput] = useState(
     !shouldReadClipboardInitially
   );
@@ -189,32 +185,6 @@ export function Trantab({ isSeparate = false }) {
   useEffect(() => {
     textRef.current = text;
   }, [text]);
-
-  useEffect(() => {
-    setAutoTranslateClipboard(setting?.autoTranslateClipboard ?? false);
-  }, [setting?.autoTranslateClipboard]);
-
-  useEffect(() => {
-    const handleStorageChange = (changes, areaName) => {
-      const change = changes?.[STOKEY_SETTING];
-      if (areaName !== "local" || !change) return;
-
-      // Decode stored JSON strings within this panel's subscription.
-      let nextSetting;
-      try {
-        nextSetting =
-          change.newValue === undefined ? null : JSON.parse(change.newValue);
-      } catch {
-        return;
-      }
-      setAutoTranslateClipboard(nextSetting?.autoTranslateClipboard ?? false);
-    };
-
-    browser?.storage?.onChanged?.addListener?.(handleStorageChange);
-    return () => {
-      browser?.storage?.onChanged?.removeListener?.(handleStorageChange);
-    };
-  }, []);
 
   const translateClipboard = useCallback(async () => {
     if (
@@ -410,53 +380,12 @@ export default function Popup() {
   } = data || {};
   const popupShellRef = useRef(null);
   const initialPageTabRef = useRef(activeTab === "page");
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
-  const initialFocusGuardRef = useRef(true);
 
   useLayoutEffect(() => {
     if (!isSeparate && initialPageTabRef.current) {
       popupShellRef.current?.focus({ preventScroll: true });
     }
   }, [isSeparate]);
-
-  useEffect(() => {
-    if (isSeparate || isLoading || activeTabRef.current !== "page") {
-      return undefined;
-    }
-
-    let activationTimer;
-    const clearSafariAutofocus = () => {
-      if (!initialFocusGuardRef.current) return;
-      const shell = popupShellRef.current;
-      if (!shell) return;
-      if (shell.contains(document.activeElement)) {
-        document.activeElement?.blur?.();
-      }
-      shell.focus({ preventScroll: true });
-    };
-    const handleWindowFocus = (event) => {
-      if (event.target !== window) return;
-      window.clearTimeout(activationTimer);
-      activationTimer = window.setTimeout(clearSafariAutofocus, 0);
-    };
-
-    window.addEventListener("focus", handleWindowFocus);
-    const mountTimer = window.setTimeout(clearSafariAutofocus, 0);
-    const settleTimer = window.setTimeout(clearSafariAutofocus, 120);
-    const guardTimer = window.setTimeout(() => {
-      initialFocusGuardRef.current = false;
-      window.removeEventListener("focus", handleWindowFocus);
-    }, 300);
-
-    return () => {
-      window.removeEventListener("focus", handleWindowFocus);
-      window.clearTimeout(activationTimer);
-      window.clearTimeout(mountTimer);
-      window.clearTimeout(settleTimer);
-      window.clearTimeout(guardTimer);
-    };
-  }, [isLoading, isSeparate]);
 
   const handleOpenSetting = useCallback(() => {
     sendBgMsg(MSG_OPEN_OPTIONS);
@@ -498,17 +427,7 @@ export default function Popup() {
   }
 
   return (
-    <main
-      className="kt-popup-shell"
-      ref={popupShellRef}
-      tabIndex={-1}
-      onPointerDownCapture={() => {
-        initialFocusGuardRef.current = false;
-      }}
-      onKeyDownCapture={() => {
-        initialFocusGuardRef.current = false;
-      }}
-    >
+    <main className="kt-popup-shell" ref={popupShellRef} tabIndex={-1}>
       <style>{POPUP_STYLES}</style>
       <div className="kt-popup-chrome">
         <Header

@@ -2,6 +2,7 @@ import IconButton from "@mui/material/IconButton";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import LibraryAddCheckIcon from "@mui/icons-material/LibraryAddCheck";
 import { useEffect, useRef, useState } from "react";
+import { kissLog } from "../../libs/log";
 
 const VISUALLY_HIDDEN_STYLE = {
   width: 1,
@@ -46,8 +47,38 @@ export default function CopyBtn({
   const handleClick = async (e) => {
     e.stopPropagation();
     const requestId = ++requestIdRef.current;
-    await navigator.clipboard.writeText(text);
-    if (!mountedRef.current || requestId !== requestIdRef.current) return;
+    let copiedOk = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        copiedOk = true;
+      }
+    } catch (error) {
+      kissLog("copy to clipboard", error);
+    }
+    if (!copiedOk) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        textarea.style.pointerEvents = "none";
+        document.body?.appendChild(textarea);
+        textarea.select();
+        copiedOk = document.execCommand("copy");
+        textarea.remove();
+      } catch (error) {
+        kissLog("fallback copy to clipboard", error);
+      }
+    }
+    if (
+      !copiedOk ||
+      !mountedRef.current ||
+      requestId !== requestIdRef.current
+    ) {
+      return;
+    }
 
     setCopied(true);
 

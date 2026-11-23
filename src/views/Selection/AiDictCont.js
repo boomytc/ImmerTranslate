@@ -79,7 +79,9 @@ export default function AiDictCont({
         // Identical component instances share an in-flight request to avoid duplicate API calls.
         let pending = pendingRequests.get(requestKey);
         if (!pending) {
+          const controller = new AbortController();
           pending = {
+            controller,
             subscribers: new Set(),
             promise: null,
           };
@@ -89,11 +91,14 @@ export default function AiDictCont({
             toLang,
             apiSetting,
             context,
+            signal: controller.signal,
             onStreamChunk: (chunk) => {
               pending.subscribers.forEach((subscriber) => subscriber(chunk));
             },
           }).finally(() => {
-            pendingRequests.delete(requestKey);
+            if (pendingRequests.get(requestKey) === pending) {
+              pendingRequests.delete(requestKey);
+            }
           });
           pendingRequests.set(requestKey, pending);
         }
@@ -121,7 +126,13 @@ export default function AiDictCont({
 
     return () => {
       active = false;
-      pendingRequests.get(requestKey)?.subscribers.delete(handleStreamChunk);
+      const pending = pendingRequests.get(requestKey);
+      if (!pending) return;
+      pending.subscribers.delete(handleStreamChunk);
+      if (pending.subscribers.size === 0) {
+        pending.controller.abort();
+        pendingRequests.delete(requestKey);
+      }
     };
   }, [text, fromLang, toLang, apiSettingKey, context]); // eslint-disable-line react-hooks/exhaustive-deps
 

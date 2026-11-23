@@ -29,7 +29,7 @@ export const TRANSLATION_PANEL_STYLES = String.raw`
 .kt-tranbox-header__menu button[aria-checked="true"] { background: var(--kt-pric); color: var(--kt-onpric); }
 .kt-tranbox-header__menu button:disabled { opacity: .5; cursor: default; }
 @media (hover: hover) {
-  .kt-tranbox-header__menu button:hover { background: var(--kt-pric); color: var(--kt-onpric); }
+  .kt-tranbox-header__menu button:not(:disabled):hover { background: var(--kt-pric); color: var(--kt-onpric); }
 }
 .kt-tranbox-header__menu svg { width: 18px; height: 18px; flex: none; }
 

@@ -3,6 +3,21 @@ import { AudioBtn, BaiduAudioBtn } from "./AudioBtn";
 import { OPT_DICT_BING, OPT_DICT_YOUDAO } from "../../config";
 import { apiMicrosoftDict, apiYoudaoDict } from "../../apis";
 
+function renderHighlightedSentence(sentence, word) {
+  if (!sentence || !word) return sentence;
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(${escaped})`, "gi");
+  return sentence.split(pattern).map((part, index) =>
+    index % 2 === 1 ? (
+      <span key={index} style={{ fontWeight: "bold", color: "var(--kt-pri)" }}>
+        {part}
+      </span>
+    ) : (
+      <span key={index}>{part}</span>
+    )
+  );
+}
+
 /**
  * 各种英文词典的解析与渲染处理器策略映射表
  */
@@ -33,7 +48,7 @@ export const dictHandlers = {
       </Typography>
     ),
     // 渲染词典主体翻译与例句部分
-    uiTrans: (data) => (
+    uiTrans: (data, i18n) => (
       <Typography component="div">
         {/* 词性及基本释义列表 */}
         <Typography component="ul">
@@ -59,7 +74,7 @@ export const dictHandlers = {
               component="div"
               style={{ fontWeight: "bold", marginBottom: "5px" }}
             >
-              英汉双解
+              {i18n("dict_bilingual")}
             </Typography>
             {data.ecs.map(({ pos, lis }) => (
               <Typography component="div" key={pos}>
@@ -83,7 +98,7 @@ export const dictHandlers = {
               component="div"
               style={{ fontWeight: "bold", marginBottom: "5px" }}
             >
-              例句
+              {i18n("dict_examples")}
             </Typography>
             {/* 仅截取前 2 条例句显示 */}
             {data.sentences.slice(0, 2).map((sentence, idx) => (
@@ -94,17 +109,7 @@ export const dictHandlers = {
               >
                 {/* 英文例句中对查询单词进行高亮处理 */}
                 <Typography component="div">
-                  {/* REVIEW: 使用 split(data.word) 进行单词拆分高亮可能会失效，若例句中单词由于首字母大写或时态变化（例如 "Word" 或 "words"）而与 data.word 不完全相等时，将无法高亮。建议使用不区分大小写的正则匹配进行替换和高亮。 */}
-                  {sentence.eng?.split(data.word)?.map((part, i, arr) => (
-                    <span key={i}>
-                      {i > 0 && (
-                        <span style={{ fontWeight: "bold", color: "#1e88e5" }}>
-                          {data.word}
-                        </span>
-                      )}
-                      {part}
-                    </span>
-                  ))}
+                  {renderHighlightedSentence(sentence.eng, data.word)}
                 </Typography>
                 {/* 中文例句对照 */}
                 <Typography
@@ -133,26 +138,26 @@ export const dictHandlers = {
         ({ pos, tran }) => `${pos ? `[${pos}] ` : ""}${tran}`
       ) || [],
     // 渲染英音/美音音标并调用百度 TTS 播放发音
-    uiAudio: (data) => (
+    uiAudio: (data, i18n) => (
       <Typography component="div">
         <Typography
           component="div"
           style={{ display: "inline-block", paddingRight: "1em" }}
         >
-          <Typography component="span">{`英 ${data?.ec?.word?.ukphone ? `[${data?.ec?.word?.ukphone}]` : ""}`}</Typography>
+          <Typography component="span">{`${i18n("dict_uk")} ${data?.ec?.word?.ukphone ? `[${data?.ec?.word?.ukphone}]` : ""}`}</Typography>
           <BaiduAudioBtn text={data?.ec?.word?.["return-phrase"]} lan="uk" />
         </Typography>
         <Typography
           component="div"
           style={{ display: "inline-block", paddingRight: "1em" }}
         >
-          <Typography component="span">{`美 ${data?.ec?.word?.usphone ? `[${data?.ec?.word?.usphone}]` : ""}`}</Typography>
+          <Typography component="span">{`${i18n("dict_us")} ${data?.ec?.word?.usphone ? `[${data?.ec?.word?.usphone}]` : ""}`}</Typography>
           <BaiduAudioBtn text={data?.ec?.word?.["return-phrase"]} lan="en" />
         </Typography>
       </Typography>
     ),
     // 渲染有道的中文翻译与例句
-    uiTrans: (data) => (
+    uiTrans: (data, i18n) => (
       <Typography component="div">
         <Typography component="ul">
           {data?.ec?.word?.trs?.map(({ pos, tran }, idx) => (
@@ -170,7 +175,7 @@ export const dictHandlers = {
               component="div"
               style={{ fontWeight: "bold", marginBottom: "5px" }}
             >
-              例句
+              {i18n("dict_examples")}
             </Typography>
             {data.blng_sents_part["sentence-pair"]
               .slice(0, 2)
@@ -181,22 +186,10 @@ export const dictHandlers = {
                   style={{ marginBottom: "5px" }}
                 >
                   <Typography component="div">
-                    {/* 同样在英文例句中高亮当前词汇 */}
-                    {/* REVIEW: 同样存在大小写不同导致 split 无法高亮的问题。 */}
-                    {sentence.sentence
-                      ?.split(data.ec?.word?.["return-phrase"])
-                      ?.map((part, i, arr) => (
-                        <span key={i}>
-                          {i > 0 && data.ec?.word?.["return-phrase"] && (
-                            <span
-                              style={{ fontWeight: "bold", color: "#1e88e5" }}
-                            >
-                              {data.ec.word["return-phrase"]}
-                            </span>
-                          )}
-                          {part}
-                        </span>
-                      ))}
+                    {renderHighlightedSentence(
+                      sentence.sentence,
+                      data.ec?.word?.["return-phrase"]
+                    )}
                   </Typography>
                   <Typography
                     component="div"

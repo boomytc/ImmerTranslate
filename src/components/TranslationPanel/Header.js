@@ -97,10 +97,10 @@ export default function TranslationPanelHeader({
     );
   }, []);
 
-  // Refit after panel moves, resizes, or changes between full and minimal mode.
+  // Refit when opening the overflow menu or when its positioning callback updates.
   useLayoutEffect(() => {
     if (showMore) updateMenuPosition();
-  });
+  }, [showMore, updateMenuPosition]);
 
   useEffect(() => {
     if (!showMore) return;
@@ -170,7 +170,7 @@ export default function TranslationPanelHeader({
             <Logo size={16} />
           </span>
           <span className="kt-tranbox-header__title">
-            {`${process.env.REACT_APP_NAME} ${process.env.REACT_APP_VERSION}`}
+            {`${i18n("app_name")} ${process.env.REACT_APP_VERSION}`}
           </span>
         </span>
       )}
@@ -181,7 +181,7 @@ export default function TranslationPanelHeader({
         {setHideClickAway && (
           <IconButton
             title={i18n("btn_tip_click_away")}
-            aria-pressed={hideClickAway}
+            aria-pressed={!hideClickAway}
             onClick={() => setHideClickAway((pre) => !pre)}
           >
             {hideClickAway ? <LockOpenIcon /> : <LockIcon />}

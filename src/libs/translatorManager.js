@@ -14,7 +14,6 @@ import {
   MSG_HOVERNODE_TOGGLE,
   MSG_INPUT_TRANSLATE,
 } from "../config";
-import { PopupManager } from "./popupManager";
 import { FabManager } from "./fabManager";
 import { RuleEditorManager } from "./ruleEditorManager";
 import {
@@ -26,7 +25,6 @@ import {
   MSG_TRANS_SET_MODEL,
   MSG_OPEN_TRANBOX,
   MSG_TRANSBOX_TOGGLE,
-  MSG_POPUP_TOGGLE,
   MSG_FAB_TOGGLE,
   MSG_RULE_EDITOR,
   MSG_MOUSEHOVER_TOGGLE,
@@ -100,7 +98,6 @@ export default class TranslatorManager {
   _translator = null;
   _transboxManager = null;
   _inputTranslator = null;
-  _popupManager = null;
   _fabManager = null;
   _ruleEditorManager = null;
 
@@ -428,10 +425,6 @@ export default class TranslatorManager {
       this._inputTranslator = new InputTranslator(
         this.#cloneConfig(this.#setting)
       );
-      this._popupManager = new PopupManager({
-        translator: this._translator,
-        processActions: this.#processActions.bind(this),
-      });
       this._ruleEditorManager = new RuleEditorManager({
         translator: this._translator,
         pauseInteractions: () => {
@@ -462,7 +455,6 @@ export default class TranslatorManager {
   #destroyRuntimeModules() {
     this._ruleEditorManager?.destroy();
     this._ruleEditorManager = null;
-    this._popupManager?.destroy();
     this._fabManager?.destroy();
     this._transboxManager?.disable();
     this._inputTranslator?.disable();
@@ -471,7 +463,6 @@ export default class TranslatorManager {
     this._translator = null;
     this._transboxManager = null;
     this._inputTranslator = null;
-    this._popupManager = null;
     this._fabManager = null;
   }
 
@@ -905,7 +896,6 @@ export default class TranslatorManager {
       ) {
         return { error: "The rule editor could not be opened." };
       }
-      this._popupManager?.hide();
       return { ...this.#getRuntimeResponse(), ruleEditorOpened: true };
     }
     if (this._ruleEditorManager?.session && action !== MSG_TRANS_GETRULE) {
@@ -932,8 +922,7 @@ export default class TranslatorManager {
     if (
       (requiresTranslator && !this._translator) ||
       (requiresTransbox && !this._transboxManager) ||
-      (requiresInput && !this._inputTranslator) ||
-      (action === MSG_POPUP_TOGGLE && !this._popupManager)
+      (requiresInput && !this._inputTranslator)
     ) {
       return {
         error: `Message action is unavailable in this frame: ${action}`,
@@ -1049,9 +1038,6 @@ export default class TranslatorManager {
           })
         );
         break;
-      case MSG_POPUP_TOGGLE:
-        this._popupManager?.toggle();
-        break;
       case MSG_FAB_TOGGLE: {
         if (this.#isIframe || this.#transboxOnly) break;
         if (args?.fabConfig && typeof args.fabConfig === "object") {
@@ -1137,7 +1123,6 @@ export default class TranslatorManager {
     if (
       !fromExt &&
       !requiresInput &&
-      action !== MSG_POPUP_TOGGLE &&
       action !== MSG_FAB_TOGGLE &&
       action !== MSG_TRANS_TOGGLE &&
       action !== MSG_TRANS_GETRULE

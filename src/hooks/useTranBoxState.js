@@ -35,12 +35,6 @@ function clampTranBoxBounds(size, position) {
 
 /**
  * 划词翻译框位置、尺寸及基础风格状态管理器自定义 Hook
- *
- * // REVIEW: 1. 属性变更不同步隐患。
- * //    `simpleStyle`、`hideClickAway`、`followSelection` 等状态是由初始传入的 `tranboxSetting` 属性进行 `useState` 初始化的。
- * //    如果用户在后续运行中，通过设置页面或控制面板动态修改了这些全局配置（导致传入的 `tranboxSetting` 改变），
- * //    本 Hook 内部的 state 不会同步接收并更新，导致翻译框依然处于挂载时的陈旧状态。
- * //    推荐通过 `useEffect` 监听 `tranboxSetting` 的改变并调用对应的 `set` 函数进行状态同步。
  */
 export default function useTranBoxState(tranboxSetting) {
   // 解构获取翻译面板的初始参数设置项
@@ -79,6 +73,14 @@ export default function useTranBoxState(tranboxSetting) {
   // 面板位置状态管理 (x: 左间距, y: 顶间距)
   const [boxPosition, setBoxPosition] = useState(initialBoxPositionRef.current);
 
+  const boxSizeRef = useRef(boxSize);
+  const boxPositionRef = useRef(boxPosition);
+  boxSizeRef.current = boxSize;
+  boxPositionRef.current = boxPosition;
+
+  const hasLoadedStorageRef = useRef(false);
+  const lastPersistedRef = useRef(null);
+
   // 极简样式状态
   const [simpleStyle, setSimpleStyle] = useState(initSimpleStyle);
   // 点击空白处是否收起状态
@@ -86,11 +88,26 @@ export default function useTranBoxState(tranboxSetting) {
   // 是否跟随文字选区定位状态
   const [followSelection, setFollowSelection] = useState(initFollowMouse);
 
+  // 同步外部 tranboxSetting 配置更新
+  useEffect(() => {
+    setSimpleStyle(initSimpleStyle);
+  }, [initSimpleStyle]);
+
+  useEffect(() => {
+    setHideClickAway(initHideClickAway);
+  }, [initHideClickAway]);
+
+  useEffect(() => {
+    setFollowSelection(initFollowMouse);
+  }, [initFollowMouse]);
+
   // 首次挂载副作用：从 Storage 中读取之前保存的持久化翻译面板尺寸和位置，并根据当前浏览器窗口边界重新进行溢出修正
   useEffect(() => {
+    let active = true;
     (async () => {
       try {
         const { w, h, x, y } = (await getTranBox()) || {};
+        if (!active) return;
         const next = clampTranBoxBounds(
           {
             w: w !== undefined ? w : initialBoxSizeRef.current.w,
@@ -102,6 +119,14 @@ export default function useTranBoxState(tranboxSetting) {
           }
         );
 
+        lastPersistedRef.current = {
+          ...(w !== undefined && h !== undefined
+            ? next.size
+            : initialBoxSizeRef.current),
+          ...(x !== undefined && y !== undefined
+            ? next.position
+            : initialBoxPositionRef.current),
+        };
         if (w !== undefined && h !== undefined) {
           setBoxSize(next.size);
         }
@@ -110,31 +135,59 @@ export default function useTranBoxState(tranboxSetting) {
         }
       } catch (err) {
         // 忽略异常
+      } finally {
+        if (active) {
+          hasLoadedStorageRef.current = true;
+        }
       }
     })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // 监听浏览器窗口大小变化，动态限制翻译框边界，防止窗口缩小导致翻译框被挤出屏幕
   useEffect(() => {
     function handleResize() {
-      const next = clampTranBoxBounds(boxSize, boxPosition);
-      setBoxSize(next.size);
-      setBoxPosition(next.position);
+      const currentSize = boxSizeRef.current;
+      const currentPosition = boxPositionRef.current;
+      const next = clampTranBoxBounds(currentSize, currentPosition);
+      if (next.size.w !== currentSize.w || next.size.h !== currentSize.h) {
+        setBoxSize(next.size);
+      }
+      if (
+        next.position.x !== currentPosition.x ||
+        next.position.y !== currentPosition.y
+      ) {
+        setBoxPosition(next.position);
+      }
     }
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [boxSize, boxPosition]);
+  }, []);
 
-  // 副作用：当翻译面板的大小 (boxSize) 或位置 (boxPosition) 发生改变时，防抖式将其写入存储进行持久化保存
+  // 副作用：待首次读取完成后，当翻译面板的大小或位置发生改变时，防抖写入存储持久化
   // 注意：在 iframe 内运行时，不触发持久化，避免多框架环境读写冲突导致布局错乱
   useEffect(() => {
-    if (!isIframe && boxSize.w > 0 && boxSize.h > 0) {
-      debouncePutTranBox({
-        ...boxSize,
-        ...boxPosition,
-      });
+    if (!hasLoadedStorageRef.current || isIframe) return;
+    if (boxSize.w <= 0 || boxSize.h <= 0) return;
+    const prev = lastPersistedRef.current;
+    if (
+      prev &&
+      prev.w === boxSize.w &&
+      prev.h === boxSize.h &&
+      prev.x === boxPosition.x &&
+      prev.y === boxPosition.y
+    ) {
+      return;
     }
+    const nextSnapshot = {
+      ...boxSize,
+      ...boxPosition,
+    };
+    lastPersistedRef.current = nextSnapshot;
+    debouncePutTranBox(nextSnapshot);
   }, [boxSize, boxPosition]);
 
   return {

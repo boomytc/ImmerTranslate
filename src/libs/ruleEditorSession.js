@@ -35,6 +35,7 @@ export class RuleEditorSession {
       loading: true,
       saving: false,
       dirty: false,
+      canSave: false,
       confirmAction: "",
       field: "selector",
       input: "",
@@ -65,17 +66,18 @@ export class RuleEditorSession {
   };
   emit(patch = {}) {
     if (this.disposed) return;
+    const dirty = this.savedContext
+      ? (patch.pattern ?? this.state.pattern).trim() !==
+          this.baseline.pattern ||
+        Object.keys(this.draft).some(
+          (key) => this.draft[key] !== this.baseline[key]
+        )
+      : false;
     this.state = {
       ...this.state,
       ...patch,
-      dirty: this.savedContext
-        ? !this.savedContext.site ||
-          (patch.pattern ?? this.state.pattern).trim() !==
-            this.baseline.pattern ||
-          Object.keys(this.draft).some(
-            (key) => this.draft[key] !== this.baseline[key]
-          )
-        : false,
+      dirty,
+      canSave: this.savedContext ? dirty || !this.savedContext.site : false,
       undo: !!this.undoStack.length,
       redo: !!this.redoStack.length,
     };
@@ -596,19 +598,26 @@ export class RuleEditorSession {
     });
     if (updated) {
       this.closeInspector();
-      const targets = this.translator.previewRule().targets;
-      const coverage = this.classify(queryPage(selector)).some(
-        ({ element, excluded }) =>
-          !excluded &&
-          targets.some(
-            (target) =>
-              target === element ||
-              target.contains(element) ||
-              element.contains(target)
-          )
-      );
+      let coverage = false;
+      if (this.state.field === "selector") {
+        try {
+          const targets = this.translator.previewRule().targets;
+          coverage = this.classify(queryPage(selector)).some(
+            ({ element, excluded }) =>
+              !excluded &&
+              targets.some(
+                (target) =>
+                  target === element ||
+                  target.contains(element) ||
+                  element.contains(target)
+              )
+          );
+        } catch {
+          coverage = false;
+        }
+      }
       this.emit({
-        input: selector,
+        input: coverage ? selector : "",
         notice: coverage ? "removed-coverage" : "removed",
         whole: false,
       });

@@ -424,12 +424,11 @@ export default function useSelectionController({
       pendingSelectionRef.current = snapshot;
       setSelText(snapshot.text);
 
-      // 目标语言/纯数字命中时，统一禁用划词按钮与翻译框弹出
+      // 目标语言/纯数字命中时，禁用划词按钮弹出，但不强行关闭已打开的翻译框
       const suppressed = await shouldSuppressSelection(snapshot.text);
       if (taskId !== selectionTaskIdRef.current) return;
       if (suppressed) {
         setShowBtn(false);
-        setShowBox(false);
         return;
       }
 
@@ -604,7 +603,10 @@ export default function useSelectionController({
   useEffect(() => {
     if (!hideClickAway) return;
 
-    const handleHideBox = () => {
+    const handleHideBox = (event) => {
+      if (isTranboxEvent(event) || isTranButtonEvent(event)) {
+        return;
+      }
       const selection = window.getSelection();
       if (selection && selection.toString().trim() !== "") {
         return; // Ignore click away if user is selecting text on the page

@@ -69,11 +69,8 @@ const codeStyle = {
   textTransform: "none",
   textAlign: "left",
 };
-// Shadow DOM still inherits the page's root rem size. Keep editor text readable
-// even on sites that use a 10px root font, without changing the host page.
 const themeOptions = {
   typography: {
-    pxToRem: (size) => `${size}px`,
     body1: { fontSize: 14 },
     body2: { fontSize: 13 },
     caption: { fontSize: 12 },
@@ -83,9 +80,9 @@ const themeOptions = {
 const cardStyle = (selected) => ({
   border: "1px solid",
   borderColor: selected ? "primary.main" : "divider",
-  bgcolor: selected ? "var(--kt-secc)" : "var(--kt-sf0)",
+  bgcolor: selected ? "var(--kt-secc)" : "var(--kt-glass, var(--kt-sf0))",
   color: selected ? "var(--kt-onsecc)" : "text.primary",
-  borderRadius: "12px",
+  borderRadius: "var(--kt-radius-md, 12px)",
   overflow: "hidden",
 });
 const cardActionStyle = {
@@ -124,56 +121,88 @@ function CandidateList({ session, state, t }) {
           {t("navigateHelp")}
         </Typography>
       )}
-      {state.candidates.map((candidate) => (
-        <Card
-          key={candidate.selector}
-          variant="outlined"
-          sx={cardStyle(state.input === candidate.selector)}
-        >
-          <CardActionArea
-            disabled={busy}
-            aria-pressed={state.input === candidate.selector}
-            onClick={() => {
-              session.setInput(candidate.selector);
-              session.refresh();
-            }}
-            sx={cardActionStyle}
+      {state.candidates.map((candidate) => {
+        const selected = state.input === candidate.selector;
+        return (
+          <Card
+            key={candidate.selector}
+            variant="outlined"
+            sx={cardStyle(selected)}
           >
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              gap={1}
+            <CardActionArea
+              disabled={busy}
+              aria-pressed={selected}
+              onClick={() => {
+                session.setInput(candidate.selector);
+                session.refresh();
+              }}
+              sx={cardActionStyle}
             >
-              <Typography variant="caption" color="text.secondary">
-                {t(candidate.kind)}
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                gap={1}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: selected ? "var(--kt-onsecc)" : "text.secondary",
+                    opacity: selected ? 0.85 : 1,
+                  }}
+                >
+                  {t(candidate.kind)}
+                </Typography>
+                <Chip
+                  size="small"
+                  aria-live={selected ? "polite" : "off"}
+                  sx={
+                    selected
+                      ? {
+                          bgcolor:
+                            "color-mix(in srgb, var(--kt-onsecc) 12%, transparent)",
+                          color: "var(--kt-onsecc)",
+                        }
+                      : undefined
+                  }
+                  label={
+                    selected && state.matchIndex
+                      ? `${state.matchIndex} / ${candidate.count}`
+                      : candidate.count
+                  }
+                />
+              </Stack>
+              <Typography
+                component="code"
+                sx={{ ...codeStyle, display: "block", mt: 0.5 }}
+              >
+                {candidate.selector}
               </Typography>
-              <Chip
-                size="small"
-                aria-live={
-                  state.input === candidate.selector ? "polite" : "off"
-                }
-                label={
-                  state.input === candidate.selector && state.matchIndex
-                    ? `${state.matchIndex} / ${candidate.count}`
-                    : candidate.count
-                }
-              />
-            </Stack>
-            <Typography
-              component="code"
-              sx={{ ...codeStyle, display: "block", mt: 0.5 }}
-            >
-              {candidate.selector}
-            </Typography>
-            {candidate.fragile && (
-              <Typography variant="caption" color="warning.main">
-                {t("fragile")}
-              </Typography>
-            )}
-          </CardActionArea>
-        </Card>
-      ))}
+              {candidate.fragile && (
+                <Typography
+                  variant="caption"
+                  component="div"
+                  sx={{
+                    mt: 0.5,
+                    color: selected
+                      ? "var(--kt-onwarnc)"
+                      : "var(--kt-warn, warning.main)",
+                    ...(selected && {
+                      display: "inline-block",
+                      px: 0.75,
+                      py: 0.125,
+                      borderRadius: "var(--kt-radius-xs, 6px)",
+                      bgcolor: "var(--kt-warnc)",
+                    }),
+                  }}
+                >
+                  {t("fragile")}
+                </Typography>
+              )}
+            </CardActionArea>
+          </Card>
+        );
+      })}
     </Stack>
   );
 }
@@ -338,7 +367,7 @@ export function Editor({ session }) {
                     flex: 1,
                     minWidth: 0,
                     p: 0.5,
-                    borderRadius: "16px",
+                    borderRadius: "var(--kt-radius-control, 16px)",
                     bgcolor: "var(--kt-sf2)",
                     "& .MuiToggleButton-root": {
                       flex: 1,
@@ -347,7 +376,7 @@ export function Editor({ session }) {
                       px: 1,
                       py: 0.5,
                       border: 0,
-                      borderRadius: "12px",
+                      borderRadius: "var(--kt-radius-md, 12px)",
                       fontSize: 13,
                       lineHeight: 1.4,
                       "&:first-of-type": { flex: 1.4 },
@@ -390,7 +419,7 @@ export function Editor({ session }) {
                     aria-label={t("saving")}
                   />
                 }
-                disabled={busy || !state.dirty}
+                disabled={busy || !state.canSave}
                 aria-label={t("save")}
                 aria-busy={state.saving}
                 title={state.dirty ? t("unsaved") : undefined}
@@ -442,13 +471,18 @@ export function Editor({ session }) {
                   "& .MuiAutocomplete-paper": {
                     mt: 0.5,
                     border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: "12px",
-                    bgcolor: "var(--kt-sf0)",
-                    boxShadow: "var(--kt-shadow-2)",
+                    borderColor:
+                      "var(--kt-liquid-edge, var(--kt-border-strong, var(--kt-linev)))",
+                    borderRadius: "var(--kt-radius-md, 12px)",
+                    bgcolor: "var(--kt-liquid, var(--kt-sf0))",
+                    WebkitBackdropFilter:
+                      "var(--kt-liquid-blur, var(--kt-glass-blur))",
+                    backdropFilter:
+                      "var(--kt-liquid-blur, var(--kt-glass-blur))",
+                    boxShadow: "var(--kt-liquid-shadow, var(--kt-shadow-menu))",
                   },
                   "& .MuiAutocomplete-option": {
-                    borderRadius: "8px",
+                    borderRadius: "var(--kt-radius-sm, 8px)",
                     "&.Mui-focused": { bgcolor: "var(--kt-sf3)" },
                     '&[aria-selected="true"]': {
                       bgcolor: "var(--kt-secc)",
@@ -638,69 +672,88 @@ export function Editor({ session }) {
                       <Typography variant="body2">{t("empty")}</Typography>
                     </Stack>
                   )}
-                  {state.entries.map((entry) => (
-                    <Card
-                      key={entry.selector}
-                      variant="outlined"
-                      onMouseEnter={() => session.hover(entry.selector)}
-                      onMouseLeave={() => session.refresh()}
-                      sx={{
-                        ...cardStyle(state.editing === entry.selector),
-                        display: "flex",
-                        alignItems: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <CardActionArea
-                        disabled={busy}
-                        aria-label={entry.selector}
-                        aria-pressed={state.editing === entry.selector}
-                        onClick={() => session.edit(entry.selector)}
+                  {state.entries.map((entry) => {
+                    const selected = state.editing === entry.selector;
+                    return (
+                      <Card
+                        key={entry.selector}
+                        variant="outlined"
+                        onMouseEnter={() => session.hover(entry.selector)}
+                        onMouseLeave={() => session.refresh()}
                         sx={{
-                          ...cardActionStyle,
-                          flex: 1,
+                          ...cardStyle(selected),
+                          display: "flex",
+                          alignItems: "center",
+                          flexShrink: 0,
                         }}
                       >
-                        <Stack direction="row" alignItems="start" gap={1}>
-                          <Typography
-                            component="code"
-                            sx={{
-                              ...codeStyle,
-                              flex: 1,
-                              minWidth: 0,
-                            }}
-                          >
-                            {entry.selector}
-                          </Typography>
-                          <Chip
-                            size="small"
-                            color={entry.invalid ? "error" : "default"}
-                            label={entry.invalid ? "!" : entry.count}
-                          />
-                        </Stack>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          component="div"
+                        <CardActionArea
+                          disabled={busy}
+                          aria-label={entry.selector}
+                          aria-pressed={selected}
+                          onClick={() => session.edit(entry.selector)}
                           sx={{
-                            mt: 0.75,
+                            ...cardActionStyle,
+                            flex: 1,
                           }}
                         >
-                          {t(entry.source)}
-                        </Typography>
-                      </CardActionArea>
-                      <IconButton
-                        size="small"
-                        title={t("delete")}
-                        aria-label={`${t("delete")}: ${entry.selector}`}
-                        disabled={busy}
-                        onClick={() => session.remove(entry.selector)}
-                        sx={{ m: 0.5, flexShrink: 0 }}
-                      >
-                        <DeleteOutlineRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </Card>
-                  ))}
+                          <Stack direction="row" alignItems="start" gap={1}>
+                            <Typography
+                              component="code"
+                              sx={{
+                                ...codeStyle,
+                                flex: 1,
+                                minWidth: 0,
+                              }}
+                            >
+                              {entry.selector}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              color={entry.invalid ? "error" : "default"}
+                              sx={
+                                selected && !entry.invalid
+                                  ? {
+                                      bgcolor:
+                                        "color-mix(in srgb, var(--kt-onsecc) 12%, transparent)",
+                                      color: "var(--kt-onsecc)",
+                                    }
+                                  : undefined
+                              }
+                              label={entry.invalid ? "!" : entry.count}
+                            />
+                          </Stack>
+                          <Typography
+                            variant="caption"
+                            component="div"
+                            sx={{
+                              mt: 0.75,
+                              color: selected
+                                ? "var(--kt-onsecc)"
+                                : "text.secondary",
+                              opacity: selected ? 0.85 : 1,
+                            }}
+                          >
+                            {t(entry.source)}
+                          </Typography>
+                        </CardActionArea>
+                        <IconButton
+                          size="small"
+                          title={t("delete")}
+                          aria-label={`${t("delete")}: ${entry.selector}`}
+                          disabled={busy}
+                          onClick={() => session.remove(entry.selector)}
+                          sx={{
+                            m: 0.5,
+                            flexShrink: 0,
+                            color: selected ? "var(--kt-onsecc)" : undefined,
+                          }}
+                        >
+                          <DeleteOutlineRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Card>
+                    );
+                  })}
                 </Stack>
                 <Divider />
                 <Stack direction="row" justifyContent="space-between" gap={1}>
@@ -857,7 +910,7 @@ export function Editor({ session }) {
 export default function RuleEditor(props) {
   return (
     <SettingProvider context="ruleEditor">
-      <M3Theme options={themeOptions}>
+      <M3Theme options={themeOptions} isolateRem>
         <Editor {...props} />
       </M3Theme>
     </SettingProvider>
