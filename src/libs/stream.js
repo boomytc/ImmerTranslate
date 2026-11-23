@@ -209,6 +209,11 @@ export function getStreamDelta(json, apiType) {
     }
     case OPT_TRANS_CLAUDE:
       // Anthropic Claude 格式 delta 提取逻辑
+      if (json.type === "error") {
+        const error = new Error(json.error?.message || "Claude stream failed");
+        error.isAIStreamTerminal = true;
+        throw error;
+      }
       if (json.type === "content_block_delta") {
         return json.delta?.text || "";
       }

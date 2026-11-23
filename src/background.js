@@ -114,10 +114,15 @@ async function findOptionsTabId() {
         (item.documentUrl === base ||
           item.documentUrl.startsWith(`${base}#`) ||
           item.documentUrl.startsWith(`${base}?`)) &&
-        Number.isInteger(item?.tabId)
+        Number.isInteger(item?.tabId) &&
+        item.tabId >= 0
     );
     if (!hit) return null;
-    if (Number.isInteger(hit.windowId) && browser.windows?.update) {
+    if (
+      Number.isInteger(hit.windowId) &&
+      hit.windowId >= 0 &&
+      browser.windows?.update
+    ) {
       try {
         await browser.windows.update(hit.windowId, { focused: true });
       } catch (err) {

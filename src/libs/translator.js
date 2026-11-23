@@ -419,8 +419,7 @@ export class Translator {
   // 内置忽略元素
   static KISS_IGNORE_SELECTOR = `.${Translator.KISS_CLASS.warpper}, .${Translator.KISS_CLASS.hoverBubble}, .kiss-caption-container, .kiss-subtitle-controls, #kiss-youtube-subtitle-list-container,
   #${APP_CONSTS.fabID}, .${APP_CONSTS.fabID}_warpper,
-  #${APP_CONSTS.boxID}, .${APP_CONSTS.boxID}_warpper,
-  #${APP_CONSTS.popupID}, .${APP_CONSTS.popupID}_warpper, #kiss-rule-editor, #kiss-rule-highlights`;
+  #${APP_CONSTS.boxID}, .${APP_CONSTS.boxID}_warpper, #kiss-rule-editor, #kiss-rule-highlights`;
 
   static BUILTIN_IGNORE_SELECTOR = `address, area, audio, br, canvas,
   data, datalist, embed, head, iframe, input, noscript, map,

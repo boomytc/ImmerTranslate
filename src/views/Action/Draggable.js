@@ -9,7 +9,6 @@ import {
 import { limitFloat, limitNumber } from "../../libs/utils";
 import { putFab } from "../../libs/storage";
 import { debounce } from "../../libs/utils";
-import Paper from "@mui/material/Paper";
 
 const FAB_EDGES = ["left", "right", "top", "bottom"];
 const DRAG_THRESHOLD_PX = 4;
@@ -82,18 +81,6 @@ export const getEdgePosition = ({
   return { x: left, y: top };
 };
 
-// Optionally wrap the draggable content in a Material UI Paper surface.
-function DraggableWrapper({ children, usePaper, ...props }) {
-  if (usePaper) {
-    return (
-      <Paper {...props} className="kt-chrome-bubble" elevation={0}>
-        {children}
-      </Paper>
-    );
-  }
-  return <div {...props}>{children}</div>;
-}
-
 /**
  * Support pointer dragging with edge snapping and hover reveal.
  */
@@ -115,7 +102,6 @@ export default function Draggable({
   onPositionTransitionEnd,
   handler, // The drag handle.
   children, // The main content.
-  usePaper,
   // The transformed wrapper is the containing block for fixed descendants.
   // Let it fit the action menu while edge snapping still uses the explicit width.
   fitContent,
@@ -386,13 +372,9 @@ export default function Draggable({
 
   // Begin dragging and capture the initial coordinates.
   const handlePointerDown = (e) => {
-    if (
-      usePaper &&
-      e.target.closest?.("button, a, input, select, textarea, [role='button']")
-    ) {
+    if (e.button !== 0) {
       return;
     }
-    // Only panel controls skip dragging: the FAB handle is itself a button.
     // Capture pointer movement even after the pointer leaves the handle.
     e.target.setPointerCapture(e.pointerId);
     onStart && onStart();
@@ -537,10 +519,10 @@ export default function Draggable({
         }
       }}
     >
-      <DraggableWrapper usePaper={usePaper}>
+      <div>
         <div {...pointerProps}>{handler}</div>
         <div>{children}</div>
-      </DraggableWrapper>
+      </div>
     </div>
   );
 }

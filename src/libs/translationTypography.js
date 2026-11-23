@@ -1,4 +1,5 @@
 import { APP_LCNAME } from "../config/app";
+import { splitCssDeclarations } from "./cssDeclarations";
 
 /**
  * Page bilingual nodes must follow the source paragraph's typography.
@@ -176,10 +177,13 @@ export function applySourceTypography(node, source, styleCode = "") {
 
 export function clearInlineCss(node, cssText) {
   if (!cssText || !node?.style?.removeProperty) return;
-  cssText.split(";").forEach((part) => {
+  splitCssDeclarations(cssText).forEach((part) => {
     const separator = part.indexOf(":");
     if (separator === -1) return;
-    const property = part.slice(0, separator).trim();
+    const property = part
+      .slice(0, separator)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .trim();
     if (!property) return;
     try {
       node.style.removeProperty(property);
@@ -191,10 +195,13 @@ export function clearInlineCss(node, cssText) {
 
 export function applyInlineCss(node, cssText) {
   if (!cssText || !node?.style?.setProperty) return;
-  cssText.split(";").forEach((part) => {
+  splitCssDeclarations(cssText).forEach((part) => {
     const separator = part.indexOf(":");
     if (separator === -1) return;
-    const property = part.slice(0, separator).trim();
+    const property = part
+      .slice(0, separator)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .trim();
     let value = part.slice(separator + 1).trim();
     if (!property || !value) return;
     value = value.replace(/!important\s*$/i, "").trim();

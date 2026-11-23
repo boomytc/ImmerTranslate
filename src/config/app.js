@@ -13,7 +13,6 @@ export const APP_LCNAME = APP_NAME.toLowerCase(); // 应用名称小写，用于
 export const APP_CONSTS = {
   fabID: `${APP_LCNAME}-fab`, // 悬浮翻译球元素的 ID
   boxID: `${APP_LCNAME}-box`, // 划词/查词翻译面板元素的 ID
-  popupID: `${APP_LCNAME}-popup`, // 弹出页/提示框的 ID
 };
 
 // Preferred content width when opening a new separate window.

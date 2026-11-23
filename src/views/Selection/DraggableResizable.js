@@ -40,6 +40,9 @@ function Pointer({
 
   // Handle pointer start.
   function handlePointerDown(e) {
+    if (e.button !== 0) {
+      return;
+    }
     // The header contains buttons and an overflow menu as well as the drag area.
     // Pressing a control must not start a drag. Clear origin too, so the next move
     // cannot calculate its displacement from a stale starting point.
