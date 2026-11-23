@@ -1,5 +1,7 @@
 import { isSameSet } from "./utils";
 
+const isComposingEvent = (e) => Boolean(e?.isComposing || e?.keyCode === 229);
+
 /**
  * 键盘快捷键状态监听器。
  * 跟踪当前页面上按下并保持的所有物理按键，支持高精度组合键状态监听。
@@ -16,8 +18,8 @@ export const shortcutListener = (
   const pressedKeys = new Set(); // 用于缓存当前所有正被按下的按键 (e.code)
 
   const handleKeyDown = (e) => {
-    // 忽略没有物理按键 code 的异常事件
-    if (!e.code) {
+    // 忽略没有物理按键 code 或处于 IME 输入法组合态的事件
+    if (!e.code || isComposingEvent(e)) {
       return;
     }
 
@@ -29,6 +31,11 @@ export const shortcutListener = (
 
   const handleKeyUp = (e) => {
     if (!e.code) {
+      return;
+    }
+
+    if (isComposingEvent(e)) {
+      pressedKeys.delete(e.code);
       return;
     }
 
@@ -60,7 +67,7 @@ export const shortcutListener = (
 /**
  * 注册特定的组合物理快捷键。
  * @param {string[]} targetKeys - 目标快捷键名称数组 (e.g. ['ControlLeft', 'KeyC'])
- * @param {() => void} fn - 快捷键匹配触发成功后的回调函数
+ * @param {(triggerInfo?: { key: string, code: string, event: KeyboardEvent }) => void} fn - 快捷键匹配触发成功后的回调函数
  * @param {EventTarget} target - 监听目标，默认为 window
  * @returns {() => void} - 销毁注销函数
  */
@@ -70,7 +77,7 @@ export const shortcutRegister = (targetKeys = [], fn, target = window) => {
   const targetKeySet = new Set(targetKeys);
   let hasInterference = false; // 抗干扰标志，标识本次按键过程中是否混入了非目标按键
 
-  const onKeyDown = (pressedKeys, event) => {
+  const onKeyDown = (_pressedKeys, event) => {
     // REVIEW: 若按下了任何不属于目标快捷键集合的其它干扰按键，则立刻将干扰状态置为 true，
     // 防止用户乱按一气或输入普通文本时误触发快捷动作。
     if (!targetKeySet.has(event.code)) {
@@ -81,7 +88,7 @@ export const shortcutRegister = (targetKeys = [], fn, target = window) => {
   const onKeyUp = (pressedKeys, event) => {
     // 只有在按下组合完全一致，且中途没有任何其它按键干扰时才判定成功触发
     if (isSameSet(targetKeySet, pressedKeys) && !hasInterference) {
-      fn();
+      fn({ key: event.key, code: event.code, event });
     }
     // 当所有按键陆续松开到只剩最后一个按键时，重置抗干扰标志，准备下一轮按键判定
     if (pressedKeys.size === 1) {
@@ -93,38 +100,12 @@ export const shortcutRegister = (targetKeys = [], fn, target = window) => {
 };
 
 /**
- * 高阶包装函数：为目标函数提供连击次数限制与连击超时重置功能。
- * @param {() => void} fn - 被包装的目标回调函数
- * @param {number} step - 需要连续触发的次数 (如双击为 2)
- * @param {number} timeout - 连击间隔的最大超时时间 (毫秒)
- * @returns {() => void} - 具备连击计数拦截能力的新函数
- */
-const withStepCounter = (fn, step, timeout) => {
-  let count = 0;
-  let timer = null;
-
-  return () => {
-    // 每次点击都更新超时重置定时器
-    timer && clearTimeout(timer);
-    timer = setTimeout(() => {
-      count = 0; // 超时未完成连击则重置计数为 0
-    }, timeout);
-
-    count++;
-    if (count === step) {
-      count = 0;
-      clearTimeout(timer);
-      fn(); // 达到连续触发阈值，执行真实业务回调
-    }
-  };
-};
-
-/**
- * 注册连击快捷键 (例如双击 Alt/Option 键)。
+ * 注册连击快捷键 (例如双击 Alt/Option 键或连按三次空格)。
+ * 中途按下任意非目标键、进入 IME 组合态或窗口失焦时会立刻清零计数并清理定时器。
  * @param {string[]} targetKeys - 目标连击的按键组合数组 (通常为单个控制物理键如 ['AltLeft'])
- * @param {() => void} fn - 成功连击后的回调函数
+ * @param {(triggerInfo?: { key: string, code: string, event: KeyboardEvent }) => void} fn - 成功连击后的回调函数
  * @param {number} step - 连击的次数，默认 2 次
- * @param {number} timeout - 每次连击间许的最大超时，默认 500ms
+ * @param {number} timeout - 每次连击允许的最大间隔超时，默认 500ms
  * @param {EventTarget} target - 监听目标对象
  * @returns {() => void} - 销毁注销函数
  */
@@ -135,6 +116,69 @@ export const stepShortcutRegister = (
   timeout = 500,
   target = window
 ) => {
-  const steppedFn = withStepCounter(fn, step, timeout);
-  return shortcutRegister(targetKeys, steppedFn, target);
+  if (targetKeys.length === 0) return () => {};
+
+  const targetKeySet = new Set(targetKeys);
+  const requiredStep = Math.max(1, Number(step) || 1);
+  let hasInterference = false;
+  let count = 0;
+  let timer = null;
+
+  const resetCounter = () => {
+    count = 0;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  const onKeyDown = (_pressedKeys, event) => {
+    if (!targetKeySet.has(event.code)) {
+      hasInterference = true;
+      // 遇非目标键立刻清零连击计数并取消定时器，避免正常打字间隔中凑满次数误触。
+      resetCounter();
+    }
+  };
+
+  const onKeyUp = (pressedKeys, event) => {
+    if (!targetKeySet.has(event.code)) {
+      resetCounter();
+    } else if (isSameSet(targetKeySet, pressedKeys) && !hasInterference) {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+
+      count += 1;
+      if (count >= requiredStep) {
+        resetCounter();
+        fn({ key: event.key, code: event.code, event });
+      } else {
+        timer = setTimeout(() => {
+          count = 0;
+          timer = null;
+        }, timeout);
+      }
+    }
+
+    if (pressedKeys.size === 1) {
+      hasInterference = false;
+    }
+  };
+
+  const handleReset = () => {
+    hasInterference = false;
+    resetCounter();
+  };
+
+  const unregister = shortcutListener(onKeyDown, onKeyUp, target);
+  target.addEventListener("compositionstart", handleReset, true);
+  window.addEventListener("blur", handleReset);
+
+  return () => {
+    unregister();
+    target.removeEventListener("compositionstart", handleReset, true);
+    window.removeEventListener("blur", handleReset);
+    handleReset();
+  };
 };

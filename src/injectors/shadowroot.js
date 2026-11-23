@@ -5,17 +5,28 @@
  */
 export const shadowRootInjector = () => {
   try {
+    const hookFlag = "__IMMERTRANSLATE_SHADOWROOT_HOOKED__";
+    if (window[hookFlag]) {
+      return;
+    }
+    window[hookFlag] = true;
+
     const orig = Element.prototype.attachShadow;
     Element.prototype.attachShadow = function (...args) {
       // 执行原生的 attachShadow 逻辑
       const root = orig.apply(this, args);
 
-      // REVIEW: 消息监听滥用与安全风险。
-      // 此处使用 `window.postMessage` 进行跨域或跨环境通知，并且将 `targetOrigin` 设置为了通配符 `*`。
-      // 这意味着当前窗口内的任何第三方脚本都可以监听并捕获到该事件。
-      // 虽然该通知负载没有包含敏感数据，但使用通配符并不符合安全防御性编程的最佳实践，推荐在已知当前域时使用 `window.location.origin` 进行限制。
       // 函数源码会进入页面，这个字符串必须与 MSG_SHADOW_ROOT_CREATED 一致。
-      window.postMessage({ type: "IMMERTRANSLATE_SHADOW_ROOT_CREATED" }, "*");
+      try {
+        if (window.location.origin && window.location.origin !== "null") {
+          window.postMessage(
+            { type: "IMMERTRANSLATE_SHADOW_ROOT_CREATED" },
+            window.location.origin
+          );
+        }
+      } catch (postErr) {
+        // 忽略受限来源下的消息派发异常，避免影响页面创建 ShadowRoot。
+      }
       return root;
     };
   } catch (err) {

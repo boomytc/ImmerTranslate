@@ -5,27 +5,44 @@
  */
 export const XMLHttpRequestInjector = () => {
   try {
+    const hookFlag = "__IMMERTRANSLATE_XHR_HOOKED__";
+    if (window[hookFlag]) {
+      return;
+    }
+    window[hookFlag] = true;
+
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (...args) {
       const url = args[1];
       // 匹配 YouTube 的 timedtext 字幕网络请求链接
       if (typeof url === "string" && url.includes("timedtext")) {
-        this.addEventListener("load", function () {
-          // 向主应用派发字幕数据，使用了安全的原点限制 (window.location.origin)
-          // REVIEW: 接口拦截不完全风险。
-          // 目前仅重写拦截了 `XMLHttpRequest` 对象，但这极易因网页底层升级或使用了 `fetch` API 获取字幕而失效。
-          // 许多现代网页应用正在用 `fetch` 全面替代 `XHR`。
-          // 推荐同步劫持 `window.fetch` 方法，以实现对不同 HTTP 请求客户端的完整兼容拦截。
-          window.postMessage(
-            {
-              // 函数源码会进入页面，这个字符串必须与 MSG_XHR_DATA_YOUTUBE 一致。
-              type: "IMMERTRANSLATE_XHR_DATA_YOUTUBE",
-              url: this.responseURL,
-              response: this.responseText,
-            },
-            window.location.origin
-          );
-        });
+        this.addEventListener(
+          "load",
+          function () {
+            try {
+              if (this.responseType !== "" && this.responseType !== "text") {
+                return;
+              }
+              const response = this.responseText;
+              if (!response) {
+                return;
+              }
+              // 向主应用派发字幕数据，使用了安全的原点限制 (window.location.origin)
+              window.postMessage(
+                {
+                  // 函数源码会进入页面，这个字符串必须与 MSG_XHR_DATA_YOUTUBE 一致。
+                  type: "IMMERTRANSLATE_XHR_DATA_YOUTUBE",
+                  url: this.responseURL,
+                  response,
+                },
+                window.location.origin
+              );
+            } catch (loadErr) {
+              // 忽略非文本或异常状态的响应读取错误，避免影响页面原请求。
+            }
+          },
+          { once: true }
+        );
       }
       return originalOpen.apply(this, args);
     };

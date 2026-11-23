@@ -103,6 +103,12 @@ function findNextEffectiveEventStart(
   return NaN;
 }
 
+function mergeSegmentText(prevText, nextText, useSpace) {
+  if (!prevText) return nextText;
+  if (!nextText) return prevText;
+  return useSpace ? `${prevText} ${nextText}` : `${prevText}${nextText}`;
+}
+
 /**
  * 一次完成 YouTube json3 events 的文本清洗、相邻重复事件去除和时间轴展平。
  * 原始输入不会被修改；统计断句读取 events，规则和 AI 断句读取已过滤非语音片段的 flatEvents。
@@ -139,6 +145,7 @@ export function prepareTimedTextEvents(rawEvents = [], fromLang = "auto") {
     const rawSegs = Array.isArray(event.segs) ? event.segs : [];
     const tStartMs = Number(event.tStartMs) || 0;
     const dDurationMs = Number(event.dDurationMs) || 0;
+    const eventEnd = tStartMs + dDurationMs;
     const isLineBreak =
       event.aAppend === 1 && rawSegs.length === 1 && rawSegs[0]?.utf8 === "\n";
 
@@ -160,6 +167,7 @@ export function prepareTimedTextEvents(rawEvents = [], fromLang = "auto") {
       const { utf8 = "", tOffsetMs = 0 } = normalizedSegs[index];
       const text = cleanTimedText(utf8);
       const start = tStartMs + (Number(tOffsetMs) || 0);
+      const isLastSeg = index === normalizedSegs.length - 1;
 
       if (!text) {
         // json3 换行控制偶尔比前一事件的末尾词更早；这种倒退断点不能截掉未来词。
@@ -169,16 +177,26 @@ export function prepareTimedTextEvents(rawEvents = [], fromLang = "auto") {
 
       if (isNonSpeechSegment(text)) {
         // 在声音说明开始处结束前一个语音片段，保留真实静音间隔供后续断句判断。
-        flushBuffer(start);
+        if (!buffer || start > buffer.start) flushBuffer(start);
         filteredNonSpeechCount += 1;
         continue;
       }
 
+      if (buffer && start <= buffer.start) {
+        // 同一起点（或倒退起点）的多段 segs 就地合并，避免 flushBuffer(start) 产生零长度丢字。
+        buffer.text = mergeSegmentText(buffer.text, text, canExpandCoarseText);
+        if (isLastSeg && eventEnd > buffer.start) {
+          buffer.end = Number.isFinite(buffer.end)
+            ? Math.max(buffer.end, eventEnd)
+            : eventEnd;
+        }
+        continue;
+      }
+
       flushBuffer(start);
-      const nextOffset =
-        index === normalizedSegs.length - 1
-          ? dDurationMs
-          : Number(normalizedSegs[index + 1]?.tOffsetMs) || 0;
+      const nextOffset = isLastSeg
+        ? dDurationMs
+        : Number(normalizedSegs[index + 1]?.tOffsetMs) || 0;
       const declaredEnd = tStartMs + nextOffset;
       const nextEventStart = findNextEffectiveEventStart(
         sourceEvents,
@@ -187,9 +205,7 @@ export function prepareTimedTextEvents(rawEvents = [], fromLang = "auto") {
         start
       );
       const effectiveEnd =
-        index === normalizedSegs.length - 1 &&
-        Number.isFinite(nextEventStart) &&
-        nextEventStart > start
+        isLastSeg && Number.isFinite(nextEventStart) && nextEventStart > start
           ? Math.min(declaredEnd, nextEventStart)
           : declaredEnd;
       const isAsrSegment = Object.prototype.hasOwnProperty.call(
@@ -207,9 +223,13 @@ export function prepareTimedTextEvents(rawEvents = [], fromLang = "auto") {
       }
 
       buffer = { text, start };
-      if (index === normalizedSegs.length - 1) {
-        buffer.end = tStartMs + dDurationMs;
+      if (isLastSeg) {
+        buffer.end = eventEnd;
       }
+    }
+
+    if (buffer && !Number.isFinite(buffer.end) && eventEnd > buffer.start) {
+      buffer.end = eventEnd;
     }
   }
 

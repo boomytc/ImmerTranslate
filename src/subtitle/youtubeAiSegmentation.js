@@ -1,5 +1,4 @@
 import { logger } from "../libs/log.js";
-import { randomBetween, sleep } from "../libs/utils.js";
 import { resolveApiPromptSettings } from "../config/prompt.js";
 import { splitEventsIntoChunks } from "./youtubeSubtitleProcessing.js";
 
@@ -7,6 +6,29 @@ import { splitEventsIntoChunks } from "./youtubeSubtitleProcessing.js";
  * YouTube 字幕 AI 分段层。
  * 负责把展平后的字幕分块提交给断句 API，并通过回调把后续分块增量交还给 provider 渲染。
  */
+
+function isAbortError(error, signal) {
+  return error?.name === "AbortError" || Boolean(signal?.aborted);
+}
+
+function getChunkRange(chunkEvents) {
+  const validEvents = (chunkEvents || []).filter(
+    (item) => Number.isFinite(item?.start) && Number.isFinite(item?.end)
+  );
+  if (!validEvents.length) return null;
+  return {
+    start: validEvents[0].start,
+    end: validEvents[validEvents.length - 1].end,
+  };
+}
+
+function attachChunkMetadata(cues, chunkIndex, chunkRange) {
+  return (cues || []).map((cue) => ({
+    ...cue,
+    ...(Number.isInteger(chunkIndex) ? { _chunkIndex: chunkIndex } : {}),
+    ...(chunkRange ? { _chunkRange: chunkRange } : {}),
+  }));
+}
 
 /**
  * 只接受从事件 0 开始连续覆盖的 boundary-v3 前缀。
@@ -191,7 +213,7 @@ export async function aiSegment({
       // 未覆盖尾部最多重试一次；二次响应仍不完整时，只对剩余事件使用规则断句。
       const tailOffset = initial.coveredEnd + 1;
       const tailEvents = segmentEvents.slice(tailOffset);
-      let tailPrefix = { cues: [], coveredEnd: -1, verifiable: true };
+      let tailPrefix = { cues: [], coveredEnd: -1, verifiable: false };
       try {
         const tailSign = `${tailEvents[0].start} --> ${
           tailEvents[tailEvents.length - 1].end
@@ -211,13 +233,16 @@ export async function aiSegment({
           tailEvents.length
         );
       } catch (tailError) {
+        if (isAbortError(tailError, signal)) {
+          throw tailError;
+        }
         logger.info("Youtube Provider: ai tail retry", tailError);
       }
 
       const acceptedTail = offsetCueIndices(tailPrefix.cues, tailOffset);
       const fallbackOffset = tailPrefix.verifiable
         ? tailOffset + tailPrefix.coveredEnd + 1
-        : segmentEvents.length;
+        : tailOffset;
       const fallbackEvents = segmentEvents.slice(fallbackOffset);
       const fallbackCues = fallbackEvents.length
         ? formatSubtitles(fallbackEvents, fromLang)
@@ -230,6 +255,9 @@ export async function aiSegment({
       );
     }
   } catch (err) {
+    if (isAbortError(err, signal)) {
+      throw err;
+    }
     logger.info("Youtube Provider: ai segmentation", err);
   }
 
@@ -301,6 +329,7 @@ export async function eventsToSubtitles({
     }
 
     const firstChunkEvents = eventChunks[0];
+    const firstChunkRange = getChunkRange(firstChunkEvents);
     const firstChunkProgressed = Math.floor(100 / eventChunks.length);
     const firstBatchSubtitles = await aiSegment({
       videoId,
@@ -325,9 +354,11 @@ export async function eventsToSubtitles({
 
         // 首块也允许按句增量上屏，让用户不必等待整个 AI chunk 完整返回。
         onAppendSubtitles({
-          subtitles,
+          subtitles: attachChunkMetadata(subtitles, 0, firstChunkRange),
           progressed: firstChunkProgressed,
-          chunkNum: 1,
+          chunkIndex: 0,
+          chunkRange: firstChunkRange,
+          isFinalChunk: false,
         });
       },
     });
@@ -335,12 +366,28 @@ export async function eventsToSubtitles({
 
     if (!firstBatchSubtitles?.length) {
       logger.info("Youtube Provider: AI failed, falling back to built-in");
-      return [builtinSegment(events, flatEvents, fromLang, setting), 100];
+      return [
+        builtinSegment(events, flatEvents, fromLang, setting),
+        100,
+        null,
+        { replaceAll: true, isFinalChunk: true },
+      ];
     }
+
+    const taggedFirstBatch = attachChunkMetadata(
+      firstBatchSubtitles,
+      0,
+      firstChunkRange
+    );
+    const firstCommitMeta = {
+      chunkIndex: 0,
+      chunkRange: firstChunkRange,
+      isFinalChunk: true,
+    };
 
     logger.info("Youtube Provider: Sentence break mode: AI");
     if (eventChunks.length === 1) {
-      return [firstBatchSubtitles, 100];
+      return [taggedFirstBatch, 100, null, firstCommitMeta];
     }
 
     const scheduler = createAiChunkScheduler({
@@ -363,10 +410,15 @@ export async function eventsToSubtitles({
     });
 
     const processed = Math.floor(100 / eventChunks.length);
-    return [firstBatchSubtitles, processed, scheduler];
+    return [taggedFirstBatch, processed, scheduler, firstCommitMeta];
   }
 
-  return [builtinSegment(events, flatEvents, fromLang, setting), 100];
+  return [
+    builtinSegment(events, flatEvents, fromLang, setting),
+    100,
+    null,
+    { replaceAll: true, isFinalChunk: true },
+  ];
 }
 
 /**
@@ -477,6 +529,7 @@ export function createAiChunkScheduler({
     }
 
     const chunkEvents = chunks[index];
+    const chunkRange = getChunkRange(chunkEvents);
     const chunkNum = index + 1;
     states[index] = "processing";
     logger.debug(
@@ -510,9 +563,11 @@ export function createAiChunkScheduler({
           }
 
           onAppendSubtitles({
-            subtitles,
+            subtitles: attachChunkMetadata(subtitles, index, chunkRange),
             progressed: getProgressed(),
-            chunkNum,
+            chunkIndex: index,
+            chunkRange,
+            isFinalChunk: false,
           });
         },
       });
@@ -527,6 +582,10 @@ export function createAiChunkScheduler({
         subtitlesForThisChunk = formatSubtitles(chunkEvents, fromLang);
       }
     } catch (chunkError) {
+      if (isAbortError(chunkError, signal)) {
+        states[index] = "pending";
+        return;
+      }
       states[index] = "failed";
       subtitlesForThisChunk = formatSubtitles(chunkEvents, fromLang);
     }
@@ -547,19 +606,21 @@ export function createAiChunkScheduler({
       states[index] = "done";
     }
 
+    const progressed = getProgressed();
     if (subtitlesForThisChunk.length > 0) {
-      const progressed = getProgressed();
       logger.debug(
         `Youtube Provider: Appending ${subtitlesForThisChunk.length} subtitles from chunk ${chunkNum} (${progressed}%).`
       );
-      onAppendSubtitles({
-        subtitles: subtitlesForThisChunk,
-        progressed,
-        chunkNum,
-      });
     } else {
       logger.debug(`Youtube Provider: Chunk ${chunkNum} no subtitles.`);
     }
+    onAppendSubtitles({
+      subtitles: attachChunkMetadata(subtitlesForThisChunk, index, chunkRange),
+      progressed,
+      chunkIndex: index,
+      chunkRange,
+      isFinalChunk: true,
+    });
   };
 
   /**
@@ -599,149 +660,4 @@ export function createAiChunkScheduler({
       return pump();
     },
   };
-}
-
-/**
- * 异步批次处理视频后续的所有字幕分块并增量渲染到界面上。
- *
- * 设计要点：
- * 1. 长视频字幕可能有数千行，首块先返回能避免用户长时间看不到字幕。
- * 2. 每块完成后通过 `onAppendSubtitles` 交还 provider 合并、排序，并同步前台字幕管理器和侧边栏列表。
- * 3. 两个分块之间保留 500ms 至 1000ms 的随机延时抖动，平滑 AI 请求曲线，降低 QPS 频控风险。
- *
- * REVIEW: 视频切换时后台异步 API 请求仍可能浪费。
- * 当前过期检查只发生在 await 返回后，已经发出的请求依然会被处理；后续若要修复，应引入 AbortController。
- *
- * @param {object} param0 参数对象。
- * @param {Array<Array<object>>} param0.chunks 待处理的字幕事件分块列表。
- * @param {number} [param0.startIndex=0] 后台续跑的起始分块索引。
- * @param {string} param0.videoId 当前视频 ID。
- * @param {string} param0.fromLang 字幕源语言代码。
- * @param {string} param0.toLang 目标翻译语言代码。
- * @param {object} param0.segApiSetting 断句 API 配置。
- * @param {object} param0.setting 字幕模块配置。
- * @param {number} param0.processingVersion 当前异步处理版本快照。
- * @param {Function} param0.isStaleProcessing 检查当前异步任务是否过期。
- * @param {Function} param0.apiSubtitle 调用字幕断句 API 的函数。
- * @param {object} param0.docInfo 页面与 AI 上下文信息。
- * @param {Function} param0.formatSubtitles AI 失败时的内置格式化降级函数。
- * @param {boolean} param0.clearSegmentTranslation 是否把断句 API 译文标记为待重翻译。
- * @param {Function} param0.onAppendSubtitles 分块完成时同步到 provider 的回调。
- * @param {Function} param0.getCurrentVideoId 读取当前页面视频 ID 的函数。
- * @param {AbortSignal} [param0.signal] 当前字幕处理生命周期的取消信号。
- * @returns {Promise<void>}
- */
-export async function processRemainingChunksAsync({
-  chunks,
-  startIndex = 0,
-  videoId,
-  fromLang,
-  toLang,
-  segApiSetting,
-  setting,
-  processingVersion,
-  isStaleProcessing,
-  apiSubtitle,
-  docInfo,
-  formatSubtitles,
-  clearSegmentTranslation,
-  onAppendSubtitles,
-  getCurrentVideoId,
-  signal,
-}) {
-  logger.info(
-    `Youtube Provider: Starting async from chunk ${startIndex + 1}/${chunks.length}.`
-  );
-
-  for (let i = startIndex; i < chunks.length; i++) {
-    if (isStaleProcessing(processingVersion)) {
-      logger.info("Youtube Provider: Skip stale chunk processing.");
-      break;
-    }
-
-    const chunkEvents = chunks[i];
-    const chunkNum = i + 1;
-    logger.debug(
-      `Youtube Provider: Processing subtitle chunk ${chunkNum}/${chunks.length}: ${chunkEvents[0]?.start} --> ${
-        chunkEvents[chunkEvents.length - 1]?.start
-      }`
-    );
-
-    let subtitlesForThisChunk = [];
-
-    try {
-      const aiSubtitles = await aiSegment({
-        videoId,
-        chunkEvents,
-        fromLang,
-        toLang,
-        segApiSetting,
-        apiSubtitle,
-        docInfo,
-        formatSubtitles,
-        clearSegmentTranslation,
-        signal,
-        setting,
-        onSubtitleChunk: ({ subtitles }) => {
-          if (
-            !subtitles?.length ||
-            videoId !== getCurrentVideoId() ||
-            isStaleProcessing(processingVersion)
-          ) {
-            return;
-          }
-
-          const progressed = Math.floor((chunkNum * 100) / chunks.length);
-          // 后续 chunk 内部也按句增量提交，完整 chunk 返回后再由 upsert 去重补齐。
-          onAppendSubtitles({
-            subtitles,
-            progressed,
-            chunkNum,
-          });
-        },
-      });
-      if (isStaleProcessing(processingVersion)) break;
-
-      if (aiSubtitles?.length > 0) {
-        subtitlesForThisChunk = aiSubtitles;
-      } else {
-        logger.debug(
-          `Youtube Provider: AI segmentation for chunk ${chunkNum} returned no data.`
-        );
-        subtitlesForThisChunk = formatSubtitles(chunkEvents, fromLang);
-      }
-    } catch (chunkError) {
-      subtitlesForThisChunk = formatSubtitles(chunkEvents, fromLang);
-    }
-
-    if (
-      videoId !== getCurrentVideoId() ||
-      isStaleProcessing(processingVersion)
-    ) {
-      logger.info(
-        "Youtube Provider: videoId changed or track replaced!",
-        videoId,
-        getCurrentVideoId()
-      );
-      break;
-    }
-
-    if (subtitlesForThisChunk.length > 0) {
-      const progressed = Math.floor((chunkNum * 100) / chunks.length);
-      logger.debug(
-        `Youtube Provider: Appending ${subtitlesForThisChunk.length} subtitles from chunk ${chunkNum} (${progressed}%).`
-      );
-      onAppendSubtitles({
-        subtitles: subtitlesForThisChunk,
-        progressed,
-        chunkNum,
-      });
-    } else {
-      logger.debug(`Youtube Provider: Chunk ${chunkNum} no subtitles.`);
-    }
-
-    await sleep(randomBetween(500, 1000));
-  }
-
-  logger.info("Youtube Provider: All subtitle chunks processed.");
 }

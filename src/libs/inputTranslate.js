@@ -33,6 +33,22 @@ function getDeepActiveElement() {
 }
 
 const TEXT_INPUT_TYPES = new Set(["text", "search", "email", "url", "tel"]);
+const MODIFIER_KEYS = new Set([
+  "Alt",
+  "AltGraph",
+  "CapsLock",
+  "Control",
+  "Meta",
+  "Shift",
+]);
+
+function normalizeReplaceText(node, text) {
+  const value = String(text ?? "");
+  if (node?.nodeName?.toUpperCase() === "INPUT") {
+    return value.replace(/[\r\n]+/g, " ");
+  }
+  return value;
+}
 
 /**
  * 判断是否为可编辑区域
@@ -115,6 +131,7 @@ async function smartReplaceText(
   { shouldContinue = () => true, onMutationPhase } = {}
 ) {
   if (!shouldContinue({ beforeMutation: true })) return false;
+  const textToInsert = normalizeReplaceText(node, newText);
   node.focus();
   await sleep(10);
   if (!shouldContinue({ beforeMutation: true })) return false;
@@ -126,19 +143,26 @@ async function smartReplaceText(
   // ------------------------------------------------
   // 步骤 1: 全选内容
   // ------------------------------------------------
+  const selectNodeRange = () => {
+    const selection = window.getSelection();
+    if (!selection) return;
+    selection.removeAllRanges();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    selection.addRange(range);
+  };
+
   const performSelectAll = () => {
     if (typeof node.select === "function") {
       node.select();
       return;
     }
     try {
-      document.execCommand("selectAll", false, null);
+      if (!document.execCommand("selectAll", false, null)) {
+        selectNodeRange();
+      }
     } catch (e) {
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      selection.addRange(range);
+      selectNodeRange();
     }
   };
   performSelectAll();
@@ -152,7 +176,7 @@ async function smartReplaceText(
     try {
       logger.debug("Rich Editor detected: Priority Strategy (Clipboard Paste)");
       const dt = new DataTransfer();
-      dt.setData("text/plain", newText);
+      dt.setData("text/plain", textToInsert);
       const pasteEvt = new ClipboardEvent("paste", {
         clipboardData: dt,
         bubbles: true,
@@ -171,7 +195,7 @@ async function smartReplaceText(
       await sleep(100);
       if (!shouldContinue()) return false;
 
-      if (checkSuccess(node, newText)) return true;
+      if (checkSuccess(node, textToInsert)) return true;
       if (!shouldContinue({ beforeMutation: true })) return false;
     } catch (e) {
       logger.debug("Strategy Paste failed", e);
@@ -183,17 +207,20 @@ async function smartReplaceText(
   // ------------------------------------------------
   if (!shouldContinue({ beforeMutation: true })) return false;
   try {
+    // 降级到 insertText 前重新全选，防止上一步 paste 或延时期间选区折叠导致拼接原文。
+    node.focus();
+    performSelectAll();
     onMutationPhase?.(true);
     let success = false;
     try {
-      success = document.execCommand("insertText", false, newText);
+      success = document.execCommand("insertText", false, textToInsert);
     } finally {
       onMutationPhase?.(false);
     }
     if (success) {
       await sleep(20);
       if (!shouldContinue()) return false;
-      if (checkSuccess(node, newText)) return true;
+      if (checkSuccess(node, textToInsert)) return true;
       if (!shouldContinue({ beforeMutation: true })) return false;
     }
   } catch (e) {
@@ -206,7 +233,7 @@ async function smartReplaceText(
     try {
       onMutationPhase?.(true);
       try {
-        setNativeValue(node, newText);
+        setNativeValue(node, textToInsert);
       } finally {
         onMutationPhase?.(false);
       }
@@ -443,6 +470,7 @@ export class InputTranslator {
 
   // 状态管理
   #activeInput = null; // 当前获得焦点的输入框
+  #isComposing = false; // 当前焦点元素是否处于 IME 输入法组合态
   #floatBtn = null; // 悬浮按钮 DOM
   #resizeObserver = null; // 监听输入框尺寸变化
   #blurTimer = null; // 存储失焦隐藏的定时器 ID
@@ -458,6 +486,8 @@ export class InputTranslator {
   #boundFocusIn;
   #boundFocusOut;
   #boundUpdatePos;
+  #boundCompositionStart;
+  #boundCompositionEnd;
 
   constructor({
     inputRule = DEFAULT_INPUT_RULE,
@@ -487,10 +517,20 @@ export class InputTranslator {
     this.#boundFocusIn = this.handleFocusIn.bind(this);
     this.#boundFocusOut = this.handleFocusOut.bind(this);
     this.#boundUpdatePos = this.updateBtnPosition.bind(this);
+    this.#boundCompositionStart = this.#handleCompositionStart.bind(this);
+    this.#boundCompositionEnd = this.#handleCompositionEnd.bind(this);
 
     if (this.#config.inputRule.transOpen) {
       this.enable();
     }
+  }
+
+  #handleCompositionStart() {
+    this.#isComposing = true;
+  }
+
+  #handleCompositionEnd() {
+    this.#isComposing = false;
   }
 
   enable() {
@@ -500,7 +540,7 @@ export class InputTranslator {
     const { triggerCount, triggerTime } = this.#config.inputRule;
     this.#unregisterShortcut = stepShortcutRegister(
       this.#triggerShortcut,
-      this.handleTranslate.bind(this),
+      ({ key } = {}) => this.handleTranslate({ triggerKey: key }),
       triggerCount,
       triggerTime
     );
@@ -508,6 +548,16 @@ export class InputTranslator {
     // 2. 注册 DOM 监听
     document.addEventListener("focusin", this.#boundFocusIn);
     document.addEventListener("focusout", this.#boundFocusOut);
+    document.addEventListener(
+      "compositionstart",
+      this.#boundCompositionStart,
+      true
+    );
+    document.addEventListener(
+      "compositionend",
+      this.#boundCompositionEnd,
+      true
+    );
     window.addEventListener("scroll", this.#boundUpdatePos, true);
     window.addEventListener("resize", this.#boundUpdatePos);
 
@@ -543,6 +593,7 @@ export class InputTranslator {
   disable() {
     this.#cancelInFlightTranslate();
     this.#clearFailureNotice();
+    this.#isComposing = false;
     if (this.#blurTimer) {
       clearTimeout(this.#blurTimer);
       this.#blurTimer = null;
@@ -559,6 +610,16 @@ export class InputTranslator {
     // 2. 移除 DOM 监听
     document.removeEventListener("focusin", this.#boundFocusIn);
     document.removeEventListener("focusout", this.#boundFocusOut);
+    document.removeEventListener(
+      "compositionstart",
+      this.#boundCompositionStart,
+      true
+    );
+    document.removeEventListener(
+      "compositionend",
+      this.#boundCompositionEnd,
+      true
+    );
     window.removeEventListener("scroll", this.#boundUpdatePos, true);
     window.removeEventListener("resize", this.#boundUpdatePos);
 
@@ -598,12 +659,11 @@ export class InputTranslator {
 
     const target = getDeepActiveElement();
     if (isEditableTarget(target)) {
-      if (
-        this.#failureNotice &&
-        this.#activeInput &&
-        target !== this.#activeInput
-      ) {
-        this.#clearFailureNotice();
+      if (this.#activeInput && target !== this.#activeInput) {
+        this.#isComposing = false;
+        if (this.#failureNotice) {
+          this.#clearFailureNotice();
+        }
       }
       this.#activeInput = target;
 
@@ -616,8 +676,13 @@ export class InputTranslator {
   }
 
   handleFocusOut() {
+    if (this.#blurTimer) {
+      clearTimeout(this.#blurTimer);
+      this.#blurTimer = null;
+    }
     // 延时处理，因为点击按钮时会短暂触发 blur
     this.#blurTimer = setTimeout(() => {
+      this.#blurTimer = null;
       const newFocus = getDeepActiveElement();
       // 如果焦点转移到了我们的按钮上，或者还在原输入框（某些特殊情况），则不隐藏
       if (
@@ -626,6 +691,7 @@ export class InputTranslator {
       ) {
         this.hideFloatButton();
         this.#activeInput = null;
+        this.#isComposing = false;
         if (this.#resizeObserver) {
           this.#resizeObserver.disconnect();
           this.#resizeObserver = null;
@@ -759,16 +825,26 @@ export class InputTranslator {
    * 执行翻译逻辑
    * @param {Object} options
    * @param {boolean} options.isBtnTrigger 是否由悬浮按钮触发
+   * @param {string} [options.triggerKey] 快捷键触发时透传的 event.key
+   * @param {string} [options.key] 兼容直接透传的 event.key
    */
-  async handleTranslate({ isBtnTrigger = false } = {}) {
+  async handleTranslate({
+    isBtnTrigger = false,
+    triggerKey = "",
+    key = "",
+  } = {}) {
     logger.debug("handle input translate");
 
     // 1. 获取真正的焦点元素
     const node = getDeepActiveElement();
 
-    // 2. 检查节点是否支持
+    // 2. 检查节点是否支持以及是否处于 IME 组合态
     if (!node || !isEditableTarget(node)) {
       logger.debug("Active node is not editable");
+      return;
+    }
+    if (this.#isComposing) {
+      logger.debug("Active node is composing, skip input translate");
       return;
     }
 
@@ -780,17 +856,15 @@ export class InputTranslator {
     let initText = initialNodeText;
 
     // 4. 处理触发字符逻辑
-    // 修改：仅当非按钮触发（即键盘快捷键触发）时，才移除末尾的触发符
+    // 仅当单键快捷键触发且透传字符为单字符（如 Space -> " "、Slash -> "/"）时剥离末尾触发符。
+    const resolvedTriggerKey = triggerKey || key;
     if (
       !isBtnTrigger &&
       this.#triggerShortcut.length === 1 &&
-      this.#triggerShortcut[0].length === 1
+      typeof resolvedTriggerKey === "string" &&
+      resolvedTriggerKey.length === 1
     ) {
-      initText = removeEndchar(
-        initText,
-        this.#triggerShortcut[0],
-        triggerCount
-      );
+      initText = removeEndchar(initText, resolvedTriggerKey, triggerCount);
     }
 
     if (!initText.trim()) return;
@@ -803,22 +877,34 @@ export class InputTranslator {
 
     let mutationPhase = false;
     let userEditedDuringRun = false;
-    let expectedText = null;
-    const onTargetInput = () => {
+    const onTargetBeforeInput = (event) => {
+      if (!mutationPhase && event?.isTrusted === true) {
+        userEditedDuringRun = true;
+      }
+    };
+    const onTargetKeyDown = (event) => {
       if (
         !mutationPhase &&
-        (!expectedText || !checkSuccess(node, expectedText))
+        event?.isTrusted === true &&
+        !MODIFIER_KEYS.has(event.key)
       ) {
         userEditedDuringRun = true;
       }
     };
-    node.addEventListener("input", onTargetInput);
+    const onTargetCompositionStart = () => {
+      if (!mutationPhase) {
+        userEditedDuringRun = true;
+      }
+    };
+    node.addEventListener("beforeinput", onTargetBeforeInput);
+    node.addEventListener("keydown", onTargetKeyDown);
+    node.addEventListener("compositionstart", onTargetCompositionStart);
 
     const shouldContinue = ({ beforeMutation = false } = {}) => {
       if (runId !== this.#translateRunId || controller.signal.aborted) {
         return false;
       }
-      if (userEditedDuringRun) return false;
+      if (userEditedDuringRun || this.#isComposing) return false;
       if (!node.isConnected || !isEditableTarget(node)) return false;
       if (getDeepActiveElement() !== node) return false;
       if (beforeMutation && getNodeText(node) !== initialNodeText) {
@@ -900,12 +986,11 @@ export class InputTranslator {
 
         // 输入框写回纯文本，开启后将模型输出的行内 LaTeX 转成可读的 Unicode
         const trimmedText = trText?.trim() || "";
-        const newText = this.#config.parseLatex
+        const formattedText = this.#config.parseLatex
           ? parseMathInText(trimmedText)
           : trimmedText;
+        const newText = normalizeReplaceText(node, formattedText).trim();
         if (!newText || isSame) return;
-
-        expectedText = newText;
 
         // 6. 执行替换 (使用新的智能替换函数)
         const success = await smartReplaceText(node, newText, {
@@ -929,7 +1014,9 @@ export class InputTranslator {
         this.#queuedFailure = { node, error: err, apiSetting };
       }
     } finally {
-      node.removeEventListener("input", onTargetInput);
+      node.removeEventListener("beforeinput", onTargetBeforeInput);
+      node.removeEventListener("keydown", onTargetKeyDown);
+      node.removeEventListener("compositionstart", onTargetCompositionStart);
       if (loadingEl) {
         loadingEl.remove();
         if (this.#activeLoadingEl === loadingEl) {
@@ -1027,9 +1114,21 @@ export class InputTranslator {
     );
   }
 
-  updateConfig({ inputRule, transApis, prompts, subtitleSetting, uiLang }) {
+  updateConfig({
+    inputRule,
+    transApis,
+    prompts,
+    subtitleSetting,
+    translateVariants,
+    parseLatex,
+    uiLang,
+  } = {}) {
     const wasEnabled = this.#isEnabled;
     if (wasEnabled) this.disable();
+    if (this.#blurTimer) {
+      clearTimeout(this.#blurTimer);
+      this.#blurTimer = null;
+    }
 
     if (inputRule) this.#config.inputRule = inputRule;
     if (prompts) this.#config.prompts = prompts;
@@ -1038,6 +1137,12 @@ export class InputTranslator {
     }
     if (transApis) {
       this.#config.transApis = transApis;
+    }
+    if (typeof translateVariants === "boolean") {
+      this.#config.translateVariants = translateVariants;
+    }
+    if (typeof parseLatex === "boolean") {
+      this.#config.parseLatex = parseLatex;
     }
     if (uiLang) this.#uiLang = uiLang;
 

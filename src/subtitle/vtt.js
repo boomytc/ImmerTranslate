@@ -5,8 +5,9 @@
  * @returns {string} - 格式化后的 VTT 时间戳字符串 (HH:MM:SS.mmm)
  */
 function formatMillisecondsToTimestamp(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const milliseconds = String(ms % 1000).padStart(3, "0");
+  const totalMs = Math.max(0, Math.round(Number(ms) || 0));
+  const milliseconds = String(totalMs % 1000).padStart(3, "0");
+  const totalSeconds = Math.floor(totalMs / 1000);
 
   const totalMinutes = Math.floor(totalSeconds / 60);
   const seconds = String(totalSeconds % 60).padStart(2, "0");

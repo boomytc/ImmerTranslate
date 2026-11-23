@@ -8,38 +8,50 @@ import { Menus } from "./Menus.js";
  * 只负责按钮、菜单、通知气泡和原生字幕窗口的 DOM 操作，不处理字幕数据和翻译流程。
  */
 
-export const VIDEO_SELECTOR = "#container video";
-export const CONTROLS_SELECTOR = ".ytp-right-controls";
-export const YT_CAPTION_SELECTOR = "#ytp-caption-window-container";
-export const YT_AD_SELECTOR = ".video-ads";
+export const VIDEO_SELECTOR = "#movie_player video";
+export const CONTROLS_SELECTOR = "#movie_player .ytp-right-controls";
+export const YT_CAPTION_SELECTOR =
+  "#movie_player #ytp-caption-window-container";
+export const YT_AD_SELECTOR = "#movie_player .video-ads";
 export const YT_SUBTITLE_BUTTON_SELECTOR = "button.ytp-subtitles-button";
 
 /**
- * 异步等待目标 DOM 元素挂载并执行回调。
+ * 异步等待目标 DOM 元素挂载并执行回调，返回取消观察函数以支持切页重绑。
  *
  * @param {string} selector CSS 选择器。
  * @param {function(HTMLElement): void} callback 找到元素后的回调函数。
- * @returns {void}
+ * @returns {function(): void} 取消观察的清理函数。
  */
 export function waitForElement(selector, callback) {
   const element = document.querySelector(selector);
   if (element) {
     callback(element);
-    return;
+    return () => {};
   }
 
-  const observer = new MutationObserver((mutations, obs) => {
+  let active = true;
+  const observer = new MutationObserver((_mutations, obs) => {
+    if (!active) return;
     const targetNode = document.querySelector(selector);
     if (targetNode) {
+      active = false;
       obs.disconnect();
       callback(targetNode);
     }
   });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+  const root = document.body || document.documentElement;
+  if (root) {
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  return () => {
+    active = false;
+    observer.disconnect();
+  };
 }
 
 /**
@@ -94,6 +106,9 @@ export class YouTubePlayerUi {
     ) {
       return;
     }
+
+    // 导航重绑或重新注入前先销毁旧菜单与旧按钮实例，防止 React root 泄漏。
+    this.removeToggleButton();
 
     const kissControls = document.createElement("div");
     kissControls.className = "notranslate kiss-subtitle-controls";
@@ -236,7 +251,11 @@ export class YouTubePlayerUi {
       return;
     }
 
-    if (!this.#notificationEl) this.createNotificationElement();
+    if (!this.#notificationEl || !this.#notificationEl.isConnected) {
+      this.#notificationEl?.remove();
+      this.#notificationEl = null;
+      this.createNotificationElement();
+    }
     if (!this.#notificationEl) return;
 
     this.#notificationEl.textContent = message;

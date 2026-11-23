@@ -146,13 +146,69 @@ export function findCaptionTrack(captionTracks, lang, kind) {
 
 let captionTracksCache = null;
 
+/**
+ * 在 HTML 源码中按 JSON 字符串与转义规则匹配完整对象，
+ * 避免视频简介等字符串字段内出现 `};` 时被正则提前截断。
+ *
+ * @param {string} html YouTube 播放页 HTML 文本。
+ * @returns {object|null} 解析成功后的 ytInitialPlayerResponse 对象。
+ */
+function extractInitialPlayerResponse(html) {
+  if (typeof html !== "string" || !html) return null;
+
+  const pattern = /ytInitialPlayerResponse\s*=\s*\{/g;
+  let match;
+  while ((match = pattern.exec(html)) !== null) {
+    const braceStart = match.index + match[0].length - 1;
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+    let braceEnd = -1;
+
+    for (let i = braceStart; i < html.length; i += 1) {
+      const ch = html[i];
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+        } else if (ch === "\\") {
+          isEscaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+      } else if (ch === "{") {
+        depth += 1;
+      } else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          braceEnd = i;
+          break;
+        }
+      }
+    }
+
+    if (braceEnd === -1) continue;
+
+    try {
+      return JSON.parse(html.slice(braceStart, braceEnd + 1));
+    } catch {
+      // 当前匹配不是合法 JSON，继续检查后续出现的位置。
+    }
+  }
+
+  return null;
+}
+
 async function fetchCaptionTracks(videoId) {
   try {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const html = await fetch(url).then((r) => r.text());
-    const match = html.match(/ytInitialPlayerResponse\s*=\s*(\{.*?\});/s);
-    if (!match) return {};
-    const data = JSON.parse(match[1]);
+    const data = extractInitialPlayerResponse(html);
+    if (!data) return {};
     return {
       captionTracks:
         data.captions?.playerCaptionsTracklistRenderer?.captionTracks,
