@@ -18,12 +18,12 @@ export const shadowRootInjector = () => {
 
       // 函数源码会进入页面，这个字符串必须与 MSG_SHADOW_ROOT_CREATED 一致。
       try {
-        if (window.location.origin && window.location.origin !== "null") {
-          window.postMessage(
-            { type: "IMMERTRANSLATE_SHADOW_ROOT_CREATED" },
-            window.location.origin
-          );
-        }
+        const origin = window.location.origin;
+        const targetOrigin = origin && origin !== "null" ? origin : "*";
+        window.postMessage(
+          { type: "IMMERTRANSLATE_SHADOW_ROOT_CREATED" },
+          targetOrigin
+        );
       } catch (postErr) {
         // 忽略受限来源下的消息派发异常，避免影响页面创建 ShadowRoot。
       }

@@ -102,14 +102,20 @@ let openingOptionsPage = false;
  */
 async function findOptionsTabId() {
   const base = browser.runtime.getURL("options.html");
-  const getContexts = browser.runtime.getContexts;
+  const getContexts = browser.runtime?.getContexts;
   if (typeof getContexts !== "function") return null;
   try {
     const contexts = await getContexts({
       contextTypes: ["TAB"],
-      documentUrls: [base, `${base}*`],
     });
-    const hit = (contexts || []).find((item) => Number.isInteger(item?.tabId));
+    const hit = (contexts || []).find(
+      (item) =>
+        typeof item?.documentUrl === "string" &&
+        (item.documentUrl === base ||
+          item.documentUrl.startsWith(`${base}#`) ||
+          item.documentUrl.startsWith(`${base}?`)) &&
+        Number.isInteger(item?.tabId)
+    );
     if (!hit) return null;
     if (Number.isInteger(hit.windowId) && browser.windows?.update) {
       try {
@@ -302,12 +308,11 @@ async function findSeparateWindowIdFromContexts() {
     );
     if (hit) return hit.windowId;
 
-    const popupContexts = await getContexts({
-      documentUrls: [popupBase, `${popupBase}*`],
-    });
-    const hashHit = (popupContexts || []).find(
+    const allContexts = await getContexts({});
+    const hashHit = (allContexts || []).find(
       (item) =>
         typeof item?.documentUrl === "string" &&
+        item.documentUrl.startsWith(popupBase) &&
         item.documentUrl.includes("#tranbox") &&
         Number.isInteger(item?.windowId) &&
         item.windowId >= 0

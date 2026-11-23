@@ -814,6 +814,25 @@ export class Translator {
     });
   }
 
+  #pruneDisconnectedNodes() {
+    if (this.#styledElements.size > 0) {
+      this.#styledElements.forEach((node) => {
+        if (!node?.isConnected) {
+          this.#styledElements.delete(node);
+          this.#savedRuleStyles.delete(node);
+        }
+      });
+    }
+    if (this.#shadowRoots.size > 0) {
+      this.#shadowRoots.forEach((shadowRoot) => {
+        if (!shadowRoot?.host?.isConnected) {
+          this.#shadowRoots.delete(shadowRoot);
+          this.#rootNodes.delete(shadowRoot);
+        }
+      });
+    }
+  }
+
   #isBlockNode(node) {
     if (this.#matchesBlockSelector(node)) return true;
     return Translator.isBlockNode(node);
@@ -1268,6 +1287,7 @@ export class Translator {
 
   // 查找现有的所有shadowroot
   #findAndObserveShadowRoot() {
+    this.#pruneDisconnectedNodes();
     try {
       this.#findAllShadowRoots().forEach((shadowRoot) => {
         this.#startObserveShadowRoot(shadowRoot);
@@ -1312,8 +1332,9 @@ export class Translator {
 
   #syncShadowRootStyleSheets(oldSheet, newSheet) {
     this.#shadowRoots.forEach((shadowRoot) => {
-      if (shadowRoot.host && !shadowRoot.host.isConnected) {
+      if (!shadowRoot?.host?.isConnected) {
         this.#shadowRoots.delete(shadowRoot);
+        this.#rootNodes.delete(shadowRoot);
         return;
       }
       try {
@@ -1445,6 +1466,7 @@ export class Translator {
 
     const pending = new Set();
     const flush = debounce(() => {
+      this.#pruneDisconnectedNodes();
       pending.forEach((node) => this.#performSyncNode(node));
       pending.clear();
     }, TRANS_INTERVAL);
@@ -2470,6 +2492,7 @@ export class Translator {
       const queue = this.#rescanQueue;
       scheduleIdle(() => {
         if (queue !== this.#rescanQueue || this.#editorPaused) return;
+        this.#pruneDisconnectedNodes();
         queue.forEach((t) => this.#rescanContainer(t));
         queue.clear();
         this.#isQueueProcessing = false;
@@ -4599,6 +4622,7 @@ overflow-wrap: anywhere !important;`;
   }
 
   #syncAllTranslatedNodes() {
+    this.#pruneDisconnectedNodes();
     const hosts = new Set();
     this.#rootNodes.forEach((root) => {
       root
@@ -4760,14 +4784,49 @@ overflow-wrap: anywhere !important;`;
 
       const wrapper = this.#transOnlyRevertTarget;
       const related = e.relatedTarget;
-
-      if (related && (wrapper.contains(related) || related === wrapper)) return;
-
       const data = this.#translationNodes.get(wrapper);
-      if (data && related) {
+      const isWithinRevertTarget = (candidate) => {
+        if (!candidate) return false;
+        if (candidate === wrapper || wrapper.contains(candidate)) return true;
+        if (!data) return false;
+        if (
+          data.originalWrapper &&
+          (candidate === data.originalWrapper ||
+            data.originalWrapper.contains?.(candidate))
+        ) {
+          return true;
+        }
         const origNodes = data.nodes || [];
         for (const node of origNodes) {
-          if (node === related || node.contains?.(related)) return;
+          if (node === candidate || node.contains?.(candidate)) return true;
+        }
+        return false;
+      };
+
+      if (isWithinRevertTarget(related)) return;
+
+      const root = wrapper.getRootNode?.();
+      if (
+        typeof ShadowRoot !== "undefined" &&
+        root instanceof ShadowRoot &&
+        typeof root.elementFromPoint === "function" &&
+        Number.isFinite(e.clientX) &&
+        Number.isFinite(e.clientY)
+      ) {
+        let isRetargetedHost = related === root.host;
+        if (!isRetargetedHost && related) {
+          let ancestorRoot = root.host?.getRootNode?.();
+          while (ancestorRoot instanceof ShadowRoot) {
+            if (related === ancestorRoot.host) {
+              isRetargetedHost = true;
+              break;
+            }
+            ancestorRoot = ancestorRoot.host?.getRootNode?.();
+          }
+        }
+        if (isRetargetedHost) {
+          const hit = root.elementFromPoint(e.clientX, e.clientY);
+          if (isWithinRevertTarget(hit)) return;
         }
       }
 

@@ -2655,12 +2655,15 @@ async function* handleTranslateStreamInternal(
         if (delta) {
           rawContent += delta;
           const nextContent = stripMarkdownCodeBlock(rawContent, true);
-          const contentDelta = !fullContent
-            ? nextContent
-            : nextContent.startsWith(fullContent)
-              ? nextContent.slice(fullContent.length)
-              : delta;
-          fullContent = nextContent;
+          let contentDelta = "";
+          if (nextContent) {
+            if (!fullContent) {
+              contentDelta = nextContent;
+            } else if (nextContent.startsWith(fullContent)) {
+              contentDelta = nextContent.slice(fullContent.length);
+            }
+            fullContent = nextContent;
+          }
 
           if (!contentDelta) {
             continue;

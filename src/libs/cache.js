@@ -19,6 +19,12 @@ import { getCacheDigest } from "./cacheDigest";
 
 const HEADER_CACHED_AT = "X-Cached-At";
 const MAX_HTTP_CACHE_ENTRIES = 2000;
+const EVICT_CHECK_WRITE_INTERVAL = 50;
+const EVICT_CHECK_TIME_INTERVAL_MS = 60 * 1000;
+
+let cacheWritesSinceEvict = 0;
+let lastEvictCheckAt = 0;
+let pendingEvictPromise = null;
 
 const stripInitSignal = (init) => {
   if (!init || typeof init !== "object") return init;
@@ -52,6 +58,39 @@ const evictOverflowCacheEntries = async (cache) => {
   }
 };
 
+const maybeEvictOverflowCacheEntries = async (cache) => {
+  cacheWritesSinceEvict += 1;
+  const now = Date.now();
+  const shouldEvict =
+    cacheWritesSinceEvict >= EVICT_CHECK_WRITE_INTERVAL ||
+    now - lastEvictCheckAt >= EVICT_CHECK_TIME_INTERVAL_MS;
+  if (!shouldEvict) return;
+
+  if (pendingEvictPromise) {
+    await pendingEvictPromise;
+    return;
+  }
+
+  pendingEvictPromise = (async () => {
+    try {
+      while (
+        cacheWritesSinceEvict >= EVICT_CHECK_WRITE_INTERVAL ||
+        Date.now() - lastEvictCheckAt >= EVICT_CHECK_TIME_INTERVAL_MS
+      ) {
+        cacheWritesSinceEvict = 0;
+        lastEvictCheckAt = Date.now();
+        await evictOverflowCacheEntries(cache);
+      }
+    } catch (err) {
+      kissLog("evict cache", err);
+    } finally {
+      pendingEvictPromise = null;
+    }
+  })();
+
+  await pendingEvictPromise;
+};
+
 /**
  * Clear translation caches and report whether the operation completed.
  * A cache that does not exist is already clear and counts as success.
@@ -63,6 +102,8 @@ export const tryClearCaches = async () => {
       return (await sendBgMsg(MSG_CLEAR_CACHES)) === true;
     }
     await caches.delete(CACHE_NAME);
+    cacheWritesSinceEvict = 0;
+    lastEvictCheckAt = Date.now();
     return true;
   } catch (err) {
     kissLog("clean caches", err);
@@ -159,7 +200,7 @@ export const putHttpCache = async ({
       },
     });
     await cache.put(req, res);
-    await evictOverflowCacheEntries(cache);
+    await maybeEvictOverflowCacheEntries(cache);
   } catch (err) {
     kissLog("put cache", err);
   }

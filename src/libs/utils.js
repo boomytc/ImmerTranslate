@@ -3,6 +3,20 @@
  * @description 通用工具函数模块，包含类型判定、数字限制、字符串匹配、节流防抖、密码学加密等辅助方法。
  */
 
+function stripOpeningMarkdownCodeFence(text) {
+  if (/^\s*```[a-z0-9_-]*[ \t]*\r?\n/i.test(text)) {
+    return text.replace(/^\s*```[a-z0-9_-]*[ \t]*\r?\n/i, "");
+  }
+  // 仅当语言标识后紧跟空白与真实正文（而非闭合围栏）时剥离语言标识
+  if (/^\s*```[a-z0-9_-]+[ \t]+(?!```\s*$)(?=\S)/i.test(text)) {
+    return text.replace(/^\s*```[a-z0-9_-]+[ \t]+/i, "");
+  }
+  if (/^\s*```/i.test(text)) {
+    return text.replace(/^\s*```[ \t]*/i, "");
+  }
+  return text;
+}
+
 /**
  * 移除 Markdown 代码块标记（如 ```xml 译文 ```）
  * @param {string} text 原始文本
@@ -13,24 +27,19 @@ export function stripMarkdownCodeBlock(text, startOnly = false) {
   if (!text) return "";
   if (startOnly) {
     const leading = text.trimStart();
-    // 流式场景下开头围栏行尚未闭合（未见换行且仍匹配围栏前缀）时暂缓剥离，
-    // 避免跨片 "```" + "json\n" 残留语言标识并破坏后续解析。
+    // 流式场景下纯空白前缀或开头围栏行尚未闭合时暂缓剥离，
+    // 避免先写入空白再遇围栏导致内容倒退，或跨片 "```" + "json\n" 残留语言标识。
     if (
+      !leading ||
       /^`{1,2}$/.test(leading) ||
       /^```[a-z0-9_-]*[ \t]*\r?$/i.test(leading)
     ) {
       return "";
     }
-    if (/^\s*```[a-z0-9_-]*[ \t]*\r?\n/i.test(text)) {
-      return text.replace(/^\s*```[a-z0-9_-]*[ \t]*\r?\n/i, "");
-    }
-    if (/^\s*```/i.test(text)) {
-      return text.replace(/^\s*```[a-z0-9_-]*[ \t]*/i, "");
-    }
-    return text;
+    return stripOpeningMarkdownCodeFence(text);
   }
 
-  let result = text.replace(/^\s*```[a-z0-9_-]*[ \t]*\r?\n?/i, "");
+  let result = stripOpeningMarkdownCodeFence(text);
   result = result.replace(/\r?\n?```\s*$/i, "");
   return result;
 }
