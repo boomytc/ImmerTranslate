@@ -12,12 +12,12 @@ export default function HelpButton({ url }) {
   const i18n = useI18n();
   return (
     <Button
+      component="a"
       size="small"
       variant="outlined"
-      onClick={() => {
-        // 在新标签页打开外部帮助文档链接
-        window.open(url, "_blank");
-      }}
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
       startIcon={<HelpIcon />}
     >
       {i18n("help")}

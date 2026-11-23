@@ -16,6 +16,28 @@ import { NavLink } from "react-router-dom";
 import Logo from "../../components/Logo";
 import { useI18n } from "../../hooks/I18n";
 import { useSetting } from "../../hooks/Setting";
+import DarkModeButton from "./DarkModeButton";
+
+const NAV_KEYWORDS = {
+  overview:
+    "通用 概览 快捷键 黑名单 缓存 悬浮球 浮球 右键菜单 语言检测 导入 导出 日志 剪贴板 csp general overview shortcut hotkey blacklist cache fab floating button context menu detector import export log clipboard",
+  appearance:
+    "外观 样式 主题 深色 浅色 界面语言 自定义 css 字体 appearance theme dark light mode language custom css style",
+  web: "网页翻译 规则 全局规则 个人规则 域名 选择器 术语 专有名词 仅译文 切分 标题 web translation rules global personal domain selector terms glossary split title",
+  selection:
+    "划词 选中 翻译框 词典 必应 有道 ai词典 快捷键 跟随选区 黑名单 selection tranbox popup dictionary bing youdao shortcut blacklist",
+  hover:
+    "段落 悬停 鼠标 长按 气泡 快捷键 黑名单 paragraph hover mouse hold bubble shortcut blacklist",
+  input:
+    "输入框 打字 连击 触发符 红点 快捷键 黑名单 input box typing combo trigger sign dot shortcut blacklist",
+  subtitle:
+    "字幕 视频 youtube 双语 断句 预翻译 样式 字体 阴影 subtitle video youtube bilingual segmentation style font shadow",
+  apis: "翻译服务 接口 密钥 api key 模型 流式 上下文 思考 温度 并发 自定义 测试 service provider model stream context thinking temperature batch custom test",
+  prompts:
+    "提示词 模板 系统提示词 用户提示词 占位符 词典 断句 prompt template system user placeholder",
+  sync: "同步 备份 云端 webdav gist 坚果云 nextcloud 加密 口令 分享码 sync backup cloud encryption key share token",
+  about: "关于 版本 许可证 github 官网 主页 about version license homepage",
+};
 
 function normalizeSearchText(text, uiLang) {
   try {
@@ -111,40 +133,60 @@ export default function Navigator({ open, compact = false, onClose }) {
   const visibleGroups = groups
     .map((group) => ({
       ...group,
-      items: group.items.filter(([, label]) =>
-        normalizeSearchText(label, uiLang).includes(normalizedQuery)
-      ),
+      items: group.items.filter(([id, label]) => {
+        if (!normalizedQuery) return true;
+        const searchable = `${label} ${group.label} ${NAV_KEYWORDS[id] || ""}`;
+        return normalizeSearchText(searchable, uiLang).includes(
+          normalizedQuery
+        );
+      }),
     }))
     .filter((group) => group.items.length);
 
   return (
     <aside
       id="kt-options-navigation"
-      className={`kt-options-sidebar ${open ? "kt-options-sidebar--open" : ""}`}
+      className={`kt-options-sidebar ${open ? "kt-options-sidebar--open" : ""}`.trim()}
       role={compact ? "dialog" : undefined}
-      aria-modal={compact ? "true" : undefined}
+      aria-modal={compact && open ? "true" : undefined}
+      aria-hidden={compact && !open ? "true" : undefined}
+      inert={compact && !open ? "" : undefined}
       aria-labelledby={compact ? "kt-options-navigation-title" : undefined}
       tabIndex={compact ? -1 : undefined}
     >
-      <a
-        className="kt-options-brand"
-        href={process.env.REACT_APP_HOMEPAGE}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <Logo size={30} />
-        <span>
-          <span
-            id="kt-options-navigation-title"
-            className="kt-options-brand__name"
+      <div className="kt-options-brand-row">
+        <a
+          className="kt-options-brand"
+          href={process.env.REACT_APP_HOMEPAGE}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Logo size={30} />
+          <span className="kt-options-brand__text">
+            <span
+              id="kt-options-navigation-title"
+              className="kt-options-brand__name"
+            >
+              {i18n("app_name")}
+            </span>
+            <span className="kt-options-brand__version">
+              {process.env.REACT_APP_VERSION}
+            </span>
+          </span>
+        </a>
+        {compact ? (
+          <button
+            type="button"
+            className="kt-options-sidebar__close"
+            aria-label={i18n("options_close_navigation")}
+            onClick={() => onClose?.(true)}
           >
-            {i18n("app_name")}
-          </span>
-          <span className="kt-options-brand__version">
-            {process.env.REACT_APP_VERSION}
-          </span>
-        </span>
-      </a>
+            <CloseRoundedIcon />
+          </button>
+        ) : (
+          <DarkModeButton />
+        )}
+      </div>
       <label className="kt-options-search">
         <SearchRoundedIcon />
         <input
@@ -171,7 +213,7 @@ export default function Navigator({ open, compact = false, onClose }) {
                   to={path}
                   end={path === "/"}
                   key={id}
-                  onClick={compact ? onClose : undefined}
+                  onClick={compact ? () => onClose?.(false) : undefined}
                 >
                   <Icon />
                   <span>{label}</span>
@@ -185,16 +227,6 @@ export default function Navigator({ open, compact = false, onClose }) {
           </div>
         )}
       </nav>
-      {compact && (
-        <button
-          type="button"
-          className="kt-options-sidebar__close"
-          aria-label={i18n("options_close_navigation")}
-          onClick={onClose}
-        >
-          <CloseRoundedIcon />
-        </button>
-      )}
     </aside>
   );
 }

@@ -1,8 +1,9 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
+import IconButton from "@mui/material/IconButton";
 import Grid from "@mui/material/Grid";
+import EditIcon from "@mui/icons-material/Edit";
 import { useI18n } from "../../hooks/I18n";
 import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
@@ -31,6 +32,7 @@ import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import ValidationInput from "../../hooks/ValidationInput";
 import { usePromptList } from "../../hooks/Prompt";
 import { useOverviewShortcuts } from "../../hooks/Commands";
+import { openExtensionsShortcutsPage } from "./Setting";
 import {
   SettingsAdvanced,
   SettingsCard,
@@ -42,29 +44,29 @@ import {
   ShortcutKeys,
 } from "./SettingsCard";
 
+const INTERACT_MODES = [
+  "-",
+  OPT_TRANBOX_INTERACT_CLICK,
+  OPT_TRANBOX_INTERACT_DBLCLICK,
+];
+
 /**
  * 划词翻译框 (Tranbox) 样式与交互配置面板组件
  */
 export default function Tranbox() {
   const i18n = useI18n();
-  // 查词翻译框配置管理 Hook
   const { tranboxSetting, updateTranbox } = useTranbox();
   const shortcutMap = useOverviewShortcuts({ tranboxSetting });
-  // 启用的 API 引擎
-  // AI 词典只能调用大模型接口，因此这里额外读取已启用的 AI API 列表。
   const { enabledApis, aiEnabledApis } = useApiList();
   const { prompts } = usePromptList();
-  // 仅展示词典分类提示词，避免误选翻译或字幕断句提示词。
   const dictionaryPromptOptions = useMemo(
     () => getDictionaryPromptOptions(prompts),
     [prompts]
   );
 
-  // 基础表单输入值变动处理
   const handleChange = (e) => {
     e.preventDefault();
     let { name, value } = e.target;
-    // 特殊处理：限制小按钮与翻译框偏移量的安全输入界限在 [-200, 200] 像素内以防 UI 飞出视区
     switch (name) {
       case "btnOffsetX":
       case "btnOffsetY":
@@ -79,7 +81,6 @@ export default function Tranbox() {
     });
   };
 
-  // 快捷键组合变更处理回调
   const handleShortcutInput = useCallback(
     (val) => {
       updateTranbox({ tranboxShortcut: val });
@@ -87,10 +88,9 @@ export default function Tranbox() {
     [updateTranbox]
   );
 
-  // 解构当前划词翻译配置
   const {
     transOpen,
-    apiSlugs,
+    apiSlugs = [],
     singleWordNoTrans = false,
     fromLang,
     toLang,
@@ -115,6 +115,43 @@ export default function Tranbox() {
     blacklist = "",
     skipLangs = [],
   } = tranboxSetting;
+
+  // 失效下拉值兜底，避免指向已禁用服务或已删除提示词时触发 MUI out-of-range 警告
+  const safeApiSlugs = (Array.isArray(apiSlugs) ? apiSlugs : []).filter(
+    (slug) => enabledApis.some((api) => api.apiSlug === slug)
+  );
+  const safeAiDictApiSlug =
+    aiDictApiSlug === "-" ||
+    aiEnabledApis.some((api) => api.apiSlug === aiDictApiSlug)
+      ? aiDictApiSlug
+      : "-";
+  const safeAiDictPromptSlug =
+    aiDictPromptSlug === PROMPT_MODE_FOLLOW_API ||
+    dictionaryPromptOptions.some((prompt) => prompt.slug === aiDictPromptSlug)
+      ? aiDictPromptSlug
+      : PROMPT_MODE_FOLLOW_API;
+  const safeEnDict =
+    enDict === "-" || OPT_DICT_ALL.includes(enDict) ? enDict : "-";
+  const safeEnSug = enSug === "-" || OPT_SUG_ALL.includes(enSug) ? enSug : "-";
+  const safeFromLang = OPT_LANGS_FROM.some(([lang]) => lang === fromLang)
+    ? fromLang
+    : OPT_LANGS_FROM[0]?.[0] || "auto";
+  const safeToLang = OPT_LANGS_TO.some(([lang]) => lang === toLang)
+    ? toLang
+    : OPT_LANGS_TO[0]?.[0] || "zh-CN";
+  const safeToLang2 =
+    toLang2 === "-" || OPT_LANGS_TO.some(([lang]) => lang === toLang2)
+      ? toLang2
+      : "-";
+  const safeBtnPositionMode = OPT_TRANBOX_BTN_POSITION_ALL.includes(
+    btnPositionMode
+  )
+    ? btnPositionMode
+    : OPT_TRANBOX_BTN_POSITION_FIXED;
+  const safeInteractMode = INTERACT_MODES.includes(tranboxInteractMode)
+    ? tranboxInteractMode
+    : "-";
+  const editShortcutLabel = `${i18n("edit")} ${i18n("trigger_tranbox_shortcut")}`;
 
   return (
     <Box>
@@ -173,7 +210,17 @@ export default function Tranbox() {
               description={i18n("settings_selection_shortcut_description")}
             >
               {isExt ? (
-                <ShortcutKeys keys={shortcutMap.selection} />
+                <>
+                  <ShortcutKeys keys={shortcutMap.selection} />
+                  <IconButton
+                    size="small"
+                    onClick={openExtensionsShortcutsPage}
+                    aria-label={editShortcutLabel}
+                    title={editShortcutLabel}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </>
               ) : (
                 <ShortcutInput
                   compact
@@ -202,7 +249,7 @@ export default function Tranbox() {
             </SettingsRow>
             <SettingsRow label={i18n("english_dict")}>
               <SettingsSelect
-                value={enDict}
+                value={safeEnDict}
                 label={i18n("english_dict")}
                 onChange={(value) => updateTranbox({ enDict: value })}
                 options={[
@@ -216,7 +263,7 @@ export default function Tranbox() {
               description={i18n("settings_ai_dictionary_description")}
             >
               <SettingsSelect
-                value={aiDictApiSlug}
+                value={safeAiDictApiSlug}
                 label={i18n("ai_dict_api", "AI Dictionary API")}
                 onChange={(value) => updateTranbox({ aiDictApiSlug: value })}
                 options={[
@@ -247,177 +294,147 @@ export default function Tranbox() {
         </SettingsSection>
 
         <SettingsAdvanced label={i18n("settings_detailed_controls")}>
-          <>
-            {/* Translation panel configuration fields. */}
-            <Grid container spacing={2} columns={12}>
-              {/* Translation services displayed together in the selection panel. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  name="apiSlugs"
-                  value={apiSlugs}
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <SettingsCard>
+              <SettingsRow label={i18n("translate_service_multiple")}>
+                <SettingsSelect
+                  multiple
+                  value={safeApiSlugs}
                   label={i18n("translate_service_multiple")}
-                  onChange={handleChange}
-                  SelectProps={{
-                    multiple: true,
-                  }}
-                >
-                  {enabledApis.map((api) => (
-                    <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                      {getApiDisplayName(api)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              {/* Default source language. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="fromLang"
-                  value={fromLang}
+                  onChange={(value) => updateTranbox({ apiSlugs: value })}
+                  options={enabledApis.map((api) => ({
+                    value: api.apiSlug,
+                    label: getApiDisplayName(api),
+                  }))}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("from_lang")}>
+                <SettingsSelect
+                  value={safeFromLang}
                   label={i18n("from_lang")}
-                  onChange={handleChange}
-                >
-                  {OPT_LANGS_FROM.map(([lang, name]) => (
-                    <MenuItem key={lang} value={lang}>
-                      {name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              {/* Preferred target language. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="toLang"
-                  value={toLang}
+                  onChange={(value) => updateTranbox({ fromLang: value })}
+                  options={OPT_LANGS_FROM}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("to_lang")}>
+                <SettingsSelect
+                  value={safeToLang}
                   label={i18n("to_lang")}
-                  onChange={handleChange}
-                >
-                  {OPT_LANGS_TO.map(([lang, name]) => (
-                    <MenuItem key={lang} value={lang}>
-                      {name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              {/* Secondary target language used when the selection is in the preferred language. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="toLang2"
-                  value={toLang2}
+                  onChange={(value) => updateTranbox({ toLang: value })}
+                  options={OPT_LANGS_TO}
+                />
+              </SettingsRow>
+              <SettingsRow
+                label={i18n("to_lang2")}
+                description={i18n("to_lang2_helper")}
+              >
+                <SettingsSelect
+                  value={safeToLang2}
                   label={i18n("to_lang2")}
-                  helperText={i18n("to_lang2_helper")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
-                  {OPT_LANGS_TO.map(([lang, name]) => (
-                    <MenuItem key={lang} value={lang}>
-                      {name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-
-              {/* Dictionary prompt source: API defaults or a global dictionary prompt. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="aiDictPromptSlug"
-                  value={aiDictPromptSlug}
-                  label={i18n("ai_dict_prompt", "AI词典提示词")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={PROMPT_MODE_FOLLOW_API}>
-                    {i18n("follow_api_prompt", "接口默认")}
-                  </MenuItem>
-                  {dictionaryPromptOptions.map((prompt) => (
-                    <MenuItem value={prompt.slug} key={prompt.slug}>
-                      {getPromptDisplayName(prompt, i18n)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="enSug"
-                  value={enSug}
+                  onChange={(value) => updateTranbox({ toLang2: value })}
+                  options={[
+                    { value: "-", label: i18n("disable") },
+                    ...OPT_LANGS_TO,
+                  ]}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("ai_dict_prompt")}>
+                <SettingsSelect
+                  value={safeAiDictPromptSlug}
+                  label={i18n("ai_dict_prompt")}
+                  onChange={(value) =>
+                    updateTranbox({ aiDictPromptSlug: value })
+                  }
+                  options={[
+                    {
+                      value: PROMPT_MODE_FOLLOW_API,
+                      label: i18n("follow_api_prompt"),
+                    },
+                    ...dictionaryPromptOptions.map((prompt) => ({
+                      value: prompt.slug,
+                      label: getPromptDisplayName(prompt, i18n),
+                    })),
+                  ]}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("english_suggest")}>
+                <SettingsSelect
+                  value={safeEnSug}
                   label={i18n("english_suggest")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
-                  {OPT_SUG_ALL.map((item) => (
-                    <MenuItem value={item} key={item}>
-                      {item}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              {/* Position the trigger button at the selection corner or pointer release location. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="btnPositionMode"
-                  value={btnPositionMode}
+                  onChange={(value) => updateTranbox({ enSug: value })}
+                  options={[
+                    { value: "-", label: i18n("disable") },
+                    ...OPT_SUG_ALL.map((item) => ({
+                      value: item,
+                      label: item,
+                    })),
+                  ]}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("tranbtn_position_mode")}>
+                <SettingsSelect
+                  value={safeBtnPositionMode}
                   label={i18n("tranbtn_position_mode")}
-                  onChange={handleChange}
-                >
-                  {OPT_TRANBOX_BTN_POSITION_ALL.map((item) => (
-                    <MenuItem key={item} value={item}>
-                      {i18n(`tranbtn_position_${item}`)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              {/* Hide the floating selection trigger button. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="hideTranBtn"
-                  value={hideTranBtn}
+                  onChange={(value) =>
+                    updateTranbox({ btnPositionMode: value })
+                  }
+                  options={OPT_TRANBOX_BTN_POSITION_ALL.map((item) => ({
+                    value: item,
+                    label: i18n(`tranbtn_position_${item}`),
+                  }))}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("hide_tran_button")}>
+                <SettingsSegmented
+                  value={Boolean(hideTranBtn)}
                   label={i18n("hide_tran_button")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={false}>{i18n("show")}</MenuItem>
-                  <MenuItem value={true}>{i18n("hide")}</MenuItem>
-                </TextField>
-              </Grid>
-              {/* Close the translation panel when clicking outside it. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="hideClickAway"
-                  value={hideClickAway}
+                  onChange={(value) => updateTranbox({ hideTranBtn: value })}
+                  items={[
+                    { value: false, label: i18n("show") },
+                    { value: true, label: i18n("hide") },
+                  ]}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("hide_click_away")}>
+                <SettingsSwitch
+                  checked={Boolean(hideClickAway)}
                   label={i18n("hide_click_away")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={false}>{i18n("disable")}</MenuItem>
-                  <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                </TextField>
-              </Grid>
+                  onChange={(checked) =>
+                    updateTranbox({ hideClickAway: checked })
+                  }
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("tranbox_auto_height")}>
+                <SettingsSwitch
+                  checked={Boolean(autoHeight)}
+                  label={i18n("tranbox_auto_height")}
+                  onChange={(checked) => updateTranbox({ autoHeight: checked })}
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("tranbox_interact_mode")}>
+                <SettingsSelect
+                  value={safeInteractMode}
+                  label={i18n("tranbox_interact_mode")}
+                  onChange={(value) =>
+                    updateTranbox({ tranboxInteractMode: value })
+                  }
+                  options={[
+                    { value: "-", label: i18n("disable") },
+                    {
+                      value: OPT_TRANBOX_INTERACT_CLICK,
+                      label: i18n("tranbox_interact_click"),
+                    },
+                    {
+                      value: OPT_TRANBOX_INTERACT_DBLCLICK,
+                      label: i18n("tranbox_interact_dblclick"),
+                    },
+                  ]}
+                />
+              </SettingsRow>
+            </SettingsCard>
 
-              {/* Horizontal trigger button offset from the pointer in pixels. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
+            <Grid container spacing={2} columns={12}>
+              <Grid item xs={12} sm={6}>
                 <ValidationInput
                   fullWidth
                   size="small"
@@ -430,8 +447,7 @@ export default function Tranbox() {
                   max={200}
                 />
               </Grid>
-              {/* Vertical trigger button offset from the pointer in pixels. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
+              <Grid item xs={12} sm={6}>
                 <ValidationInput
                   fullWidth
                   size="small"
@@ -444,8 +460,7 @@ export default function Tranbox() {
                   max={200}
                 />
               </Grid>
-              {/* Horizontal translation panel offset in pixels. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
+              <Grid item xs={12} sm={6}>
                 <ValidationInput
                   fullWidth
                   size="small"
@@ -458,8 +473,7 @@ export default function Tranbox() {
                   max={200}
                 />
               </Grid>
-              {/* Vertical translation panel offset in pixels. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
+              <Grid item xs={12} sm={6}>
                 <ValidationInput
                   fullWidth
                   size="small"
@@ -472,56 +486,20 @@ export default function Tranbox() {
                   max={200}
                 />
               </Grid>
-              {/* Expand the panel to fit long translations or scroll its content. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="autoHeight"
-                  value={autoHeight}
-                  label={i18n("tranbox_auto_height")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={false}>{i18n("disable")}</MenuItem>
-                  <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                </TextField>
-              </Grid>
-
-              {/* Translate panel selections on a single or double click. */}
-              <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
-                  fullWidth
-                  select
-                  size="small"
-                  name="tranboxInteractMode"
-                  value={tranboxInteractMode}
-                  label={i18n("tranbox_interact_mode")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value="-">{i18n("disable")}</MenuItem>
-                  <MenuItem value={OPT_TRANBOX_INTERACT_CLICK}>
-                    {i18n("tranbox_interact_click")}
-                  </MenuItem>
-                  <MenuItem value={OPT_TRANBOX_INTERACT_DBLCLICK}>
-                    {i18n("tranbox_interact_dblclick")}
-                  </MenuItem>
-                </TextField>
-              </Grid>
             </Grid>
-          </>
 
-          {/* Domains and patterns that disable selection translation. */}
-          <TextField
-            size="small"
-            label={i18n("blacklist")}
-            helperText={i18n("pattern_helper")}
-            name="blacklist"
-            value={blacklist}
-            onChange={handleChange}
-            maxRows={10}
-            multiline
-          />
+            <TextField
+              fullWidth
+              size="small"
+              label={i18n("blacklist")}
+              helperText={i18n("pattern_helper")}
+              name="blacklist"
+              value={blacklist}
+              onChange={handleChange}
+              maxRows={10}
+              multiline
+            />
+          </Stack>
         </SettingsAdvanced>
       </Stack>
     </Box>

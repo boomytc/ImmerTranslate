@@ -18,15 +18,29 @@ export default function Layout() {
   const i18n = useI18n();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const navigationTriggerRef = useRef(null);
+  const returnFocusOnCloseRef = useRef(false);
   const backgroundRef = useRef(null);
-  const compact = useMediaQueryMatch("(max-width: 1179px)");
+  const compact = useMediaQueryMatch("(max-width: 900px)");
   const isWidePage = isWideOptionsPage(pathname);
 
+  const closeNavigation = (restoreFocus = false) => {
+    returnFocusOnCloseRef.current = restoreFocus;
+    setNavigationOpen(false);
+  };
+
   useEffect(() => {
+    returnFocusOnCloseRef.current = false;
     setNavigationOpen(false);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!compact) {
+      returnFocusOnCloseRef.current = false;
+      setNavigationOpen(false);
+    }
+  }, [compact]);
 
   useLayoutEffect(() => {
     if (!compact || !navigationOpen) return undefined;
@@ -68,6 +82,7 @@ export default function Layout() {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        returnFocusOnCloseRef.current = true;
         setNavigationOpen(false);
         return;
       }
@@ -115,7 +130,10 @@ export default function Layout() {
           if (value) style.setProperty(property, value, priority);
         });
       });
-      navigationTriggerRef.current?.focus({ preventScroll: true });
+      if (returnFocusOnCloseRef.current) {
+        returnFocusOnCloseRef.current = false;
+        navigationTriggerRef.current?.focus({ preventScroll: true });
+      }
     };
   }, [compact, navigationOpen]);
 
@@ -187,16 +205,22 @@ export default function Layout() {
           </main>
         </div>
       </div>
-      {compact && navigationOpen && (
+      {compact && (
         <>
           <button
             type="button"
-            className="kt-options-overlay kt-options-overlay--open"
+            className={`kt-options-overlay ${
+              navigationOpen ? "kt-options-overlay--open" : ""
+            }`.trim()}
             tabIndex={-1}
             aria-hidden="true"
-            onClick={() => setNavigationOpen(false)}
+            onClick={() => closeNavigation(false)}
           />
-          <Navigator open compact onClose={() => setNavigationOpen(false)} />
+          <Navigator
+            open={navigationOpen}
+            compact
+            onClose={(restoreFocus = false) => closeNavigation(restoreFocus)}
+          />
         </>
       )}
     </div>

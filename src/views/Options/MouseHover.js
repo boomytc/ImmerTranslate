@@ -1,12 +1,13 @@
 import Box from "@mui/material/Box";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import { useI18n } from "../../hooks/I18n";
 import ShortcutInput from "./ShortcutInput";
+import CodeField from "./CodeField";
 import TextField from "@mui/material/TextField";
 import { useMouseHoverSetting } from "../../hooks/MouseHover";
-import { useApiList } from "../../hooks/Api";
+import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import { useCallback } from "react";
+import { limitNumber } from "../../libs/utils";
 import {
   DEFAULT_MOUSEHOVER_KEY,
   DEFAULT_MOUSE_HOVER_BUBBLE_STYLE,
@@ -23,22 +24,42 @@ import {
 import {
   SettingsAdvanced,
   SettingsCard,
+  SettingsRange,
   SettingsRow,
   SettingsSection,
   SettingsSegmented,
+  SettingsSelect,
   SettingsSwitch,
 } from "./SettingsCard";
+
+const MIN_HOLD_DELAY = 50;
+const MAX_HOLD_DELAY = 3000;
+const TRANS_MODES = [
+  OPT_MOUSE_HOVER_TRANS_PARAGRAPH,
+  OPT_MOUSE_HOVER_TRANS_REGION,
+  OPT_MOUSE_HOVER_TRANS_AREA,
+];
+const TRANS_DISPLAYS = [
+  OPT_MOUSE_HOVER_TRANS_DISPLAY_BLOCK,
+  OPT_MOUSE_HOVER_TRANS_DISPLAY_INLINE,
+];
+
+function normalizeHoldDelay(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    return DEFAULT_MOUSE_HOVER_HOLD_DELAY;
+  }
+  return limitNumber(num, MIN_HOLD_DELAY, MAX_HOLD_DELAY);
+}
 
 /**
  * Mouse hover translation settings panel.
  */
 export default function MouseHoverSetting() {
   const i18n = useI18n();
-  // Global mouse hover translation settings.
   const { mouseHoverSetting, updateMouseHoverSetting } = useMouseHoverSetting();
   const { enabledApis } = useApiList();
 
-  // Update the primary trigger shortcut.
   const handleShortcutInput = useCallback(
     (val) => {
       updateMouseHoverSetting({ mouseHoverKey: val });
@@ -46,7 +67,6 @@ export default function MouseHoverSetting() {
     [updateMouseHoverSetting]
   );
 
-  // Update the alternative trigger shortcut.
   const handleAltShortcutInput = useCallback(
     (val) => {
       updateMouseHoverSetting({ mouseHoverKey2: val });
@@ -54,7 +74,6 @@ export default function MouseHoverSetting() {
     [updateMouseHoverSetting]
   );
 
-  // Enable holding the left mouse button for the primary trigger.
   const handleHoldKeyChange = useCallback(
     (checked) => {
       updateMouseHoverSetting({ mouseHoverKeyHold: checked });
@@ -62,7 +81,6 @@ export default function MouseHoverSetting() {
     [updateMouseHoverSetting]
   );
 
-  // Enable holding the left mouse button for the alternative trigger.
   const handleAltHoldKeyChange = useCallback(
     (checked) => {
       updateMouseHoverSetting({ mouseHoverKey2Hold: checked });
@@ -70,37 +88,15 @@ export default function MouseHoverSetting() {
     [updateMouseHoverSetting]
   );
 
-  // Match the runtime fallback for invalid or non-positive hold delays.
   const handleHoldDelayChange = useCallback(
-    (e) => {
-      const value = Number(e.target.value);
+    (value) => {
       updateMouseHoverSetting({
-        mouseHoverHoldDelay:
-          Number.isFinite(value) && value > 0
-            ? value
-            : DEFAULT_MOUSE_HOVER_HOLD_DELAY,
+        mouseHoverHoldDelay: normalizeHoldDelay(value),
       });
     },
     [updateMouseHoverSetting]
   );
 
-  // Update the translation scope used by either hold trigger.
-  const handleTransModeChange = useCallback(
-    (e) => {
-      updateMouseHoverSetting({ mouseHoverTransMode: e.target.value });
-    },
-    [updateMouseHoverSetting]
-  );
-
-  // Update the translation layout used by either hold trigger.
-  const handleTransDisplayChange = useCallback(
-    (e) => {
-      updateMouseHoverSetting({ mouseHoverTransDisplay: e.target.value });
-    },
-    [updateMouseHoverSetting]
-  );
-
-  // Suppress navigation after translating a link or button with a hold trigger.
   const handlePreventClickChange = useCallback(
     (checked) => {
       updateMouseHoverSetting({ mouseHoverPreventClick: checked });
@@ -108,11 +104,9 @@ export default function MouseHoverSetting() {
     [updateMouseHoverSetting]
   );
 
-  // Update blacklist patterns used by mouse hover translation.
   const handleBlacklistChange = useCallback(
     (e) => {
-      const { value } = e.target;
-      updateMouseHoverSetting({ blacklist: value });
+      updateMouseHoverSetting({ blacklist: e.target.value });
     },
     [updateMouseHoverSetting]
   );
@@ -124,14 +118,6 @@ export default function MouseHoverSetting() {
     [updateMouseHoverSetting]
   );
 
-  const handleApiChange = useCallback(
-    (e) => {
-      updateMouseHoverSetting({ apiSlug: e.target.value });
-    },
-    [updateMouseHoverSetting]
-  );
-
-  // Normalize the current mouse hover settings.
   const {
     useMouseHover = true,
     mouseHoverKey = DEFAULT_MOUSEHOVER_KEY,
@@ -147,9 +133,17 @@ export default function MouseHoverSetting() {
     apiSlug = GLOBAL_KEY,
     bubbleStyle = DEFAULT_MOUSE_HOVER_BUBBLE_STYLE,
   } = mouseHoverSetting;
+
   const selectedApiSlug = enabledApis.some((api) => api.apiSlug === apiSlug)
     ? apiSlug
     : GLOBAL_KEY;
+  const selectedTransMode = TRANS_MODES.includes(mouseHoverTransMode)
+    ? mouseHoverTransMode
+    : OPT_MOUSE_HOVER_TRANS_AREA;
+  const selectedTransDisplay = TRANS_DISPLAYS.includes(mouseHoverTransDisplay)
+    ? mouseHoverTransDisplay
+    : OPT_MOUSE_HOVER_TRANS_DISPLAY_BLOCK;
+  const normalizedHoldDelay = normalizeHoldDelay(mouseHoverHoldDelay);
 
   return (
     <Box>
@@ -212,26 +206,23 @@ export default function MouseHoverSetting() {
               label={i18n("translate_service")}
               description={i18n("mousehover_bubble_api_helper")}
             >
-              <TextField
-                select
-                hiddenLabel
-                size="small"
-                variant="filled"
-                className="kt-settings-select"
-                name="apiSlug"
+              <SettingsSelect
                 value={selectedApiSlug}
-                inputProps={{ "aria-label": i18n("translate_service") }}
-                onChange={handleApiChange}
-              >
-                <MenuItem value={GLOBAL_KEY}>
-                  {i18n("mousehover_follow_page_rule")}
-                </MenuItem>
-                {enabledApis.map((api) => (
-                  <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                    {api.apiName}
-                  </MenuItem>
-                ))}
-              </TextField>
+                label={i18n("translate_service")}
+                onChange={(value) =>
+                  updateMouseHoverSetting({ apiSlug: value })
+                }
+                options={[
+                  {
+                    value: GLOBAL_KEY,
+                    label: i18n("mousehover_follow_page_rule"),
+                  },
+                  ...enabledApis.map((api) => ({
+                    value: api.apiSlug,
+                    label: getApiDisplayName(api),
+                  })),
+                ]}
+              />
             </SettingsRow>
           )}
         </SettingsCard>
@@ -244,18 +235,13 @@ export default function MouseHoverSetting() {
               label={i18n("mousehover_hold_delay")}
               description={i18n("mousehover_hold_delay_helper")}
             >
-              <TextField
-                hiddenLabel
-                size="small"
-                variant="filled"
-                type="number"
-                inputProps={{
-                  min: 1,
-                  step: 50,
-                  "aria-label": i18n("mousehover_hold_delay"),
-                }}
-                name="mouseHoverHoldDelay"
-                value={mouseHoverHoldDelay}
+              <SettingsRange
+                value={normalizedHoldDelay}
+                min={MIN_HOLD_DELAY}
+                max={MAX_HOLD_DELAY}
+                step={50}
+                unit=" ms"
+                label={i18n("mousehover_hold_delay")}
                 onChange={handleHoldDelayChange}
               />
             </SettingsRow>
@@ -263,50 +249,49 @@ export default function MouseHoverSetting() {
               label={i18n("mousehover_hold_scope")}
               description={i18n("mousehover_hold_scope_helper")}
             >
-              <TextField
-                select
-                hiddenLabel
-                size="small"
-                variant="filled"
-                className="kt-settings-select"
-                name="mouseHoverTransMode"
-                value={mouseHoverTransMode}
-                inputProps={{ "aria-label": i18n("mousehover_hold_scope") }}
-                onChange={handleTransModeChange}
-              >
-                <MenuItem value={OPT_MOUSE_HOVER_TRANS_PARAGRAPH}>
-                  {i18n("mousehover_hold_scope_paragraph")}
-                </MenuItem>
-                <MenuItem value={OPT_MOUSE_HOVER_TRANS_REGION}>
-                  {i18n("mousehover_hold_scope_region")}
-                </MenuItem>
-                <MenuItem value={OPT_MOUSE_HOVER_TRANS_AREA}>
-                  {i18n("mousehover_hold_scope_area")}
-                </MenuItem>
-              </TextField>
+              <SettingsSelect
+                value={selectedTransMode}
+                label={i18n("mousehover_hold_scope")}
+                onChange={(value) =>
+                  updateMouseHoverSetting({ mouseHoverTransMode: value })
+                }
+                options={[
+                  {
+                    value: OPT_MOUSE_HOVER_TRANS_PARAGRAPH,
+                    label: i18n("mousehover_hold_scope_paragraph"),
+                  },
+                  {
+                    value: OPT_MOUSE_HOVER_TRANS_REGION,
+                    label: i18n("mousehover_hold_scope_region"),
+                  },
+                  {
+                    value: OPT_MOUSE_HOVER_TRANS_AREA,
+                    label: i18n("mousehover_hold_scope_area"),
+                  },
+                ]}
+              />
             </SettingsRow>
             <SettingsRow
               label={i18n("mousehover_hold_display")}
               description={i18n("mousehover_hold_display_helper")}
             >
-              <TextField
-                select
-                hiddenLabel
-                size="small"
-                variant="filled"
-                className="kt-settings-select"
-                name="mouseHoverTransDisplay"
-                value={mouseHoverTransDisplay}
-                inputProps={{ "aria-label": i18n("mousehover_hold_display") }}
-                onChange={handleTransDisplayChange}
-              >
-                <MenuItem value={OPT_MOUSE_HOVER_TRANS_DISPLAY_BLOCK}>
-                  {i18n("mousehover_hold_display_block")}
-                </MenuItem>
-                <MenuItem value={OPT_MOUSE_HOVER_TRANS_DISPLAY_INLINE}>
-                  {i18n("mousehover_hold_display_inline")}
-                </MenuItem>
-              </TextField>
+              <SettingsSelect
+                value={selectedTransDisplay}
+                label={i18n("mousehover_hold_display")}
+                onChange={(value) =>
+                  updateMouseHoverSetting({ mouseHoverTransDisplay: value })
+                }
+                options={[
+                  {
+                    value: OPT_MOUSE_HOVER_TRANS_DISPLAY_BLOCK,
+                    label: i18n("mousehover_hold_display_block"),
+                  },
+                  {
+                    value: OPT_MOUSE_HOVER_TRANS_DISPLAY_INLINE,
+                    label: i18n("mousehover_hold_display_inline"),
+                  },
+                ]}
+              />
             </SettingsRow>
             <SettingsRow
               label={i18n("mousehover_hold_prevent_click")}
@@ -352,7 +337,7 @@ export default function MouseHoverSetting() {
             </SettingsRow>
           </SettingsCard>
           {displayMode === OPT_MOUSE_HOVER_DISPLAY_BUBBLE && (
-            <TextField
+            <CodeField
               size="small"
               label={i18n("mousehover_bubble_style")}
               helperText={i18n("mousehover_bubble_style_helper")}
@@ -360,7 +345,6 @@ export default function MouseHoverSetting() {
               value={bubbleStyle}
               onChange={handleBubbleStyleChange}
               maxRows={12}
-              multiline
             />
           )}
         </Stack>

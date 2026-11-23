@@ -288,7 +288,10 @@ export function SettingsAdvanced({
         >
           {label}
         </AccordionSummary>
-        <AccordionDetails className="kt-settings-advanced__content">
+        <AccordionDetails
+          id={regionId}
+          className="kt-settings-advanced__content"
+        >
           {rows ? (
             <Box component="ul" className="kt-settings-advanced__rows">
               {hasExpanded ? children : null}

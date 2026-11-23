@@ -17,5 +17,7 @@ export const URL_GITHUB_GIST_TOKEN =
   "https://github.com/settings/personal-access-tokens"; // GitHub Fine-grained Token 设置页
 export const URL_KISS_RULES_NEW_ISSUE =
   "https://github.com/boomytc/ImmerTranslate/issues/new"; // 反馈网页翻译规则问题
+export const URL_CUSTOM_API_EXAMPLE =
+  "https://github.com/boomytc/ImmerTranslate/blob/main/custom-api.md"; // 自定义翻译接口示例文档
 export const URL_RAW_PREFIX =
   "https://raw.githubusercontent.com/boomytc/ImmerTranslate/main"; // 访问本仓库原始文件的 URL 前缀 (用于拉取 README 等)

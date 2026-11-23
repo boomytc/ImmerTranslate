@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import { useI18n } from "../../hooks/I18n";
+import { useAlert } from "../../hooks/Alert";
 import Button from "@mui/material/Button";
 
 /**
@@ -19,33 +20,38 @@ export default function UploadButton({
   fileExts = [".json"],
 }) {
   const i18n = useI18n();
+  const alert = useAlert();
   const inputRef = useRef(null);
 
-  // 触发隐藏的 file input 点击，弹出系统的文件选择对话框
   const handleClick = () => {
     if (inputRef.current) {
+      inputRef.current.value = "";
       inputRef.current.click();
-      inputRef.current.value = null; // 重置以支持多次重复上传相同文件时触发 onChange
     }
   };
 
-  // 选择文件后触发的读取逻辑
   const onChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) {
       return;
     }
 
-    // 粗略的文件类型/后缀校验
-    if (!file.type.includes(fileType)) {
-      alert(i18n("error_wrong_file_type"));
+    const fileName = (file.name || "").toLowerCase();
+    const matchesMime = Boolean(file.type) && file.type.includes(fileType);
+    const matchesExt = fileExts.some((ext) =>
+      fileName.endsWith(ext.toLowerCase())
+    );
+    if (!matchesMime && !matchesExt) {
+      alert.error(i18n("error_wrong_file_type"));
       return;
     }
 
-    // 使用 FileReader 异步读取文本数据并传回回调函数
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      handleImport(e.target.result);
+    reader.onload = async (event) => {
+      await handleImport(event.target.result);
+    };
+    reader.onerror = () => {
+      alert.error(i18n("import_failed"));
     };
     reader.readAsText(file);
   };
@@ -58,7 +64,6 @@ export default function UploadButton({
       startIcon={<FileUploadIcon />}
     >
       {text}
-      {/* 隐藏的 input 类型为 file */}
       <input
         type="file"
         accept={fileExts.join(", ")}

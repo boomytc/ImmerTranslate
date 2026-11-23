@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import TextField from "@mui/material/TextField";
 import { limitNumber, limitFloat } from "../libs/utils";
 
@@ -9,54 +9,108 @@ import { limitNumber, limitFloat } from "../libs/utils";
 function ValidationInput({
   value, // 外部传入绑定的值
   onChange, // 状态变更回调
+  onBlur,
   name, // 字段键名
   min, // 最小值约束
   max, // 最大值约束
   isFloat = false, // 是否允许输入浮点数（默认为整数）
   inputProps,
+  error,
+  helperText,
   ...props // 其他传递给 TextField 的属性
 }) {
-  // 使用本地局部状态管理输入框的即时显示文本，防止每次输入都触发全页重绘或校验导致输入卡顿
-  const [localValue, setLocalValue] = useState(value);
+  const [localValue, setLocalValue] = useState(() =>
+    value === undefined || value === null ? "" : String(value)
+  );
+  const [rangeError, setRangeError] = useState("");
+  const lastEmittedRef = useRef(undefined);
 
-  // 监听外部 prop value 的改变，保证本地输入框状态与之同步
+  // 仅在外部 prop 真正变化（而非本组件刚刚同步的值回流）时重置草稿，避免输入小数点等中间态跳动
   useEffect(() => {
-    setLocalValue(value);
+    if (Object.is(lastEmittedRef.current, value)) {
+      lastEmittedRef.current = undefined;
+      return;
+    }
+    lastEmittedRef.current = undefined;
+    setLocalValue(value === undefined || value === null ? "" : String(value));
+    setRangeError("");
   }, [value]);
 
-  // 处理本地输入框的值变更
-  const handleLocalChange = (e) => {
-    setLocalValue(e.target.value);
+  const emitValue = (nextValue) => {
+    lastEmittedRef.current = nextValue;
+    onChange({
+      target: {
+        name,
+        value: nextValue,
+      },
+      preventDefault: () => {},
+    });
   };
 
-  // 核心校验逻辑：在输入框失去焦点 (onBlur) 时触发
-  const handleBlur = () => {
-    const numValue = Number(localValue);
+  // 对合法范围内的数值即时同步，确保保存按钮及时激活且回车提交最新值
+  const handleLocalChange = (e) => {
+    const raw = e.target.value;
+    setLocalValue(raw);
 
-    // 如果输入的不是一个合法的数字，则自动回滚为原有的 prop value
-    if (isNaN(numValue)) {
-      setLocalValue(value);
+    const trimmed = raw.trim();
+    if (trimmed === "") {
+      setRangeError("");
       return;
     }
 
-    // 限制数字大小在指定的 min ~ max 范围内
+    const numValue = Number(trimmed);
+    if (!Number.isFinite(numValue)) {
+      return;
+    }
+
+    const belowMin = min !== undefined && numValue < min;
+    const aboveMax = max !== undefined && numValue > max;
+    if (belowMin || aboveMax) {
+      if (min !== undefined && max !== undefined) {
+        setRangeError(`${min} - ${max}`);
+      } else if (min !== undefined) {
+        setRangeError(`>= ${min}`);
+      } else {
+        setRangeError(`<= ${max}`);
+      }
+      return;
+    }
+
+    setRangeError("");
+    if (isFloat || Number.isInteger(numValue)) {
+      if (!Object.is(numValue, value)) {
+        emitValue(numValue);
+      }
+    }
+  };
+
+  // 失焦时：空字符串或非数字回滚原值，越界值钳至有效范围并同步
+  const handleBlur = (e) => {
+    onBlur?.(e);
+    const trimmed = String(localValue ?? "").trim();
+    if (trimmed === "") {
+      setLocalValue(value === undefined || value === null ? "" : String(value));
+      setRangeError("");
+      return;
+    }
+
+    const numValue = Number(trimmed);
+    if (!Number.isFinite(numValue)) {
+      setLocalValue(value === undefined || value === null ? "" : String(value));
+      setRangeError("");
+      return;
+    }
+
     const validatedValue = isFloat
       ? limitFloat(numValue, min, max)
       : limitNumber(numValue, min, max);
 
-    // 如果校验后被截断或调整，更新本地显示的值
-    if (validatedValue !== numValue) {
-      setLocalValue(validatedValue);
-    }
+    setRangeError("");
+    setLocalValue(String(validatedValue));
 
-    // 将最终经过范围校验的数值分发给外部 onChange 回调函数
-    onChange({
-      target: {
-        name: name,
-        value: validatedValue,
-      },
-      preventDefault: () => {},
-    });
+    if (!Object.is(validatedValue, value)) {
+      emitValue(validatedValue);
+    }
   };
 
   return (
@@ -65,6 +119,8 @@ function ValidationInput({
       type="number"
       name={name}
       value={localValue}
+      error={Boolean(error || rangeError)}
+      helperText={rangeError || helperText}
       onChange={handleLocalChange}
       onBlur={handleBlur}
       inputProps={{

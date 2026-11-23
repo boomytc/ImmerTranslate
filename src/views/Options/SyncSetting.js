@@ -47,23 +47,38 @@ const SYNC_METHOD_METADATA = {
   },
 };
 
+function encodeBase64Utf8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function decodeBase64Utf8(base64) {
+  const binary = atob(base64);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+const EMPTY_ENCRYPT_ERROR = { field: "", message: "" };
+
 /**
  * 云端备份与同步设置主面板组件 (SyncSetting)
  */
 export default function SyncSetting() {
   const i18n = useI18n();
-  // 全局同步数据状态 Hook
   const { sync, updateSync } = useSync();
   const alert = useAlert();
   const confirm = useConfirm();
-  // 数据同步过程中的 Loading 状态
   const [loading, setLoading] = useState(false);
   // 同步加密口令只能通过弹窗设定/修改，避免主表单直接误改导致云端密文不可读。
   const [encryptKeyDialogMode, setEncryptKeyDialogMode] = useState(null);
   const [oldEncryptKey, setOldEncryptKey] = useState("");
   const [newEncryptKey, setNewEncryptKey] = useState("");
   const [confirmEncryptKey, setConfirmEncryptKey] = useState("");
-  const [encryptKeyError, setEncryptKeyError] = useState("");
+  const [encryptKeyError, setEncryptKeyError] = useState(EMPTY_ENCRYPT_ERROR);
   const [savingEncryptKey, setSavingEncryptKey] = useState(false);
   // 敏感字段默认隐藏，用户可临时切换明文查看。
   const [showSyncKey, setShowSyncKey] = useState(false);
@@ -90,7 +105,6 @@ export default function SyncSetting() {
     }
   };
 
-  // 同步配置选项字段更改处理
   const handleChange = async (e) => {
     e.preventDefault();
     const { name, value } = e.target;
@@ -132,7 +146,6 @@ export default function SyncSetting() {
     void handleSyncTypeChange(OPT_SYNCTYPE_ALL[targetIndex]);
   };
 
-  // 触发物理网络数据上传/下载同步
   const handleSyncTest = async (e) => {
     e.preventDefault();
     try {
@@ -148,61 +161,68 @@ export default function SyncSetting() {
     }
   };
 
-  // 将当前同步服务的 Url、User、Key 生成一段 Base64 分享口令以支持跨设备一键同步导入
+  // 将当前同步配置生成 UTF-8 安全的 Base64 分享串并复制到剪贴板，不记录明文密钥日志
   const handleGenerateShareString = async () => {
     try {
-      const base64Config = btoa(
+      const base64Config = encodeBase64Utf8(
         JSON.stringify({
-          syncType: syncType,
-          syncUrl: syncUrl,
-          syncUser: syncUser,
-          syncKey: syncKey,
-          syncEncryptKey: syncEncryptKey,
+          syncType,
+          syncUrl,
+          syncUser,
+          syncKey,
+          syncEncryptKey,
         })
       );
       const shareString = `${OPT_SYNCTOKEN_PERFIX}${base64Config}`;
       await navigator.clipboard.writeText(shareString);
-      kissLog("Share string copied to clipboard", shareString);
+      alert.success(i18n("copy_success"));
     } catch (error) {
       kissLog("Failed to copy share string to clipboard", error);
+      alert.error(i18n("copy_failed"));
     }
   };
 
-  // 从系统剪贴板中读取分享口令并进行解析，一键恢复同步服务连接
+  // 从剪贴板导入分享串，校验结构后写入本地同步配置，不记录剪贴板原文
   const handleImportFromClipboard = async () => {
     try {
-      const text = await navigator.clipboard.readText();
-      kissLog("read_clipboard", text);
-      if (text.startsWith(OPT_SYNCTOKEN_PERFIX)) {
-        const base64Config = text.slice(OPT_SYNCTOKEN_PERFIX.length);
-        const jsonString = atob(base64Config);
-        const updatedConfig = JSON.parse(jsonString);
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text.startsWith(OPT_SYNCTOKEN_PERFIX)) {
+        alert.error(i18n("sync_share_invalid"));
+        return;
+      }
 
-        // 验证同步服务类型是否合法
-        if (!OPT_SYNCTYPE_ALL.includes(updatedConfig.syncType)) {
-          kissLog("error syncType", updatedConfig.syncType);
-          return;
-        }
+      const base64Config = text.slice(OPT_SYNCTOKEN_PERFIX.length);
+      const jsonString = decodeBase64Utf8(base64Config);
+      const updatedConfig = JSON.parse(jsonString);
 
-        if (
-          updatedConfig.syncUrl ||
-          updatedConfig.syncType === OPT_SYNCTYPE_GIST
-        ) {
-          updateSync({
-            syncType: updatedConfig.syncType,
-            syncUrl: updatedConfig.syncUrl,
-            syncUser: updatedConfig.syncUser,
-            syncKey: updatedConfig.syncKey,
-            syncEncryptKey: updatedConfig.syncEncryptKey || "",
-          });
-        } else {
-          kissLog("Invalid config structure");
-        }
+      if (
+        !updatedConfig ||
+        typeof updatedConfig !== "object" ||
+        Array.isArray(updatedConfig) ||
+        !OPT_SYNCTYPE_ALL.includes(updatedConfig.syncType)
+      ) {
+        alert.error(i18n("sync_share_invalid"));
+        return;
+      }
+
+      if (
+        updatedConfig.syncUrl ||
+        updatedConfig.syncType === OPT_SYNCTYPE_GIST
+      ) {
+        await updateSync({
+          syncType: updatedConfig.syncType,
+          syncUrl: updatedConfig.syncUrl || "",
+          syncUser: updatedConfig.syncUser || "",
+          syncKey: updatedConfig.syncKey || "",
+          syncEncryptKey: updatedConfig.syncEncryptKey || "",
+        });
+        alert.success(i18n("import_success"));
       } else {
-        kissLog("Invalid share string", text);
+        alert.error(i18n("sync_share_invalid"));
       }
     } catch (error) {
-      kissLog("Failed to read from clipboard or parse JSON", error);
+      kissLog("Failed to import sync share string", error);
+      alert.error(i18n("import_failed"));
     }
   };
 
@@ -211,7 +231,7 @@ export default function SyncSetting() {
     setOldEncryptKey("");
     setNewEncryptKey("");
     setConfirmEncryptKey("");
-    setEncryptKeyError("");
+    setEncryptKeyError(EMPTY_ENCRYPT_ERROR);
     setShowOldEncryptKey(false);
     setShowNewEncryptKey(false);
     setShowConfirmEncryptKey(false);
@@ -220,20 +240,35 @@ export default function SyncSetting() {
   const closeEncryptKeyDialog = () => {
     if (savingEncryptKey) return;
     setEncryptKeyDialogMode(null);
-    setEncryptKeyError("");
+    setEncryptKeyError(EMPTY_ENCRYPT_ERROR);
   };
 
   // 设定口令只保存本地配置；修改口令需要先完成远端数据重加密。
-  const handleSaveEncryptKey = async () => {
-    setEncryptKeyError("");
+  const handleSaveEncryptKey = async (event) => {
+    event?.preventDefault();
+    setEncryptKeyError(EMPTY_ENCRYPT_ERROR);
+
+    if (encryptKeyDialogMode === "change" && !oldEncryptKey) {
+      setEncryptKeyError({
+        field: "old",
+        message: i18n("error_cant_be_blank"),
+      });
+      return;
+    }
 
     if (newEncryptKey.length < 6) {
-      setEncryptKeyError(i18n("sync_encrypt_key_too_short"));
+      setEncryptKeyError({
+        field: "new",
+        message: i18n("sync_encrypt_key_too_short"),
+      });
       return;
     }
 
     if (newEncryptKey !== confirmEncryptKey) {
-      setEncryptKeyError(i18n("sync_encrypt_key_mismatch"));
+      setEncryptKeyError({
+        field: "confirm",
+        message: i18n("sync_encrypt_key_mismatch"),
+      });
       return;
     }
 
@@ -246,25 +281,34 @@ export default function SyncSetting() {
         });
       }
       await updateSync({ syncEncryptKey: newEncryptKey });
+      const wasChange = encryptKeyDialogMode === "change";
       setEncryptKeyDialogMode(null);
-      alert.success(i18n("sync_success"));
+      alert.success(
+        wasChange
+          ? i18n("sync_encrypt_key_change_success")
+          : i18n("save_success")
+      );
     } catch (err) {
       kissLog("save sync encrypt key", err);
       if (
         encryptKeyDialogMode === "change" &&
         err?.code === "SYNC_DECRYPT_FAILED"
       ) {
-        setEncryptKeyError(i18n("old_sync_encrypt_key_invalid"));
+        setEncryptKeyError({
+          field: "old",
+          message: i18n("old_sync_encrypt_key_invalid"),
+        });
         return;
       }
-      setEncryptKeyError(
-        getSyncErrorMessage(
+      setEncryptKeyError({
+        field: "form",
+        message: getSyncErrorMessage(
           err,
           encryptKeyDialogMode === "change"
             ? i18n("sync_encrypt_key_change_failed")
             : i18n("sync_failed")
-        )
-      );
+        ),
+      });
     } finally {
       setSavingEncryptKey(false);
     }
@@ -297,11 +341,11 @@ export default function SyncSetting() {
   const selectedSyncMethodIndex = OPT_SYNCTYPE_ALL.indexOf(syncType);
   const tabbableSyncMethodIndex =
     selectedSyncMethodIndex === -1 ? 0 : selectedSyncMethodIndex;
+  const editEncryptKeyLabel = `${i18n("edit")} ${i18n("data_sync_encrypt_key")}`;
 
   return (
     <Box>
       <Stack spacing={3}>
-        {/* 数据同步的风险警告与备份注意事项提示 */}
         <Alert severity="info">{i18n("sync_warn_encryption")}</Alert>
         <Alert severity="warning">
           {i18n("sync_warn")}
@@ -347,12 +391,15 @@ export default function SyncSetting() {
           })}
         </div>
         {isGistSync && (
-          <Link href={URL_GITHUB_GIST_TOKEN} target="_blank">
+          <Link
+            href={URL_GITHUB_GIST_TOKEN}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {i18n("gist_sync_tip")}
           </Link>
         )}
 
-        {/* 同步接口 URL 终端地址 */}
         {!isGistSync && (
           <TextField
             size="small"
@@ -363,7 +410,6 @@ export default function SyncSetting() {
           />
         )}
 
-        {/* 仅在 WebDAV 模式下显示的用户名输入框 */}
         {syncType === OPT_SYNCTYPE_WEBDAV && (
           <TextField
             size="small"
@@ -374,7 +420,6 @@ export default function SyncSetting() {
           />
         )}
 
-        {/* 云端数据访问密码或 Gist Token */}
         <TextField
           size="small"
           type={showSyncKey ? "text" : "password"}
@@ -401,7 +446,6 @@ export default function SyncSetting() {
           }}
         />
 
-        {/* 只读展示同步加密口令，实际设定/修改统一进入弹窗处理。 */}
         <Box>
           <Stack direction="row" alignItems="center" spacing={2}>
             <TextField
@@ -436,7 +480,8 @@ export default function SyncSetting() {
             />
             <IconButton
               size="small"
-              aria-label={i18n("data_sync_encrypt_key")}
+              aria-label={editEncryptKeyLabel}
+              title={editEncryptKeyLabel}
               sx={{ flexShrink: 0 }}
               onClick={() =>
                 openEncryptKeyDialog(syncEncryptKey ? "change" : "set")
@@ -461,7 +506,6 @@ export default function SyncSetting() {
           )}
         </Box>
 
-        {/* 控制按钮栏：包含立即触发同步、复制同步配置口令与从剪贴板贴入同步口令 */}
         <Stack
           direction="row"
           alignItems="center"
@@ -469,7 +513,6 @@ export default function SyncSetting() {
           useFlexGap
           flexWrap="wrap"
         >
-          {/* 立即上传/下载并合并备份的同步按钮 */}
           <LoadingButton
             size="small"
             variant="contained"
@@ -485,7 +528,6 @@ export default function SyncSetting() {
           >
             {i18n("sync_now")}
           </LoadingButton>
-          {/* 生成同步分享码并拷贝到剪贴板 */}
           <Button
             size="small"
             variant="outlined"
@@ -494,7 +536,6 @@ export default function SyncSetting() {
           >
             {i18n("copy", "copy")}
           </Button>
-          {/* 从剪贴板读取同步码一键连接 */}
           <Button
             onClick={handleImportFromClipboard}
             size="small"
@@ -512,21 +553,79 @@ export default function SyncSetting() {
         maxWidth="sm"
         aria-labelledby="sync-encryption-dialog-title"
       >
-        <DialogTitle id="sync-encryption-dialog-title">
-          {encryptKeyDialogMode === "change"
-            ? i18n("change_sync_encrypt_key")
-            : i18n("set_sync_encrypt_key")}
-        </DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ width: 360, maxWidth: "100%", pt: 1 }}>
-            {encryptKeyDialogMode === "change" && (
+        <Box component="form" onSubmit={handleSaveEncryptKey}>
+          <DialogTitle id="sync-encryption-dialog-title">
+            {encryptKeyDialogMode === "change"
+              ? i18n("change_sync_encrypt_key")
+              : i18n("set_sync_encrypt_key")}
+          </DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ width: "100%", pt: 1 }}>
+              {encryptKeyError.field === "form" && (
+                <Alert severity="error">{encryptKeyError.message}</Alert>
+              )}
+              {encryptKeyDialogMode === "change" && (
+                <TextField
+                  size="small"
+                  fullWidth
+                  type={showOldEncryptKey ? "text" : "password"}
+                  label={i18n("old_sync_encrypt_key")}
+                  InputLabelProps={{ shrink: true }}
+                  value={oldEncryptKey}
+                  error={encryptKeyError.field === "old"}
+                  helperText={
+                    encryptKeyError.field === "old"
+                      ? encryptKeyError.message
+                      : ""
+                  }
+                  onChange={(e) => {
+                    setOldEncryptKey(e.target.value);
+                    if (encryptKeyError.field === "old") {
+                      setEncryptKeyError(EMPTY_ENCRYPT_ERROR);
+                    }
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          edge="end"
+                          aria-label={`${i18n(
+                            showOldEncryptKey ? "hide" : "show"
+                          )} ${i18n("old_sync_encrypt_key")}`}
+                          onClick={() =>
+                            setShowOldEncryptKey((value) => !value)
+                          }
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          {showOldEncryptKey ? (
+                            <VisibilityOffIcon />
+                          ) : (
+                            <VisibilityIcon />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              )}
               <TextField
                 size="small"
-                type={showOldEncryptKey ? "text" : "password"}
-                label={i18n("old_sync_encrypt_key")}
+                fullWidth
+                type={showNewEncryptKey ? "text" : "password"}
+                label={i18n("new_sync_encrypt_key")}
                 InputLabelProps={{ shrink: true }}
-                value={oldEncryptKey}
-                onChange={(e) => setOldEncryptKey(e.target.value)}
+                value={newEncryptKey}
+                error={encryptKeyError.field === "new"}
+                helperText={
+                  encryptKeyError.field === "new" ? encryptKeyError.message : ""
+                }
+                onChange={(e) => {
+                  setNewEncryptKey(e.target.value);
+                  if (encryptKeyError.field === "new") {
+                    setEncryptKeyError(EMPTY_ENCRYPT_ERROR);
+                  }
+                }}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
@@ -534,12 +633,12 @@ export default function SyncSetting() {
                         size="small"
                         edge="end"
                         aria-label={`${i18n(
-                          showOldEncryptKey ? "hide" : "show"
-                        )} ${i18n("old_sync_encrypt_key")}`}
-                        onClick={() => setShowOldEncryptKey((value) => !value)}
+                          showNewEncryptKey ? "hide" : "show"
+                        )} ${i18n("new_sync_encrypt_key")}`}
+                        onClick={() => setShowNewEncryptKey((value) => !value)}
                         onMouseDown={(e) => e.preventDefault()}
                       >
-                        {showOldEncryptKey ? (
+                        {showNewEncryptKey ? (
                           <VisibilityOffIcon />
                         ) : (
                           <VisibilityIcon />
@@ -549,83 +648,64 @@ export default function SyncSetting() {
                   ),
                 }}
               />
-            )}
-            <TextField
-              size="small"
-              type={showNewEncryptKey ? "text" : "password"}
-              label={i18n("new_sync_encrypt_key")}
-              InputLabelProps={{ shrink: true }}
-              value={newEncryptKey}
-              onChange={(e) => setNewEncryptKey(e.target.value)}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      edge="end"
-                      aria-label={`${i18n(
-                        showNewEncryptKey ? "hide" : "show"
-                      )} ${i18n("new_sync_encrypt_key")}`}
-                      onClick={() => setShowNewEncryptKey((value) => !value)}
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      {showNewEncryptKey ? (
-                        <VisibilityOffIcon />
-                      ) : (
-                        <VisibilityIcon />
-                      )}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <TextField
-              size="small"
-              type={showConfirmEncryptKey ? "text" : "password"}
-              label={i18n("confirm_sync_encrypt_key")}
-              InputLabelProps={{ shrink: true }}
-              value={confirmEncryptKey}
-              onChange={(e) => setConfirmEncryptKey(e.target.value)}
-              error={!!encryptKeyError}
-              helperText={encryptKeyError}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      edge="end"
-                      aria-label={`${i18n(
-                        showConfirmEncryptKey ? "hide" : "show"
-                      )} ${i18n("confirm_sync_encrypt_key")}`}
-                      onClick={() =>
-                        setShowConfirmEncryptKey((value) => !value)
-                      }
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      {showConfirmEncryptKey ? (
-                        <VisibilityOffIcon />
-                      ) : (
-                        <VisibilityIcon />
-                      )}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeEncryptKeyDialog} disabled={savingEncryptKey}>
-            {i18n("cancel", "cancel")}
-          </Button>
-          <LoadingButton
-            onClick={handleSaveEncryptKey}
-            loading={savingEncryptKey}
-            variant="contained"
-          >
-            {i18n("save", "save")}
-          </LoadingButton>
-        </DialogActions>
+              <TextField
+                size="small"
+                fullWidth
+                type={showConfirmEncryptKey ? "text" : "password"}
+                label={i18n("confirm_sync_encrypt_key")}
+                InputLabelProps={{ shrink: true }}
+                value={confirmEncryptKey}
+                error={encryptKeyError.field === "confirm"}
+                helperText={
+                  encryptKeyError.field === "confirm"
+                    ? encryptKeyError.message
+                    : ""
+                }
+                onChange={(e) => {
+                  setConfirmEncryptKey(e.target.value);
+                  if (encryptKeyError.field === "confirm") {
+                    setEncryptKeyError(EMPTY_ENCRYPT_ERROR);
+                  }
+                }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label={`${i18n(
+                          showConfirmEncryptKey ? "hide" : "show"
+                        )} ${i18n("confirm_sync_encrypt_key")}`}
+                        onClick={() =>
+                          setShowConfirmEncryptKey((value) => !value)
+                        }
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                        {showConfirmEncryptKey ? (
+                          <VisibilityOffIcon />
+                        ) : (
+                          <VisibilityIcon />
+                        )}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={closeEncryptKeyDialog} disabled={savingEncryptKey}>
+              {i18n("cancel", "cancel")}
+            </Button>
+            <LoadingButton
+              type="submit"
+              loading={savingEncryptKey}
+              variant="contained"
+            >
+              {i18n("save", "save")}
+            </LoadingButton>
+          </DialogActions>
+        </Box>
       </Dialog>
     </Box>
   );

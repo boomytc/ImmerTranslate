@@ -11,6 +11,8 @@ import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Divider from "@mui/material/Divider";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import { useI18n } from "../../hooks/I18n";
 import {
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
@@ -24,7 +26,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Alert from "@mui/material/Alert";
 import Switch from "@mui/material/Switch";
 import { useSubtitle } from "../../hooks/Subtitle";
-import { useApiList } from "../../hooks/Api";
+import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import { usePromptList } from "../../hooks/Prompt";
 import ValidationInput from "../../hooks/ValidationInput";
 import {
@@ -44,295 +46,20 @@ import {
   SettingsSelect,
   SettingsSwitch,
 } from "./SettingsCard";
+import {
+  colorToHex,
+  formatFontSizeFromSlider,
+  hexToRgb,
+  objectToCss,
+  parseCssToObject,
+  parseFontSize,
+  parsePadding,
+  parseRgba,
+  rgbToHex,
+} from "./subtitleStyleUtils";
 
-/**
- * Split CSS at declaration boundaries.
- *
- * Semicolons inside strings, parentheses, or comments are part of the value.
- * Preserve them so editing a style slider cannot truncate values such as
- * `url("data:image/svg+xml;utf8,...")` when saving the updated declarations.
- *
- * @param {string} cssString CSS source.
- * @returns {string[]} Declarations with their original whitespace and comments.
- */
-const splitCssDeclarations = (cssString) => {
-  const parts = [];
-  let buffer = "";
-  let depth = 0;
-  let quote = null;
-  let inComment = false;
-  let inUnquotedUrl = false;
-  let name = "";
+export { parseCssToObject, objectToCss } from "./subtitleStyleUtils";
 
-  for (let i = 0; i < cssString.length; i++) {
-    const char = cssString[i];
-
-    if (inUnquotedUrl) {
-      buffer += char;
-      // Comment markers are literal URL characters, including an unmatched /*.
-      if (char === "\\" && i + 1 < cssString.length) {
-        buffer += cssString[++i];
-      } else if (char === ")") {
-        inUnquotedUrl = false;
-        depth = Math.max(0, depth - 1);
-      }
-      continue;
-    }
-    if (inComment) {
-      buffer += char;
-      if (char === "*" && cssString[i + 1] === "/") {
-        buffer += cssString[++i];
-        inComment = false;
-      }
-      continue;
-    }
-    if (quote) {
-      buffer += char;
-      // Consume escape pairs so only an unescaped quote closes the string.
-      if (char === "\\" && i + 1 < cssString.length) {
-        buffer += cssString[++i];
-      } else if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    // A CDO token ends before any following identifier.
-    if (cssString.startsWith("<!--", i)) {
-      buffer += "<!--";
-      name = "";
-      i += 3;
-      continue;
-    }
-    // Escaped delimiters outside strings are part of the CSS value.
-    if (char === "\\" && i + 1 < cssString.length) {
-      // Decode escaped function names while keeping the original CSS source.
-      const escape = cssString
-        .slice(i + 1)
-        .match(/^[\da-f]{1,6}(?:\r\n|[ \t\n\r\f])?/i);
-      if (escape) {
-        const codePoint = parseInt(escape[0], 16);
-        name +=
-          codePoint > 0 &&
-          codePoint <= 0x10ffff &&
-          (codePoint < 0xd800 || codePoint > 0xdfff)
-            ? String.fromCodePoint(codePoint)
-            : "\ufffd";
-        buffer += char + escape[0];
-        i += escape[0].length;
-      } else {
-        name = /[\n\r\f]/.test(cssString[i + 1]) ? "" : name + cssString[i + 1];
-        buffer += char + cssString[++i];
-      }
-      continue;
-    }
-    if (char === "/" && cssString[i + 1] === "*") {
-      inComment = true;
-      name = "";
-      // The opening star cannot also terminate the comment.
-      buffer += "/*";
-      i += 1;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      name = "";
-      buffer += char;
-      continue;
-    }
-    if (char === "(") {
-      depth++;
-      if (name.toLowerCase() === "url") {
-        inUnquotedUrl = !/^[ \t\n\r\f]*["']/.test(cssString.slice(i + 1));
-      }
-    } else if (char === ")") {
-      depth = Math.max(0, depth - 1);
-    }
-    // Keep hash and at-keyword prefixes so they cannot match the URL name.
-    name = /[-\w\u0080-\uffff#@]/.test(char) ? name + char : "";
-
-    if (char === ";" && depth === 0) {
-      parts.push(buffer);
-      buffer = "";
-      continue;
-    }
-    buffer += char;
-  }
-
-  parts.push(buffer);
-  return parts;
-};
-
-/**
- * 将 CSS 字符串解析成键值对 JavaScript 对象
- */
-export const parseCssToObject = (cssString) => {
-  const result = {};
-  if (!cssString) return result;
-
-  const properties = splitCssDeclarations(cssString).filter((p) => p.trim());
-  properties.forEach((prop) => {
-    const colonIndex = prop.indexOf(":");
-    if (colonIndex > 0) {
-      const key = prop.substring(0, colonIndex).trim();
-      const value = prop.substring(colonIndex + 1).trim();
-      result[key] = value;
-    }
-  });
-  return result;
-};
-
-/**
- * 将 JavaScript CSS 样式对象转换回标准 CSS 字符串
- */
-export const objectToCss = (obj) => {
-  const entries = Object.entries(obj).filter(
-    ([, value]) => value !== undefined && value !== ""
-  );
-  if (entries.length === 0) {
-    return "";
-  }
-  return entries.map(([key, value]) => `${key}: ${value}`).join(";\n") + ";";
-};
-
-/**
- * 提取并解析 rgba() 或 rgb() 颜色字符串的 R、G、B、A 属性
- */
-const parseRgba = (rgbaString) => {
-  const match = rgbaString?.match(
-    /rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/
-  );
-  if (match) {
-    return {
-      r: parseInt(match[1], 10),
-      g: parseInt(match[2], 10),
-      b: parseInt(match[3], 10),
-      a: match[4] !== undefined ? parseFloat(match[4]) : 1,
-    };
-  }
-  return null;
-};
-
-/**
- * 将 RGB 十进制数值转换为 Hex 十六进制颜色代码
- */
-const rgbToHex = (r, g, b) => {
-  return (
-    "#" +
-    [r, g, b]
-      .map((x) => {
-        let v = Number(x);
-        if (Number.isNaN(v)) v = 0;
-        v = Math.min(255, Math.max(0, Math.round(v)));
-        return v.toString(16).padStart(2, "0");
-      })
-      .join("")
-  );
-};
-
-/**
- * 将 Hex 十六进制颜色代码转换成 RGB 十进制颜色对象
- */
-const hexToRgb = (hex) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
-    : { r: 0, g: 0, b: 0 };
-};
-
-/**
- * 从 CSS 字体大小声明中解析出具体的值 (如从 clamp 表达式中提取其弹性首选 rem 等)
- */
-const parseFontSize = (fontSizeStr) => {
-  if (!fontSizeStr) return { min: 1, preferred: 2, max: 3, unit: "rem" };
-
-  const clampMatch = fontSizeStr.match(
-    /clamp\s*\(\s*([\d.]+)(\w+)\s*,\s*([\d.]+)(\w+)\s*,\s*([\d.]+)(\w+)\s*\)/
-  );
-  if (clampMatch) {
-    return {
-      min: parseFloat(clampMatch[1]),
-      preferred: parseFloat(clampMatch[3]),
-      max: parseFloat(clampMatch[5]),
-      unit: clampMatch[2],
-    };
-  }
-
-  const simpleMatch = fontSizeStr.match(/([\d.]+)(\w+)/);
-  if (simpleMatch) {
-    const value = parseFloat(simpleMatch[1]);
-    return {
-      min: value * 0.5,
-      preferred: value,
-      max: value * 1.5,
-      unit: simpleMatch[2],
-    };
-  }
-
-  return { min: 1, preferred: 2, max: 3, unit: "rem" };
-};
-
-/**
- * 从 CSS 的 padding 声明中解析出上下和左右内边距
- */
-const parsePadding = (paddingStr) => {
-  if (!paddingStr) return { vertical: 0.5, horizontal: 1, unit: "em" };
-
-  const parts = paddingStr.trim().split(/\s+/);
-  if (parts.length === 1) {
-    const match = parts[0].match(/([\d.]+)(\w+)/);
-    if (match) {
-      return {
-        vertical: parseFloat(match[1]),
-        horizontal: parseFloat(match[1]),
-        unit: match[2],
-      };
-    }
-  } else if (parts.length >= 2) {
-    const vMatch = parts[0].match(/([\d.]+)(\w+)/);
-    const hMatch = parts[1].match(/([\d.]+)(\w+)/);
-    if (vMatch && hMatch) {
-      return {
-        vertical: parseFloat(vMatch[1]),
-        horizontal: parseFloat(hMatch[1]),
-        unit: vMatch[2],
-      };
-    }
-  }
-  return { vertical: 0.5, horizontal: 1, unit: "em" };
-};
-
-/**
- * 将常见的 CSS 颜色名转化成十六进制颜色代码
- */
-const colorToHex = (colorStr) => {
-  if (!colorStr) return "#ffffff";
-  const namedColors = {
-    white: "#ffffff",
-    black: "#000000",
-    red: "#ff0000",
-    green: "#00ff00",
-    blue: "#0000ff",
-    yellow: "#ffff00",
-    cyan: "#00ffff",
-    magenta: "#ff00ff",
-    gray: "#808080",
-    grey: "#808080",
-    orange: "#ffa500",
-    transparent: "#ffffff",
-  };
-  const lower = colorStr.toLowerCase().trim();
-  if (namedColors[lower]) return namedColors[lower];
-  if (colorStr.startsWith("#")) return colorStr;
-  const rgba = parseRgba(colorStr);
-  if (rgba) return rgbToHex(rgba.r, rgba.g, rgba.b);
-  return "#ffffff";
-};
-
-// YouTube 默认字幕容器的最大参考宽度
 const YOUTUBE_CAPTION_CONTAINER_WIDTH = 640;
 
 /**
@@ -345,6 +72,7 @@ function SubtitleStylePreview({
   displayOrder,
 }) {
   const i18n = useI18n();
+  const [stageBg, setStageBg] = useState("dark");
   const windowRef = useRef(null);
   const originRef = useRef(null);
   const transRef = useRef(null);
@@ -364,24 +92,48 @@ function SubtitleStylePreview({
     }
   }, [displayOrder, originStyle, translationStyle, windowStyle]);
 
-  const originPreview = (
-    <p ref={originRef} data-testid="subtitle-preview-origin">
-      This is an example subtitle
-    </p>
-  );
+  const originPreview = <p ref={originRef}>This is an example subtitle</p>;
   const translationPreview = (
-    <p ref={transRef} data-testid="subtitle-preview-translation">
-      {i18n("subtitle_preview_sample", "这是示例字幕文本")}
-    </p>
+    <p ref={transRef}>{i18n("subtitle_preview_sample", "这是示例字幕文本")}</p>
   );
+
   return (
     <Box>
-      <Typography variant="subtitle2" gutterBottom>
-        {i18n("subtitle_style_preview", "样式预览")}
-      </Typography>
       <Box
         sx={{
-          bgcolor: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1,
+          mb: 1,
+        }}
+      >
+        <Typography variant="subtitle2">
+          {i18n("subtitle_style_preview", "样式预览")}
+        </Typography>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={stageBg}
+          aria-label={i18n("subtitle_preview_stage_bg")}
+          onChange={(_e, next) => {
+            if (next) setStageBg(next);
+          }}
+        >
+          <ToggleButton value="dark" sx={{ py: 0.25, px: 1.25, fontSize: 12 }}>
+            {i18n("settings_theme_dark")}
+          </ToggleButton>
+          <ToggleButton value="light" sx={{ py: 0.25, px: 1.25, fontSize: 12 }}>
+            {i18n("settings_theme_light")}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Box
+        sx={{
+          background:
+            stageBg === "dark"
+              ? "radial-gradient(circle at 50% 25%, #2a3140 0%, #151821 62%, #0c0e14 100%)"
+              : "linear-gradient(135deg, #eef2f7 0%, #dde4ee 100%)",
           borderRadius: "12px",
           border: "1px solid",
           borderColor: "divider",
@@ -389,7 +141,8 @@ function SubtitleStylePreview({
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          height: 120,
+          height: 132,
+          px: 2,
         }}
       >
         <Box
@@ -401,8 +154,7 @@ function SubtitleStylePreview({
             textAlign: "center",
           }}
         >
-          {/* 渲染模拟网页上的字幕窗格 */}
-          <div ref={windowRef} data-testid="subtitle-preview-window">
+          <div ref={windowRef}>
             {displayOrder === "translation-first" ? (
               <>
                 {translationPreview}
@@ -426,9 +178,7 @@ function SubtitleStylePreview({
  */
 export default function SubtitleSetting() {
   const i18n = useI18n();
-  // 字幕设置 Hook
   const { subtitleSetting, updateSubtitle } = useSubtitle();
-  // 启用的翻译引擎列表与 AI 模型引擎列表
   const { enabledApis, aiEnabledApis } = useApiList();
   const { prompts } = usePromptList();
   const subtitlePromptOptions = useMemo(
@@ -436,10 +186,9 @@ export default function SubtitleSetting() {
     [prompts]
   );
 
-  // 通用表单变动提交
   const handleChange = (e) => {
     e.preventDefault();
-    let { name, value } = e.target;
+    const { name, value } = e.target;
     const pending = debounceTimers.current[name];
     if (pending) {
       clearTimeout(pending.timer);
@@ -457,7 +206,6 @@ export default function SubtitleSetting() {
     updateSubtitle({
       [name]: value,
     });
-    // 如果修改了自定义 CSS 源码，同步刷新本地的 CSS 临时解析缓存
     if (name === "originStyle") {
       setLocalOriginStyle(value);
       originCssRef.current = parseCssToObject(value);
@@ -487,7 +235,6 @@ export default function SubtitleSetting() {
     });
   };
 
-  // 解构当前字幕翻译的具体设置
   const {
     enabled,
     apiSlug,
@@ -520,12 +267,40 @@ export default function SubtitleSetting() {
       ? selectedSegPromptSlug
       : PROMPT_MODE_FOLLOW_API;
 
-  // 维护一份本地的 CSS 临时样式值，以供 Slider 滑块频繁拖拽时实现低延迟渲染
+  const apiOptions = enabledApis.map((api) => ({
+    value: api.apiSlug,
+    label: getApiDisplayName(api),
+  }));
+  const hasApiOption = apiOptions.some((item) => item.value === apiSlug);
+  const safeApiOptions =
+    !hasApiOption && apiSlug
+      ? [
+          {
+            value: apiSlug,
+            label: `${apiSlug} (${i18n("unavailable_option")})`,
+          },
+          ...apiOptions,
+        ]
+      : apiOptions;
+  const safeApiSlug = hasApiOption || apiSlug ? apiSlug : "";
+
+  const hasSegOption =
+    segSlug === "-" || aiEnabledApis.some((api) => api.apiSlug === segSlug);
+  const safeSegSlug = hasSegOption ? segSlug : "-";
+
+  const hasContextOption =
+    aiContextSlug === "-" ||
+    aiEnabledApis.some((api) => api.apiSlug === aiContextSlug);
+  const safeAiContextSlug = hasContextOption ? aiContextSlug : "-";
+
+  const safeToLang = OPT_LANGS_TO.some(([lang]) => lang === toLang)
+    ? toLang
+    : OPT_LANGS_TO[0]?.[0] || "zh-CN";
+
   const [localOriginStyle, setLocalOriginStyle] = useState(originStyle);
   const [localTransStyle, setLocalTransStyle] = useState(translationStyle);
   const [localWindowStyle, setLocalWindowStyle] = useState(windowStyle);
 
-  // 监听外部配置的样式同步更新本地
   useEffect(() => {
     setLocalOriginStyle(originStyle);
   }, [originStyle]);
@@ -536,7 +311,6 @@ export default function SubtitleSetting() {
     setLocalWindowStyle(windowStyle);
   }, [windowStyle]);
 
-  // 控制频繁 Slider 输入时的防抖定时器
   const debounceTimers = useRef({});
   const rafIds = useRef({ origin: 0, trans: 0, window: 0 });
 
@@ -544,12 +318,8 @@ export default function SubtitleSetting() {
   const transCssRef = useRef(parseCssToObject(localTransStyle));
   const windowCssRef = useRef(parseCssToObject(localWindowStyle));
 
-  // Cancel animation frames and flush pending debounced writes on unmount.
   useEffect(() => {
     return () => {
-      // Flush the pending write because these controls have no onChangeCommitted.
-      // The debounce is the only persistence path for style edits.
-      // Clearing the timer would lose edits when navigating away after dragging.
       Object.values(debounceTimers.current).forEach((pending) => {
         clearTimeout(pending.timer);
         pending.flush();
@@ -562,7 +332,6 @@ export default function SubtitleSetting() {
     };
   }, []);
 
-  // 防抖保存最终 CSS 样式至 Chrome 扩展的持久存储中，避免拖动滑块时高频读写造成卡顿
   const debouncedUpdate = useCallback(
     (name, value) => {
       const pending = debounceTimers.current[name];
@@ -581,63 +350,81 @@ export default function SubtitleSetting() {
     [updateSubtitle]
   );
 
-  // 使用 requestAnimationFrame 优化滑动时预览的流畅性
-  const scheduleRafUpdate = useCallback((name, setter, cssString) => {
-    const rafKey = {
-      originStyle: "origin",
-      translationStyle: "trans",
-      windowStyle: "window",
-    }[name];
-    if (rafIds.current[rafKey]) {
-      cancelAnimationFrame(rafIds.current[rafKey]);
-    }
-    rafIds.current[rafKey] = requestAnimationFrame(() => {
-      rafIds.current[rafKey] = 0;
-      setter(cssString);
-    });
-  }, []);
+  const scheduleStyleUpdate = useCallback(
+    (name, setter, cssString, immediate = false) => {
+      const rafKey = {
+        originStyle: "origin",
+        translationStyle: "trans",
+        windowStyle: "window",
+      }[name];
+      if (rafIds.current[rafKey]) {
+        cancelAnimationFrame(rafIds.current[rafKey]);
+        rafIds.current[rafKey] = 0;
+      }
+      if (immediate) {
+        setter(cssString);
+        return;
+      }
+      rafIds.current[rafKey] = requestAnimationFrame(() => {
+        rafIds.current[rafKey] = 0;
+        setter(cssString);
+      });
+    },
+    []
+  );
 
-  // 联动更新原文的 CSS 并触发防抖同步
   const updateOriginCss = useCallback(
-    (key, value) => {
+    (key, value, options = {}) => {
       originCssRef.current[key] = value;
       const css = objectToCss(originCssRef.current);
-      scheduleRafUpdate("originStyle", setLocalOriginStyle, css);
+      scheduleStyleUpdate(
+        "originStyle",
+        setLocalOriginStyle,
+        css,
+        options.immediate
+      );
       debouncedUpdate("originStyle", css);
     },
-    [debouncedUpdate, scheduleRafUpdate]
+    [debouncedUpdate, scheduleStyleUpdate]
   );
 
-  // 联动更新译文的 CSS 并触发防抖同步
   const updateTranslationCss = useCallback(
-    (key, value) => {
+    (key, value, options = {}) => {
       transCssRef.current[key] = value;
       const css = objectToCss(transCssRef.current);
-      scheduleRafUpdate("translationStyle", setLocalTransStyle, css);
+      scheduleStyleUpdate(
+        "translationStyle",
+        setLocalTransStyle,
+        css,
+        options.immediate
+      );
       debouncedUpdate("translationStyle", css);
     },
-    [debouncedUpdate, scheduleRafUpdate]
+    [debouncedUpdate, scheduleStyleUpdate]
   );
 
-  // 联动更新背景窗格的 CSS 并触发防抖同步
   const updateWindowCss = useCallback(
-    (key, value) => {
+    (key, value, options = {}) => {
       windowCssRef.current[key] = value;
       const css = objectToCss(windowCssRef.current);
-      scheduleRafUpdate("windowStyle", setLocalWindowStyle, css);
+      scheduleStyleUpdate(
+        "windowStyle",
+        setLocalWindowStyle,
+        css,
+        options.immediate
+      );
       debouncedUpdate("windowStyle", css);
     },
-    [debouncedUpdate, scheduleRafUpdate]
+    [debouncedUpdate, scheduleStyleUpdate]
   );
 
-  // 直接全量更新背景窗格 CSS 并防抖
   const updateWindowCssDirect = useCallback(
     (css) => {
       windowCssRef.current = parseCssToObject(css);
-      scheduleRafUpdate("windowStyle", setLocalWindowStyle, css);
+      scheduleStyleUpdate("windowStyle", setLocalWindowStyle, css, true);
       debouncedUpdate("windowStyle", css);
     },
-    [debouncedUpdate, scheduleRafUpdate]
+    [debouncedUpdate, scheduleStyleUpdate]
   );
 
   useEffect(() => {
@@ -650,7 +437,6 @@ export default function SubtitleSetting() {
     windowCssRef.current = parseCssToObject(localWindowStyle);
   }, [localWindowStyle]);
 
-  // 从本地计算生成的临时 CSS 键值对，用于给 Slider 及其余受控组件展示当前样式属性值
   const originCssObj = useMemo(
     () => parseCssToObject(localOriginStyle),
     [localOriginStyle]
@@ -675,104 +461,119 @@ export default function SubtitleSetting() {
   const windowLineHeight = parseFloat(windowCssObj["line-height"]) || 1.3;
   const windowHasTextShadow = !!windowCssObj["text-shadow"];
 
-  // 缓存可复用的单个文本（如原文或译文）的 CSS 字体、大小及颜色滑动条控制器结构
   const textStyleControls = useCallback(
-    (label, fontSize, cssObj, updateCss) => (
-      <Box>
-        <Typography variant="subtitle2" gutterBottom>
-          {label}
-        </Typography>
-        <Stack spacing={1.5}>
-          {/* 字号 Slider 滑动控制 */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ minWidth: 56, flexShrink: 0 }}
-            >
-              {i18n("font_size", "字体大小")}
-            </Typography>
-            <Slider
-              size="small"
-              aria-label={`${label} ${i18n("font_size", "Font size")}`}
-              value={fontSize.preferred}
-              min={0.5}
-              max={5}
-              step={0.1}
-              onChange={(e, val) => {
-                const p = fontSize.preferred || 1;
-                const minRatio = fontSize.min / p;
-                const maxRatio = fontSize.max / p;
-                updateCss(
-                  "font-size",
-                  `clamp(${(val * minRatio).toFixed(2)}${fontSize.unit}, ${val}cqw, ${(val * maxRatio).toFixed(2)}${fontSize.unit})`
-                );
-              }}
-              sx={{ flex: 1 }}
-            />
-            <Typography
-              variant="body2"
-              sx={{ minWidth: 28, textAlign: "right" }}
-            >
-              {fontSize.preferred}
-            </Typography>
-          </Box>
-          {/* 字体颜色选取器与 HEX 文本框 */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ minWidth: 56, flexShrink: 0 }}
-            >
-              {i18n("font_color", "字体颜色")}
-            </Typography>
-            <Box
-              component="input"
-              type="color"
-              aria-label={`${label} ${i18n("font_color", "Font color")}`}
-              value={colorToHex(cssObj["color"])}
-              onChange={(e) => updateCss("color", e.target.value)}
-              sx={{
-                width: 48,
-                height: 48,
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: "8px",
-                cursor: "pointer",
-                p: 0,
-                bgcolor: "transparent",
-                "&::-webkit-color-swatch-wrapper": { p: "3px" },
-                "&::-webkit-color-swatch": {
-                  border: 0,
-                  borderRadius: "6px",
-                },
-                "&::-moz-color-swatch": {
-                  border: 0,
-                  borderRadius: "6px",
-                },
-              }}
-            />
-            <TextField
-              size="small"
-              value={cssObj["color"] || ""}
-              onChange={(e) => updateCss("color", e.target.value)}
-              placeholder="#ffffff"
-              inputProps={{
-                "aria-label": `${label} ${i18n("font_color", "Font color")}`,
-              }}
-              sx={{ flex: 1 }}
-            />
-          </Box>
-        </Stack>
-      </Box>
-    ),
+    (label, fontSize, cssObj, updateCss) => {
+      const isCustomFontSize = fontSize.mode === "custom";
+      const sizeDisplay = isCustomFontSize
+        ? fontSize.raw
+        : fontSize.mode === "unit"
+          ? `${fontSize.preferred}${fontSize.unit}`
+          : String(fontSize.preferred);
+      return (
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            {label}
+          </Typography>
+          <Stack spacing={1.5}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ minWidth: 56, flexShrink: 0 }}
+              >
+                {i18n("font_size", "字体大小")}
+              </Typography>
+              {isCustomFontSize ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ flex: 1, fontFamily: "ui-monospace, monospace" }}
+                >
+                  {sizeDisplay}
+                </Typography>
+              ) : (
+                <>
+                  <Slider
+                    size="small"
+                    aria-label={`${label} ${i18n("font_size", "Font size")}`}
+                    value={fontSize.preferred}
+                    min={fontSize.sliderMin}
+                    max={fontSize.sliderMax}
+                    step={fontSize.step}
+                    onChange={(_e, val) => {
+                      updateCss(
+                        "font-size",
+                        formatFontSizeFromSlider(fontSize, val)
+                      );
+                    }}
+                    sx={{ flex: 1 }}
+                  />
+                  <Typography
+                    variant="body2"
+                    sx={{ minWidth: 36, textAlign: "right" }}
+                  >
+                    {sizeDisplay}
+                  </Typography>
+                </>
+              )}
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ minWidth: 56, flexShrink: 0 }}
+              >
+                {i18n("font_color", "字体颜色")}
+              </Typography>
+              <Box
+                component="input"
+                type="color"
+                aria-label={`${label} ${i18n("font_color", "Font color")}`}
+                value={colorToHex(cssObj["color"])}
+                onChange={(e) => updateCss("color", e.target.value)}
+                sx={{
+                  width: 48,
+                  height: 48,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  p: 0,
+                  bgcolor: "transparent",
+                  "&::-webkit-color-swatch-wrapper": { p: "3px" },
+                  "&::-webkit-color-swatch": {
+                    border: 0,
+                    borderRadius: "6px",
+                  },
+                  "&::-moz-color-swatch": {
+                    border: 0,
+                    borderRadius: "6px",
+                  },
+                }}
+              />
+              <TextField
+                size="small"
+                value={cssObj["color"] || ""}
+                onChange={(e) =>
+                  updateCss("color", e.target.value, { immediate: true })
+                }
+                placeholder="#ffffff"
+                inputProps={{
+                  "aria-label": `${label} ${i18n("font_color", "Font color")}`,
+                }}
+                sx={{ flex: 1 }}
+              />
+            </Box>
+          </Stack>
+        </Box>
+      );
+    },
     [i18n]
   );
 
   return (
     <Box>
       <Stack spacing={3}>
-        {/* 顶部字幕翻译相关交互功能友情说明 */}
         <Alert severity="info">
           {i18n("subtitle_helper_1")}
           <br />
@@ -831,17 +632,12 @@ export default function SubtitleSetting() {
           <SettingsCard>
             <SettingsRow label={i18n("translate_service")}>
               <SettingsSelect
-                value={apiSlug}
+                value={safeApiSlug}
                 label={i18n("translate_service")}
                 onChange={(value) => updateSubtitle({ apiSlug: value })}
-                options={enabledApis.map((api) => ({
-                  value: api.apiSlug,
-                  label: api.apiName,
-                }))}
+                options={safeApiOptions}
               />
             </SettingsRow>
-            {/* Keep TextField so mismatched segmentation and translation
-                services retain their helper text and error state. */}
             <SettingsRow label={i18n("ai_segmentation")}>
               <TextField
                 select
@@ -850,13 +646,13 @@ export default function SubtitleSetting() {
                 variant="filled"
                 className="kt-settings-select"
                 name="segSlug"
-                value={segSlug}
+                value={safeSegSlug}
                 inputProps={{ "aria-label": i18n("ai_segmentation") }}
                 onChange={handleChange}
                 helperText={
                   forceSubtitleRetranslate &&
-                  segSlug !== "-" &&
-                  segSlug !== apiSlug
+                  safeSegSlug !== "-" &&
+                  safeSegSlug !== safeApiSlug
                     ? i18n(
                         "seg_trans_diff_warning",
                         "断句和翻译服务不同，翻译引擎会重复翻译字幕"
@@ -870,7 +666,7 @@ export default function SubtitleSetting() {
                 <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
                 {aiEnabledApis.map((api) => (
                   <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                    {api.apiName}
+                    {getApiDisplayName(api)}
                   </MenuItem>
                 ))}
               </TextField>
@@ -878,10 +674,9 @@ export default function SubtitleSetting() {
           </SettingsCard>
         </SettingsSection>
 
-        {/* Advanced segmentation, tokenization, and pretranslation settings. */}
         <SettingsAdvanced label={i18n("settings_detailed_controls")}>
           <Grid container spacing={2} columns={12}>
-            {segSlug !== "-" && (
+            {safeSegSlug !== "-" && (
               <Grid item xs={12} sm={12} md={6} lg={6}>
                 <TextField
                   select
@@ -903,7 +698,6 @@ export default function SubtitleSetting() {
                 </TextField>
               </Grid>
             )}
-            {/* AI 断句服务与翻译服务不同时，是否丢弃 AI 断句返回的译文并交给翻译服务重翻 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 fullWidth
@@ -918,26 +712,24 @@ export default function SubtitleSetting() {
                 <MenuItem value={false}>{i18n("disable")}</MenuItem>
               </TextField>
             </Grid>
-            {/* 字幕翻译是否使用 AI 增强上下文，并指定提供服务的 AI 引擎 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
                 fullWidth
                 size="small"
                 name="aiContextSlug"
-                value={aiContextSlug}
+                value={safeAiContextSlug}
                 label={i18n("ai_enhanced_context")}
                 onChange={handleChange}
               >
                 <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
                 {aiEnabledApis.map((api) => (
                   <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                    {api.apiName}
+                    {getApiDisplayName(api)}
                   </MenuItem>
                 ))}
               </TextField>
             </Grid>
-            {/* 一批提交给 AI 进行断句的最长原始字幕文本长度阈值 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <ValidationInput
                 fullWidth
@@ -951,7 +743,6 @@ export default function SubtitleSetting() {
                 max={20000}
               />
             </Grid>
-            {/* 判定为长句并强行触发断句的句子最大长度限制 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <ValidationInput
                 fullWidth
@@ -965,7 +756,6 @@ export default function SubtitleSetting() {
                 max={500}
               />
             </Grid>
-            {/* 视频拉取到字幕时，默认超前预翻译多少秒的后续字幕，以防视频播放时发生延迟查词 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <ValidationInput
                 fullWidth
@@ -979,7 +769,6 @@ export default function SubtitleSetting() {
                 max={36000}
               />
             </Grid>
-            {/* 避免短时间内视频拖拽和字幕块大量翻滚时发生高频网络请求的防抖限流间隔 (s) */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <ValidationInput
                 fullWidth
@@ -993,14 +782,13 @@ export default function SubtitleSetting() {
                 max={3600}
               />
             </Grid>
-            {/* 目标翻译出的双语字幕语言 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 fullWidth
                 select
                 size="small"
                 name="toLang"
-                value={toLang}
+                value={safeToLang}
                 label={i18n("to_lang")}
                 onChange={handleChange}
               >
@@ -1012,7 +800,6 @@ export default function SubtitleSetting() {
               </TextField>
             </Grid>
 
-            {/* 网页加载完毕且成功识别到视频字幕流时，是否在右下角弹出载入成功的横幅提示 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 fullWidth
@@ -1027,7 +814,6 @@ export default function SubtitleSetting() {
                 <MenuItem value={false}>{i18n("hide")}</MenuItem>
               </TextField>
             </Grid>
-            {/* 是否隐藏 YouTube 播放器控制栏中的 KT 字幕功能按钮 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 fullWidth
@@ -1045,7 +831,6 @@ export default function SubtitleSetting() {
           </Grid>
         </SettingsAdvanced>
 
-        {/* 字幕外观样式设计及预览器板块 */}
         <SettingsSection title={i18n("settings_appearance_group")}>
           <Box
             sx={{
@@ -1056,7 +841,6 @@ export default function SubtitleSetting() {
             }}
           >
             <Stack spacing={2} useFlexGap>
-              {/* Subtitle preview. */}
               <SubtitleStylePreview
                 windowStyle={localWindowStyle}
                 originStyle={localOriginStyle}
@@ -1066,7 +850,6 @@ export default function SubtitleSetting() {
 
               <Divider />
 
-              {/* Font size and color controls. */}
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
                   {textStyleControls(
@@ -1088,13 +871,11 @@ export default function SubtitleSetting() {
 
               <Divider />
 
-              {/* Subtitle window background controls. */}
               <Box>
                 <Typography variant="subtitle2" gutterBottom>
                   {i18n("background_styles")}
                 </Typography>
                 <Grid container spacing={1.5} alignItems="center">
-                  {/* Background color and opacity controls. */}
                   <Grid item xs={12} sm={6}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Typography
@@ -1149,7 +930,7 @@ export default function SubtitleSetting() {
                         min={0}
                         max={1}
                         step={0.05}
-                        onChange={(e, val) => {
+                        onChange={(_e, val) => {
                           updateWindowCss(
                             "background-color",
                             `rgba(${windowBgRgba.r}, ${windowBgRgba.g}, ${windowBgRgba.b}, ${val})`
@@ -1165,7 +946,6 @@ export default function SubtitleSetting() {
                       </Typography>
                     </Box>
                   </Grid>
-                  {/* Line height slider. */}
                   <Grid item xs={12} sm={6}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Typography
@@ -1182,7 +962,7 @@ export default function SubtitleSetting() {
                         min={1}
                         max={2.5}
                         step={0.1}
-                        onChange={(e, val) =>
+                        onChange={(_e, val) =>
                           updateWindowCss("line-height", String(val))
                         }
                         sx={{ flex: 1 }}
@@ -1195,7 +975,6 @@ export default function SubtitleSetting() {
                       </Typography>
                     </Box>
                   </Grid>
-                  {/* Vertical and horizontal padding sliders. */}
                   <Grid item xs={12} sm={6}>
                     <Box
                       sx={{
@@ -1222,7 +1001,7 @@ export default function SubtitleSetting() {
                         min={0}
                         max={2}
                         step={0.1}
-                        onChange={(e, val) => {
+                        onChange={(_e, val) => {
                           updateWindowCss(
                             "padding",
                             `${val}${windowPadding.unit} ${windowPadding.horizontal}${windowPadding.unit}`
@@ -1240,7 +1019,7 @@ export default function SubtitleSetting() {
                         min={0}
                         max={3}
                         step={0.1}
-                        onChange={(e, val) => {
+                        onChange={(_e, val) => {
                           updateWindowCss(
                             "padding",
                             `${windowPadding.vertical}${windowPadding.unit} ${val}${windowPadding.unit}`
@@ -1250,7 +1029,6 @@ export default function SubtitleSetting() {
                       />
                     </Box>
                   </Grid>
-                  {/* Subtitle text shadow toggle. */}
                   <Grid item xs={12} sm={6}>
                     <FormControlLabel
                       control={
@@ -1281,7 +1059,6 @@ export default function SubtitleSetting() {
                 </Grid>
               </Box>
 
-              {/* Advanced CSS editor for overriding the subtitle appearance. */}
               <Accordion
                 sx={{ boxShadow: "none", "&:before": { display: "none" } }}
               >
@@ -1297,7 +1074,7 @@ export default function SubtitleSetting() {
                         size="small"
                         label={i18n("origin_styles")}
                         name="originStyle"
-                        value={originStyle}
+                        value={localOriginStyle}
                         onChange={handleChange}
                         maxRows={10}
                         fullWidth
@@ -1308,7 +1085,7 @@ export default function SubtitleSetting() {
                         size="small"
                         label={i18n("translation_styles")}
                         name="translationStyle"
-                        value={translationStyle}
+                        value={localTransStyle}
                         onChange={handleChange}
                         maxRows={10}
                         fullWidth
@@ -1319,7 +1096,7 @@ export default function SubtitleSetting() {
                         size="small"
                         label={i18n("background_styles")}
                         name="windowStyle"
-                        value={windowStyle}
+                        value={localWindowStyle}
                         onChange={handleChange}
                         maxRows={10}
                         fullWidth

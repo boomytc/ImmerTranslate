@@ -620,7 +620,7 @@ export const I18N = {
   },
   highlight_style: {
     zh: `词汇高亮样式`,
-    en: `Fav Words highlight style`,
+    en: `Keyword highlight style`,
   },
   selector_parent_style: {
     zh: `选择器父节点样式`,
@@ -1647,8 +1647,8 @@ export const I18N = {
     en: `Fetch model list`,
   },
   byok_key_help: {
-    zh: `Key 只保存在本机，不会写入仓库。`,
-    en: `The key stays on this device and is never committed.`,
+    zh: `Key 仅保存在本机浏览器中，不会上传到外部服务器。`,
+    en: `Your key is stored locally in this browser and is never uploaded.`,
   },
   get_api_key: {
     zh: `获取 API Key`,
@@ -1663,8 +1663,8 @@ export const I18N = {
     en: `Key Required`,
   },
   api_key_missing_tip: {
-    zh: `此服务需要配置 API Key 才能调用。如尚未获取，可点击右侧链接前往官方控制台申请。`,
-    en: `This service requires an API key. If you don't have one yet, click the link to visit the official console.`,
+    zh: `此服务需要配置 API Key 才能使用。如尚未获取，可点击上方「获取 API Key」前往官方控制台申请。`,
+    en: `This service requires an API key. If you do not have one yet, click "Get API Key" above to open the provider console.`,
   },
   service_category_ai: {
     zh: `AI 模型`,
@@ -1961,10 +1961,6 @@ export const I18N = {
   bilingual_subtitles: {
     zh: `双语字幕`,
     en: `Bilingual subtitles`,
-  },
-  vocabulary_book: {
-    zh: `生词本`,
-    en: `Vocabulary`,
   },
   download_subtitles_vtt: {
     zh: `下载字幕 (VTT)`,
@@ -2285,6 +2281,54 @@ export const I18N = {
   close: {
     zh: `关闭`,
     en: `Close`,
+  },
+  clear: {
+    zh: `清除`,
+    en: `Clear`,
+  },
+  save_success: {
+    zh: `保存成功`,
+    en: `Saved successfully`,
+  },
+  import_success: {
+    zh: `导入成功`,
+    en: `Imported successfully`,
+  },
+  import_failed: {
+    zh: `导入失败，请检查文件或剪贴板内容格式`,
+    en: `Import failed. Please check the file or clipboard format.`,
+  },
+  export_failed: {
+    zh: `导出失败`,
+    en: `Export failed`,
+  },
+  copy_failed: {
+    zh: `复制失败`,
+    en: `Copy failed`,
+  },
+  sync_share_invalid: {
+    zh: `剪贴板中的同步分享串无效`,
+    en: `Invalid sync share string in clipboard`,
+  },
+  sync_encrypt_key_change_success: {
+    zh: `同步加密口令已更新并完成云端重加密`,
+    en: `Sync encryption key updated and cloud data re-encrypted`,
+  },
+  syncing_required_data: {
+    zh: `正在同步必要数据`,
+    en: `Syncing required data`,
+  },
+  prompt_batch_prefix: {
+    zh: `[聚合] `,
+    en: `[Batch] `,
+  },
+  prompt_single_prefix: {
+    zh: `[单句] `,
+    en: `[Single] `,
+  },
+  unavailable_option: {
+    zh: `已不可用`,
+    en: `Unavailable`,
   },
 };
 

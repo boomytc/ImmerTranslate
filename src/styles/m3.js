@@ -11,6 +11,10 @@ export const M3_COLORS = {
     error: "#B3261E",
     errorContainer: "#F9DEDC",
     onErrorContainer: "#8C1D18",
+    warning: "#9A5B00",
+    onWarning: "#FFFFFF",
+    warningContainer: "#FEF0D5",
+    onWarningContainer: "#5C3400",
     success: "#146C2E",
     background: "#F8FAFD",
     surface: "#FFFFFF",
@@ -37,6 +41,10 @@ export const M3_COLORS = {
     error: "#F2B8B5",
     errorContainer: "#601410",
     onErrorContainer: "#F9DEDC",
+    warning: "#F5B851",
+    onWarning: "#3E2400",
+    warningContainer: "#4F3100",
+    onWarningContainer: "#FEF0D5",
     success: "#6DD58C",
     background: "#131314",
     surface: "#1E1F20",
@@ -53,50 +61,9 @@ export const M3_COLORS = {
   },
 };
 
-export const M3_BRAND_COLORS = {
-  blue: { light: {}, dark: {} },
-  cyan: {
-    light: {
-      primary: "#006874",
-      onPrimary: "#FFFFFF",
-      primaryContainer: "#97F0FF",
-      onPrimaryContainer: "#001F24",
-      secondaryContainer: "#CDE7EC",
-      onSecondaryContainer: "#051F23",
-    },
-    dark: {
-      primary: "#4FD8EB",
-      onPrimary: "#00363D",
-      primaryContainer: "#004F58",
-      onPrimaryContainer: "#97F0FF",
-      secondaryContainer: "#334B4F",
-      onSecondaryContainer: "#CDE7EC",
-    },
-  },
-  violet: {
-    light: {
-      primary: "#6750A4",
-      onPrimary: "#FFFFFF",
-      primaryContainer: "#EADDFF",
-      onPrimaryContainer: "#21005D",
-      secondaryContainer: "#E8DEF8",
-      onSecondaryContainer: "#1D192B",
-    },
-    dark: {
-      primary: "#D0BCFF",
-      onPrimary: "#381E72",
-      primaryContainer: "#4F378B",
-      onPrimaryContainer: "#EADDFF",
-      secondaryContainer: "#4A4458",
-      onSecondaryContainer: "#E8DEF8",
-    },
-  },
-};
-
-export function resolveM3Colors(mode = "light", brand = "blue") {
+export function resolveM3Colors(mode = "light") {
   return {
-    ...M3_COLORS[mode],
-    ...(M3_BRAND_COLORS[brand]?.[mode] || {}),
+    ...(M3_COLORS[mode] || M3_COLORS.light),
   };
 }
 
@@ -115,6 +82,10 @@ export function createM3CssVariables(colors) {
     "--kt-terc": colors.tertiaryContainer,
     "--kt-onterc": colors.onTertiaryContainer,
     "--kt-grn": colors.success,
+    "--kt-warn": colors.warning,
+    "--kt-onwarn": colors.onWarning,
+    "--kt-warnc": colors.warningContainer,
+    "--kt-onwarnc": colors.onWarningContainer,
     "--kt-err": colors.error,
     "--kt-errc": colors.errorContainer,
     "--kt-onerrc": colors.onErrorContainer,
@@ -139,7 +110,6 @@ export const M3_FONT_FAMILY =
 // Chrome motion stays inside 150–250ms and does not overshoot.
 export const M3_EASE = "cubic-bezier(.22, 1, .36, 1)";
 export const M3_DURATION = ".15s";
-export const M3_DURATION_FAST = ".25s";
 
 // LightUI radius steps (tokens.css). Semantic aliases below stay for in-page
 // translation surfaces so this chrome pass does not restyle them.
@@ -164,11 +134,11 @@ export const M3_SPACE_XL = 24;
 export const M3_CHROME_INSET = M3_SPACE_MD;
 
 export const M3_GLOBAL_CSS = String.raw`
+:root[data-kt-m3-root],
 :host,
 .kt-m3-root {
   --kt-ease: ${M3_EASE};
   --kt-dur: ${M3_DURATION};
-  --kt-dur-fast: ${M3_DURATION_FAST};
   --kt-radius-xs: ${M3_RADIUS_XS}px;
   --kt-radius-sm: ${M3_RADIUS_SM}px;
   --kt-radius-md: ${M3_RADIUS_MD}px;
@@ -206,6 +176,8 @@ export const M3_GLOBAL_CSS = String.raw`
   text-rendering: optimizeLegibility;
 }
 
+:root[data-kt-m3-root][data-theme="dark"],
+:host([data-theme="dark"]),
 .kt-m3-root[data-theme="dark"] {
   --kt-border: rgb(255 255 255 / 0.08);
   --kt-border-strong: rgb(255 255 255 / 0.14);
@@ -219,6 +191,7 @@ export const M3_GLOBAL_CSS = String.raw`
 
 /* Translucent chrome only when blur can keep text readable. Otherwise surfaces stay solid. */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in srgb, white 50%, transparent)) {
+  :root[data-kt-m3-root],
   :host,
   .kt-m3-root {
     --kt-glass: color-mix(in srgb, var(--kt-sf0) 82%, transparent);
@@ -233,6 +206,8 @@ export const M3_GLOBAL_CSS = String.raw`
     --kt-liquid-shadow: inset 0 1px 0 color-mix(in srgb, white 74%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--kt-on) 6%, transparent), 0 10px 30px -12px color-mix(in srgb, var(--kt-on) 18%, transparent);
   }
 
+  :root[data-kt-m3-root][data-theme="dark"],
+  :host([data-theme="dark"]),
   .kt-m3-root[data-theme="dark"] {
     --kt-glass: color-mix(in srgb, var(--kt-sf0) 90%, transparent);
     --kt-glass-strong: color-mix(in srgb, var(--kt-sf1) 94%, transparent);

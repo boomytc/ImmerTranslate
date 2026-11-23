@@ -21,7 +21,7 @@ export default function About() {
             variant="contained"
             href={process.env.REACT_APP_HOMEPAGE}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
           >
             GitHub
           </Button>
@@ -30,7 +30,7 @@ export default function About() {
             variant="outlined"
             href={process.env.REACT_APP_SITEURL}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
           >
             {i18n("settings_project_website")}
           </Button>

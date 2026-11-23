@@ -368,7 +368,13 @@ export function getTranslationPromptDisplayName(prompt = {}, i18n) {
     prompt.isBatch !== undefined
       ? Boolean(prompt.isBatch)
       : prompt.category === PROMPT_CATEGORY_BATCH_SYSTEM;
-  const prefix = isBatch ? "[聚合] " : "[单句] ";
+  const prefix = isBatch
+    ? i18n
+      ? i18n("prompt_batch_prefix", "[聚合] ")
+      : "[聚合] "
+    : i18n
+      ? i18n("prompt_single_prefix", "[单句] ")
+      : "[单句] ";
   return `${prefix}${baseName}`;
 }
 

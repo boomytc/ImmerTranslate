@@ -11,6 +11,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import LockIcon from "@mui/icons-material/Lock";
+import RestoreIcon from "@mui/icons-material/Restore";
 import SaveIcon from "@mui/icons-material/Save";
 import TextSnippetIcon from "@mui/icons-material/TextSnippet";
 import Box from "@mui/material/Box";
@@ -25,6 +26,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useConfirm } from "../../hooks/Confirm";
+import { useAlert } from "../../hooks/Alert";
 import { useI18n } from "../../hooks/I18n";
 import {
   INPUT_PLACE_DESCRIPTION,
@@ -203,20 +205,18 @@ function PromptFields({
   onDirtyChange,
 }) {
   const i18n = useI18n();
+  const alert = useAlert();
   const confirm = useConfirm();
   const [formData, setFormData] = useState(() => normalizePrompt(prompt));
   const lastSyncedPromptRef = useRef(JSON.stringify(normalizePrompt(prompt)));
   const promptDisplayName = getPromptDisplayName(prompt, i18n);
   const systemPromptRef = useRef(null);
   const userPromptRef = useRef(null);
-  // Only show the second prompt for flows that consume userPrompt.
   const showUserPrompt =
     formData.category === PROMPT_CATEGORY_USER ||
     formData.category === PROMPT_CATEGORY_DICTIONARY ||
     formData.category === PROMPT_CATEGORY_BATCH_SYSTEM;
 
-  // Rebuilding the prompt list can replace objects without changing their content.
-  // Reset the unsaved draft only when the persisted content changes.
   useLayoutEffect(() => {
     const nextSnapshot = JSON.stringify(normalizePrompt(prompt));
     if (lastSyncedPromptRef.current === nextSnapshot) {
@@ -248,6 +248,11 @@ function PromptFields({
 
   const handleSave = () => {
     onSave(formData);
+    alert.success(i18n("save_success"));
+  };
+
+  const handleDiscard = () => {
+    setFormData(normalizePrompt(prompt));
   };
 
   const handleInsertPlaceholder = (name, inputRef, placeholder) => {
@@ -278,7 +283,10 @@ function PromptFields({
 
   const handleDelete = async () => {
     const isConfirmed = await confirm({
-      message: i18n("delete_prompt_confirm", "确定删除这份提示词吗？"),
+      message: i18n("delete_prompt_named_confirm").replace(
+        "{name}",
+        promptDisplayName
+      ),
       confirmText: i18n("delete"),
       cancelText: i18n("cancel"),
     });
@@ -396,6 +404,16 @@ function PromptFields({
         >
           {i18n("save")}
         </Button>
+        {isModified && (
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleDiscard}
+            startIcon={<RestoreIcon />}
+          >
+            {i18n("discard_changes")}
+          </Button>
+        )}
         <Button
           size="small"
           variant="outlined"
@@ -434,6 +452,7 @@ export default function Prompts() {
   const [editorDirty, setEditorDirty] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const detailPanelRef = useRef(null);
+  const prevSelectedSlugRef = useRef("");
   const addMenuOpen = Boolean(anchorEl);
 
   useEffect(() => {
@@ -451,7 +470,14 @@ export default function Prompts() {
   }, [prompts, selectedPromptSlug]);
 
   useLayoutEffect(() => {
-    detailPanelRef.current?.scrollTo({ top: 0 });
+    if (
+      prevSelectedSlugRef.current &&
+      selectedPromptSlug &&
+      prevSelectedSlugRef.current !== selectedPromptSlug
+    ) {
+      detailPanelRef.current?.scrollIntoView?.({ block: "nearest" });
+    }
+    prevSelectedSlugRef.current = selectedPromptSlug;
   }, [selectedPromptSlug]);
 
   const selectedPrompt = useMemo(
@@ -550,7 +576,6 @@ export default function Prompts() {
             border: 1,
             borderColor: "divider",
             borderRadius: "16px",
-            overflow: "hidden",
             "@container options-main (min-width: 760px)": {
               flexDirection: "row",
               alignItems: "flex-start",
@@ -566,11 +591,11 @@ export default function Prompts() {
               overflowY: "auto",
               borderBottom: `1px solid ${theme.palette.divider}`,
               "@container options-main (min-width: 760px)": {
+                position: "sticky",
+                top: 24,
                 width: 280,
                 flex: "0 0 280px",
-                height: "calc(100vh - 280px)",
-                minHeight: 420,
-                maxHeight: "none",
+                maxHeight: "calc(100vh - 48px)",
                 borderRight: `1px solid ${theme.palette.divider}`,
                 borderBottom: 0,
               },
@@ -579,7 +604,7 @@ export default function Prompts() {
             <List
               className="kt-prompt-editor__list"
               disablePadding
-              sx={{ width: "100%", boxSizing: "border-box" }}
+              sx={{ width: "100%", boxSizing: "border-box", py: 0.5 }}
             >
               {prompts.map((prompt) => (
                 <PromptListItem

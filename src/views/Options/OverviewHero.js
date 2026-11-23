@@ -1,8 +1,11 @@
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
+import Button from "@mui/material/Button";
+import { Link as RouterLink } from "react-router-dom";
 import { useI18n } from "../../hooks/I18n";
 import { useSetting } from "../../hooks/Setting";
 import { useRules } from "../../hooks/Rules";
 import { useOverviewShortcuts } from "../../hooks/Commands";
+import { getApiDisplayName } from "../../hooks/Api";
 import {
   GLOBLA_RULE,
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
@@ -27,8 +30,10 @@ export default function OverviewHero() {
   const serviceName = !globalRule
     ? "—"
     : noUsableService
-      ? i18n("fab_no_keyed_provider")
-      : activeApi?.apiName || activeApi?.apiType || globalRule.apiSlug || "—";
+      ? i18n("overview_no_service_short")
+      : activeApi
+        ? getApiDisplayName(activeApi)
+        : globalRule.apiSlug || "—";
   const sourceLanguage = globalRule
     ? OPT_LANGS_FROM.find(([key]) => key === globalRule.fromLang)?.[1] ||
       globalRule.fromLang ||
@@ -49,6 +54,16 @@ export default function OverviewHero() {
     [i18n("setting"), shortcutMap.settings],
   ];
 
+  const heroTitle = noUsableService
+    ? i18n("overview_setup_needed")
+    : i18n("overview_ready_title");
+  const heroSubtitle = noUsableService
+    ? i18n("fab_no_keyed_provider")
+    : i18n("overview_ready_subtitle").replace(
+        "{count}",
+        String(usableApis.length)
+      );
+
   return (
     <section
       className="kt-overview-top"
@@ -60,22 +75,25 @@ export default function OverviewHero() {
             <TranslateRoundedIcon />
           </span>
           <span className="kt-overview-hero__copy">
-            <span className="kt-overview-hero__title">
-              {i18n("options_overview")}
-            </span>
-            <span className="kt-overview-hero__subtitle">
-              {i18n("options_overview_description")}
-            </span>
+            <span className="kt-overview-hero__title">{heroTitle}</span>
+            <span className="kt-overview-hero__subtitle">{heroSubtitle}</span>
           </span>
+          {noUsableService && (
+            <Button
+              component={RouterLink}
+              to="/apis"
+              size="small"
+              variant="contained"
+              className="kt-overview-hero__cta"
+            >
+              {i18n("overview_configure_services")}
+            </Button>
+          )}
         </div>
         <div className="kt-overview-hero__summary">
-          <div
-            className={`kt-overview-hero__summary-item${
-              noUsableService ? " kt-overview-hero__summary-item--empty" : ""
-            }`}
-          >
+          <div className="kt-overview-hero__summary-item">
             <span>{i18n("translate_service")}</span>
-            <strong>{serviceName}</strong>
+            <strong title={serviceName}>{serviceName}</strong>
           </div>
           <div className="kt-overview-hero__summary-item">
             <span>

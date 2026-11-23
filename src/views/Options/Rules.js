@@ -4,6 +4,8 @@ import TextField from "@mui/material/TextField";
 import CodeField from "./CodeField";
 import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
+import InputAdornment from "@mui/material/InputAdornment";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import {
   GLOBAL_KEY,
   DEFAULT_RULE,
@@ -41,23 +43,20 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import SaveIcon from "@mui/icons-material/Save";
 import ValidationInput from "../../hooks/ValidationInput";
 import { kissLog } from "../../libs/log";
-import { useApiList } from "../../hooks/Api";
+import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import ShowMoreButton from "./ShowMoreButton";
 import { useConfirm } from "../../hooks/Confirm";
 import { useAllTextStyles } from "../../hooks/CustomStyles";
 import { sameRulePattern } from "../../libs/siteMatch";
 
-// 计算规则的初始表单值
 // 存储里的个人规则可以是稀疏的（popup / FAB 只写 pattern + transOpen），
-// 编辑器只在这里用整份默认结构补齐缺的字段，字段组件不再各自判空。
+// 编辑器在这里用整份默认结构补齐缺的字段。
 const calculateInitialValues = (rule) => {
-  // REVIEW: GLOBLA_RULE 存在拼写错误，疑似应为 GLOBAL_RULE。此处为兼容底层导出的拼写而继续使用。
-  const base = rule?.pattern === "*" ? GLOBLA_RULE : DEFAULT_RULE;
+  const base = rule?.pattern === GLOBAL_KEY ? GLOBLA_RULE : DEFAULT_RULE;
   return { ...base, ...(rule || {}) };
 };
 
-// 编辑保存只写用户改过的字段：和存储规则补齐后的样子逐项比较，
-// 没动过的补齐默认值不写回去，稀疏规则保持稀疏。
+// 编辑保存只写用户改过的字段，稀疏规则保持稀疏。
 const ruleEditPatch = (storedRule, values) => {
   const before = calculateInitialValues(storedRule);
   return Object.fromEntries(
@@ -65,87 +64,83 @@ const ruleEditPatch = (storedRule, values) => {
   );
 };
 
+const BOOLEAN_RULE_FIELDS = [
+  { name: "autoScan", labelKey: "auto_scan_page" },
+  { name: "hasRichText", labelKey: "has_rich_text" },
+  { name: "hasShadowroot", labelKey: "has_shadowroot" },
+  { name: "scanAll", labelKey: "scan_all_nodes" },
+  { name: "isPlainText", labelKey: "plain_text_translate" },
+  { name: "transOnly", labelKey: "show_only_translations" },
+  { name: "transOnlyRevert", labelKey: "transonly_revert" },
+  { name: "transTitle", labelKey: "translate_page_title" },
+  { name: "wrapOriginal", labelKey: "wrap_original" },
+];
+
 // 规则编辑/添加表单字段组件
 function RuleFields({ rule, rules, setShow, setKeyword }) {
-  // 判断当前是编辑已有规则模式还是添加新规则模式
   const editMode = useMemo(() => !!rule, [rule]);
 
   const i18n = useI18n();
-  // 编辑模式下默认禁用输入框，点击编辑按钮后才允许修改
+  const alert = useAlert();
+  const confirm = useConfirm();
   const [disabled, setDisabled] = useState(editMode);
-  // 表单错误信息状态
   const [errors, setErrors] = useState({});
-  // 记录表单的初始值，以便在取消编辑时恢复
   const [initialFormValues, setInitialFormValues] = useState(() =>
     calculateInitialValues(rule)
   );
-  // 当前表单输入值的状态
   const [formValues, setFormValues] = useState(initialFormValues);
-  // 是否展示高级选项（订阅规则查看时不显示 rules，默认展示高级；自定义规则默认折叠高级选项）
   const [showMore, setShowMore] = useState(!rules);
-  // 获取当前已启用的翻译服务 API 列表
   const { enabledApis } = useApiList();
-  // 获取自定义文本样式列表
   const { allTextStyles } = useAllTextStyles();
 
-  // 当传入的 rule 发生改变时（如切换了编辑的规则），同步更新表单的初始值和当前值
   useEffect(() => {
     const newInitialValues = calculateInitialValues(rule);
     setInitialFormValues(newInitialValues);
     setFormValues(newInitialValues);
   }, [rule]);
 
-  // 从当前表单状态中解构各个字段，提供默认值
   const {
-    pattern, // 匹配的域名或 URL 规则
-    selector, // 翻译的目标 CSS 选择器
-    keepSelector = "", // 保留不翻译的 CSS 选择器
-    blockSelector = "", // 自定义块级元素 CSS 选择器
-    rootsSelector = "", // 翻译的根容器 CSS 选择器
-    ignoreSelector = "", // 忽略不翻译的 CSS 选择器
-    terms, // 专有名词对照表（普通）
-    aiTerms, // AI 专有名词对照表
-    termsStyle = "", // 专有名词样式
-    highlightStyle = "color: red;", // 高亮单词样式
-    textExtStyle = "", // 译文额外 CSS 样式
-    selectStyle = "", // 针对特定选择器的样式
-    parentStyle = "", // 针对选择器父元素的样式
-    grandStyle = "", // 针对选择器祖父元素的样式
-    injectCss = "", // 页面注入 CSS 样式
-    apiSlug, // 指定的翻译服务标识
-    fromLang, // 源语言
-    toLang, // 目标语言
-    textStyle, // 预设译文样式 slug
-    wrapOriginal = "false", // 是否为原文节点增加包裹元素
-    originalTextStyle = "style_none", // 原文样式 slug
-    transOpen, // 是否开启翻译
-    // bgColor,
-    // textDiyStyle,
-    transOnly = "false", // 是否仅显示译文
-    transOnlyRevert = "false", // 是否在鼠标悬停时恢复原文
-    transOnlyRevertDelay = "0.5", // 鼠标悬停恢复原文的延迟时间（秒）
-    autoScan = "true", // 是否自动扫描页面
-    hasRichText = "true", // 是否包含富文本
-    hasShadowroot = "false", // 是否包含 Shadow Root
-    scanAll = "false", // 是否扫描所有节点
-    isPlainText = "false", // 是否启用 <pre> 纯文本翻译
-    transTag = DEFAULT_TRANS_TAG, // 翻译结果容器标签 (span / font)
-    transTitle = "false", // 是否翻译网页标题
-    splitParagraph = OPT_SPLIT_PARAGRAPH_DISABLE, // 段落切分策略
-    splitLength = 0, // 段落切分最大长度
-    transOrder, // 文本顺序：由 DEFAULT_RULE / GLOBLA_RULE 提供初始值
+    pattern,
+    selector,
+    keepSelector = "",
+    blockSelector = "",
+    rootsSelector = "",
+    ignoreSelector = "",
+    terms,
+    aiTerms,
+    termsStyle = "",
+    highlightStyle = "color: red;",
+    textExtStyle = "",
+    selectStyle = "",
+    parentStyle = "",
+    grandStyle = "",
+    injectCss = "",
+    apiSlug,
+    fromLang,
+    toLang,
+    textStyle,
+    wrapOriginal = "false",
+    originalTextStyle = "style_none",
+    transOpen,
+    transOnlyRevertDelay = "0.5",
+    autoScan = "true",
+    transTag = DEFAULT_TRANS_TAG,
+    splitParagraph = OPT_SPLIT_PARAGRAPH_DISABLE,
+    splitLength = 0,
+    transOrder,
   } = formValues;
 
+  const isGlobalRule = rule?.pattern === GLOBAL_KEY;
   const globalRule = rules?.list?.find((item) => item.pattern === GLOBAL_KEY);
   const effectiveWrapOriginal =
     wrapOriginal === GLOBAL_KEY
       ? globalRule?.wrapOriginal === "true"
       : wrapOriginal === "true";
 
-  // 判断当前表单值是否与初始值不同，决定是否激活“保存”按钮
-  const isModified = useMemo(() => {
-    return JSON.stringify(initialFormValues) !== JSON.stringify(formValues);
-  }, [initialFormValues, formValues]);
+  const isModified = useMemo(
+    () => JSON.stringify(initialFormValues) !== JSON.stringify(formValues),
+    [initialFormValues, formValues]
+  );
 
   // 仅新增或更改 pattern 时查重，允许保留历史别名的其他字段编辑。
   const hasSamePattern = (str) => {
@@ -161,18 +156,16 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     return false;
   };
 
-  // 输入框聚焦事件：清空对应输入框的错误提示
   const handleFocus = (e) => {
     e.preventDefault();
     const { name } = e.target;
     setErrors((pre) => ({ ...pre, [name]: "" }));
   };
 
-  // 防抖处理：在新增规则时，随着用户输入 pattern，自动将其作为过滤关键字同步给父组件进行列表过滤显示
   const handlePatternChange = useMemo(
     () =>
       debounce(async (patterns) => {
-        setKeyword(patterns.trim());
+        setKeyword?.(patterns.trim());
       }, 500),
     [setKeyword]
   );
@@ -184,13 +177,11 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     }
   };
 
-  // Update the draft when a form field changes.
   const handleChange = (e) => {
     e.preventDefault();
     updateFormValue(e.target.name, e.target.value);
   };
 
-  // 取消按钮处理器：编辑状态下重新禁用表单并回滚修改；新增状态下直接关闭新增面板
   const handleCancel = (e) => {
     e.preventDefault();
     if (editMode) {
@@ -202,60 +193,94 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
     setFormValues(initialFormValues);
   };
 
-  // 恢复默认设置处理器：将当前规则配置内容还原为系统预置规则
-  const handleRestore = (e) => {
+  const handleRestore = async (e) => {
     e.preventDefault();
-    setFormValues(({ pattern }) => ({
-      // REVIEW: GLOBLA_RULE 存在拼写错误。此处继续使用这一拼写。
-      ...(pattern === "*" ? GLOBLA_RULE : DEFAULT_RULE),
-      pattern,
+    const targetName = isGlobalRule
+      ? i18n("global_rule")
+      : rule?.pattern || pattern;
+    const confirmed = await confirm({
+      message: i18n("restore_rule_confirm").replace("{name}", targetName),
+      confirmText: i18n("restore_default"),
+      cancelText: i18n("cancel"),
+    });
+    if (!confirmed) return;
+
+    setFormValues(({ pattern: currentPattern }) => ({
+      ...(currentPattern === GLOBAL_KEY ? GLOBLA_RULE : DEFAULT_RULE),
+      pattern: currentPattern,
     }));
   };
 
-  // 规则表单保存/新增提交处理器
+  const handleDelete = async (e) => {
+    e.preventDefault();
+    const confirmed = await confirm({
+      message: i18n("delete_rule_confirm").replace("{name}", rule.pattern),
+      confirmText: i18n("delete"),
+      cancelText: i18n("cancel"),
+    });
+    if (confirmed) {
+      rules.del(rule.pattern);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    const errors = {};
-    // 校验 pattern 不能为空
+    const nextErrors = {};
     if (!pattern.trim()) {
-      errors.pattern = i18n("error_cant_be_blank");
+      nextErrors.pattern = i18n("error_cant_be_blank");
     }
-    // 校验 pattern 不能重复
     if (hasSamePattern(pattern)) {
-      errors.pattern = i18n("error_duplicate_values");
+      nextErrors.pattern = i18n("error_duplicate_values");
     }
-    // 全局规则模式下，目标选择器 selector 不能为空
-    if (pattern === "*" && !errors.pattern && !selector.trim()) {
-      errors.selector = i18n("error_cant_be_blank");
+    if (pattern === GLOBAL_KEY && !nextErrors.pattern && !selector.trim()) {
+      nextErrors.selector = i18n("error_cant_be_blank");
     }
-    if (Object.keys(errors).length > 0) {
-      setErrors(errors);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
       return;
     }
 
     if (editMode) {
-      // 编辑保存现有规则
       setDisabled(true);
       const patch = ruleEditPatch(rule, formValues);
-      if (Object.keys(patch).length > 0) rules.put(rule.pattern, patch);
+      if (Object.keys(patch).length > 0) {
+        rules.put(rule.pattern, patch);
+        alert.success(i18n("save_success"));
+      }
     } else {
-      // 提交添加新规则
       rules.add(formValues);
+      alert.success(i18n("save_success"));
       setShow(false);
       setFormValues(initialFormValues);
     }
   };
 
-  // 全局继承选项（仅在非全局配置项本身编辑时展示，用于子配置继承全局配置值）
-  const GlobalItem = rule?.pattern !== "*" && (
+  const GlobalItem = !isGlobalRule && (
     <MenuItem key={GLOBAL_KEY} value={GLOBAL_KEY}>
       {GLOBAL_KEY}
     </MenuItem>
   );
+
+  // 失效下拉值兜底，避免指向已禁用服务或已删除样式时触发 MUI out-of-range 警告
+  const hasApiOption =
+    (!isGlobalRule && apiSlug === GLOBAL_KEY) ||
+    enabledApis.some((api) => api.apiSlug === apiSlug);
+  const hasTextStyleOption =
+    (!isGlobalRule && textStyle === GLOBAL_KEY) ||
+    allTextStyles.some((item) => item.styleSlug === textStyle);
+  const hasOriginalStyleOption =
+    (!isGlobalRule && originalTextStyle === GLOBAL_KEY) ||
+    allTextStyles.some((item) => item.styleSlug === originalTextStyle);
+  const hasFromLangOption =
+    (!isGlobalRule && fromLang === GLOBAL_KEY) ||
+    OPT_LANGS_FROM.some(([lang]) => lang === fromLang);
+  const hasToLangOption =
+    (!isGlobalRule && toLang === GLOBAL_KEY) ||
+    OPT_LANGS_TO.some(([lang]) => lang === toLang);
+
   return (
     <form onSubmit={handleSubmit}>
       <Stack spacing={2}>
-        {/* 规则匹配模式输入框（如域名或通配符 '*'） */}
         <CodeField
           size="small"
           label={i18n("pattern")}
@@ -263,11 +288,10 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           helperText={errors.pattern || i18n("rule_pattern_helper")}
           name="pattern"
           value={pattern}
-          disabled={rule?.pattern === "*" || disabled}
+          disabled={isGlobalRule || disabled}
           onChange={handleChange}
           onFocus={handleFocus}
         />
-        {/* 翻译根容器选择器配置 */}
         <CodeField
           size="small"
           label={i18n("root_selector")}
@@ -277,7 +301,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           disabled={disabled}
           onChange={handleChange}
         />
-        {/* 忽略翻译的元素选择器配置 */}
         <CodeField
           size="small"
           label={i18n("ignore_selector")}
@@ -287,7 +310,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           disabled={disabled}
           onChange={handleChange}
         />
-        {/* 目标翻译元素选择器配置 */}
         <CodeField
           size="small"
           label={i18n("target_selector")}
@@ -299,7 +321,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           onChange={handleChange}
           onFocus={handleFocus}
         />
-        {/* 保持不翻译元素选择器配置 */}
         <CodeField
           size="small"
           label={i18n("keep_selector")}
@@ -309,7 +330,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           disabled={disabled}
           onChange={handleChange}
         />
-        {/* 自定义块级元素选择器配置 */}
         <CodeField
           size="small"
           label={i18n("block_selector")}
@@ -322,7 +342,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
 
         <Box>
           <Grid container spacing={2} columns={12}>
-            {/* 翻译开关设置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -339,7 +358,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 <MenuItem value={"false"}>{i18n("default_disabled")}</MenuItem>
               </TextField>
             </Grid>
-            {/* 翻译引擎服务设置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -352,14 +370,18 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 onChange={handleChange}
               >
                 {GlobalItem}
+                {!hasApiOption && apiSlug && (
+                  <MenuItem value={apiSlug} disabled>
+                    {`${apiSlug} (${i18n("unavailable_option")})`}
+                  </MenuItem>
+                )}
                 {enabledApis.map((api) => (
                   <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                    {api.apiName}
+                    {getApiDisplayName(api)}
                   </MenuItem>
                 ))}
               </TextField>
             </Grid>
-            {/* 源语言设置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -372,6 +394,11 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 onChange={handleChange}
               >
                 {GlobalItem}
+                {!hasFromLangOption && fromLang && (
+                  <MenuItem value={fromLang} disabled>
+                    {fromLang}
+                  </MenuItem>
+                )}
                 {OPT_LANGS_FROM.map(([lang, name]) => (
                   <MenuItem key={lang} value={lang}>
                     {name}
@@ -379,7 +406,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 ))}
               </TextField>
             </Grid>
-            {/* 目标语言设置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -392,6 +418,11 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 onChange={handleChange}
               >
                 {GlobalItem}
+                {!hasToLangOption && toLang && (
+                  <MenuItem value={toLang} disabled>
+                    {toLang}
+                  </MenuItem>
+                )}
                 {OPT_LANGS_TO.map(([lang, name]) => (
                   <MenuItem key={lang} value={lang}>
                     {name}
@@ -400,112 +431,25 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               </TextField>
             </Grid>
 
-            {/* 自动扫描页面设置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="autoScan"
-                value={autoScan}
-                label={i18n("auto_scan_page")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
-            {/* 是否翻译富文本设置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="hasRichText"
-                value={hasRichText}
-                label={i18n("has_rich_text")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
-            {/* 是否支持 Shadow Root 内部文本翻译设置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="hasShadowroot"
-                value={hasShadowroot}
-                label={i18n("has_shadowroot")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
-            {/* 是否扫描处理页面中所有的节点设置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="scanAll"
-                value={scanAll}
-                label={i18n("scan_all_nodes")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
+            {BOOLEAN_RULE_FIELDS.map(({ name, labelKey }) => (
+              <Grid item xs={12} sm={12} md={6} lg={6} key={name}>
+                <TextField
+                  select
+                  size="small"
+                  fullWidth
+                  name={name}
+                  value={formValues[name] ?? "false"}
+                  label={i18n(labelKey)}
+                  disabled={disabled}
+                  onChange={handleChange}
+                >
+                  {GlobalItem}
+                  <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
+                  <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
+                </TextField>
+              </Grid>
+            ))}
 
-            {/* 是否以纯文本模式翻译 <pre> 内容 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="isPlainText"
-                value={isPlainText}
-                label={i18n("plain_text_translate")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
-
-            {/* 仅显示译文设置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="transOnly"
-                value={transOnly}
-                label={i18n("show_only_translations")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
-
-            {/* 文本顺序设置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -527,26 +471,7 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               </TextField>
             </Grid>
 
-            {/* 悬停恢复原文设置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="transOnlyRevert"
-                value={transOnlyRevert}
-                label={i18n("transonly_revert")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
-
-            {/* 悬停恢复原文延迟只属于全局规则，个人规则保持 * 且不进数字框 */}
-            {rule?.pattern === GLOBAL_KEY && (
+            {isGlobalRule && (
               <Grid item xs={12} sm={12} md={6} lg={6}>
                 <TextField
                   size="small"
@@ -562,7 +487,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               </Grid>
             )}
 
-            {/* 长段落切分翻译配置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -582,7 +506,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 ))}
               </TextField>
             </Grid>
-            {/* 长段落切分翻译的触发长度阈值 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <ValidationInput
                 fullWidth
@@ -598,24 +521,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               />
             </Grid>
 
-            {/* 是否翻译网页 title 标签配置 */}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="transTitle"
-                value={transTitle}
-                label={i18n("translate_page_title")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Grid>
-            {/* 插入译文所用的 HTML 标签设置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -633,7 +538,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               </TextField>
             </Grid>
 
-            {/* 自定义译文样式模板设置 */}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -646,28 +550,16 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 onChange={handleChange}
               >
                 {GlobalItem}
+                {!hasTextStyleOption && textStyle && (
+                  <MenuItem value={textStyle} disabled>
+                    {`${textStyle} (${i18n("unavailable_option")})`}
+                  </MenuItem>
+                )}
                 {allTextStyles.map((item) => (
                   <MenuItem key={item.styleSlug} value={item.styleSlug}>
                     {item.styleName}
                   </MenuItem>
                 ))}
-              </TextField>
-            </Grid>
-
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="wrapOriginal"
-                value={wrapOriginal}
-                label={i18n("wrap_original")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value="false">{i18n("disable")}</MenuItem>
-                <MenuItem value="true">{i18n("enable")}</MenuItem>
               </TextField>
             </Grid>
 
@@ -684,6 +576,11 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                   onChange={handleChange}
                 >
                   {GlobalItem}
+                  {!hasOriginalStyleOption && originalTextStyle && (
+                    <MenuItem value={originalTextStyle} disabled>
+                      {`${originalTextStyle} (${i18n("unavailable_option")})`}
+                    </MenuItem>
+                  )}
                   {allTextStyles.map((item) => (
                     <MenuItem key={item.styleSlug} value={item.styleSlug}>
                       {item.styleName}
@@ -695,10 +592,8 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           </Grid>
         </Box>
 
-        {/* 高级选项面板 */}
         {showMore && (
           <>
-            {/* 专有名词对照翻译设置 */}
             <TextField
               size="small"
               label={i18n("terms")}
@@ -710,7 +605,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               multiline
               maxRows={10}
             />
-            {/* AI 翻译专有名词对照翻译设置 */}
             <TextField
               size="small"
               label={i18n("ai_terms")}
@@ -722,8 +616,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               multiline
               maxRows={10}
             />
-
-            {/* 术语高亮 CSS 样式定义 */}
             <CodeField
               size="small"
               label={i18n("terms_style")}
@@ -733,7 +625,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               onChange={handleChange}
               maxRows={10}
             />
-            {/* 重点词高亮 CSS 样式定义 */}
             <CodeField
               size="small"
               label={i18n("highlight_style")}
@@ -743,7 +634,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               onChange={handleChange}
               maxRows={10}
             />
-            {/* 译文额外 CSS 样式定义 */}
             <CodeField
               size="small"
               label={i18n("text_ext_style")}
@@ -753,7 +643,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               onChange={handleChange}
               maxRows={10}
             />
-            {/* 针对翻译元素自身的 CSS 样式定义 */}
             <CodeField
               size="small"
               label={i18n("selector_style")}
@@ -763,7 +652,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               onChange={handleChange}
               maxRows={10}
             />
-            {/* 针对翻译元素直接父级的 CSS 样式定义 */}
             <CodeField
               size="small"
               label={i18n("selector_parent_style")}
@@ -773,7 +661,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               onChange={handleChange}
               maxRows={10}
             />
-            {/* 针对翻译元素祖父级的 CSS 样式定义 */}
             <CodeField
               size="small"
               label={i18n("selector_grand_style")}
@@ -783,8 +670,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               onChange={handleChange}
               maxRows={10}
             />
-
-            {/* 页面注入的 CSS 样式代码 */}
             <CodeField
               size="small"
               label={i18n("inject_css")}
@@ -798,14 +683,11 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           </>
         )}
 
-        {/* 规则保存/编辑/删除控制按钮区域 */}
         {rules &&
           (editMode ? (
-            // 编辑已有规则模式
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {disabled ? (
                 <>
-                  {/* 点击开启表单编辑 */}
                   <Button
                     size="small"
                     variant="contained"
@@ -817,15 +699,12 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                   >
                     {i18n("edit")}
                   </Button>
-                  {/* 全局默认规则（'*'）不允许删除 */}
-                  {rule?.pattern !== "*" && (
+                  {!isGlobalRule && (
                     <Button
                       size="small"
                       variant="outlined"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        rules.del(rule.pattern);
-                      }}
+                      color="error"
+                      onClick={handleDelete}
                       startIcon={<DeleteIcon />}
                     >
                       {i18n("delete")}
@@ -834,7 +713,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                 </>
               ) : (
                 <>
-                  {/* 保存编辑修改 */}
                   <Button
                     size="small"
                     variant="contained"
@@ -844,7 +722,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                   >
                     {i18n("save")}
                   </Button>
-                  {/* 取消并撤销更改 */}
                   <Button
                     size="small"
                     variant="outlined"
@@ -853,7 +730,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                   >
                     {i18n("cancel")}
                   </Button>
-                  {/* 恢复至系统预置规则配置 */}
                   <Button
                     size="small"
                     variant="outlined"
@@ -863,13 +739,10 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
                   </Button>
                 </>
               )}
-              {/* 高级选项折叠展示开关 */}
               <ShowMoreButton showMore={showMore} onChange={setShowMore} />
             </Stack>
           ) : (
-            // 新建添加规则模式
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
-              {/* 新增规则保存 */}
               <Button
                 size="small"
                 variant="contained"
@@ -878,7 +751,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               >
                 {i18n("save")}
               </Button>
-              {/* 新增规则取消 */}
               <Button
                 size="small"
                 variant="outlined"
@@ -887,7 +759,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               >
                 {i18n("cancel")}
               </Button>
-              {/* 高级选项折叠展示开关 */}
               <ShowMoreButton showMore={showMore} onChange={setShowMore} />
             </Stack>
           ))}
@@ -899,14 +770,12 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
 // 规则折叠面板组件，用于展示和启用/禁用单个规则
 function RuleAccordion({ rule, rules, isExpanded = false }) {
   const i18n = useI18n();
-  // 面板展开状态
   const [expanded, setExpanded] = useState(isExpanded);
   const isPersonalRule = !!rules && rule.pattern !== GLOBAL_KEY;
   const isRuleEnabled = isPersonalRule ? rule.enabled !== false : true;
   const alert = useAlert();
 
-  // 面板展开/折叠切换
-  const handleChange = (e) => {
+  const handleChange = () => {
     setExpanded((pre) => !pre);
   };
 
@@ -923,7 +792,10 @@ function RuleAccordion({ rule, rules, isExpanded = false }) {
       size="small"
       checked={isRuleEnabled}
       inputProps={{
-        "aria-label": `Toggle personal rule ${rule.pattern}`,
+        "aria-label": i18n("toggle_personal_rule").replace(
+          "{name}",
+          rule.pattern
+        ),
       }}
       onChange={(event) => {
         const enabled = event.target.checked;
@@ -934,25 +806,14 @@ function RuleAccordion({ rule, rules, isExpanded = false }) {
   ) : null;
 
   return (
-    <Box className="kt-rule-accordion" sx={{ position: "relative" }}>
-      {ruleSwitch && (
-        <Box
-          className="kt-rule-enable-control"
-          sx={{
-            position: "absolute",
-            top: 13,
-            insetInlineStart: 14,
-            zIndex: 2,
-          }}
-        >
-          {ruleSwitch}
-        </Box>
-      )}
+    <Box
+      className={`kt-rule-accordion ${
+        ruleSwitch ? "kt-rule-accordion--with-switch" : ""
+      }`.trim()}
+    >
+      {ruleSwitch && <Box className="kt-rule-enable-control">{ruleSwitch}</Box>}
       <Accordion expanded={expanded} onChange={handleChange}>
-        <AccordionSummary
-          expandIcon={<ExpandMoreIcon />}
-          className={ruleSwitch ? "kt-rule-summary--with-switch" : undefined}
-        >
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography
             sx={{
               opacity: titleOpacity,
@@ -976,48 +837,76 @@ function RuleAccordion({ rule, rules, isExpanded = false }) {
 // 个人自定义规则面板组件
 function UserRules({ rules }) {
   const i18n = useI18n();
-  // 控制是否显示“添加新规则”的表单面板
+  const alert = useAlert();
   const [showAdd, setShowAdd] = useState(false);
-  // 匹配关键字状态，用于在添加规则时辅助输入或做本地规则检索
-  const [keyword, setKeyword] = useState("");
-  // 全局确认弹框
+  const [searchQuery, setSearchQuery] = useState("");
+  const [patternKeyword, setPatternKeyword] = useState("");
   const confirm = useConfirm();
 
-  // 规则备份文件导入
   const handleImport = async (data) => {
     try {
-      await rules.merge(JSON.parse(data));
+      const parsed = JSON.parse(data);
+      if (
+        !Array.isArray(parsed) ||
+        parsed.some(
+          (item) =>
+            !item ||
+            typeof item !== "object" ||
+            Array.isArray(item) ||
+            typeof item.pattern !== "string"
+        )
+      ) {
+        alert.error(i18n("import_failed"));
+        return;
+      }
+      await rules.merge(parsed);
+      alert.success(i18n("import_success"));
     } catch (err) {
       kissLog("import rules", err);
+      alert.error(i18n("import_failed"));
     }
   };
 
-  // 清空所有自定义规则
   const handleClearAll = async () => {
     const isConfirmed = await confirm({
-      confirmText: i18n("confirm_title"),
+      message: i18n("clear_all_rules_confirm"),
+      confirmText: i18n("clear_all"),
       cancelText: i18n("cancel"),
     });
     if (isConfirmed) {
       rules.clear();
+      alert.success(i18n("clear_success"));
     }
   };
 
-  // 若关闭了“添加新规则”面板，重置本地过滤关键字
   useEffect(() => {
     if (!showAdd) {
-      setKeyword("");
+      setPatternKeyword("");
     }
   }, [showAdd]);
 
-  // 规则列表未加载完成时暂不渲染
   if (!rules.list) {
-    return;
+    return null;
   }
+
+  const personalRules = rules.list.filter(
+    (rule) => rule.pattern !== GLOBAL_KEY
+  );
+  const activeFilter = (searchQuery || (showAdd ? patternKeyword : ""))
+    .trim()
+    .toLowerCase();
+  const visibleRules = activeFilter
+    ? personalRules.filter((rule) => {
+        const lowerPattern = rule.pattern.toLowerCase();
+        return (
+          lowerPattern.includes(activeFilter) ||
+          activeFilter.includes(lowerPattern)
+        );
+      })
+    : personalRules;
 
   return (
     <Stack spacing={3}>
-      {/* 规则操作按钮栏 */}
       <Stack
         direction="row"
         alignItems="center"
@@ -1025,7 +914,6 @@ function UserRules({ rules }) {
         useFlexGap
         flexWrap="wrap"
       >
-        {/* 点击展开添加规则面板 */}
         <Button
           size="small"
           variant="contained"
@@ -1039,7 +927,6 @@ function UserRules({ rules }) {
           {i18n("add")}
         </Button>
 
-        {/* 导入、导出、清空、帮助与注入配置切换 */}
         <UploadButton text={i18n("import")} handleImport={handleImport} />
         <DownloadButton
           handleData={() => JSON.stringify([...rules.list], null, 2)}
@@ -1050,6 +937,8 @@ function UserRules({ rules }) {
         <Button
           size="small"
           variant="outlined"
+          color="error"
+          disabled={personalRules.length === 0}
           onClick={handleClearAll}
           startIcon={<ClearAllIcon />}
         >
@@ -1059,41 +948,56 @@ function UserRules({ rules }) {
         <HelpButton url={URL_KISS_RULES_NEW_ISSUE} />
       </Stack>
 
-      {/* 新增规则的表单录入面板 */}
+      <TextField
+        size="small"
+        fullWidth
+        type="search"
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.target.value)}
+        placeholder={i18n("search_personal_rules")}
+        inputProps={{ "aria-label": i18n("search_personal_rules") }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchRoundedIcon fontSize="small" />
+            </InputAdornment>
+          ),
+        }}
+      />
+
       {showAdd && (
         <RuleFields
           rules={rules}
           setShow={setShowAdd}
-          setKeyword={setKeyword}
+          setKeyword={setPatternKeyword}
         />
       )}
 
-      {/* 用户自定义的域名/网址规则列表（支持输入匹配过滤，排除 '*' 全局配置） */}
       <Box>
-        {rules.list
-          .filter(
-            (rule) =>
-              rule.pattern !== "*" &&
-              (rule.pattern.includes(keyword) || keyword.includes(rule.pattern))
-          )
-          .map((rule) => (
+        {visibleRules.length > 0 ? (
+          visibleRules.map((rule) => (
             <RuleAccordion key={rule.pattern} rule={rule} rules={rules} />
-          ))}
+          ))
+        ) : (
+          <div className="kt-empty-state">
+            {personalRules.length === 0
+              ? i18n("personal_rules_empty")
+              : i18n("options_no_results")}
+          </div>
+        )}
       </Box>
     </Stack>
   );
 }
 
 function GlobalRule({ rules }) {
-  // 从自定义规则列表的末尾提取全局默认规则 '*'
   const globalRule = useMemo(
-    () => rules.list[rules.list.length - 1],
+    () => rules.list?.find((item) => item.pattern === GLOBAL_KEY),
     [rules.list]
   );
 
-  // 未加载到全局规则时暂不渲染
   if (!globalRule) {
-    return;
+    return null;
   }
 
   return (
@@ -1102,19 +1006,18 @@ function GlobalRule({ rules }) {
         key={globalRule.pattern}
         rule={globalRule}
         rules={rules}
-        isExpanded={true} // 默认展开全局规则面板
+        isExpanded={true}
       />
     </Stack>
   );
 }
 
-// 规则设置中心主入口组件，负责全局规则和自定义规则的标签切换
 export default function Rules() {
   const i18n = useI18n();
   const [activeTab, setActiveTab] = useState(0);
   const rules = useRules();
 
-  const handleTabChange = (e, newValue) => {
+  const handleTabChange = (_e, newValue) => {
     setActiveTab(newValue);
   };
 

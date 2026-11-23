@@ -29,5 +29,9 @@ const OPTIONS_THEME = {
 };
 
 export default function OptionsTheme({ children }) {
-  return <M3Theme options={OPTIONS_THEME}>{children}</M3Theme>;
+  return (
+    <M3Theme options={OPTIONS_THEME} standaloneRoot>
+      {children}
+    </M3Theme>
+  );
 }

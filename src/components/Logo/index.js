@@ -9,11 +9,11 @@ import { FAVICON_BASE64 } from "./icon.base64.js";
  * @param {object} props.style 传递给 img 的 CSS 样式
  * @param {function} props.onClick 点击事件回调
  */
-const Logo = ({ size = 16, className = "", style = {}, onClick }) => {
+const Logo = ({ size = 16, alt = "", className = "", style = {}, onClick }) => {
   return (
     <img
       src={FAVICON_BASE64}
-      alt="Logo"
+      alt={alt}
       className={className}
       draggable={false}
       onClick={onClick}

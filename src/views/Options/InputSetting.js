@@ -13,7 +13,7 @@ import {
 import ShortcutInput from "./ShortcutInput";
 import { useInputRule } from "../../hooks/InputRule";
 import { useCallback } from "react";
-import { useApiList } from "../../hooks/Api";
+import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import { limitNumber } from "../../libs/utils";
 import {
   SettingsAdvanced,
@@ -44,25 +44,20 @@ export function normalizeTriggerTime(value) {
 
 /**
  * 网页输入框快捷输入翻译设置页面 (InputSetting)
- * 用户在输入框中输入指定文本后，通过快捷键/特殊结束标点自动在输入框内将源文本翻译成目标语言
  */
 export default function InputSetting() {
   const i18n = useI18n();
-  // 输入查词规则 Hook 状态
   const { inputRule, updateInputRule } = useInputRule();
-  // 全局启用的 API 服务商列表
   const { enabledApis } = useApiList();
 
-  // 通用表单更改提交方法
   const handleChange = (e) => {
     e.preventDefault();
-    let { name, value } = e.target;
+    const { name, value } = e.target;
     updateInputRule({
       [name]: value,
     });
   };
 
-  // 触发快捷键组合修改回调
   const handleShortcutInput = useCallback(
     (val) => {
       updateInputRule({ triggerShortcut: val });
@@ -70,7 +65,6 @@ export default function InputSetting() {
     [updateInputRule]
   );
 
-  // 解构当前输入查词翻译的各项具体设置
   const {
     transOpen,
     apiSlug,
@@ -84,6 +78,33 @@ export default function InputSetting() {
     blacklist = "",
   } = inputRule;
   const normalizedTriggerTime = normalizeTriggerTime(triggerTime);
+
+  const apiOptions = enabledApis.map((api) => ({
+    value: api.apiSlug,
+    label: getApiDisplayName(api),
+  }));
+  const hasApiOption = apiOptions.some((item) => item.value === apiSlug);
+  const safeApiOptions =
+    !hasApiOption && apiSlug
+      ? [
+          {
+            value: apiSlug,
+            label: `${apiSlug} (${i18n("unavailable_option")})`,
+          },
+          ...apiOptions,
+        ]
+      : apiOptions;
+  const safeApiSlug = hasApiOption || apiSlug ? apiSlug : "";
+  const safeTransSign =
+    transSign === "" || OPT_INPUT_TRANS_SIGNS.includes(transSign)
+      ? transSign
+      : "";
+  const safeFromLang = OPT_LANGS_FROM.some(([lang]) => lang === fromLang)
+    ? fromLang
+    : OPT_LANGS_FROM[0]?.[0] || "auto";
+  const safeToLang = OPT_LANGS_TO.some(([lang]) => lang === toLang)
+    ? toLang
+    : OPT_LANGS_TO[0]?.[0] || "en";
 
   return (
     <Box>
@@ -123,7 +144,7 @@ export default function InputSetting() {
             description={i18n("input_trans_start_sign_help")}
           >
             <SettingsSelect
-              value={transSign}
+              value={safeTransSign}
               label={i18n("input_trans_start_sign")}
               onChange={(value) => updateInputRule({ transSign: value })}
               options={[
@@ -137,7 +158,7 @@ export default function InputSetting() {
           </SettingsRow>
           <SettingsRow label={i18n("to_lang")}>
             <SettingsSelect
-              value={toLang}
+              value={safeToLang}
               label={i18n("to_lang")}
               onChange={(value) => updateInputRule({ toLang: value })}
               options={OPT_LANGS_TO}
@@ -170,18 +191,15 @@ export default function InputSetting() {
       <SettingsAdvanced rows label={i18n("settings_detailed_controls")}>
         <SettingsRow label={i18n("translate_service")}>
           <SettingsSelect
-            value={apiSlug}
+            value={safeApiSlug}
             label={i18n("translate_service")}
             onChange={(value) => updateInputRule({ apiSlug: value })}
-            options={enabledApis.map((api) => ({
-              value: api.apiSlug,
-              label: api.apiName,
-            }))}
+            options={safeApiOptions}
           />
         </SettingsRow>
         <SettingsRow label={i18n("from_lang")}>
           <SettingsSelect
-            value={fromLang}
+            value={safeFromLang}
             label={i18n("from_lang")}
             onChange={(value) => updateInputRule({ fromLang: value })}
             options={OPT_LANGS_FROM}

@@ -1,17 +1,26 @@
-import { Routes, Route, HashRouter, useLocation } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  HashRouter,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import About from "./About";
 import Rules from "./Rules";
 import Setting from "./Setting";
 import Layout from "./Layout";
 import SyncSetting from "./SyncSetting";
 import { SettingProvider } from "../../hooks/Setting";
+import { useI18n } from "../../hooks/I18n";
 import ThemeProvider from "./OptionsTheme";
 import { useEffect, useRef, useState } from "react";
 import { AlertProvider } from "../../hooks/Alert";
 import { ConfirmProvider } from "../../hooks/Confirm";
+import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
+import Stack from "@mui/material/Stack";
 import Apis from "./Apis";
 import Prompts from "./Prompts";
 import InputSetting from "./InputSetting";
@@ -31,10 +40,10 @@ import {
 export { normalizeOptionsPath as normalizeOptionsHashPath } from "./paths";
 
 function SyncBackdrop({ open }) {
+  const i18n = useI18n();
   return (
     <Backdrop
-      data-testid="options-sync-backdrop"
-      aria-label="syncing required data"
+      aria-label={i18n("syncing_required_data")}
       role="status"
       open={open}
       sx={(theme) => ({
@@ -55,9 +64,7 @@ function OptionsContent({ pendingKeys, children }) {
 
   return (
     <>
-      <InteractionLock data-testid="options-content" locked={syncing}>
-        {children}
-      </InteractionLock>
+      <InteractionLock locked={syncing}>{children}</InteractionLock>
       <SyncBackdrop open={syncing} />
     </>
   );
@@ -91,14 +98,30 @@ export default function Options() {
 
   if (error) {
     return (
-      <center>
-        <Divider>
-          <Link
-            href={process.env.REACT_APP_HOMEPAGE}
-          >{`${process.env.REACT_APP_NAME} ${process.env.REACT_APP_VERSION}`}</Link>
-        </Divider>
-        <Alert severity="error">{error}</Alert>
-      </center>
+      <SettingProvider context="options">
+        <ThemeProvider>
+          <Box
+            sx={{
+              minHeight: "100vh",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              p: 3,
+            }}
+          >
+            <Stack spacing={2} sx={{ width: "min(560px, 100%)" }}>
+              <Divider>
+                <Link
+                  href={process.env.REACT_APP_HOMEPAGE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >{`${process.env.REACT_APP_NAME} ${process.env.REACT_APP_VERSION}`}</Link>
+              </Divider>
+              <Alert severity="error">{error}</Alert>
+            </Stack>
+          </Box>
+        </ThemeProvider>
+      </SettingProvider>
     );
   }
 
@@ -122,6 +145,7 @@ export default function Options() {
                     <Route path="prompts" element={<Prompts />} />
                     <Route path="sync" element={<SyncSetting />} />
                     <Route path="about" element={<About />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>
                 </Routes>
               </ConfirmProvider>

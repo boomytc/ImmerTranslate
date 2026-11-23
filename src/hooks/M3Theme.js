@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline, GlobalStyles } from "@mui/material";
 import { useDarkMode } from "./ColorMode";
@@ -24,12 +24,13 @@ export { getMuiSwitchStyleOverrides } from "./themeStyles";
 
 const EMPTY_THEME_OPTIONS = Object.freeze({});
 const EMPTY_GLOBAL_STYLES = Object.freeze({});
-const M3_BRAND_COLOR = "blue";
 
 export default function M3Theme({
   children,
   options = EMPTY_THEME_OPTIONS,
   styles = EMPTY_GLOBAL_STYLES,
+  standaloneRoot = false,
+  isolateRem = false,
 }) {
   const { darkMode } = useDarkMode();
   const systemPrefersDark = useSystemDarkPreference();
@@ -42,10 +43,39 @@ export default function M3Theme({
     previewMode === THEME_DARK || previewMode === THEME_LIGHT
       ? previewMode
       : resolveM3ThemeMode(darkMode, systemPrefersDark);
-  const colors = useMemo(
-    () => resolveM3Colors(resolvedMode, M3_BRAND_COLOR),
-    [resolvedMode]
-  );
+  const colors = useMemo(() => resolveM3Colors(resolvedMode), [resolvedMode]);
+  const cssVariables = useMemo(() => createM3CssVariables(colors), [colors]);
+
+  useLayoutEffect(() => {
+    if (!standaloneRoot || typeof document === "undefined") return undefined;
+    const root = document.documentElement;
+    const prevTheme = root.getAttribute("data-theme");
+    const prevMarker = root.getAttribute("data-kt-m3-root");
+    const prevColorScheme = root.style.colorScheme;
+    const prevVars = Object.keys(cssVariables).map((name) => [
+      name,
+      root.style.getPropertyValue(name),
+    ]);
+
+    root.setAttribute("data-theme", resolvedMode);
+    root.setAttribute("data-kt-m3-root", "true");
+    root.style.colorScheme = resolvedMode;
+    Object.entries(cssVariables).forEach(([name, value]) => {
+      root.style.setProperty(name, value);
+    });
+
+    return () => {
+      if (prevTheme === null) root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", prevTheme);
+      if (prevMarker === null) root.removeAttribute("data-kt-m3-root");
+      else root.setAttribute("data-kt-m3-root", prevMarker);
+      root.style.colorScheme = prevColorScheme;
+      prevVars.forEach(([name, value]) => {
+        if (value) root.style.setProperty(name, value);
+        else root.style.removeProperty(name);
+      });
+    };
+  }, [cssVariables, resolvedMode, standaloneRoot]);
 
   const theme = useMemo(() => {
     const color = colors;
@@ -54,13 +84,15 @@ export default function M3Theme({
       outlineOffset: 2,
     };
     let htmlFontSize = 16;
-    try {
-      htmlFontSize = Number.parseInt(
-        window.getComputedStyle(document.documentElement).fontSize,
-        10
-      );
-    } catch (_error) {
-      htmlFontSize = 16;
+    if (!isolateRem) {
+      try {
+        htmlFontSize = Number.parseInt(
+          window.getComputedStyle(document.documentElement).fontSize,
+          10
+        );
+      } catch (_error) {
+        htmlFontSize = 16;
+      }
     }
 
     const motion = `${M3_DURATION} ${M3_EASE}`;
@@ -76,6 +108,11 @@ export default function M3Theme({
           contrastText: color.onSecondaryContainer,
         },
         error: { main: color.error },
+        warning: {
+          main: color.warning,
+          contrastText: color.onWarning,
+        },
+        success: { main: color.success },
         background: { default: color.background, paper: color.surface },
         text: {
           primary: color.onSurface,
@@ -91,7 +128,9 @@ export default function M3Theme({
             : options.typography;
         // Resolve conversions before MUI generates sizes for each variant.
         return {
-          htmlFontSize,
+          ...(isolateRem
+            ? { pxToRem: (size) => `${size}px` }
+            : { htmlFontSize }),
           fontFamily: M3_FONT_FAMILY,
           ...typography,
           button: {
@@ -436,7 +475,7 @@ export default function M3Theme({
       ),
     };
     return createTheme(themeOptions, { components: options.components || {} });
-  }, [colors, options, resolvedMode]);
+  }, [colors, isolateRem, options, resolvedMode]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -445,9 +484,8 @@ export default function M3Theme({
       <div
         className="kt-m3-root"
         data-theme={resolvedMode}
-        data-brand={M3_BRAND_COLOR}
         style={{
-          ...createM3CssVariables(colors),
+          ...cssVariables,
           colorScheme: resolvedMode,
         }}
       >

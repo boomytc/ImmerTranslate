@@ -10,6 +10,8 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import CodeField from "./CodeField";
 import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
 import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -35,6 +37,9 @@ import CheckBoxRoundedIcon from "@mui/icons-material/CheckBoxRounded";
 import CheckBoxOutlineBlankRoundedIcon from "@mui/icons-material/CheckBoxOutlineBlankRounded";
 import Link from "@mui/material/Link";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import RestoreIcon from "@mui/icons-material/Restore";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { useSetting } from "../../hooks/Setting";
 import { useAlert } from "../../hooks/Alert";
 import {
@@ -96,6 +101,7 @@ import {
   getPromptDisplayName,
   getSubtitlePromptOptions,
   getApiKeyUrl,
+  URL_CUSTOM_API_EXAMPLE,
 } from "../../config";
 import ValidationInput from "../../hooks/ValidationInput";
 import { usePromptList } from "../../hooks/Prompt";
@@ -267,17 +273,27 @@ function TestButton({ api }) {
 
 /**
  * 敏感文本输入框。
- * 失焦时仅展示圆点，避免 API 密钥在配置页面长期明文暴露；
- * 聚焦编辑时恢复真实值，确保保存、测试和多行密钥逻辑仍使用原始字段值。
+ * 默认掩码展示，聚焦编辑或点击显隐按钮时展示明文，兼容单行与多行密钥输入。
  */
-function SensitiveTextField({ value = "", onChange, inputProps, ...props }) {
+function SensitiveTextField({
+  value = "",
+  onChange,
+  inputProps,
+  InputProps,
+  toggleLabel,
+  ...props
+}) {
+  const i18n = useI18n();
   const [editing, setEditing] = useState(false);
-  const displayValue = editing
+  const [visible, setVisible] = useState(false);
+  const showPlainText = editing || visible;
+  const displayValue = showPlainText
     ? value
     : String(value)
         .split("\n")
         .map((line) => (line ? "•".repeat(Math.min(line.length, 24)) : ""))
         .join("\n");
+  const fieldName = toggleLabel || i18n("api_key");
 
   return (
     <TextField
@@ -285,19 +301,75 @@ function SensitiveTextField({ value = "", onChange, inputProps, ...props }) {
       value={displayValue}
       onFocus={() => setEditing(true)}
       onBlur={() => setEditing(false)}
-      onChange={editing ? onChange : undefined}
+      onChange={showPlainText ? onChange : undefined}
       inputProps={{
         ...inputProps,
-        readOnly: !editing,
+        readOnly: !showPlainText,
+      }}
+      InputProps={{
+        ...InputProps,
+        endAdornment: (
+          <InputAdornment position="end">
+            <IconButton
+              size="small"
+              edge="end"
+              aria-label={`${i18n(visible ? "hide" : "show")} ${fieldName}`}
+              onClick={() => setVisible((prev) => !prev)}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {visible ? <VisibilityOffIcon /> : <VisibilityIcon />}
+            </IconButton>
+          </InputAdornment>
+        ),
       }}
     />
   );
 }
 
-function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
+function ApiHookFields({ reqHook, resHook, onChange, i18n }) {
+  return (
+    <>
+      <CodeField
+        size="small"
+        label={i18n("request_hook")}
+        name="reqHook"
+        value={reqHook}
+        onChange={onChange}
+        maxRows={10}
+        FormHelperTextProps={{
+          component: "div",
+        }}
+        helperText={
+          <Box component="pre" sx={{ overflowX: "auto" }}>
+            {i18n("request_hook_helper")}
+          </Box>
+        }
+      />
+      <CodeField
+        size="small"
+        label={i18n("response_hook")}
+        name="resHook"
+        value={resHook}
+        onChange={onChange}
+        maxRows={10}
+        FormHelperTextProps={{
+          component: "div",
+        }}
+        helperText={
+          <Box component="pre" sx={{ overflowX: "auto" }}>
+            {i18n("response_hook_helper")}
+          </Box>
+        }
+      />
+    </>
+  );
+}
+
+function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
   const { api, update, reset } = useApiItem(apiSlug);
   const { prompts } = usePromptList();
   const i18n = useI18n();
+  const alert = useAlert();
   const [formData, setFormData] = useState(() => api || {});
   const [showMore, setShowMore] = useState(false);
   const [modelOptions, setModelOptions] = useState([]);
@@ -557,16 +629,26 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
     }
     setFormData(nextFormData);
     update(nextFormData);
-    if (activeFormData.isDisabled || activeFormData.sortOrder === -1) {
-      onCollapse?.();
-    }
+    alert.success(i18n("save_success"));
   };
 
-  const handleReset = () => {
+  const handleDiscard = () => {
+    setFormData(api || {});
+  };
+
+  const handleReset = async () => {
     setActionsAnchorEl(null);
+    const displayName = getApiDisplayName(activeFormData);
+    const isConfirmed = await confirm({
+      message: i18n("restore_api_confirm").replace("{name}", displayName),
+      confirmText: i18n("restore_default"),
+      cancelText: i18n("cancel"),
+    });
+    if (!isConfirmed) return;
     // Drop the draft so the form follows the API produced by reset.
     setFormData(null);
     reset();
+    alert.success(i18n("restore_default_success"));
   };
 
   const handleCopy = () => {
@@ -576,7 +658,9 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
 
   const handleDelete = async () => {
     setActionsAnchorEl(null);
+    const displayName = getApiDisplayName(activeFormData);
     const isConfirmed = await confirm({
+      message: i18n("delete_api_confirm").replace("{name}", displayName),
       confirmText: i18n("delete"),
       cancelText: i18n("cancel"),
     });
@@ -985,7 +1069,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                   }}
                 >
                   <StarIcon sx={{ fontSize: 13 }} />
-                  <span>Sponsor</span>
+                  <span>{i18n("api_sponsor")}</span>
                 </Box>
               )}
             </Stack>
@@ -1066,7 +1150,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
         >
           <TextField
             size="small"
-            label={"URL"}
+            label={i18n("api_url")}
             name="url"
             value={url}
             onChange={handleChange}
@@ -1104,7 +1188,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                     fontSize: 12,
                   }}
                 >
-                  API Key
+                  {i18n("api_key")}
                 </Typography>
                 {requiresKey && (
                   <Box
@@ -1127,19 +1211,10 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                   rel="noopener noreferrer"
                   size="small"
                   variant="outlined"
-                  className="kt-api-key-link-button"
                   endIcon={
                     <OpenInNewIcon sx={{ fontSize: "14px !important" }} />
                   }
-                  sx={{
-                    fontSize: 12,
-                    py: 0.25,
-                    px: 1,
-                    minHeight: 28,
-                    textTransform: "none",
-                    fontWeight: 600,
-                    borderRadius: "6px",
-                  }}
+                  sx={{ minHeight: 32, px: 1.5 }}
                 >
                   {i18n("get_api_key")}
                 </Button>
@@ -1148,53 +1223,16 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
             <SensitiveTextField
               size="small"
               fullWidth
-              label={"Key"}
+              label={i18n("api_key")}
+              toggleLabel={i18n("api_key")}
               name="key"
               value={key}
               onChange={handleChange}
               multiline={API_SPE_TYPES.mulkeys.has(apiType)}
               maxRows={10}
-              helperText={
-                <Box
-                  component="span"
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 1,
-                    mt: 0.25,
-                  }}
-                >
-                  <Box component="span">{keyHelper}</Box>
-                  {apiKeyUrl && (
-                    <Link
-                      href={apiKeyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="kt-api-key-helper-link"
-                      sx={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 0.25,
-                        fontSize: "0.75rem",
-                        fontWeight: 500,
-                        color: "primary.main",
-                        textDecoration: "none",
-                        cursor: "pointer",
-                        "&:hover": {
-                          textDecoration: "underline",
-                        },
-                      }}
-                    >
-                      <span>{i18n("get_api_key")}</span>
-                      <OpenInNewIcon sx={{ fontSize: 13 }} />
-                    </Link>
-                  )}
-                </Box>
-              }
+              helperText={keyHelper || undefined}
             />
-            {requiresKey && isKeyEmpty && apiKeyUrl && (
+            {requiresKey && isKeyEmpty && (
               <Alert
                 severity="info"
                 variant="outlined"
@@ -1204,37 +1242,9 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                   py: 0.5,
                   px: 1.5,
                   fontSize: 12,
-                  "& .MuiAlert-message": {
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    flexWrap: "wrap",
-                    gap: 1,
-                  },
                 }}
               >
-                <span>{i18n("api_key_missing_tip")}</span>
-                <Link
-                  href={apiKeyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="kt-api-key-empty-alert-link"
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 0.5,
-                    fontWeight: 600,
-                    fontSize: 12,
-                    color: "primary.main",
-                    textDecoration: "none",
-                    whiteSpace: "nowrap",
-                    "&:hover": { textDecoration: "underline" },
-                  }}
-                >
-                  {i18n("get_api_key", "获取 API Key")}
-                  <OpenInNewIcon sx={{ fontSize: 13 }} />
-                </Link>
+                {i18n("api_key_missing_tip")}
               </Alert>
             )}
           </Box>
@@ -1244,7 +1254,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       {apiType === OPT_TRANS_AZUREAI && (
         <TextField
           size="small"
-          label={"Region"}
+          label={i18n("api_region")}
           name="region"
           value={region}
           onChange={handleChange}
@@ -1254,7 +1264,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       {apiType === OPT_TRANS_YANDEX && (
         <TextField
           size="small"
-          label={"Folder ID"}
+          label={i18n("api_folder_id")}
           name="folderId"
           value={folderId}
           onChange={handleChange}
@@ -1272,7 +1282,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                   fullWidth
                   options={allModelOptions}
                   name="model"
-                  label={"Model"}
+                  label={i18n("api_model")}
                   value={model}
                   onChange={handleChange}
                   onFocus={handleLoadModelList}
@@ -1318,7 +1328,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                     <ValidationInput
                       size="small"
                       fullWidth
-                      label={"Temperature (0.0-2.0)"}
+                      label={i18n("api_temperature")}
                       type="number"
                       name="temperature"
                       value={temperature}
@@ -1337,7 +1347,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                   <ValidationInput
                     size="small"
                     fullWidth
-                    label={"Max Tokens (0-1000000)"}
+                    label={i18n("api_max_tokens")}
                     type="number"
                     name="maxTokens"
                     value={maxTokens}
@@ -1353,40 +1363,12 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
       )}
 
       {apiType === OPT_TRANS_CUSTOMIZE && (
-        <>
-          <CodeField
-            size="small"
-            label={"Request Hook"}
-            name="reqHook"
-            value={reqHook}
-            onChange={handleChange}
-            maxRows={10}
-            FormHelperTextProps={{
-              component: "div",
-            }}
-            helperText={
-              <Box component="pre" sx={{ overflowX: "auto" }}>
-                {i18n("request_hook_helper")}
-              </Box>
-            }
-          />
-          <CodeField
-            size="small"
-            label={"Response Hook"}
-            name="resHook"
-            value={resHook}
-            onChange={handleChange}
-            maxRows={10}
-            FormHelperTextProps={{
-              component: "div",
-            }}
-            helperText={
-              <Box component="pre" sx={{ overflowX: "auto" }}>
-                {i18n("response_hook_helper")}
-              </Box>
-            }
-          />
-        </>
+        <ApiHookFields
+          reqHook={reqHook}
+          resHook={resHook}
+          onChange={handleChange}
+          i18n={i18n}
+        />
       )}
 
       {API_SPE_TYPES.batch.has(apiType) && !API_SPE_TYPES.ai.has(apiType) && (
@@ -1455,7 +1437,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
             {API_SPE_TYPES.context.has(apiType) && (
               <>
                 <Box>
-                  {" "}
                   <TextField
                     select
                     size="small"
@@ -1470,7 +1451,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
                   </TextField>
                 </Box>
                 <Box>
-                  {" "}
                   <ValidationInput
                     size="small"
                     fullWidth
@@ -1820,7 +1800,6 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
 
           {apiType !== OPT_TRANS_BUILTINAI && (
             <>
-              {" "}
               <CodeField
                 size="small"
                 label={i18n("custom_header")}
@@ -1848,40 +1827,12 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
 
           {apiType !== OPT_TRANS_CUSTOMIZE &&
             apiType !== OPT_TRANS_BUILTINAI && (
-              <>
-                <CodeField
-                  size="small"
-                  label={"Request Hook"}
-                  name="reqHook"
-                  value={reqHook}
-                  onChange={handleChange}
-                  maxRows={10}
-                  FormHelperTextProps={{
-                    component: "div",
-                  }}
-                  helperText={
-                    <Box component="pre" sx={{ overflowX: "auto" }}>
-                      {i18n("request_hook_helper")}
-                    </Box>
-                  }
-                />
-                <CodeField
-                  size="small"
-                  label={"Response Hook"}
-                  name="resHook"
-                  value={resHook}
-                  onChange={handleChange}
-                  maxRows={10}
-                  FormHelperTextProps={{
-                    component: "div",
-                  }}
-                  helperText={
-                    <Box component="pre" sx={{ overflowX: "auto" }}>
-                      {i18n("response_hook_helper")}
-                    </Box>
-                  }
-                />
-              </>
+              <ApiHookFields
+                reqHook={reqHook}
+                resHook={resHook}
+                onChange={handleChange}
+                i18n={i18n}
+              />
             )}
         </>
       )}
@@ -1909,6 +1860,16 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onCollapse, onDirtyChange }) {
           >
             {i18n("save")}
           </Button>
+          {isModified && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleDiscard}
+              startIcon={<RestoreIcon />}
+            >
+              {i18n("discard_changes")}
+            </Button>
+          )}
           <TestButton api={activeFormData} />
           {canTestConnection && (
             <LoadingButton
@@ -2100,7 +2061,7 @@ function ApiListItem({
             )}
           </Box>
         )}
-        <Tooltip title="Drag to reorder">
+        <Tooltip title={i18n("drag_to_reorder")}>
           <Box
             draggable
             onDragStart={onDragStart}
@@ -2211,6 +2172,7 @@ export default function Apis() {
   const [draggingApiSlug, setDraggingApiSlug] = useState("");
   const [dragOverApiSlug, setDragOverApiSlug] = useState("");
   const detailPanelRef = useRef(null);
+  const prevSelectedSlugRef = useRef("");
 
   const apiTypes = useMemo(
     () =>
@@ -2292,10 +2254,16 @@ export default function Apis() {
   );
 
   useLayoutEffect(() => {
-    detailPanelRef.current?.scrollTo({ top: 0 });
+    if (
+      prevSelectedSlugRef.current &&
+      selectedApiSlug &&
+      prevSelectedSlugRef.current !== selectedApiSlug
+    ) {
+      detailPanelRef.current?.scrollIntoView?.({ block: "nearest" });
+    }
+    prevSelectedSlugRef.current = selectedApiSlug;
   }, [selectedApiSlug]);
 
-  const addApiButtonRef = useRef(null);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
@@ -2524,8 +2492,9 @@ export default function Apis() {
           <br />
           {i18n("about_api_4")}
           <Link
-            href="https://github.com/boomytc/ImmerTranslate/blob/main/custom-api.md"
+            href={URL_CUSTOM_API_EXAMPLE}
             target="_blank"
+            rel="noopener noreferrer"
           >
             {i18n("goto_custom_api_example")}
           </Link>
@@ -2540,29 +2509,23 @@ export default function Apis() {
             {i18n("fab_no_keyed_provider")}
           </Alert>
         ) : (
-          <Typography
-            className="kt-api-usable"
-            component="p"
-            role="status"
-            sx={{ fontSize: 13, color: "text.secondary" }}
-          >
-            <Box
+          <Box className="kt-api-usable" role="status">
+            <Typography
               component="span"
-              sx={{ fontWeight: 650, color: "text.primary" }}
+              sx={{ fontSize: 13, fontWeight: 650, color: "text.primary" }}
             >
               {i18n("translate_service")}
-            </Box>
+            </Typography>
             {usableApis.map((api) => (
               <Box
                 key={api.apiSlug}
                 className="kt-api-usable__item"
                 component="span"
-                sx={{ ml: 1 }}
               >
                 {getApiDisplayName(api)}
               </Box>
             ))}
-          </Typography>
+          </Box>
         )}
 
         <Box>
@@ -2576,7 +2539,6 @@ export default function Apis() {
             <Button
               size="small"
               id="add-api-button"
-              ref={addApiButtonRef}
               variant="contained"
               onClick={handleClick}
               aria-controls={open ? "add-api-menu" : undefined}
@@ -2691,8 +2653,6 @@ export default function Apis() {
             anchorEl={anchorEl}
             open={open}
             onClose={handleClose}
-            container={() => addApiButtonRef.current?.closest(".kt-m3-root")}
-            disableScrollLock
             MenuListProps={{
               "aria-labelledby": "add-api-button",
             }}
@@ -2748,8 +2708,9 @@ export default function Apis() {
               pl: "0 !important",
               pr: 0.5,
               "@container options-main (min-width: 760px)": {
-                maxHeight: "calc(100vh - 420px)",
-                minHeight: 420,
+                position: "sticky",
+                top: 24,
+                maxHeight: "calc(100vh - 48px)",
               },
             }}
           >
