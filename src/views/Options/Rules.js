@@ -219,11 +219,16 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
       cancelText: i18n("cancel"),
     });
     if (confirmed) {
-      rules.del(rule.pattern);
+      try {
+        await rules.del(rule.pattern);
+      } catch (err) {
+        kissLog("delete rule", err);
+        alert.error(i18n("error_got_some_wrong"));
+      }
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const nextErrors = {};
     if (!pattern.trim()) {
@@ -240,18 +245,23 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
       return;
     }
 
-    if (editMode) {
-      setDisabled(true);
-      const patch = ruleEditPatch(rule, formValues);
-      if (Object.keys(patch).length > 0) {
-        rules.put(rule.pattern, patch);
+    try {
+      if (editMode) {
+        const patch = ruleEditPatch(rule, formValues);
+        if (Object.keys(patch).length > 0) {
+          await rules.put(rule.pattern, patch);
+          alert.success(i18n("save_success"));
+        }
+        setDisabled(true);
+      } else {
+        await rules.add(formValues);
         alert.success(i18n("save_success"));
+        setShow(false);
+        setFormValues(initialFormValues);
       }
-    } else {
-      rules.add(formValues);
-      alert.success(i18n("save_success"));
-      setShow(false);
-      setFormValues(initialFormValues);
+    } catch (err) {
+      kissLog("save rule", err);
+      alert.error(i18n("error_got_some_wrong"));
     }
   };
 
@@ -473,16 +483,17 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
 
             {isGlobalRule && (
               <Grid item xs={12} sm={12} md={6} lg={6}>
-                <TextField
+                <ValidationInput
                   size="small"
                   fullWidth
+                  isFloat
+                  min={0}
                   name="transOnlyRevertDelay"
                   value={transOnlyRevertDelay}
                   label={i18n("transonly_revert_delay")}
                   disabled={disabled}
                   onChange={handleChange}
-                  type="number"
-                  inputProps={{ min: 0, step: 0.1 }}
+                  inputProps={{ step: 0.1 }}
                 />
               </Grid>
             )}
@@ -797,10 +808,15 @@ function RuleAccordion({ rule, rules, isExpanded = false }) {
           rule.pattern
         ),
       }}
-      onChange={(event) => {
+      onChange={async (event) => {
         const enabled = event.target.checked;
-        rules.put(rule.pattern, { enabled });
-        alert.success(i18n(enabled ? "rule_enabled" : "rule_disabled"));
+        try {
+          await rules.put(rule.pattern, { enabled });
+          alert.success(i18n(enabled ? "rule_enabled" : "rule_disabled"));
+        } catch (err) {
+          kissLog("toggle rule", err);
+          alert.error(i18n("error_got_some_wrong"));
+        }
       }}
     />
   ) : null;
@@ -874,8 +890,13 @@ function UserRules({ rules }) {
       cancelText: i18n("cancel"),
     });
     if (isConfirmed) {
-      rules.clear();
-      alert.success(i18n("clear_success"));
+      try {
+        await rules.clear();
+        alert.success(i18n("clear_success"));
+      } catch (err) {
+        kissLog("clear rules", err);
+        alert.error(i18n("error_got_some_wrong"));
+      }
     }
   };
 

@@ -148,10 +148,11 @@ function ValidationInput({
     }
     e.preventDefault();
 
-    const parsed = Number(String(localValue ?? "").trim());
-    const fallback = Number.isFinite(Number(value))
-      ? Number(value)
-      : (min ?? 0);
+    const trimmed = String(localValue ?? "").trim();
+    const parsed = trimmed !== "" ? Number(trimmed) : NaN;
+    const hasPropValue = value !== "" && value !== null && value !== undefined;
+    const parsedProp = hasPropValue ? Number(value) : NaN;
+    const fallback = Number.isFinite(parsedProp) ? parsedProp : (min ?? 0);
     const base = Number.isFinite(parsed) ? parsed : fallback;
     const parsedStep = Number(propStep);
     const step =

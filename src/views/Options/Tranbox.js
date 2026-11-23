@@ -24,7 +24,7 @@ import {
   OPT_SKIPLANGS_SELECTION,
 } from "../../config";
 import ShortcutInput from "./ShortcutInput";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { limitNumber } from "../../libs/utils";
 import { useTranbox } from "../../hooks/Tranbox";
 import { isExt } from "../../libs/client";
@@ -56,6 +56,7 @@ const INTERACT_MODES = [
 export default function Tranbox() {
   const i18n = useI18n();
   const { tranboxSetting, updateTranbox } = useTranbox();
+  const [blacklistDraft, setBlacklistDraft] = useState(null);
   const shortcutMap = useOverviewShortcuts({ tranboxSetting });
   const { enabledApis, aiEnabledApis } = useApiList();
   const { prompts } = usePromptList();
@@ -494,8 +495,13 @@ export default function Tranbox() {
               label={i18n("blacklist")}
               helperText={i18n("pattern_helper")}
               name="blacklist"
-              value={blacklist}
-              onChange={handleChange}
+              value={blacklistDraft ?? blacklist}
+              onChange={(e) => setBlacklistDraft(e.target.value)}
+              onBlur={(e) => {
+                const value = e.target.value;
+                setBlacklistDraft(null);
+                if (value !== blacklist) updateTranbox({ blacklist: value });
+              }}
               maxRows={10}
               multiline
             />

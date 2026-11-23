@@ -6,7 +6,7 @@ import CodeField from "./CodeField";
 import TextField from "@mui/material/TextField";
 import { useMouseHoverSetting } from "../../hooks/MouseHover";
 import { useApiList, getApiDisplayName } from "../../hooks/Api";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { limitNumber } from "../../libs/utils";
 import {
   DEFAULT_MOUSEHOVER_KEY,
@@ -59,6 +59,8 @@ export default function MouseHoverSetting() {
   const i18n = useI18n();
   const { mouseHoverSetting, updateMouseHoverSetting } = useMouseHoverSetting();
   const { enabledApis } = useApiList();
+  const [blacklistDraft, setBlacklistDraft] = useState(null);
+  const [bubbleStyleDraft, setBubbleStyleDraft] = useState(null);
 
   const handleShortcutInput = useCallback(
     (val) => {
@@ -104,20 +106,6 @@ export default function MouseHoverSetting() {
     [updateMouseHoverSetting]
   );
 
-  const handleBlacklistChange = useCallback(
-    (e) => {
-      updateMouseHoverSetting({ blacklist: e.target.value });
-    },
-    [updateMouseHoverSetting]
-  );
-
-  const handleBubbleStyleChange = useCallback(
-    (e) => {
-      updateMouseHoverSetting({ bubbleStyle: e.target.value });
-    },
-    [updateMouseHoverSetting]
-  );
-
   const {
     useMouseHover = true,
     mouseHoverKey = DEFAULT_MOUSEHOVER_KEY,
@@ -133,6 +121,16 @@ export default function MouseHoverSetting() {
     apiSlug = GLOBAL_KEY,
     bubbleStyle = DEFAULT_MOUSE_HOVER_BUBBLE_STYLE,
   } = mouseHoverSetting;
+  const blacklistValue = blacklistDraft ?? blacklist;
+  const commitBlacklist = (value) => {
+    setBlacklistDraft(null);
+    if (value !== blacklist) updateMouseHoverSetting({ blacklist: value });
+  };
+  const bubbleStyleValue = bubbleStyleDraft ?? bubbleStyle;
+  const commitBubbleStyle = (value) => {
+    setBubbleStyleDraft(null);
+    if (value !== bubbleStyle) updateMouseHoverSetting({ bubbleStyle: value });
+  };
 
   const selectedApiSlug = enabledApis.some((api) => api.apiSlug === apiSlug)
     ? apiSlug
@@ -342,8 +340,9 @@ export default function MouseHoverSetting() {
               label={i18n("mousehover_bubble_style")}
               helperText={i18n("mousehover_bubble_style_helper")}
               name="bubbleStyle"
-              value={bubbleStyle}
-              onChange={handleBubbleStyleChange}
+              value={bubbleStyleValue}
+              onChange={(e) => setBubbleStyleDraft(e.target.value)}
+              onBlur={(e) => commitBubbleStyle(e.target.value)}
               maxRows={12}
             />
           )}
@@ -357,8 +356,9 @@ export default function MouseHoverSetting() {
           label={i18n("blacklist")}
           helperText={i18n("pattern_helper")}
           name="blacklist"
-          value={blacklist}
-          onChange={handleBlacklistChange}
+          value={blacklistValue}
+          onChange={(e) => setBlacklistDraft(e.target.value)}
+          onBlur={(e) => commitBlacklist(e.target.value)}
           maxRows={10}
           multiline
         />

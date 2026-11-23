@@ -194,38 +194,72 @@ export const formatFontSizeFromSlider = (fontSize, val) => {
   return `clamp(${(val * minRatio).toFixed(2)}${fontSize.unit}, ${val}${fontSize.preferredUnit}, ${(val * maxRatio).toFixed(2)}${fontSize.unit})`;
 };
 
-/**
- * 从 CSS 的 padding 声明中解析出上下和左右内边距
- */
-export const parsePadding = (paddingStr) => {
-  if (!paddingStr) return { vertical: 0.5, horizontal: 1, unit: "em" };
-
-  const parts = paddingStr.trim().split(/\s+/);
-  if (parts.length === 1) {
-    const match = parts[0].match(/([\d.]+)(\w+)/);
-    if (match) {
-      return {
-        vertical: parseFloat(match[1]),
-        horizontal: parseFloat(match[1]),
-        unit: match[2],
-      };
-    }
-  } else if (parts.length >= 2) {
-    const vMatch = parts[0].match(/([\d.]+)(\w+)/);
-    const hMatch = parts[1].match(/([\d.]+)(\w+)/);
-    if (vMatch && hMatch) {
-      return {
-        vertical: parseFloat(vMatch[1]),
-        horizontal: parseFloat(hMatch[1]),
-        unit: vMatch[2],
-      };
-    }
+const buildPaddingRange = (vertical, horizontal, unit) => {
+  const normalizedUnit = String(unit || "em").toLowerCase();
+  if (normalizedUnit === "px") {
+    return {
+      vertical,
+      horizontal,
+      unit: normalizedUnit,
+      verticalMax: Math.max(32, vertical),
+      horizontalMax: Math.max(48, horizontal),
+      step: 1,
+    };
   }
-  return { vertical: 0.5, horizontal: 1, unit: "em" };
+  if (normalizedUnit === "%") {
+    return {
+      vertical,
+      horizontal,
+      unit: normalizedUnit,
+      verticalMax: Math.max(10, vertical),
+      horizontalMax: Math.max(15, horizontal),
+      step: 0.5,
+    };
+  }
+  return {
+    vertical,
+    horizontal,
+    unit: normalizedUnit,
+    verticalMax: Math.max(2, vertical),
+    horizontalMax: Math.max(3, horizontal),
+    step: 0.1,
+  };
 };
 
 /**
- * 将常见的 CSS 颜色名转化成十六进制颜色代码
+ * 从 CSS 的 padding 声明中解析出上下和左右内边距及滑块范围
+ */
+export const parsePadding = (paddingStr) => {
+  if (!paddingStr) return buildPaddingRange(0.5, 1, "em");
+
+  const parts = paddingStr.trim().split(/\s+/);
+  const parseToken = (token) => {
+    const match = token.match(/^([\d.]+)([a-z%]*)$/i);
+    if (!match) return null;
+    const value = parseFloat(match[1]);
+    if (!Number.isFinite(value)) return null;
+    const unit = match[2] ? match[2].toLowerCase() : "";
+    if (!unit && value !== 0) return null;
+    return { value, unit };
+  };
+
+  if (parts.length === 1) {
+    const parsed = parseToken(parts[0]);
+    if (parsed) {
+      return buildPaddingRange(parsed.value, parsed.value, parsed.unit || "em");
+    }
+  } else if (parts.length >= 2) {
+    const v = parseToken(parts[0]);
+    const h = parseToken(parts[1]);
+    if (v && h) {
+      return buildPaddingRange(v.value, h.value, v.unit || h.unit || "em");
+    }
+  }
+  return buildPaddingRange(0.5, 1, "em");
+};
+
+/**
+ * 将常见的 CSS 颜色值规范为 `<input type="color">` 可接受的 7 位十六进制颜色代码
  */
 export const colorToHex = (colorStr) => {
   if (!colorStr) return "#ffffff";
@@ -243,10 +277,21 @@ export const colorToHex = (colorStr) => {
     orange: "#ffa500",
     transparent: "#ffffff",
   };
-  const lower = colorStr.toLowerCase().trim();
+  const lower = String(colorStr).toLowerCase().trim();
   if (namedColors[lower]) return namedColors[lower];
-  if (colorStr.startsWith("#")) return colorStr;
-  const rgba = parseRgba(colorStr);
+  if (lower.startsWith("#")) {
+    if (/^#[0-9a-f]{3}$/.test(lower) || /^#[0-9a-f]{4}$/.test(lower)) {
+      return `#${lower[1]}${lower[1]}${lower[2]}${lower[2]}${lower[3]}${lower[3]}`;
+    }
+    if (/^#[0-9a-f]{6}$/.test(lower)) {
+      return lower;
+    }
+    if (/^#[0-9a-f]{8}$/.test(lower)) {
+      return lower.slice(0, 7);
+    }
+    return "#ffffff";
+  }
+  const rgba = parseRgba(lower);
   if (rgba) return rgbToHex(rgba.r, rgba.g, rgba.b);
   return "#ffffff";
 };

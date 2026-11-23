@@ -54,6 +54,7 @@ import { resolveApiPromptSettings } from "../../config/prompt";
 import { apiTranslate } from "../../apis";
 import { fetchModelCatalog } from "../../libs/modelList";
 import { testApiConnection } from "../../libs/testConnection";
+import { kissLog } from "../../libs/log";
 import { getPresetModels } from "../../config/presetModels";
 import Box from "@mui/material/Box";
 import ReusableAutocomplete from "./ReusableAutocomplete";
@@ -629,7 +630,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const nextFormData = { ...activeFormData };
     if (isBuiltinUnsupported) {
       nextFormData.isDisabled = true;
@@ -648,9 +649,14 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
         })
       );
     }
-    setFormData(nextFormData);
-    update(nextFormData);
-    alert.success(i18n("save_success"));
+    try {
+      await update(nextFormData);
+      setFormData(nextFormData);
+      alert.success(i18n("save_success"));
+    } catch (err) {
+      kissLog("save api setting", err);
+      alert.error(i18n("error_got_some_wrong"));
+    }
   };
 
   const handleDiscard = () => {
@@ -666,10 +672,15 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
       cancelText: i18n("cancel"),
     });
     if (!isConfirmed) return;
-    // Drop the draft so the form follows the API produced by reset.
-    setFormData(null);
-    reset();
-    alert.success(i18n("restore_default_success"));
+    try {
+      await reset();
+      // Drop the draft so the form follows the API produced by reset.
+      setFormData(null);
+      alert.success(i18n("restore_default_success"));
+    } catch (err) {
+      kissLog("reset api setting", err);
+      alert.error(i18n("error_got_some_wrong"));
+    }
   };
 
   const handleCopy = () => {
@@ -687,7 +698,12 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
     });
 
     if (isConfirmed) {
-      deleteApi(apiSlug);
+      try {
+        await deleteApi(apiSlug);
+      } catch (err) {
+        kissLog("delete api setting", err);
+        alert.error(i18n("error_got_some_wrong"));
+      }
     }
   };
 

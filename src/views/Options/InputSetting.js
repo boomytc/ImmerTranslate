@@ -12,7 +12,7 @@ import {
 } from "../../config";
 import ShortcutInput from "./ShortcutInput";
 import { useInputRule } from "../../hooks/InputRule";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import { limitNumber } from "../../libs/utils";
 import {
@@ -49,14 +49,7 @@ export default function InputSetting() {
   const i18n = useI18n();
   const { inputRule, updateInputRule } = useInputRule();
   const { enabledApis } = useApiList();
-
-  const handleChange = (e) => {
-    e.preventDefault();
-    const { name, value } = e.target;
-    updateInputRule({
-      [name]: value,
-    });
-  };
+  const [blacklistDraft, setBlacklistDraft] = useState(null);
 
   const handleShortcutInput = useCallback(
     (val) => {
@@ -77,6 +70,11 @@ export default function InputSetting() {
     showDot,
     blacklist = "",
   } = inputRule;
+  const blacklistValue = blacklistDraft ?? blacklist;
+  const commitBlacklist = (value) => {
+    setBlacklistDraft(null);
+    if (value !== blacklist) updateInputRule({ blacklist: value });
+  };
   const normalizedTriggerTime = normalizeTriggerTime(triggerTime);
 
   const apiOptions = enabledApis.map((api) => ({
@@ -225,8 +223,9 @@ export default function InputSetting() {
           label={i18n("blacklist")}
           helperText={i18n("pattern_helper")}
           name="blacklist"
-          value={blacklist}
-          onChange={handleChange}
+          value={blacklistValue}
+          onChange={(e) => setBlacklistDraft(e.target.value)}
+          onBlur={(e) => commitBlacklist(e.target.value)}
           maxRows={10}
           multiline
         />

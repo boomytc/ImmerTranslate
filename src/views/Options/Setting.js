@@ -231,6 +231,9 @@ export default function Settings() {
         return;
       }
       await updateSetting({ ...imported, version: CURRENT_SETTINGS_VERSION });
+      setBlacklistDraft(null);
+      setOrilistDraft(null);
+      setCsplistDraft(null);
       if (isExt) {
         if (imported.contextMenuType !== undefined) {
           sendBgMsg(MSG_CONTEXT_MENUS, imported.contextMenuType);
@@ -277,6 +280,18 @@ export default function Settings() {
   const commitBlacklist = (value) => {
     setBlacklistDraft(null);
     if (value !== blacklist) updateSetting({ blacklist: value });
+  };
+  const [orilistDraft, setOrilistDraft] = useState(null);
+  const orilistValue = orilistDraft ?? orilist;
+  const commitOrilist = (value) => {
+    setOrilistDraft(null);
+    if (value !== orilist) updateField("orilist", value);
+  };
+  const [csplistDraft, setCsplistDraft] = useState(null);
+  const csplistValue = csplistDraft ?? csplist;
+  const commitCsplist = (value) => {
+    setCsplistDraft(null);
+    if (value !== csplist) updateField("csplist", value);
   };
 
   // 悬浮球显隐：全局开关只改 isHide，两个名单各自保持含义。
@@ -524,8 +539,9 @@ export default function Settings() {
                   label={i18n("disabled_orilist")}
                   helperText={i18n("pattern_helper")}
                   name="orilist"
-                  value={orilist}
-                  onChange={(e) => updateField("orilist", e.target.value)}
+                  value={orilistValue}
+                  onChange={(e) => setOrilistDraft(e.target.value)}
+                  onBlur={(e) => commitOrilist(e.target.value)}
                   multiline
                 />
                 <TextField
@@ -534,8 +550,9 @@ export default function Settings() {
                   label={i18n("disabled_csplist")}
                   helperText={`${i18n("pattern_helper")} ${i18n("disabled_csplist_helper")}`}
                   name="csplist"
-                  value={csplist}
-                  onChange={(e) => updateField("csplist", e.target.value)}
+                  value={csplistValue}
+                  onChange={(e) => setCsplistDraft(e.target.value)}
+                  onBlur={(e) => commitCsplist(e.target.value)}
                   multiline
                 />
               </Stack>

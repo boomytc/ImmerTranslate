@@ -57,13 +57,15 @@ export default function UploadButton({
   };
 
   return (
-    <Button
-      size="small"
-      variant="outlined"
-      onClick={handleClick}
-      startIcon={<FileUploadIcon />}
-    >
-      {text}
+    <>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={handleClick}
+        startIcon={<FileUploadIcon />}
+      >
+        {text}
+      </Button>
       <input
         type="file"
         accept={fileExts.join(", ")}
@@ -71,6 +73,6 @@ export default function UploadButton({
         onChange={onChange}
         hidden
       />
-    </Button>
+    </>
   );
 }

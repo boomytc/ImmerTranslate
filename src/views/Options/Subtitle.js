@@ -999,8 +999,8 @@ export default function SubtitleSetting() {
                         aria-label={`${i18n("padding", "Padding")} ${i18n("vertical", "Vertical")}`}
                         value={windowPadding.vertical}
                         min={0}
-                        max={2}
-                        step={0.1}
+                        max={windowPadding.verticalMax}
+                        step={windowPadding.step}
                         onChange={(_e, val) => {
                           updateWindowCss(
                             "padding",
@@ -1017,8 +1017,8 @@ export default function SubtitleSetting() {
                         aria-label={`${i18n("padding", "Padding")} ${i18n("horizontal", "Horizontal")}`}
                         value={windowPadding.horizontal}
                         min={0}
-                        max={3}
-                        step={0.1}
+                        max={windowPadding.horizontalMax}
+                        step={windowPadding.step}
                         onChange={(_e, val) => {
                           updateWindowCss(
                             "padding",

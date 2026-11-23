@@ -94,6 +94,7 @@ export default function SyncSetting() {
   const [showOldEncryptKey, setShowOldEncryptKey] = useState(false);
   const [showNewEncryptKey, setShowNewEncryptKey] = useState(false);
   const [showConfirmEncryptKey, setShowConfirmEncryptKey] = useState(false);
+  const [fieldDrafts, setFieldDrafts] = useState({});
   const syncMethodRefs = useRef([]);
   const { reloadSetting } = useSetting();
 
@@ -113,12 +114,45 @@ export default function SyncSetting() {
     }
   };
 
-  const handleChange = async (e) => {
-    e.preventDefault();
+  const handleFieldChange = (e) => {
     const { name, value } = e.target;
-    await updateSync({
+    setFieldDrafts((prev) => ({
+      ...prev,
       [name]: value,
+    }));
+  };
+
+  const commitField = async (name, value) => {
+    setFieldDrafts((prev) => {
+      if (!(name in prev)) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
     });
+    if (value !== (sync?.[name] ?? "")) {
+      try {
+        await updateSync({ [name]: value });
+      } catch (err) {
+        kissLog("save sync field", err);
+        alert.error(getSyncErrorMessage(err));
+      }
+    }
+  };
+
+  const flushFieldDrafts = async () => {
+    const patch = {};
+    ["syncUrl", "syncUser", "syncKey"].forEach((field) => {
+      if (
+        field in fieldDrafts &&
+        fieldDrafts[field] !== (sync?.[field] ?? "")
+      ) {
+        patch[field] = fieldDrafts[field];
+      }
+    });
+    setFieldDrafts({});
+    if (Object.keys(patch).length > 0) {
+      await updateSync(patch);
+    }
   };
 
   const handleSyncTypeChange = async (syncTypeValue) => {
@@ -158,6 +192,7 @@ export default function SyncSetting() {
     e.preventDefault();
     try {
       setLoading(true);
+      await flushFieldDrafts();
       await syncSettingAndRules();
       reloadSetting();
       alert.success(i18n("sync_success"));
@@ -175,14 +210,17 @@ export default function SyncSetting() {
       const base64Config = encodeBase64Utf8(
         JSON.stringify({
           syncType,
-          syncUrl,
-          syncUser,
-          syncKey,
+          syncUrl: syncUrlValue,
+          syncUser: syncUserValue,
+          syncKey: syncKeyValue,
           syncEncryptKey,
         })
       );
       const shareString = `${OPT_SYNCTOKEN_PERFIX}${base64Config}`;
       await navigator.clipboard.writeText(shareString);
+      void flushFieldDrafts().catch((err) => {
+        kissLog("flush sync drafts", err);
+      });
       alert.success(i18n("copy_success"));
     } catch (error) {
       kissLog("Failed to copy share string to clipboard", error);
@@ -224,6 +262,7 @@ export default function SyncSetting() {
           syncKey: updatedConfig.syncKey || "",
           syncEncryptKey: updatedConfig.syncEncryptKey || "",
         });
+        setFieldDrafts({});
         alert.success(i18n("import_success"));
       } else {
         alert.error(i18n("sync_share_invalid"));
@@ -280,16 +319,19 @@ export default function SyncSetting() {
       return;
     }
 
+    const wasChange = encryptKeyDialogMode === "change";
     try {
       setSavingEncryptKey(true);
-      if (encryptKeyDialogMode === "change") {
+      await flushFieldDrafts();
+      if (wasChange) {
+        // changeSyncEncryptKey 已以 preserveDestination 持久化并广播，避免重复写入递增 destinationRevision。
         await changeSyncEncryptKey({
           oldEncryptKey,
           newEncryptKey,
         });
+      } else {
+        await updateSync({ syncEncryptKey: newEncryptKey });
       }
-      await updateSync({ syncEncryptKey: newEncryptKey });
-      const wasChange = encryptKeyDialogMode === "change";
       setEncryptKeyDialogMode(null);
       alert.success(
         wasChange
@@ -330,8 +372,13 @@ export default function SyncSetting() {
     });
     if (!confirmed) return;
 
-    await updateSync({ syncEncryptKey: "" });
-    alert.success(i18n("clear_sync_encrypt_key_success"));
+    try {
+      await updateSync({ syncEncryptKey: "" });
+      alert.success(i18n("clear_sync_encrypt_key_success"));
+    } catch (err) {
+      kissLog("clear sync encrypt key", err);
+      alert.error(getSyncErrorMessage(err));
+    }
   };
 
   if (!sync) {
@@ -345,6 +392,9 @@ export default function SyncSetting() {
     syncKey = "",
     syncEncryptKey = "",
   } = sync;
+  const syncUrlValue = fieldDrafts.syncUrl ?? syncUrl;
+  const syncUserValue = fieldDrafts.syncUser ?? syncUser;
+  const syncKeyValue = fieldDrafts.syncKey ?? syncKey;
   const isGistSync = syncType === OPT_SYNCTYPE_GIST;
   const selectedSyncMethodIndex = OPT_SYNCTYPE_ALL.indexOf(syncType);
   const tabbableSyncMethodIndex =
@@ -413,8 +463,9 @@ export default function SyncSetting() {
             size="small"
             label={i18n("data_sync_url")}
             name="syncUrl"
-            value={syncUrl}
-            onChange={handleChange}
+            value={syncUrlValue}
+            onChange={handleFieldChange}
+            onBlur={(e) => void commitField("syncUrl", e.target.value)}
           />
         )}
 
@@ -423,8 +474,9 @@ export default function SyncSetting() {
             size="small"
             label={i18n("data_sync_user")}
             name="syncUser"
-            value={syncUser}
-            onChange={handleChange}
+            value={syncUserValue}
+            onChange={handleFieldChange}
+            onBlur={(e) => void commitField("syncUser", e.target.value)}
           />
         )}
 
@@ -433,8 +485,9 @@ export default function SyncSetting() {
           type={showSyncKey ? "text" : "password"}
           label={i18n("data_sync_key")}
           name="syncKey"
-          value={syncKey}
-          onChange={handleChange}
+          value={syncKeyValue}
+          onChange={handleFieldChange}
+          onBlur={(e) => void commitField("syncKey", e.target.value)}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
@@ -525,8 +578,8 @@ export default function SyncSetting() {
             size="small"
             variant="contained"
             disabled={
-              (!isGistSync && !syncUrl) ||
-              !syncKey ||
+              (!isGistSync && !syncUrlValue) ||
+              !syncKeyValue ||
               !syncEncryptKey ||
               loading
             }

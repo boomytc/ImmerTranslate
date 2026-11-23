@@ -26,7 +26,7 @@ export default function OverviewHero() {
   const activeApi = globalRule
     ? transApis.find((api) => api.apiSlug === globalRule.apiSlug)
     : null;
-  const noUsableService = Boolean(globalRule) && usableApis.length === 0;
+  const noUsableService = usableApis.length === 0;
   const serviceName = !globalRule
     ? "—"
     : noUsableService
