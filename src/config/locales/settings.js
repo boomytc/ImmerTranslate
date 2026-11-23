@@ -160,7 +160,7 @@ export const SETTINGS_I18N = {
     en: `Delete translation service "{name}"?`,
   },
   api_sponsor: {
-    zh: `推荐`,
+    zh: `赞助`,
     en: `Sponsor`,
   },
   api_url: {

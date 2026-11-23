@@ -17,9 +17,35 @@ function hasOpenTranboxPopup(event) {
   return Boolean(shadowRoot?.querySelector('[role="listbox"], [role="menu"]'));
 }
 
+function isTranboxLocked(hideClickAway) {
+  if (typeof hideClickAway === "boolean") {
+    return !hideClickAway;
+  }
+  const shadowRoot = document.getElementById(APP_CONSTS.boxID)?.shadowRoot;
+  return Boolean(shadowRoot?.querySelector('[data-kt-tranbox-lock="true"]'));
+}
+
+function isEventInsideTranbox(event) {
+  const host = document.getElementById(APP_CONSTS.boxID);
+  if (!host) return false;
+  const path =
+    typeof event?.composedPath === "function" ? event.composedPath() : [];
+  if (
+    path.includes(host) ||
+    (host.shadowRoot && path.includes(host.shadowRoot))
+  ) {
+    return true;
+  }
+  const activeElement = document.activeElement;
+  return Boolean(
+    activeElement && (activeElement === host || host.contains(activeElement))
+  );
+}
+
 export default function useTranboxShortcuts({
   showBox,
   setShowBox,
+  hideClickAway,
   handleToggleTranbox,
   handleOpenTranbox,
 }) {
@@ -51,7 +77,8 @@ export default function useTranboxShortcuts({
     };
   }, [handleToggle, handleOpenTranbox]);
 
-  // 翻译面板打开时按 Escape 关闭，避让输入法组合态及面板内已打开的下拉/溢出菜单
+  // 翻译面板打开时在捕获阶段监听 Escape 关闭（避免全屏输入框阻断冒泡），
+  // 同时避让输入法组合态、面板内下拉/溢出菜单，以及已锁定且焦点在宿主页面时的按键。
   useEffect(() => {
     if (!showBox) return undefined;
 
@@ -66,14 +93,17 @@ export default function useTranboxShortcuts({
       if (hasOpenTranboxPopup(event)) {
         return;
       }
+      if (isTranboxLocked(hideClickAway) && !isEventInsideTranbox(event)) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       setShowBox(false);
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [showBox, setShowBox]);
+  }, [hideClickAway, showBox, setShowBox]);
 }

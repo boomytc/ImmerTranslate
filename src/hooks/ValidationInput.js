@@ -1,6 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import TextField from "@mui/material/TextField";
 import { limitNumber, limitFloat } from "../libs/utils";
+import { useI18n } from "./I18n";
+
+function getDecimalPlaces(step) {
+  const text = String(step);
+  const dotIndex = text.indexOf(".");
+  return dotIndex === -1 ? 0 : text.length - dotIndex - 1;
+}
+
+function clampNumber(num, min, max, isFloat) {
+  const boundedMin = min !== undefined ? min : -Infinity;
+  const boundedMax = max !== undefined ? max : Infinity;
+  return isFloat
+    ? limitFloat(num, boundedMin, boundedMax)
+    : limitNumber(num, boundedMin, boundedMax);
+}
 
 /**
  * 带输入数值验证的文本框 React 组件
@@ -10,6 +25,7 @@ function ValidationInput({
   value, // 外部传入绑定的值
   onChange, // 状态变更回调
   onBlur,
+  onKeyDown,
   name, // 字段键名
   min, // 最小值约束
   max, // 最大值约束
@@ -19,11 +35,14 @@ function ValidationInput({
   helperText,
   ...props // 其他传递给 TextField 的属性
 }) {
+  const i18n = useI18n();
   const [localValue, setLocalValue] = useState(() =>
     value === undefined || value === null ? "" : String(value)
   );
-  const [rangeError, setRangeError] = useState("");
+  const [validationError, setValidationError] = useState("");
   const lastEmittedRef = useRef(undefined);
+  const { step: propStep, ...restInputProps } = inputProps || {};
+  const allowNegative = min === undefined || min < 0;
 
   // 仅在外部 prop 真正变化（而非本组件刚刚同步的值回流）时重置草稿，避免输入小数点等中间态跳动
   useEffect(() => {
@@ -33,8 +52,23 @@ function ValidationInput({
     }
     lastEmittedRef.current = undefined;
     setLocalValue(value === undefined || value === null ? "" : String(value));
-    setRangeError("");
+    setValidationError("");
   }, [value]);
+
+  const formatRangeError = () => {
+    if (min !== undefined && max !== undefined) {
+      return i18n("validation_range")
+        .replace("{min}", min)
+        .replace("{max}", max);
+    }
+    if (min !== undefined) {
+      return i18n("validation_min").replace("{min}", min);
+    }
+    if (max !== undefined) {
+      return i18n("validation_max").replace("{max}", max);
+    }
+    return "";
+  };
 
   const emitValue = (nextValue) => {
     lastEmittedRef.current = nextValue;
@@ -54,33 +88,91 @@ function ValidationInput({
 
     const trimmed = raw.trim();
     if (trimmed === "") {
-      setRangeError("");
+      setValidationError("");
+      return;
+    }
+
+    if (trimmed === "-") {
+      if (allowNegative) {
+        setValidationError("");
+      } else {
+        setValidationError(
+          formatRangeError() || i18n("validation_number_invalid")
+        );
+      }
+      return;
+    }
+
+    if (isFloat && (trimmed === "." || (allowNegative && trimmed === "-."))) {
+      setValidationError("");
+      return;
+    }
+
+    if (!isFloat && /^[+-]?\d+\.\d*$/.test(trimmed)) {
+      setValidationError(i18n("validation_integer_only"));
       return;
     }
 
     const numValue = Number(trimmed);
     if (!Number.isFinite(numValue)) {
+      setValidationError(i18n("validation_number_invalid"));
+      return;
+    }
+
+    if (!isFloat && !Number.isInteger(numValue)) {
+      setValidationError(i18n("validation_integer_only"));
       return;
     }
 
     const belowMin = min !== undefined && numValue < min;
     const aboveMax = max !== undefined && numValue > max;
     if (belowMin || aboveMax) {
-      if (min !== undefined && max !== undefined) {
-        setRangeError(`${min} - ${max}`);
-      } else if (min !== undefined) {
-        setRangeError(`>= ${min}`);
-      } else {
-        setRangeError(`<= ${max}`);
-      }
+      setValidationError(formatRangeError());
       return;
     }
 
-    setRangeError("");
-    if (isFloat || Number.isInteger(numValue)) {
-      if (!Object.is(numValue, value)) {
-        emitValue(numValue);
-      }
+    setValidationError("");
+    if (!Object.is(numValue, value)) {
+      emitValue(numValue);
+    }
+  };
+
+  // 兼容键盘上下键按步长调整数值，保持与原生 number 输入一致的操作习惯
+  const handleKeyDown = (e) => {
+    onKeyDown?.(e);
+    if (e.defaultPrevented || props.disabled || restInputProps.readOnly) {
+      return;
+    }
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") {
+      return;
+    }
+    e.preventDefault();
+
+    const parsed = Number(String(localValue ?? "").trim());
+    const fallback = Number.isFinite(Number(value))
+      ? Number(value)
+      : (min ?? 0);
+    const base = Number.isFinite(parsed) ? parsed : fallback;
+    const parsedStep = Number(propStep);
+    const step =
+      Number.isFinite(parsedStep) && parsedStep > 0
+        ? parsedStep
+        : isFloat
+          ? 0.1
+          : 1;
+    const delta = e.key === "ArrowUp" ? step : -step;
+    const decimals = isFloat
+      ? Math.max(getDecimalPlaces(step), getDecimalPlaces(base))
+      : 0;
+    const rawNext = isFloat
+      ? Number((base + delta).toFixed(decimals))
+      : Math.trunc(base + delta);
+    const nextValue = clampNumber(rawNext, min, max, isFloat);
+
+    setValidationError("");
+    setLocalValue(String(nextValue));
+    if (!Object.is(nextValue, value)) {
+      emitValue(nextValue);
     }
   };
 
@@ -90,22 +182,20 @@ function ValidationInput({
     const trimmed = String(localValue ?? "").trim();
     if (trimmed === "") {
       setLocalValue(value === undefined || value === null ? "" : String(value));
-      setRangeError("");
+      setValidationError("");
       return;
     }
 
     const numValue = Number(trimmed);
     if (!Number.isFinite(numValue)) {
       setLocalValue(value === undefined || value === null ? "" : String(value));
-      setRangeError("");
+      setValidationError("");
       return;
     }
 
-    const validatedValue = isFloat
-      ? limitFloat(numValue, min, max)
-      : limitNumber(numValue, min, max);
+    const validatedValue = clampNumber(numValue, min, max, isFloat);
 
-    setRangeError("");
+    setValidationError("");
     setLocalValue(String(validatedValue));
 
     if (!Object.is(validatedValue, value)) {
@@ -116,18 +206,17 @@ function ValidationInput({
   return (
     <TextField
       {...props}
-      type="number"
+      type="text"
       name={name}
       value={localValue}
-      error={Boolean(error || rangeError)}
-      helperText={rangeError || helperText}
+      error={Boolean(error || validationError)}
+      helperText={validationError || helperText}
       onChange={handleLocalChange}
+      onKeyDown={handleKeyDown}
       onBlur={handleBlur}
       inputProps={{
-        ...inputProps,
-        min,
-        max,
-        step: inputProps?.step ?? (isFloat ? "any" : 1),
+        inputMode: isFloat ? "decimal" : "numeric",
+        ...restInputProps,
       }}
     />
   );

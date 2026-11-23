@@ -110,6 +110,7 @@ export default function Draggable({
   idleOpacity = 1,
   onStart,
   onMove,
+  onEnd,
   onDeactivate,
   onPositionTransitionEnd,
   handler, // The drag handle.
@@ -431,9 +432,10 @@ export default function Draggable({
   };
 
   // Finish dragging without forwarding the event to underlying elements.
-  const handlePointerUp = (e) => {
+  const finishDrag = (e, cancelled = false) => {
     e.stopPropagation();
-    if (snapEdge && draggedRef.current) {
+    const wasDragged = draggedRef.current;
+    if (snapEdge && wasDragged) {
       hasPendingDragSaveRef.current = true;
       const currentPosition = {
         x: latestPosition.current.x * windowWidth,
@@ -449,7 +451,17 @@ export default function Draggable({
       setEdge(nextEdge);
       latestEdge.current = nextEdge;
     }
+    draggedRef.current = false;
     setOrigin(null);
+    onEnd?.({ dragged: wasDragged, cancelled });
+  };
+
+  const handlePointerUp = (e) => {
+    finishDrag(e, false);
+  };
+
+  const handlePointerCancel = (e) => {
+    finishDrag(e, true);
   };
 
   const handleClick = (e) => {
@@ -494,7 +506,7 @@ export default function Draggable({
     onPointerDown: handlePointerDown,
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
-    onPointerCancel: handlePointerUp,
+    onPointerCancel: handlePointerCancel,
   };
 
   return (

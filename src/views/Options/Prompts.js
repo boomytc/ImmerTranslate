@@ -28,6 +28,7 @@ import Typography from "@mui/material/Typography";
 import { useConfirm } from "../../hooks/Confirm";
 import { useAlert } from "../../hooks/Alert";
 import { useI18n } from "../../hooks/I18n";
+import { kissLog } from "../../libs/log";
 import {
   INPUT_PLACE_DESCRIPTION,
   INPUT_PLACE_CONTEXT,
@@ -208,6 +209,7 @@ function PromptFields({
   const alert = useAlert();
   const confirm = useConfirm();
   const [formData, setFormData] = useState(() => normalizePrompt(prompt));
+  const [saving, setSaving] = useState(false);
   const lastSyncedPromptRef = useRef(JSON.stringify(normalizePrompt(prompt)));
   const promptDisplayName = getPromptDisplayName(prompt, i18n);
   const systemPromptRef = useRef(null);
@@ -246,9 +248,18 @@ function PromptFields({
     }));
   };
 
-  const handleSave = () => {
-    onSave(formData);
-    alert.success(i18n("save_success"));
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave(formData);
+      alert.success(i18n("save_success"));
+    } catch (error) {
+      kissLog("save prompt", error);
+      alert.error(i18n("error_got_some_wrong"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDiscard = () => {
@@ -399,7 +410,7 @@ function PromptFields({
           size="small"
           variant="contained"
           onClick={handleSave}
-          disabled={!isModified}
+          disabled={!isModified || saving}
           startIcon={<SaveIcon />}
         >
           {i18n("save")}

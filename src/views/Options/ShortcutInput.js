@@ -36,15 +36,24 @@ export default function ShortcutInput({
     setIsEditing(false);
   }, []);
 
-  // 提交并保存录入的快捷键组合，并退出编辑状态
+  // 提交并保存录入的快捷键组合，并退出编辑状态；未修改时不触发冗余 onChange
   const commitChanges = useCallback(
     (keysToCommit = editingKeys) => {
       if (!editingRef.current) return;
-      const nextKeys = hasCapturedRef.current
-        ? keysToCommit
-        : originalKeysRef.current;
+      const captured = hasCapturedRef.current;
+      const previousKeys = originalKeysRef.current;
       stopEditing();
-      onChange(nextKeys);
+      if (!captured) {
+        setEditingKeys(previousKeys);
+        return;
+      }
+      const unchanged =
+        keysToCommit.length === previousKeys.length &&
+        keysToCommit.every((key, index) => key === previousKeys[index]);
+      if (unchanged) {
+        return;
+      }
+      onChange(keysToCommit);
     },
     [editingKeys, onChange, stopEditing]
   );

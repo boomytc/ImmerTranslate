@@ -16,6 +16,7 @@ import { useI18n } from "../../hooks/I18n";
 import { parseMathInText } from "../../libs/mathParse";
 import { kissLog } from "../../libs/log";
 import { selectionTranslateFailureKey } from "../../libs/pageTranslateError";
+import { canSpeak } from "../../libs/speech";
 import CopyBtn from "./CopyBtn";
 import { BrowserTtsBtn } from "./AudioBtn";
 
@@ -348,6 +349,10 @@ export default function TranCont({
       : apiSetting.apiName || apiSetting.apiSlug;
 
   const resultLabel = `${i18n("translated_text")} - ${displayName}`;
+  const hasCopyBtn = Boolean(trText);
+  const hasTtsBtn = Boolean(trText?.trim() && canSpeak());
+  const actionCount = (hasCopyBtn ? 1 : 0) + (hasTtsBtn ? 1 : 0);
+  const paddingInlineEnd = actionCount >= 2 ? 64 : actionCount === 1 ? 36 : 0;
 
   return (
     <Box className="kt-translation-result">
@@ -363,7 +368,7 @@ export default function TranCont({
           style: {
             resize: "vertical",
             boxSizing: "border-box",
-            paddingInlineEnd: 64,
+            paddingInlineEnd,
           },
           "aria-busy": loading,
           "aria-label": resultLabel,

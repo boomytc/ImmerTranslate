@@ -43,6 +43,7 @@ export class RuleEditorSession {
       patternError: "",
       error: "",
       notice: "",
+      removedCoverageSelector: "",
       picking: false,
       inspectorOpen: false,
       selected: null,
@@ -73,9 +74,14 @@ export class RuleEditorSession {
           (key) => this.draft[key] !== this.baseline[key]
         )
       : false;
+    const clearRemovedCoverage =
+      patch.notice !== undefined &&
+      patch.notice !== "removed-coverage" &&
+      patch.removedCoverageSelector === undefined;
     this.state = {
       ...this.state,
       ...patch,
+      ...(clearRemovedCoverage ? { removedCoverageSelector: "" } : {}),
       dirty,
       canSave: this.savedContext ? dirty || !this.savedContext.site : false,
       undo: !!this.undoStack.length,
@@ -617,7 +623,7 @@ export class RuleEditorSession {
         }
       }
       this.emit({
-        input: coverage ? selector : "",
+        removedCoverageSelector: coverage ? selector : "",
         notice: coverage ? "removed-coverage" : "removed",
         whole: false,
       });

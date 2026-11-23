@@ -24,6 +24,38 @@ export { getMuiSwitchStyleOverrides } from "./themeStyles";
 
 const EMPTY_THEME_OPTIONS = Object.freeze({});
 const EMPTY_GLOBAL_STYLES = Object.freeze({});
+const standaloneRootStack = [];
+let initialRootSnapshot = null;
+
+function ensureSnapshotVars(root, snapshot, cssVariables) {
+  Object.keys(cssVariables).forEach((name) => {
+    if (!snapshot.vars.has(name)) {
+      snapshot.vars.set(name, root.style.getPropertyValue(name));
+    }
+  });
+}
+
+function applyStandaloneRootEntry(root, entry) {
+  root.setAttribute("data-theme", entry.resolvedMode);
+  root.setAttribute("data-kt-m3-root", "true");
+  root.style.colorScheme = entry.resolvedMode;
+  Object.entries(entry.cssVariables).forEach(([name, value]) => {
+    root.style.setProperty(name, value);
+  });
+}
+
+function restoreRootSnapshot(root, snapshot) {
+  if (!snapshot) return;
+  if (snapshot.theme === null) root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", snapshot.theme);
+  if (snapshot.marker === null) root.removeAttribute("data-kt-m3-root");
+  else root.setAttribute("data-kt-m3-root", snapshot.marker);
+  root.style.colorScheme = snapshot.colorScheme;
+  snapshot.vars.forEach((value, name) => {
+    if (value) root.style.setProperty(name, value);
+    else root.style.removeProperty(name);
+  });
+}
 
 export default function M3Theme({
   children,
@@ -49,31 +81,40 @@ export default function M3Theme({
   useLayoutEffect(() => {
     if (!standaloneRoot || typeof document === "undefined") return undefined;
     const root = document.documentElement;
-    const prevTheme = root.getAttribute("data-theme");
-    const prevMarker = root.getAttribute("data-kt-m3-root");
-    const prevColorScheme = root.style.colorScheme;
-    const prevVars = Object.keys(cssVariables).map((name) => [
-      name,
-      root.style.getPropertyValue(name),
-    ]);
+    if (standaloneRootStack.length === 0) {
+      initialRootSnapshot = {
+        theme: root.getAttribute("data-theme"),
+        marker: root.getAttribute("data-kt-m3-root"),
+        colorScheme: root.style.colorScheme,
+        vars: new Map(),
+      };
+    }
+    ensureSnapshotVars(root, initialRootSnapshot, cssVariables);
 
-    root.setAttribute("data-theme", resolvedMode);
-    root.setAttribute("data-kt-m3-root", "true");
-    root.style.colorScheme = resolvedMode;
-    Object.entries(cssVariables).forEach(([name, value]) => {
-      root.style.setProperty(name, value);
-    });
+    const entry = { resolvedMode, cssVariables };
+    standaloneRootStack.push(entry);
+    applyStandaloneRootEntry(root, entry);
 
     return () => {
-      if (prevTheme === null) root.removeAttribute("data-theme");
-      else root.setAttribute("data-theme", prevTheme);
-      if (prevMarker === null) root.removeAttribute("data-kt-m3-root");
-      else root.setAttribute("data-kt-m3-root", prevMarker);
-      root.style.colorScheme = prevColorScheme;
-      prevVars.forEach(([name, value]) => {
-        if (value) root.style.setProperty(name, value);
-        else root.style.removeProperty(name);
-      });
+      const index = standaloneRootStack.lastIndexOf(entry);
+      if (index !== -1) {
+        standaloneRootStack.splice(index, 1);
+      }
+      if (standaloneRootStack.length > 0) {
+        const top = standaloneRootStack[standaloneRootStack.length - 1];
+        Object.keys(entry.cssVariables).forEach((name) => {
+          if (!Object.prototype.hasOwnProperty.call(top.cssVariables, name)) {
+            const initialValue = initialRootSnapshot?.vars.get(name);
+            if (initialValue) root.style.setProperty(name, initialValue);
+            else root.style.removeProperty(name);
+          }
+        });
+        applyStandaloneRootEntry(root, top);
+        return;
+      }
+      const snapshot = initialRootSnapshot;
+      initialRootSnapshot = null;
+      restoreRootSnapshot(root, snapshot);
     };
   }, [cssVariables, resolvedMode, standaloneRoot]);
 

@@ -181,7 +181,9 @@ export default function TranslationPanelHeader({
         {setHideClickAway && (
           <IconButton
             title={i18n("btn_tip_click_away")}
+            aria-label={i18n("btn_tip_click_away")}
             aria-pressed={!hideClickAway}
+            data-kt-tranbox-lock={String(!hideClickAway)}
             onClick={() => setHideClickAway((pre) => !pre)}
           >
             {hideClickAway ? <LockOpenIcon /> : <LockIcon />}

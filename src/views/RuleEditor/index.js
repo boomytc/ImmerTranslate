@@ -212,7 +212,7 @@ function Notice({ session, state, t }) {
   return (
     <Alert severity="info" onClose={() => session.emit({ notice: "" })}>
       {t(state.notice)}
-      {state.notice === "removed-coverage" && (
+      {state.notice === "removed-coverage" && state.removedCoverageSelector && (
         <Button
           disabled={state.saving || state.loading}
           onClick={() =>
@@ -220,7 +220,7 @@ function Notice({ session, state, t }) {
               ignoreSelector: [
                 ...new Set([
                   ...session.list("ignoreSelector"),
-                  ...splitSelectorList(state.input),
+                  ...splitSelectorList(state.removedCoverageSelector),
                 ]),
               ].join(", "),
             })

@@ -273,38 +273,57 @@ function TestButton({ api }) {
 
 /**
  * 敏感文本输入框。
- * 默认掩码展示，聚焦编辑或点击显隐按钮时展示明文，兼容单行与多行密钥输入。
+ * 默认掩码展示，显隐按钮与实际明文展示态保持一致，兼容单行与多行密钥输入。
  */
 function SensitiveTextField({
   value = "",
   onChange,
+  onFocus,
+  onBlur,
+  multiline = false,
   inputProps,
   InputProps,
   toggleLabel,
   ...props
 }) {
   const i18n = useI18n();
-  const [editing, setEditing] = useState(false);
   const [visible, setVisible] = useState(false);
-  const showPlainText = editing || visible;
-  const displayValue = showPlainText
-    ? value
-    : String(value)
-        .split("\n")
-        .map((line) => (line ? "•".repeat(Math.min(line.length, 24)) : ""))
-        .join("\n");
+  const displayValue =
+    !multiline || visible
+      ? value
+      : String(value)
+          .split("\n")
+          .map((line) => (line ? "•".repeat(Math.min(line.length, 24)) : ""))
+          .join("\n");
   const fieldName = toggleLabel || i18n("api_key");
+  const toggleActionLabel = `${i18n(visible ? "hide" : "show")} ${fieldName}`;
+
+  const handleFocus = (e) => {
+    onFocus?.(e);
+    if (multiline) {
+      setVisible(true);
+    }
+  };
+
+  const handleBlur = (e) => {
+    onBlur?.(e);
+    if (multiline) {
+      setVisible(false);
+    }
+  };
 
   return (
     <TextField
       {...props}
+      multiline={multiline}
+      type={multiline ? undefined : visible ? "text" : "password"}
       value={displayValue}
-      onFocus={() => setEditing(true)}
-      onBlur={() => setEditing(false)}
-      onChange={showPlainText ? onChange : undefined}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onChange={!multiline || visible ? onChange : undefined}
       inputProps={{
         ...inputProps,
-        readOnly: !showPlainText,
+        readOnly: multiline ? !visible : inputProps?.readOnly,
       }}
       InputProps={{
         ...InputProps,
@@ -313,7 +332,9 @@ function SensitiveTextField({
             <IconButton
               size="small"
               edge="end"
-              aria-label={`${i18n(visible ? "hide" : "show")} ${fieldName}`}
+              title={toggleActionLabel}
+              aria-label={toggleActionLabel}
+              aria-pressed={visible}
               onClick={() => setVisible((prev) => !prev)}
               onMouseDown={(e) => e.preventDefault()}
             >

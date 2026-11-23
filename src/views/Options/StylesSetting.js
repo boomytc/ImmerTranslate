@@ -22,6 +22,7 @@ import {
 import { css } from "@emotion/css";
 import { normalizeUiLang } from "../../config/i18n";
 import { useSetting } from "../../hooks/Setting";
+import { kissLog } from "../../libs/log";
 import {
   SettingsCard,
   SettingsRow,
@@ -41,6 +42,7 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
   const i18n = useI18n();
   const alert = useAlert();
   const [formData, setFormData] = useState(() => customStyle || {});
+  const [saving, setSaving] = useState(false);
   const lastSyncedStyleRef = useRef(JSON.stringify(customStyle || {}));
   const confirm = useConfirm();
 
@@ -68,9 +70,21 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
     }));
   };
 
-  const handleSave = () => {
-    updateStyle(customStyle.styleSlug, toPersistedCustomStyle(formData));
-    alert.success(i18n("save_success"));
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await updateStyle(
+        customStyle.styleSlug,
+        toPersistedCustomStyle(formData)
+      );
+      alert.success(i18n("save_success"));
+    } catch (error) {
+      kissLog("save custom style", error);
+      alert.error(i18n("error_got_some_wrong"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -132,7 +146,7 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
             size="small"
             variant="contained"
             onClick={handleSave}
-            disabled={!isModified}
+            disabled={!isModified || saving}
           >
             {i18n("save")}
           </Button>

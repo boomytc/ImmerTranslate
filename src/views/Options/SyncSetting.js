@@ -59,7 +59,15 @@ function encodeBase64Utf8(str) {
 function decodeBase64Utf8(base64) {
   const binary = atob(base64);
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      // 兼容旧版直接 btoa(json) 生成的 Latin-1 分享码，避免非 ASCII 字符被替换为 U+FFFD。
+      return binary;
+    }
+    throw error;
+  }
 }
 
 const EMPTY_ENCRYPT_ERROR = { field: "", message: "" };

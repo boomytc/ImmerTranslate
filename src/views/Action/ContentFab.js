@@ -137,7 +137,6 @@ export function ContentFabContent({
   );
   const opensMenu = fabClickAction !== 1;
   const windowSize = useWindowSize();
-  const [moved, setMoved] = useState(false); // Track whether a drag occurred.
   const [showFab, setShowFab] = useState(true);
   const [open, setOpen] = useState(false); // Action menu visibility.
   const [pageRule, setPageRule] = useState(null);
@@ -146,6 +145,8 @@ export function ContentFabContent({
   const menuRef = useRef(null);
   const popperRef = useRef(null);
   const undoTimerRef = useRef(null);
+  const suppressDragClickRef = useRef(false);
+  const suppressDragClickTimerRef = useRef(null);
   const pendingDomainRef = useRef("");
   const savedConfirmedRef = useRef(false);
   const removedExceptionsRef = useRef([]);
@@ -161,12 +162,21 @@ export function ContentFabContent({
     holdReleaseRef.current = null;
   }, []);
 
+  const clearDragClickSuppression = useCallback(() => {
+    suppressDragClickRef.current = false;
+    if (suppressDragClickTimerRef.current !== null) {
+      window.clearTimeout(suppressDragClickTimerRef.current);
+      suppressDragClickTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       if (undoTimerRef.current) window.clearTimeout(undoTimerRef.current);
+      clearDragClickSuppression();
       releaseVisibilityHold();
     };
-  }, [releaseVisibilityHold]);
+  }, [clearDragClickSuppression, releaseVisibilityHold]);
 
   useEffect(() => {
     if (!getFabPageState) return undefined;
@@ -386,14 +396,39 @@ export function ContentFabContent({
 
   // Handle the start of a drag without changing ordinary click behavior.
   const handleStart = useCallback(() => {
-    setMoved(false);
-  }, []);
+    clearDragClickSuppression();
+  }, [clearDragClickSuppression]);
 
   // Close the menu before its transformed anchor moves away from it.
   const handleMove = useCallback(() => {
-    setMoved(true);
+    clearDragClickSuppression();
+    suppressDragClickRef.current = true;
     closeMenu(true);
-  }, [closeMenu]);
+  }, [clearDragClickSuppression, closeMenu]);
+
+  // Reset drag click suppression after pointer end or cancellation so later keyboard clicks work.
+  const handleEnd = useCallback(
+    ({ dragged = false, cancelled = false } = {}) => {
+      if (!dragged || cancelled) {
+        clearDragClickSuppression();
+        return;
+      }
+      if (suppressDragClickTimerRef.current !== null) {
+        window.clearTimeout(suppressDragClickTimerRef.current);
+      }
+      // 仅屏蔽紧随拖拽释放后的指针 click；若浏览器未派发尾随 click，在当前任务后自动复位。
+      suppressDragClickTimerRef.current = window.setTimeout(() => {
+        suppressDragClickRef.current = false;
+        suppressDragClickTimerRef.current = null;
+      }, 0);
+    },
+    [clearDragClickSuppression]
+  );
+
+  const handleDeactivate = useCallback(() => {
+    clearDragClickSuppression();
+    closeMenu();
+  }, [clearDragClickSuppression, closeMenu]);
 
   // Run an action and close the menu.
   const runAction = useCallback(
@@ -420,33 +455,40 @@ export function ContentFabContent({
     }
   }, [closeMenu]);
 
-  // Ignore clicks after dragging to prevent accidental activation.
-  const handleClick = useCallback(() => {
-    if (moved) {
-      return;
-    }
-    // fabClickAction === 1 keeps the legacy direct translation action.
-    if (!opensMenu) {
-      runAction(MSG_TRANS_TOGGLE);
-      return;
-    }
-    setOpen((current) => !current);
-  }, [moved, opensMenu, runAction]);
+  // Ignore pointer clicks immediately trailing a drag while keeping keyboard activation responsive.
+  const handleClick = useCallback(
+    (event) => {
+      if (suppressDragClickRef.current) {
+        clearDragClickSuppression();
+        if (event?.detail !== 0) {
+          return;
+        }
+      }
+      // fabClickAction === 1 keeps the legacy direct translation action.
+      if (!opensMenu) {
+        runAction(MSG_TRANS_TOGGLE);
+        return;
+      }
+      setOpen((current) => !current);
+    },
+    [clearDragClickSuppression, opensMenu, runAction]
+  );
 
-  // Close the menu on Escape from any control inside the panel and return focus to the FAB.
+  // Close the menu on Escape from either the FAB anchor or any control inside the panel.
   const handlePanelKeyDown = useCallback(
     (event) => {
-      if (event.key !== "Escape") return;
+      if (!open || event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
       closeMenu(true);
     },
-    [closeMenu]
+    [closeMenu, open]
   );
 
   // Close the menu when keyboard focus leaves both the panel and the FAB anchor.
   const handlePanelBlur = useCallback(
     (event) => {
+      if (!open) return;
       const nextTarget = event.relatedTarget;
       if (
         !nextTarget ||
@@ -457,7 +499,7 @@ export function ContentFabContent({
       }
       closeMenu();
     },
-    [closeMenu]
+    [closeMenu, open]
   );
 
   // Position the FAB at the viewport edge and vertical center on first load.
@@ -508,7 +550,8 @@ export function ContentFabContent({
         show={showFab}
         onStart={handleStart}
         onMove={handleMove}
-        onDeactivate={closeMenu}
+        onEnd={handleEnd}
+        onDeactivate={handleDeactivate}
         onPositionTransitionEnd={updateMenuPosition}
         handler={
           <FloatingButton
@@ -524,6 +567,8 @@ export function ContentFabContent({
             }
             aria-label={i18n("translate")}
             onClick={handleClick}
+            onKeyDown={handlePanelKeyDown}
+            onBlur={handlePanelBlur}
           />
         }
       >

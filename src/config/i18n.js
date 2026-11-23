@@ -1647,8 +1647,8 @@ export const I18N = {
     en: `Fetch model list`,
   },
   byok_key_help: {
-    zh: `Key 仅保存在本机浏览器中，不会上传到外部服务器。`,
-    en: `Your key is stored locally in this browser and is never uploaded.`,
+    zh: `默认保存在本机，不会上传至开发者服务器。`,
+    en: `Saved locally by default and never uploaded to developer servers.`,
   },
   get_api_key: {
     zh: `获取 API Key`,
@@ -1663,8 +1663,8 @@ export const I18N = {
     en: `Key Required`,
   },
   api_key_missing_tip: {
-    zh: `此服务需要配置 API Key 才能使用。如尚未获取，可点击上方「获取 API Key」前往官方控制台申请。`,
-    en: `This service requires an API key. If you do not have one yet, click "Get API Key" above to open the provider console.`,
+    zh: `此服务需要配置 API Key 才能使用，请前往对应服务商控制台获取后填入。`,
+    en: `This service requires an API key. Obtain one from the provider console and enter it above.`,
   },
   service_category_ai: {
     zh: `AI 模型`,
@@ -1911,8 +1911,8 @@ export const I18N = {
     en: `Placeholder`,
   },
   btn_tip_click_away: {
-    zh: `失焦隐藏/显示`,
-    en: `Loss of focus hide/show`,
+    zh: `锁定翻译框（点击外部不关闭）`,
+    en: `Keep open on outside click`,
   },
   btn_tip_follow_selection: {
     zh: `跟随/固定模式`,
@@ -2389,6 +2389,26 @@ export const I18N = {
   zdic_fr: {
     zh: `法`,
     en: `FR`,
+  },
+  validation_range: {
+    zh: `允许范围：{min} - {max}`,
+    en: `Valid range: {min} - {max}`,
+  },
+  validation_min: {
+    zh: `不能小于 {min}`,
+    en: `Must be at least {min}`,
+  },
+  validation_max: {
+    zh: `不能大于 {max}`,
+    en: `Must be at most {max}`,
+  },
+  validation_integer_only: {
+    zh: `请输入整数`,
+    en: `Enter an integer`,
+  },
+  validation_number_invalid: {
+    zh: `请输入有效数字`,
+    en: `Enter a valid number`,
   },
 };
 
