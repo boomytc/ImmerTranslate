@@ -16,7 +16,13 @@ export const isIframe = window.self !== window.top;
  */
 export const sendIframeMsg = (action, args) => {
   document.querySelectorAll("iframe").forEach((iframe) => {
-    iframe.contentWindow.postMessage({ action, args }, "*");
+    const targetWindow = iframe?.contentWindow;
+    if (!targetWindow) return;
+    try {
+      targetWindow.postMessage({ action, args }, "*");
+    } catch {
+      // Ignore detached or sandboxed iframes that reject postMessage.
+    }
   });
 };
 
@@ -58,17 +64,51 @@ export function applyParentRuntime(rule, state) {
   };
 }
 
+function isChildFrameSource(win, source) {
+  if (!win || !source || source === win) return false;
+  const seen = new Set([source]);
+  let current = source;
+  try {
+    while (current) {
+      const parent = current.parent;
+      if (!parent || parent === current) break;
+      if (parent === win) return true;
+      if (seen.has(parent)) break;
+      seen.add(parent);
+      current = parent;
+    }
+  } catch {
+    // Parent traversal may be restricted in unusual sandboxes; fall back below.
+  }
+  try {
+    for (let i = 0; i < win.length; i += 1) {
+      if (win[i] === source) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export function replyFrameRuntime(event, state) {
   if (event?.data?.action !== MSG_FRAME_RUNTIME_QUERY) return false;
+  const hostWindow = event.currentTarget || window;
+  if (!isChildFrameSource(hostWindow, event.source)) return false;
   const requestId = event.data.requestId;
-  event.source?.postMessage(
-    {
-      action: MSG_FRAME_RUNTIME_STATE,
-      requestId,
-      ...frameRuntimeState(state),
-    },
-    "*"
-  );
+  const targetOrigin =
+    event.origin && event.origin !== "null" ? event.origin : "*";
+  try {
+    event.source.postMessage(
+      {
+        action: MSG_FRAME_RUNTIME_STATE,
+        requestId,
+        ...frameRuntimeState(state),
+      },
+      targetOrigin
+    );
+  } catch {
+    return false;
+  }
   return true;
 }
 
@@ -91,7 +131,10 @@ export function queryParentFrameRuntime(timeout = 300, frameWindow = window) {
 
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return new Promise((resolve) => {
+    let settled = false;
     const finish = (value) => {
+      if (settled) return;
+      settled = true;
       frameWindow.clearTimeout(timer);
       frameWindow.removeEventListener("message", onMessage);
       resolve(value);
@@ -117,6 +160,13 @@ export function queryParentFrameRuntime(timeout = 300, frameWindow = window) {
     };
     const timer = frameWindow.setTimeout(() => finish(null), timeout);
     frameWindow.addEventListener("message", onMessage);
-    topWindow.postMessage({ action: MSG_FRAME_RUNTIME_QUERY, requestId }, "*");
+    try {
+      topWindow.postMessage(
+        { action: MSG_FRAME_RUNTIME_QUERY, requestId },
+        "*"
+      );
+    } catch {
+      finish(null);
+    }
   });
 }

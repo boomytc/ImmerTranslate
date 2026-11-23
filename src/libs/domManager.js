@@ -12,6 +12,8 @@ import { logger } from "./log";
 export default class DomManager {
   #hostElement = null;
   #reactRoot = null;
+  #emotionCache = null;
+  #boundHide = null;
   #isVisible = false;
   #isProcessing = false;
 
@@ -36,6 +38,7 @@ export default class DomManager {
     this._ReactComponent = reactComponent;
     this._props = props;
     this._rootElement = rootElement;
+    this.#boundHide = this.hide.bind(this);
   }
 
   get isVisible() {
@@ -62,6 +65,8 @@ export default class DomManager {
       } finally {
         this.#isProcessing = false;
       }
+    } else if (props) {
+      this.updateProps(props);
     }
 
     this.#hostElement.style.display = "";
@@ -96,6 +101,7 @@ export default class DomManager {
 
     this.#hostElement = null;
     this.#reactRoot = null;
+    this.#emotionCache = null;
     this.#isVisible = false;
     this.#isProcessing = false;
     logger.info(`Component with id "${this._id}" has been destroyed.`);
@@ -114,24 +120,27 @@ export default class DomManager {
   }
 
   /**
-   * 更新组件 props（仅在组件已挂载时有效）
-   * // REVIEW: 内部属性未更新隐患。在 updateProps() 执行中，虽然成功调用了渲染器更新 DOM 上的组件，
-   * // 但并没有将新的 newProps 同步更新到实例的 `this._props` 中。
-   * // 导致后续如果通过 `toggle()` 或不传参数的 `show()` 再次显示组件时，
-   * // 仍会读取到挂载初期在构造器中传入的旧 props 引用，产生数据不同步的 BUG。
+   * 更新组件 props（同步更新实例记录，已挂载时复用已有 Emotion cache 并保留 onClose）
    * @param {Object} newProps - 新的 props
    */
   updateProps(newProps) {
+    this._props = newProps;
     if (this.#reactRoot && this.#hostElement) {
       const ComponentToRender = this._ReactComponent;
-      const cache = createCache({
-        key: this._id,
-        prepend: true,
-      });
+      if (!this.#emotionCache) {
+        this.#emotionCache = createCache({
+          key: this._id,
+          prepend: true,
+        });
+      }
+      const enhancedProps = {
+        ...(this._props || {}),
+        onClose: this.#boundHide,
+      };
       this.#reactRoot.render(
         <React.StrictMode>
-          <CacheProvider value={cache}>
-            <ComponentToRender {...newProps} />
+          <CacheProvider value={this.#emotionCache}>
+            <ComponentToRender {...enhancedProps} />
           </CacheProvider>
         </React.StrictMode>
       );
@@ -143,6 +152,7 @@ export default class DomManager {
    * @private
    */
   #mount(props) {
+    this._props = props;
     const host = document.createElement("div");
     host.id = this._id;
     if (this._className) {
@@ -152,21 +162,21 @@ export default class DomManager {
     this._rootElement.appendChild(host);
     this.#hostElement = host;
 
-    const cache = createCache({
+    this.#emotionCache = createCache({
       key: this._id,
       prepend: true,
     });
 
     const enhancedProps = {
-      ...props,
-      onClose: this.hide.bind(this),
+      ...(props || {}),
+      onClose: this.#boundHide,
     };
 
     const ComponentToRender = this._ReactComponent;
     this.#reactRoot = ReactDOM.createRoot(host);
     this.#reactRoot.render(
       <React.StrictMode>
-        <CacheProvider value={cache}>
+        <CacheProvider value={this.#emotionCache}>
           <ComponentToRender {...enhancedProps} />
         </CacheProvider>
       </React.StrictMode>

@@ -132,13 +132,21 @@ function isZeroWidthOnlyPattern(key) {
         continue;
       }
       i += 1;
-      // 命名组 (?<name> ：头部 "?<name>" 中的 ? < 与名字、> 均为语法字符
+      // 命名组 (?<name>、非捕获组 (?: 与内联修饰符组 (?i: 头部均为语法字符
       if (key[i] === "?") {
         i += 1;
-        if (key[i] === "<" && key[i + 1] !== "=" && key[i + 1] !== "!") {
+        if (key[i] === ":") {
+          i += 1;
+        } else if (key[i] === "<" && key[i + 1] !== "=" && key[i + 1] !== "!") {
           i += 1;
           while (i < n && key[i] !== ">") i += 1;
           i += 1; // 越过 >
+        } else {
+          let j = i;
+          while (j < n && "ims-".includes(key[j])) j += 1;
+          if (key[j] === ":") {
+            i = j + 1;
+          }
         }
       }
       continue;
@@ -514,7 +522,11 @@ export function buildTermsRegex(parsedTerms) {
   if (terms.length === 0) return null;
   const patterns = terms.map((t) => t.pattern).filter(Boolean);
   if (patterns.length === 0) return null;
-  return new RegExp(patterns.join("|"), "g");
+  try {
+    return new RegExp(patterns.join("|"), "g");
+  } catch {
+    return null;
+  }
 }
 
 /**

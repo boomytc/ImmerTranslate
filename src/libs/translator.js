@@ -45,7 +45,9 @@ import { builtinStylesMap, genTextClass } from "./style";
 import {
   applyInlineCss,
   applySourceTypography,
+  applyWrapperLayout,
   BILINGUAL_TYPOGRAPHY_PROPERTIES,
+  clearInlineCss,
   clearPageTranslationChrome,
   ensurePageTranslationChromeStyle,
   PAGE_TRANSLATION_CHROME_CSS,
@@ -111,6 +113,41 @@ function resolveHoverBubbleStyle(userStyle) {
 
 function createApisMap(apis = []) {
   return new Map((apis || []).map((api) => [api.apiSlug, api]));
+}
+
+const BASIC_HTML_ENTITIES = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00a0",
+};
+
+// 单趟解码常见 HTML 实体而不解析标签，避免纯文本译文中的 <T> 等泛型被当标签吞掉
+function decodeBasicHTMLEntities(text) {
+  if (typeof text !== "string" || !text.includes("&")) return text;
+  return text.replace(
+    /&(amp|lt|gt|quot|apos|nbsp|#(\d+)|#x([0-9a-fA-F]+));/g,
+    (match, name, dec, hex) => {
+      if (Object.prototype.hasOwnProperty.call(BASIC_HTML_ENTITIES, name)) {
+        return BASIC_HTML_ENTITIES[name];
+      }
+      const codePoint = dec ? parseInt(dec, 10) : parseInt(hex, 16);
+      if (
+        Number.isFinite(codePoint) &&
+        codePoint >= 0 &&
+        codePoint <= 0x10ffff
+      ) {
+        try {
+          return String.fromCodePoint(codePoint);
+        } catch {
+          return match;
+        }
+      }
+      return match;
+    }
+  );
 }
 
 export class Translator {
@@ -342,7 +379,12 @@ export class Translator {
     }
 
     // 降级回滚：调用 getComputedStyle 进行高开销的布局样式计算
-    const isBlock = !window.getComputedStyle(el).display.startsWith("inline");
+    const display = window.getComputedStyle(el).display;
+    if (!display || display === "none" || display === "contents") {
+      // 隐藏态/无盒态不写入缓存，避免把 display: none 误判并锁死为块级
+      return false;
+    }
+    const isBlock = !display.startsWith("inline");
     Translator.displayCache.set(el, isBlock);
     return isBlock;
   }
@@ -418,6 +460,7 @@ export class Translator {
   #textClass = {}; // 译文样式class
   #lastActiveTextStyle = null; // 上次选中的有效译文样式
   #textSheet = null;
+  #shadowRoots = new Set(); // 已注入 #textSheet 的 ShadowRoot 集合，用于设置热更新同步
   #apisMap = new Map(); // 用于接口快速查找
 
   #observedNodes = new WeakSet(); // 存储所有被识别出的、可翻译的 DOM 节点单元
@@ -428,6 +471,13 @@ export class Translator {
   #skipMoNodes = new WeakSet(); // 忽略变化的节点
   #ignoredMutationTargets = new WeakSet(); // 临时忽略扩展自身 DOM 调整产生的变化
   #plainTextPreprocessingNodes = new WeakSet(); // 正在流式预处理的纯文本 pre
+  #plainTextPreStates = new Map(); // 正在流式预处理的 pre -> 分批状态，用于中断回填
+  #activeErrorPanelCleanups = new Set(); // 活动错误浮层的清理回调集合
+  #wrapperErrorCleanups = new WeakMap(); // wrapper -> 对应错误浮层的清理回调
+  #savedRuleStyles = new WeakMap(); // 节点 -> 注入规则样式前的原始 style.cssText 与引用计数
+  #styledElements = new Set(); // 当前持有注入规则样式的节点集合
+  #boundDomReadyHandler = null; // DOMContentLoaded 监听引用，stop 时解绑
+  #translatedTitle = null; // 最近一次由扩展写入的译文标题，防 SPA 标题变更误覆盖
 
   #removeKeydownHandler; // 快捷键清理函数
   #removeKeydownHandler2; // 备用快捷键清理函数
@@ -643,10 +693,11 @@ export class Translator {
       return Translator.KISS_IGNORE_SELECTOR;
     }
 
-    const selectors = [Translator.KISS_IGNORE_SELECTOR];
-    if (rule.autoScan !== "false") {
-      selectors.push(Translator.BUILTIN_IGNORE_SELECTOR);
-    }
+    // 安全类 BUILTIN_IGNORE_SELECTOR 在 autoScan === "false" 时依然无条件生效
+    const selectors = [
+      Translator.KISS_IGNORE_SELECTOR,
+      Translator.BUILTIN_IGNORE_SELECTOR,
+    ];
 
     const userSelector = rule.ignoreSelector?.trim();
     if (userSelector) {
@@ -683,7 +734,7 @@ export class Translator {
   }
 
   #appendCssText(node, cssText, label) {
-    if (typeof cssText !== "string" || !cssText.trim()) return;
+    if (typeof cssText !== "string" || !cssText.trim()) return false;
 
     try {
       const style = node?.style;
@@ -692,13 +743,75 @@ export class Translator {
         typeof style !== "object" ||
         typeof style.cssText !== "string"
       ) {
-        return;
+        return false;
       }
 
-      style.cssText = `${style.cssText || ""}${cssText}`;
+      const trimmedCss = cssText.trim();
+      let record = this.#savedRuleStyles.get(node);
+      if (!record) {
+        record = {
+          originalCssText: style.cssText,
+          hadStyleAttr: node.hasAttribute?.("style") ?? Boolean(style.cssText),
+          refCount: 0,
+          appliedCssTexts: new Set(),
+        };
+        this.#savedRuleStyles.set(node, record);
+        this.#styledElements.add(node);
+      }
+
+      record.refCount += 1;
+      if (!record.appliedCssTexts.has(trimmedCss)) {
+        const currentCss = (style.cssText || "").trim();
+        const separator =
+          currentCss && !currentCss.endsWith(";")
+            ? "; "
+            : currentCss
+              ? " "
+              : "";
+        style.cssText = `${currentCss}${separator}${trimmedCss}`;
+        record.appliedCssTexts.add(trimmedCss);
+      }
+      return true;
     } catch (err) {
       kissLog("append rule style error", label, err);
+      return false;
     }
+  }
+
+  #restoreRuleStyle(node, record) {
+    if (!node || !record) return;
+    try {
+      if (record.hadStyleAttr) {
+        node.style.cssText = record.originalCssText;
+      } else {
+        node.removeAttribute?.("style");
+      }
+    } catch (err) {
+      kissLog("restore rule style error", err);
+    }
+    this.#savedRuleStyles.delete(node);
+    this.#styledElements.delete(node);
+  }
+
+  #releaseRuleStyle(node) {
+    const record = this.#savedRuleStyles.get(node);
+    if (!record) return;
+    record.refCount -= 1;
+    if (record.refCount <= 0) {
+      this.#restoreRuleStyle(node, record);
+    }
+  }
+
+  #restoreAllRuleStyles() {
+    const elements = Array.from(this.#styledElements);
+    elements.forEach((node) => {
+      const record = this.#savedRuleStyles.get(node);
+      if (record) {
+        this.#restoreRuleStyle(node, record);
+      } else {
+        this.#styledElements.delete(node);
+      }
+    });
   }
 
   #isBlockNode(node) {
@@ -829,13 +942,39 @@ export class Translator {
     return span;
   }
 
+  #restoreInterruptedPlainTextPre(pre, state) {
+    if (!state) return;
+    const remaining =
+      (state.pendingBreaks > 0 ? "\n".repeat(state.pendingBreaks) : "") +
+      (state.offset < state.source.length
+        ? state.source.slice(state.offset)
+        : "");
+    if (remaining && pre?.isConnected) {
+      pre.appendChild(document.createTextNode(remaining));
+    }
+    if (pre?.dataset) {
+      delete pre.dataset.kissPreprocessed;
+    }
+    state.offset = state.source.length;
+    state.pendingBreaks = 0;
+    this.#plainTextPreprocessingNodes.delete(pre);
+    this.#plainTextPreStates.delete(pre);
+  }
+
+  #restoreAllInterruptedPlainTextPres() {
+    const entries = Array.from(this.#plainTextPreStates.entries());
+    entries.forEach(([pre, state]) => {
+      this.#restoreInterruptedPlainTextPre(pre, state);
+    });
+  }
+
   #appendPlainTextPreBatch(pre, state, isInitialBatch = false) {
     if (
       state.runId !== this.#runId ||
       !pre.isConnected ||
       this.#rule.isPlainText !== "true"
     ) {
-      this.#plainTextPreprocessingNodes.delete(pre);
+      this.#restoreInterruptedPlainTextPre(pre, state);
       return;
     }
 
@@ -896,12 +1035,17 @@ export class Translator {
     if (state.offset < state.source.length || state.pendingBreaks > 0) {
       scheduleIdle(() => this.#appendPlainTextPreBatch(pre, state), 100);
     } else {
+      pre.dataset.kissPreprocessed = "true";
       this.#plainTextPreprocessingNodes.delete(pre);
+      this.#plainTextPreStates.delete(pre);
     }
   }
 
   #initPlainTextPre(pre) {
-    if (pre.dataset.kissPreprocessed === "true") {
+    if (
+      pre.dataset.kissPreprocessed === "true" ||
+      this.#plainTextPreprocessingNodes.has(pre)
+    ) {
       return;
     }
 
@@ -913,8 +1057,8 @@ export class Translator {
       pendingBreaks: 0,
     };
 
-    pre.dataset.kissPreprocessed = "true";
     this.#plainTextPreprocessingNodes.add(pre);
+    this.#plainTextPreStates.set(pre, state);
     pre.replaceChildren();
     this.#appendPlainTextPreBatch(pre, state, true);
   }
@@ -1045,7 +1189,15 @@ export class Translator {
     }
 
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => this.#run());
+      this.#boundDomReadyHandler = () => {
+        this.#boundDomReadyHandler = null;
+        this.#run();
+      };
+      document.addEventListener(
+        "DOMContentLoaded",
+        this.#boundDomReadyHandler,
+        { once: true }
+      );
     } else {
       this.#run();
     }
@@ -1091,6 +1243,9 @@ export class Translator {
   }
 
   #handleWindowMessage(event) {
+    if (event.source !== window || event.origin !== window.location.origin) {
+      return;
+    }
     if (event.data?.type === MSG_SHADOW_ROOT_CREATED) {
       this.#debouncedFindShadowRoot();
     }
@@ -1145,12 +1300,113 @@ export class Translator {
   }
 
   #injectSheet(shadowRoot) {
+    if (!shadowRoot?.adoptedStyleSheets) return;
+    this.#shadowRoots.add(shadowRoot);
     if (!shadowRoot.adoptedStyleSheets.includes(this.#textSheet)) {
       shadowRoot.adoptedStyleSheets = [
         ...shadowRoot.adoptedStyleSheets,
         this.#textSheet,
       ];
     }
+  }
+
+  #syncShadowRootStyleSheets(oldSheet, newSheet) {
+    this.#shadowRoots.forEach((shadowRoot) => {
+      if (shadowRoot.host && !shadowRoot.host.isConnected) {
+        this.#shadowRoots.delete(shadowRoot);
+        return;
+      }
+      try {
+        const sheets = shadowRoot.adoptedStyleSheets.filter(
+          (sheet) => sheet !== oldSheet && sheet !== newSheet
+        );
+        shadowRoot.adoptedStyleSheets = [...sheets, newSheet];
+      } catch (err) {
+        kissLog("sync shadowRoot stylesheet error", err);
+      }
+    });
+  }
+
+  #syncRenderedStyleClasses(oldTextClass, newTextClass) {
+    const activeStyle = this.#rule.textStyle;
+    const oldTokens = (oldTextClass?.[activeStyle] || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    const newTokens = (newTextClass?.[activeStyle] || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    const styleChanged =
+      oldTokens.join(" ") !== newTokens.join(" ") &&
+      (oldTokens.length > 0 || newTokens.length > 0);
+    const newStyleCode = this.#textStyleCode(activeStyle);
+    const ownsBackground = [
+      "background",
+      "background-color",
+      "background-image",
+    ].some((property) => styleOwnsProperty(newStyleCode, property));
+
+    const origStyle = this.#rule.originalTextStyle;
+    const oldOrigTokens = (oldTextClass?.[origStyle] || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    const newOrigTokens = (newTextClass?.[origStyle] || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    const origChanged =
+      oldOrigTokens.join(" ") !== newOrigTokens.join(" ") &&
+      (oldOrigTokens.length > 0 || newOrigTokens.length > 0);
+
+    if (!styleChanged && !origChanged) return;
+
+    this.#rootNodes.forEach((root) => {
+      if (styleChanged) {
+        root
+          .querySelectorAll(`.${Translator.KISS_CLASS.warpper}`)
+          .forEach((wrapper) => {
+            const inner = wrapper.querySelector?.(
+              `:scope > .${Translator.KISS_CLASS.inner}`
+            );
+            if (!inner) return;
+            if (oldTokens.length) inner.classList.remove(...oldTokens);
+            if (newTokens.length) inner.classList.add(...newTokens);
+
+            BILINGUAL_TYPOGRAPHY_PROPERTIES.forEach((property) => {
+              if (styleOwnsProperty(newStyleCode, property)) {
+                inner.style.removeProperty(property);
+              }
+            });
+            if (
+              styleOwnsProperty(newStyleCode, "color") ||
+              styleOwnsProperty(newStyleCode, "-webkit-text-fill-color")
+            ) {
+              inner.style.removeProperty("-webkit-text-fill-color");
+            }
+            if (wrapper.parentElement) {
+              applySourceTypography(inner, wrapper.parentElement, newStyleCode);
+            }
+            if (ownsBackground) {
+              inner.style.removeProperty("background");
+              inner.style.removeProperty("background-color");
+              inner.style.removeProperty("background-image");
+              clearPageTranslationChrome(inner, { surface: false });
+            } else {
+              inner.style.removeProperty("background");
+              clearPageTranslationChrome(inner, { surface: true });
+            }
+            if (this.#rule?.textExtStyle?.trim()) {
+              applyInlineCss(inner, this.#rule.textExtStyle);
+            }
+          });
+      }
+      if (origChanged) {
+        root
+          .querySelectorAll(`.${Translator.KISS_CLASS.original}`)
+          .forEach((orig) => {
+            if (oldOrigTokens.length) orig.classList.remove(...oldOrigTokens);
+            if (newOrigTokens.length) orig.classList.add(...newOrigTokens);
+          });
+      }
+    });
   }
 
   // 解析专业术语字符串
@@ -2696,8 +2952,20 @@ export class Translator {
     }
   }
 
+  #cleanupAllErrorPanels() {
+    const cleanups = Array.from(this.#activeErrorPanelCleanups);
+    this.#activeErrorPanelCleanups.clear();
+    cleanups.forEach((cleanup) => {
+      try {
+        cleanup();
+      } catch {
+        // Ignore cleanup errors on detached nodes.
+      }
+    });
+  }
+
   // 创建带错误信息浮层的重试按钮。浮层可复制错误，并给出打开设置（接口页）的入口。
-  #createRetryErrorNode(errorText, onRetry) {
+  #createRetryErrorNode(errorText, onRetry, wrapper = null) {
     const i18n = newI18n(this.#setting.uiLang || "zh");
     const copyText = i18n("copy", "Copy");
     const isDarkMode =
@@ -2842,6 +3110,7 @@ export class Translator {
     });
 
     let hideTimer = null;
+    let isPanelBound = false;
 
     const clearHideTimer = () => {
       if (!hideTimer) return;
@@ -2852,7 +3121,7 @@ export class Translator {
     // 浮层挂到 body，避免被正文节点的 stacking context 或 overflow 裁剪。
     const updatePanelPosition = () => {
       if (!container.isConnected) {
-        hidePanel();
+        cleanupPanel();
         return;
       }
 
@@ -2878,6 +3147,10 @@ export class Translator {
     };
 
     const showPanel = () => {
+      if (!container.isConnected) {
+        cleanupPanel();
+        return;
+      }
       clearHideTimer();
       if (!panel.isConnected) {
         document.body.appendChild(panel);
@@ -2885,18 +3158,38 @@ export class Translator {
       panel.style.display = "block";
       panel.style.visibility = "hidden";
       updatePanelPosition();
-      window.addEventListener("scroll", updatePanelPosition, true);
-      window.addEventListener("resize", updatePanelPosition);
+      if (!isPanelBound) {
+        window.addEventListener("scroll", updatePanelPosition, true);
+        window.addEventListener("resize", updatePanelPosition);
+        isPanelBound = true;
+      }
     };
 
     const hidePanel = () => {
       clearHideTimer();
-      window.removeEventListener("scroll", updatePanelPosition, true);
-      window.removeEventListener("resize", updatePanelPosition);
+      if (isPanelBound) {
+        window.removeEventListener("scroll", updatePanelPosition, true);
+        window.removeEventListener("resize", updatePanelPosition);
+        isPanelBound = false;
+      }
       panel.style.display = "none";
       panel.style.visibility = "hidden";
       panel.remove();
     };
+
+    const cleanupPanel = () => {
+      hidePanel();
+      this.#activeErrorPanelCleanups.delete(cleanupPanel);
+      if (wrapper && this.#wrapperErrorCleanups.get(wrapper) === cleanupPanel) {
+        this.#wrapperErrorCleanups.delete(wrapper);
+      }
+    };
+
+    if (wrapper) {
+      this.#wrapperErrorCleanups.get(wrapper)?.();
+      this.#wrapperErrorCleanups.set(wrapper, cleanupPanel);
+    }
+    this.#activeErrorPanelCleanups.add(cleanupPanel);
 
     const hidePanelSoon = () => {
       clearHideTimer();
@@ -2934,14 +3227,14 @@ export class Translator {
     retryIcon.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      hidePanel();
+      cleanupPanel();
       onRetry();
     });
     retryIcon.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
       e.stopPropagation();
       e.preventDefault();
-      hidePanel();
+      cleanupPanel();
       onRetry();
     });
 
@@ -3006,9 +3299,8 @@ export class Translator {
       inner.lang = toLang;
       inner.className = `${Translator.KISS_CLASS.inner} ${this.#textClass[textStyle] || ""}`;
       const styleCode = this.#textStyleCode(textStyle);
-      // 站点对 font/* 的字号会截断继承。按原文宿主的计算样式写回译文，
-      // 译文样式自己声明的属性（颜色、下划线等）仍留给对应 class。
-      applySourceTypography(wrapper, hostNode, styleCode);
+      // 译文优先继承原文宿主样式，避免静态 RGB 锁死暗色/hover；译文样式自带属性留给对应 class。
+      applySourceTypography(wrapper, hostNode);
       applySourceTypography(inner, hostNode, styleCode);
       const ownsBackground = [
         "background",
@@ -3019,18 +3311,24 @@ export class Translator {
       clearPageTranslationChrome(wrapper, { surface: true });
       clearPageTranslationChrome(inner, { surface: !ownsBackground });
       if (textExtStyle?.trim()) {
-        // 规则附加样式晚于原文计算样式，并且同样用 important，避免被原文回写盖掉。
+        // 规则附加样式晚于原文继承样式，并且使用 important，避免被宿主样式盖掉。
         applyInlineCss(inner, textExtStyle);
       }
       inner.appendChild(createLoadingSVG());
 
-      // 将 <br> 作为 wrapper 的子节点，以便 toggleTranslationOnly 统一管理
-      if (options.blockDisplay) {
-        wrapper.style.display = "block";
-        wrapper.style.margin = "8px 0";
-        wrapper.style.boxSizing = "border-box";
+      // 将 <br> 或空格作为 wrapper 的子节点，以便 toggleTranslationOnly 统一管理；
+      // 同时适配宿主横向 flex / grid 布局，避免破坏列排布。
+      const { useNewline, isBlockWrapper } = applyWrapperLayout(
+        wrapper,
+        hostNode,
+        {
+          blockDisplay: Boolean(options.blockDisplay),
+          preferNewline: processedString.length > TRANS_NEWLINE_LENGTH,
+        }
+      );
+      if (isBlockWrapper) {
         wrapper.appendChild(inner);
-      } else if (processedString.length > TRANS_NEWLINE_LENGTH) {
+      } else if (useNewline) {
         const br = document.createElement("br");
         br.hidden = hideOrigin;
         if (transOrder === "translation-first") {
@@ -3185,18 +3483,17 @@ export class Translator {
         return;
       }
 
-      // 3. 将翻译后文本里的 {{1}}、<tag1> 等占位符还原为对应的 DOM 节点和 HTML 结构
-      const htmlString = this.#restoreFromTranslation(
-        translatedText,
-        placeholderMap
-      );
-
-      // REVIEW: 高安全标准的 Trusted Types 注入机制。
-      // 在页面插入 innerHTML 很容易遭受 DOM-based XSS 跨站脚本攻击。
-      // 特别是在 Chrome 扩展中强灌 innerHTML 会直接触发扩展程序的安全拦截。
-      // 此处将 htmlString 传入 trustedTypesHelper.createHTML 转化为受信任的 TrustedHTML 实例，
-      // 再安全地写入 inner.innerHTML，这完全符合现代高 CSP 标准站点的规范，非常专业。
-      const trustedHTML = trustedTypesHelper.createHTML(htmlString);
+      // 3. 无占位符时直接写入 textContent，避免 <T> 等泛型文本被 HTML 解析吞掉；
+      // 有占位符时还原对应的 DOM 节点与富文本结构并通过 Trusted Types 安全写入。
+      const hasPlaceholders = placeholderMap.size > 0;
+      const plainText = hasPlaceholders
+        ? ""
+        : decodeBasicHTMLEntities(translatedText);
+      const trustedHTML = hasPlaceholders
+        ? trustedTypesHelper.createHTML(
+            this.#restoreFromTranslation(translatedText, placeholderMap)
+          )
+        : null;
 
       await this.#queueTranslationUpdate(
         hostNode,
@@ -3208,50 +3505,63 @@ export class Translator {
             `:scope > br, :scope > .${Translator.KISS_CLASS.space}`
           );
           if (separator) separator.hidden = hideOrigin;
-          inner.innerHTML = trustedHTML;
+          if (hasPlaceholders) {
+            inner.innerHTML = trustedHTML;
+          } else {
+            inner.textContent = plainText;
+          }
 
           let originalWrapper = null;
           if (wrapOriginal === "true") {
             originalWrapper = this.#wrapOriginalNodes(nodes, originalTextStyle);
           }
 
+          // 附加样式并记录受影响节点，清理时还原原 style.cssText
+          const styledNodes = [];
+          if (this.#appendCssText(hostNode, selectStyle, "selectStyle")) {
+            styledNodes.push(hostNode);
+          }
+          if (this.#appendCssText(parentNode, parentStyle, "parentStyle")) {
+            styledNodes.push(parentNode);
+          }
+          const grandNode = parentNode?.parentElement;
+          if (this.#appendCssText(grandNode, grandStyle, "grandStyle")) {
+            styledNodes.push(grandNode);
+          }
+
           const translationData = {
             nodes,
             originalWrapper,
+            styledNodes,
             isHide: hideOrigin,
           };
           this.#translationNodes.set(wrapper, translationData);
           if (hideOrigin) {
             this.#removeOriginal(translationData, wrapper);
           }
-
-          // 附加样式
-          this.#appendCssText(hostNode, selectStyle, "selectStyle");
-          this.#appendCssText(parentNode, parentStyle, "parentStyle");
-          this.#appendCssText(
-            parentNode?.parentElement,
-            grandStyle,
-            "grandStyle"
-          );
         },
         nodes
       );
     } catch (err) {
-      // 容器已被还原移除时丢弃过期失败结果，避免 “Request terminated” 分支的
-      // #cleanupDirectTranslations(hostNode) 误删宿主上随后产生的新译文，
+      // 容器已被还原移除时丢弃过期失败结果，避免误删宿主上随后产生的新译文，
       // 也避免在已脱离文档的容器里渲染重试按钮。
       if (wrapper && !wrapper.isConnected) return;
 
       // 清空任务池或调用方取消只会中止这一轮，不能写成页面上的失败重试。
       if (err?.name === "AbortError") {
-        if (wrapper?.isConnected) wrapper.remove();
+        if (wrapper?.isConnected) {
+          this.#wrapperErrorCleanups.get(wrapper)?.();
+          wrapper.remove();
+        }
         return;
       }
 
       const errorText = this.#formatTranslateError(err);
       kissLog("translate group error: ", errorText);
       if (err?.message === "Request terminated") {
-        this.#cleanupDirectTranslations(hostNode);
+        if (wrapper?.isConnected) {
+          this.#removeTranslationElement(wrapper);
+        }
         return;
       }
 
@@ -3259,28 +3569,34 @@ export class Translator {
       const i18n = newI18n(this.#setting.uiLang || "zh");
       const userMessage = i18n(pageTranslateFailureKey(err, apiSetting));
 
-      // 失败重试按钮
+      // 失败重试按钮：直接操作当前组闭包 wrapper，避免多段并发失败时误覆盖兄弟组译文
       try {
-        const lastWrapper = hostNode.querySelector(
-          `:scope > .${Translator.KISS_CLASS.warpper}:last-of-type`
-        );
-        if (lastWrapper) {
-          const inner = lastWrapper.querySelector(
-            `.${Translator.KISS_CLASS.inner}`
+        if (wrapper?.isConnected) {
+          const inner = wrapper.querySelector(
+            `:scope > .${Translator.KISS_CLASS.inner}`
           );
           if (inner) {
             inner.textContent = "";
-            const retryNode = this.#createRetryErrorNode(userMessage, () => {
-              this.#withViewportAnchor(() => lastWrapper.remove());
-              this.#processedNodes.delete(hostNode);
-              this.#translateNodeGroup(nodes, hostNode, deLang, options);
-            });
+            const retryNode = this.#createRetryErrorNode(
+              userMessage,
+              () => {
+                this.#withViewportAnchor(() => {
+                  this.#wrapperErrorCleanups.get(wrapper)?.();
+                  wrapper.remove();
+                });
+                this.#translateNodeGroup(nodes, hostNode, deLang, options);
+              },
+              wrapper
+            );
             inner.appendChild(retryNode);
           }
         }
       } catch (retryErr) {
         kissLog("retry icon error: ", retryErr.message);
-        this.#cleanupDirectTranslations(hostNode);
+        if (wrapper?.isConnected) {
+          this.#wrapperErrorCleanups.get(wrapper)?.();
+          wrapper.remove();
+        }
       }
     }
   }
@@ -3495,8 +3811,13 @@ overflow-wrap: anywhere !important;`;
             this.#termEntries,
             (termEntry, fullMatch) => {
               const termValue = termEntry.value;
+              const safeTermsStyle = String(termsStyle || "").replace(
+                /"/g,
+                "&quot;"
+              );
+              const safeTermText = escapeHTML(termValue || fullMatch);
               return pushReplace(
-                `<i class="${Translator.KISS_CLASS.term}" style="${termsStyle}">${termValue || fullMatch}</i>`
+                `<i class="${Translator.KISS_CLASS.term}" style="${safeTermsStyle}">${safeTermText}</i>`
               );
             },
             this.#termMatcher || this.#combinedTermsRegex
@@ -3527,12 +3848,17 @@ overflow-wrap: anywhere !important;`;
           // node.matches(this.#ignoreSelector) ||
           !node.textContent.trim()
         ) {
-          if (
-            node.tagName?.toUpperCase() === "IMG" ||
-            node.tagName?.toUpperCase() === "SVG"
-          ) {
-            node.style.width = `${node.offsetWidth}px`;
-            node.style.height = `${node.offsetHeight}px`;
+          const tagName = node.tagName?.toUpperCase();
+          if (tagName === "IMG" || tagName === "SVG") {
+            const clone = node.cloneNode(true);
+            const rect = node.getBoundingClientRect?.();
+            if (rect && rect.width > 0) {
+              clone.style.width = `${rect.width}px`;
+            }
+            if (rect && rect.height > 0) {
+              clone.style.height = `${rect.height}px`;
+            }
+            return pushReplace(clone.outerHTML);
           }
           return pushReplace(node.outerHTML);
         }
@@ -3604,7 +3930,7 @@ overflow-wrap: anywhere !important;`;
   // 将翻译后的文本与之前序列化时抽离的 HTML 占位符、标签和术语映射进行合并还原，恢复原网页的富文本格式与 DOM 结构
   #restoreFromTranslation(translatedText, placeholderMap) {
     if (!placeholderMap.size) {
-      return translatedText;
+      return escapeHTML(translatedText || "");
     }
 
     if (!translatedText) return "";
@@ -3720,6 +4046,8 @@ overflow-wrap: anywhere !important;`;
   #cleanupAllNodes() {
     this.#cancelTranslationUpdates();
     this.#rootNodes.forEach((root) => this.#cleanupAllTranslations(root));
+    this.#cleanupAllErrorPanels();
+    this.#restoreAllRuleStyles();
   }
 
   #cleanupTranslationElements(elements) {
@@ -3899,6 +4227,12 @@ overflow-wrap: anywhere !important;`;
 
   // 清理译文；视口锚点由批量清理方法统一维护
   #removeTranslationElement(el) {
+    this.#wrapperErrorCleanups.get(el)?.();
+    if (this.#transOnlyRevertTarget === el) {
+      this.#clearTransOnlyRevertTimer();
+      this.#transOnlyRevertTarget = null;
+    }
+
     const parentElement = el.parentElement;
     this.#processedNodes.delete(parentElement);
 
@@ -3909,6 +4243,11 @@ overflow-wrap: anywhere !important;`;
     }
     if (data?.originalWrapper) {
       this.#unwrapOriginal(data.originalWrapper);
+    }
+    if (data?.styledNodes?.length) {
+      data.styledNodes.forEach((styledNode) =>
+        this.#releaseRuleStyle(styledNode)
+      );
     }
 
     this.#translationNodes.delete(el);
@@ -3968,6 +4307,14 @@ overflow-wrap: anywhere !important;`;
         this.#translationNodes.set(el, { ...data, isHide: true });
       } else {
         // 仅译文变为双语
+        if (this.#transOnlyRevertTarget === el) {
+          this.#clearTransOnlyRevertTimer();
+          this.#transOnlyRevertTarget = null;
+        }
+        const inner = el.querySelector(
+          `:scope > .${Translator.KISS_CLASS.inner}`
+        );
+        if (inner) inner.style.display = "";
         this.#withViewportAnchor(() => {
           if (br) br.hidden = false;
           if (space) space.hidden = false;
@@ -3978,8 +4325,26 @@ overflow-wrap: anywhere !important;`;
     });
   }
 
-  // 根据 transOrder 调整 wrapper 位置
+  // 根据 transOrder 调整 wrapper 位置以及内部 br/space 与 inner 的先后顺序
   #adjustWrapperPosition(wrapper, nodes, transOrder) {
+    const inner = wrapper.querySelector(
+      `:scope > .${Translator.KISS_CLASS.inner}`
+    );
+    const separator = wrapper.querySelector(
+      `:scope > br, :scope > .${Translator.KISS_CLASS.space}`
+    );
+    if (inner && separator) {
+      this.#withIgnoredMutations([wrapper], () => {
+        if (transOrder === "translation-first") {
+          // 译文在上：inner → br/space
+          inner.after(separator);
+        } else {
+          // 原文在上：br/space → inner
+          inner.before(separator);
+        }
+      });
+    }
+
     if (!nodes || !nodes.length) return;
 
     const { originalWrapper } = this.#translationNodes.get(wrapper) || {};
@@ -3999,22 +4364,23 @@ overflow-wrap: anywhere !important;`;
       return;
     }
 
-    // br 是 wrapper 的子节点，只需调整 wrapper 相对于原文节点的位置
-    if (transOrder === "translation-first") {
-      // 译文在上：wrapper 应在原文节点前面
-      if (firstNode.previousElementSibling !== wrapper) {
-        firstNode.before(wrapper);
+    this.#withIgnoredMutations([wrapperParent, wrapper], () => {
+      if (transOrder === "translation-first") {
+        // 译文在上：wrapper 应在原文节点前面
+        if (firstNode.previousElementSibling !== wrapper) {
+          firstNode.before(wrapper);
+        }
+      } else {
+        // 原文在上（默认）：wrapper 应在原文节点后面
+        if (lastNode.nextElementSibling !== wrapper) {
+          lastNode.after(wrapper);
+        }
       }
-    } else {
-      // 原文在上（默认）：wrapper 应在原文节点后面
-      if (lastNode.nextElementSibling !== wrapper) {
-        lastNode.after(wrapper);
-      }
-    }
+    });
   }
 
   // 更新样式
-  #updateStyle(node, oldStyle, newStyle) {
+  #updateStyle(node, oldStyle, newStyle, oldExtStyle = "") {
     if (!node || typeof node.querySelectorAll !== "function") return;
     const newStyleCode = this.#textStyleCode(newStyle);
     const ownsBackground = [
@@ -4041,11 +4407,14 @@ overflow-wrap: anywhere !important;`;
         if (newTokens.length) inner.classList.add(...newTokens);
       }
 
+      if (oldExtStyle?.trim()) {
+        clearInlineCss(inner, oldExtStyle);
+      }
+
       const hostNode = node !== wrapper ? node : wrapper.parentElement;
 
       BILINGUAL_TYPOGRAPHY_PROPERTIES.forEach((property) => {
         if (styleOwnsProperty(newStyleCode, property)) {
-          wrapper.style.removeProperty(property);
           inner.style.removeProperty(property);
         }
       });
@@ -4053,12 +4422,11 @@ overflow-wrap: anywhere !important;`;
         styleOwnsProperty(newStyleCode, "color") ||
         styleOwnsProperty(newStyleCode, "-webkit-text-fill-color")
       ) {
-        wrapper.style.removeProperty("-webkit-text-fill-color");
         inner.style.removeProperty("-webkit-text-fill-color");
       }
 
       if (hostNode) {
-        applySourceTypography(wrapper, hostNode, newStyleCode);
+        applySourceTypography(wrapper, hostNode);
         applySourceTypography(inner, hostNode, newStyleCode);
       }
 
@@ -4144,7 +4512,13 @@ overflow-wrap: anywhere !important;`;
       fromLang,
       toLang,
       hasRichText,
+      terms,
+      aiTerms,
+      termsStyle,
+      splitParagraph,
+      splitLength,
       textStyle,
+      textExtStyle,
       transOnly,
       transOrder = "original-first",
       wrapOriginal,
@@ -4155,7 +4529,13 @@ overflow-wrap: anywhere !important;`;
       appliedRule.apiSlug !== apiSlug ||
       appliedRule.fromLang !== fromLang ||
       appliedRule.toLang !== toLang ||
-      appliedRule.hasRichText !== hasRichText;
+      appliedRule.hasRichText !== hasRichText ||
+      appliedRule.terms !== terms ||
+      appliedRule.aiTerms !== aiTerms ||
+      (this.#termEntries.length > 0 && appliedRule.termsStyle !== termsStyle) ||
+      appliedRule.splitParagraph !== splitParagraph ||
+      (splitParagraph === OPT_SPLIT_PARAGRAPH_TEXTLENGTH &&
+        appliedRule.splitLength !== splitLength);
 
     // 需要重新翻译
     if (needsRefresh) {
@@ -4164,7 +4544,13 @@ overflow-wrap: anywhere !important;`;
         fromLang,
         toLang,
         hasRichText,
+        terms,
+        aiTerms,
+        termsStyle,
+        splitParagraph,
+        splitLength,
         textStyle,
+        textExtStyle,
         transOnly,
         transOrder,
         wrapOriginal,
@@ -4174,11 +4560,16 @@ overflow-wrap: anywhere !important;`;
       return;
     }
 
-    // 样式规则过时
-    if (appliedRule.textStyle !== textStyle) {
+    // 样式规则或附加样式过时
+    if (
+      appliedRule.textStyle !== textStyle ||
+      appliedRule.textExtStyle !== textExtStyle
+    ) {
       const oldStyle = appliedRule.textStyle;
+      const oldExtStyle = appliedRule.textExtStyle;
       appliedRule.textStyle = textStyle;
-      this.#updateStyle(node, oldStyle, textStyle);
+      appliedRule.textExtStyle = textExtStyle;
+      this.#updateStyle(node, oldStyle, textStyle, oldExtStyle);
     }
 
     if (appliedRule.wrapOriginal !== wrapOriginal) {
@@ -4207,8 +4598,24 @@ overflow-wrap: anywhere !important;`;
     }
   }
 
+  #syncAllTranslatedNodes() {
+    const hosts = new Set();
+    this.#rootNodes.forEach((root) => {
+      root
+        .querySelectorAll(`.${Translator.KISS_CLASS.warpper}`)
+        .forEach((wrapper) => {
+          const host = wrapper.parentElement;
+          if (host && this.#processedNodes.has(host)) {
+            hosts.add(host);
+          }
+        });
+    });
+    hosts.forEach((host) => this.#performSyncNode(host));
+  }
+
   // 停止监听，重置参数
   #resetOptions() {
+    this.#restoreAllInterruptedPlainTextPres();
     this.#cancelTranslationUpdates();
     this.#rescanQueue = new Set();
     this.#isQueueProcessing = false;
@@ -4225,6 +4632,7 @@ overflow-wrap: anywhere !important;`;
     this.#processedNodes = new WeakMap();
     this.#holdProcessGenerations = new WeakMap();
     this.#plainTextPreprocessingNodes = new WeakSet();
+    this.#plainTextPreStates.clear();
     this.#ignoredMutationTargets = new WeakSet();
     this.#io = this.#createIntersectionObserver();
   }
@@ -4300,16 +4708,31 @@ overflow-wrap: anywhere !important;`;
     this.#boundTransOnlyMouseOver = (e) => {
       if (this.#shouldUseOriginalHoverBubble()) return;
 
-      const wrapper = e.target.closest?.(`.${Translator.KISS_CLASS.warpper}`);
+      const target = e.composedPath?.()[0] || e.target;
+      const wrapper = target?.closest?.(`.${Translator.KISS_CLASS.warpper}`);
       if (wrapper) {
         const data = this.#translationNodes.get(wrapper);
         if (!data || !data.isHide) return;
         if (this.#transOnlyRevertTarget === wrapper) return;
 
         this.#clearTransOnlyRevertTimer();
-        const delay = parseFloat(this.#rule.transOnlyRevertDelay) || 0.5;
+        const parsedDelay = parseFloat(this.#rule.transOnlyRevertDelay);
+        const delay = Number.isFinite(parsedDelay)
+          ? Math.max(0, parsedDelay)
+          : 0.5;
         this.#transOnlyRevertTimer = setTimeout(() => {
-          this.#showOriginalTemporarily(wrapper, data);
+          this.#transOnlyRevertTimer = null;
+          if (
+            !wrapper.isConnected ||
+            !this.#transOnlyRevertEnabled ||
+            !this.#enabled ||
+            this.#rule.transOnly !== "true"
+          ) {
+            return;
+          }
+          const currentData = this.#translationNodes.get(wrapper);
+          if (!currentData?.isHide) return;
+          this.#showOriginalTemporarily(wrapper, currentData);
         }, delay * 1000);
         return;
       }
@@ -4319,7 +4742,7 @@ overflow-wrap: anywhere !important;`;
         if (data) {
           const origNodes = data.nodes || [];
           for (const node of origNodes) {
-            if (node === e.target || node.contains?.(e.target)) return;
+            if (node === target || node.contains?.(target)) return;
           }
         }
       }
@@ -4328,8 +4751,9 @@ overflow-wrap: anywhere !important;`;
     this.#boundTransOnlyMouseOut = (e) => {
       if (this.#shouldUseOriginalHoverBubble()) return;
 
+      const target = e.composedPath?.()[0] || e.target;
       if (!this.#transOnlyRevertTarget) {
-        const wrapper = e.target.closest?.(`.${Translator.KISS_CLASS.warpper}`);
+        const wrapper = target?.closest?.(`.${Translator.KISS_CLASS.warpper}`);
         if (wrapper) this.#clearTransOnlyRevertTimer();
         return;
       }
@@ -4392,7 +4816,16 @@ overflow-wrap: anywhere !important;`;
 
   #hideOriginalTemporarily(wrapper) {
     const data = this.#translationNodes.get(wrapper);
-    if (!data) return;
+    if (!data || data.isHide !== true || this.#rule.transOnly !== "true") {
+      const inner = wrapper?.querySelector?.(
+        `:scope > .${Translator.KISS_CLASS.inner}`
+      );
+      if (inner) inner.style.display = "";
+      if (this.#transOnlyRevertTarget === wrapper) {
+        this.#transOnlyRevertTarget = null;
+      }
+      return;
+    }
     this.#withViewportAnchor(() => {
       this.#removeOriginal(data, wrapper);
       const inner = wrapper.querySelector(
@@ -4466,18 +4899,56 @@ overflow-wrap: anywhere !important;`;
     if (isMissingRequiredApiKey(this.#apiSetting)) return;
     const runId = this.#runId;
     const docInfo = getDocInfo();
-    if (!docInfo?.title) return;
+    const originalTitle = docInfo?.title;
+    if (!originalTitle) return;
 
     try {
-      const deLang = await tryDetectLang(docInfo.title);
+      let deLang = "";
+      const { fromLang = "auto", toLang } = this.#rule;
+      const {
+        langDetector,
+        skipLangs = [],
+        translateVariants = true,
+      } = this.#setting;
+      if (fromLang === "auto") {
+        deLang = await tryDetectLang(originalTitle, langDetector);
+        if (runId !== this.#runId || this.#editorPaused) return;
+        if (
+          deLang &&
+          (isSameTranslationLanguage(deLang, toLang, translateVariants) ||
+            skipLangs.includes(deLang))
+        ) {
+          return;
+        }
+      }
+
+      const { trText, isSame } = await this.#translateFetch(
+        originalTitle,
+        deLang
+      );
       if (runId !== this.#runId || this.#editorPaused) return;
-      const { trText } = await this.#translateFetch(docInfo.title, deLang);
-      if (runId !== this.#runId || this.#editorPaused) return;
-      this.#docInfo.title = document.title; // 缓存原标题
-      document.title = trText || docInfo.title;
+      if (!trText || isSame) return;
+      // SPA 路由在翻译期间更改了标题时，不再回写旧页面译文
+      if (document.title !== originalTitle) return;
+
+      this.#docInfo.title = originalTitle;
+      this.#translatedTitle = trText;
+      document.title = trText;
     } catch (err) {
-      kissLog("tanslate title", err);
+      kissLog("translate title", err);
     }
+  }
+
+  #restoreTranslatedTitle() {
+    if (
+      this.#docInfo.title &&
+      this.#translatedTitle &&
+      document.title === this.#translatedTitle
+    ) {
+      document.title = this.#docInfo.title;
+    }
+    this.#docInfo.title = "";
+    this.#translatedTitle = null;
   }
 
   // 中止本实例这一轮翻译请求，并换一个信号给下一轮。
@@ -4489,6 +4960,8 @@ overflow-wrap: anywhere !important;`;
 
   // 关闭翻译
   disable() {
+    this.#clearTransOnlyRevertTimer();
+    this.#transOnlyRevertTarget = null;
     if (!this.#enabled) return;
     this.#enabled = false;
     this.#rule.transOpen = "false";
@@ -4496,13 +4969,10 @@ overflow-wrap: anywhere !important;`;
     // 关闭翻译时立即废弃语言检测中的按住任务
     this.#holdGeneration += 1;
 
+    this.#restoreAllInterruptedPlainTextPres();
     this.#cleanupAllNodes();
     this.#cancelOwnRequests();
-
-    // 恢复页面标题
-    if (this.#rule.transTitle === "true" && this.#docInfo.title) {
-      document.title = this.#docInfo.title;
-    }
+    this.#restoreTranslatedTitle();
 
     this.#reportsToolbarIcon && isExt && sendBgMsg(MSG_UPDATE_ICON, false);
   }
@@ -4512,6 +4982,8 @@ overflow-wrap: anywhere !important;`;
   // 无论当前是否正在翻译，都只取消本实例的请求。
   rescan() {
     if (!this.#isInitialized || this.#editorPaused) return;
+    this.#clearTransOnlyRevertTimer();
+    this.#transOnlyRevertTarget = null;
     this.#runId++;
     this.#cleanupAllNodes();
     this.#resetOptions();
@@ -4523,12 +4995,15 @@ overflow-wrap: anywhere !important;`;
 
   /**
    * 黑名单暂停本页网页翻译和观察。
-   * 只递增本翻译器的 runId / 按住代次，让自己的回调失效；
-   * 不调用 disable/rescan，因此不会清空共享请求池。
+   * 只递增本翻译器的 runId / 按住代次并取消本实例信号，让自己的回调失效；
+   * 不清空共享请求池。
    */
   pausePage() {
     if (this.#pagePaused || this.#editorPaused) return;
     this.#pagePaused = true;
+    this.#hideHoverBubble();
+    this.#clearTransOnlyRevertTimer();
+    this.#transOnlyRevertTarget = null;
     const wasEnabled = this.#enabled;
     this.#enabled = false;
     this.#rule.transOpen = "false";
@@ -4536,11 +5011,11 @@ overflow-wrap: anywhere !important;`;
       this.#runId++;
       this.#holdGeneration += 1;
       this.#cleanupAllNodes();
-      if (this.#rule.transTitle === "true" && this.#docInfo.title) {
-        document.title = this.#docInfo.title;
-      }
+      this.#restoreTranslatedTitle();
       this.#reportsToolbarIcon && isExt && sendBgMsg(MSG_UPDATE_ICON, false);
     }
+    this.#cleanupAllErrorPanels();
+    this.#cancelOwnRequests();
     this.#resetOptions();
   }
 
@@ -4637,28 +5112,66 @@ overflow-wrap: anywhere !important;`;
 
   // 停止运行
   stop({ preserveInjector = false } = {}) {
+    if (this.#boundDomReadyHandler) {
+      document.removeEventListener(
+        "DOMContentLoaded",
+        this.#boundDomReadyHandler
+      );
+      this.#boundDomReadyHandler = null;
+    }
     this.#hideHoverBubble();
     this.disable();
+    this.#cleanupAllErrorPanels();
+    this.#restoreAllRuleStyles();
     this.#resetOptions();
     this.#disableMouseHover();
     this.#disableTransOnlyRevert();
+    this.#shadowRoots.clear();
     // 编辑暂停会复用本实例；保留样式，避免恢复时重复执行初始化 JS。
     if (!preserveInjector) this.#removeInjector();
     this.#isInitialized = false;
   }
 
   updateSetting(setting) {
+    const prevCustomStyles = this.#setting.customStyles;
+    const prevMouseHoverSetting = this.#setting.mouseHoverSetting;
+
     this.#setting = { ...Translator.DEFAULT_OPTIONS, ...setting };
     if (!this.#setting.mouseHoverSetting) {
       this.#setting.mouseHoverSetting = {
         ...(Translator.DEFAULT_OPTIONS.mouseHoverSetting || {}),
       };
     }
+
+    this.#apisMap = createApisMap(this.#setting.transApis);
+    this.#placeholderCache = null;
+
+    if (
+      JSON.stringify(prevCustomStyles || []) !==
+      JSON.stringify(this.#setting.customStyles || [])
+    ) {
+      const oldTextClass = this.#textClass;
+      const oldTextSheet = this.#textSheet;
+      this.#createTextStyles();
+      this.#syncShadowRootStyleSheets(oldTextSheet, this.#textSheet);
+      this.#syncRenderedStyleClasses(oldTextClass, this.#textClass);
+    }
+
+    const mouseHoverChanged =
+      JSON.stringify(prevMouseHoverSetting || {}) !==
+      JSON.stringify(this.#setting.mouseHoverSetting || {});
     if (this.#setting.mouseHoverSetting.useMouseHover) {
-      this.#enableMouseHover();
+      if (this.#mouseHoverEnabled && mouseHoverChanged) {
+        this.#disableMouseHover();
+        this.#enableMouseHover();
+      } else if (!this.#mouseHoverEnabled) {
+        this.#enableMouseHover();
+      }
     } else {
       this.#disableMouseHover();
     }
+
+    this.#syncTransOnlyRevert();
   }
 
   // 更新规则
@@ -4668,6 +5181,7 @@ overflow-wrap: anywhere !important;`;
     }
     let hasChanged = false;
     let needsRescan = false;
+    let needsRetranslate = false;
     const oldTransAllnow = this.#transAllnow;
     const oldRootMargin = this.#rootMargin;
     for (const key in newRule) {
@@ -4688,6 +5202,19 @@ overflow-wrap: anywhere !important;`;
           key === "isPlainText"
         ) {
           needsRescan = true;
+        } else if (
+          key === "apiSlug" ||
+          key === "fromLang" ||
+          key === "toLang" ||
+          key === "hasRichText" ||
+          key === "terms" ||
+          key === "aiTerms" ||
+          key === "termsStyle" ||
+          key === "splitParagraph" ||
+          key === "splitLength"
+        ) {
+          needsRetranslate = true;
+          hasChanged = true;
         } else {
           hasChanged = true;
         }
@@ -4725,7 +5252,7 @@ overflow-wrap: anywhere !important;`;
     if (
       needsRescan ||
       needsTriggerRescan ||
-      (this.#enabled && this.#transAllnow)
+      (this.#enabled && this.#transAllnow && needsRetranslate)
     ) {
       this.rescan();
       this.#syncTransOnlyRevert();
@@ -4733,7 +5260,11 @@ overflow-wrap: anywhere !important;`;
     }
 
     if (hasChanged) {
-      this.#reIOViewNodes();
+      if (this.#enabled && this.#transAllnow) {
+        this.#syncAllTranslatedNodes();
+      } else {
+        this.#reIOViewNodes();
+      }
       this.#syncTransOnlyRevert();
     }
   }

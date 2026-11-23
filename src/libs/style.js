@@ -21,13 +21,13 @@ import {
   OPT_STYLE_WAVYLINE_BOLD,
 } from "../config";
 
-const gradientFlow = keyframes`
+const GRADIENT_FLOW_BODY = `
   to {
     background-position: 200% center;
   }
 `;
 
-const blink = keyframes`
+const BLINK_BODY = `
   0%, 100% {
     opacity: 1;
   }
@@ -36,7 +36,7 @@ const blink = keyframes`
   }
 `;
 
-const glow = keyframes`
+const GLOW_BODY = `
   from {
     text-shadow: 0 0 10px #fff, 
     0 0 20px #fff, 
@@ -51,6 +51,19 @@ const glow = keyframes`
   }
 `;
 
+const gradientFlow = keyframes`${GRADIENT_FLOW_BODY}`;
+
+const blink = keyframes`${BLINK_BODY}`;
+
+const glow = keyframes`${GLOW_BODY}`;
+
+// Shadow DOM 作用域无法直接引用文档全局的 @keyframes，需随 textStyles 一并注入
+const KEYFRAMES_CSS = `
+@keyframes ${gradientFlow} {${GRADIENT_FLOW_BODY}}
+@keyframes ${blink} {${BLINK_BODY}}
+@keyframes ${glow} {${GLOW_BODY}}
+`;
+
 const genLineStyle = (style, color, thickness = 1) => `
   text-decoration-line: underline;
   text-decoration-style: ${style};
@@ -60,7 +73,7 @@ const genLineStyle = (style, color, thickness = 1) => `
   -webkit-text-decoration-line: underline;
   -webkit-text-decoration-style: ${style};
   -webkit-text-decoration-color: ${color};
-  -webkit-text-decoration-thickness: 1px;
+  -webkit-text-decoration-thickness: ${thickness}px;
   -webkit-text-underline-offset: 0.3em;
 
   opacity: 0.8;
@@ -129,7 +142,7 @@ const genBuiltinStyles = (color = DEFAULT_COLOR) => ({
     display: block;
     padding: 0.25em 0.5em;
     border-left: 0.25em solid ${color};
-    background: rgb(32, 156, 238, 0.2);
+    background: rgba(32, 156, 238, 0.2);
     &:hover {
       opacity: 1;
       -webkit-opacity: 1;
@@ -196,7 +209,7 @@ export const genTextClass = (customStyles = []) => {
   });
 
   const textClass = {};
-  let textStyles = "";
+  let textStyles = KEYFRAMES_CSS;
   Object.entries(styles).forEach(([k, v]) => {
     textClass[k] = css`
       ${v}

@@ -11,20 +11,65 @@ export function installLocationHook(target) {
   const eventName = "immertranslate:locationchange";
   const marker = "__immertranslateLocationHook";
   const win = target || window;
-  if (!win || win[marker]) return false;
-  const history = win.history;
+  if (!win) return false;
+  let history;
+  try {
+    history = win.history;
+  } catch {
+    return false;
+  }
   if (!history) return false;
 
+  const readHref = () => {
+    try {
+      return String(win.location?.href || "");
+    } catch {
+      return "";
+    }
+  };
+
   const wrap = (method) => {
-    const original = history[method];
-    if (typeof original !== "function") return false;
+    let original;
+    try {
+      original = history[method];
+    } catch {
+      return false;
+    }
+    if (typeof original !== "function" || original[marker]) return false;
+
     const wrapped = function immertranslateLocationHook(...args) {
+      const prevHref = readHref();
       const result = original.apply(this, args);
-      win.dispatchEvent(new win.Event(eventName));
+      try {
+        const nextHref = readHref();
+        if (nextHref !== prevHref) {
+          win.dispatchEvent(new win.Event(eventName));
+        }
+      } catch {
+        // 派发自定义事件失败时不能影响宿主页面自身的 history 调用
+      }
       return result;
     };
-    history[method] = wrapped;
-    return history[method] === wrapped;
+
+    try {
+      Object.defineProperty(wrapped, marker, {
+        value: true,
+        configurable: true,
+      });
+    } catch {
+      try {
+        wrapped[marker] = true;
+      } catch {
+        // 忽略无法挂载标记的受限函数对象
+      }
+    }
+
+    try {
+      history[method] = wrapped;
+      return history[method] === wrapped;
+    } catch {
+      return false;
+    }
   };
 
   const pushWrapped = wrap("pushState");
@@ -33,7 +78,11 @@ export function installLocationHook(target) {
   try {
     Object.defineProperty(win, marker, { value: true, configurable: true });
   } catch {
-    win[marker] = true;
+    try {
+      win[marker] = true;
+    } catch {
+      // 忽略只读 window 属性
+    }
   }
   return true;
 }

@@ -3,7 +3,11 @@ import { acceptsFrameMessage, getResolvedPageCommand } from "./msg";
 import { Translator } from "./translator";
 import { InputTranslator } from "./inputTranslate";
 import { TransboxManager } from "./tranbox";
-import { installFrameRuntimeBridge, sendIframeMsg } from "./iframe";
+import {
+  frameRuntimeState,
+  installFrameRuntimeBridge,
+  sendIframeMsg,
+} from "./iframe";
 import {
   EVENT_KISS_INNER,
   EVENT_KISS_TRANSLATOR,
@@ -170,6 +174,7 @@ export default class TranslatorManager {
     ) {
       sendIframeMsg(MSG_TRANS_TOGGLE, {
         enabled: this.#pageSwitch === PAGE_SWITCH.ON,
+        pagePatch: this.#getPageRulePatch?.() || {},
       });
     }
     logger.info("TranslatorManager started.");
@@ -197,6 +202,9 @@ export default class TranslatorManager {
     this.#fabConfig = state.fabConfig;
 
     this.#createRuntimeModules();
+    if (this.#paused) {
+      this._translator?.pausePage();
+    }
     this.#refreshDocumentElementObserver();
     logger.info(`TranslatorManager restarted: ${reason}`);
   }
@@ -267,6 +275,7 @@ export default class TranslatorManager {
     ) {
       sendIframeMsg(MSG_TRANS_TOGGLE, {
         enabled: this.#pageSwitch === PAGE_SWITCH.ON,
+        pagePatch: this.#getPageRulePatch?.() || {},
       });
     }
     // SPA 路由可只改变 URL，不触发 FAB 配置存储更新或容器重建。
@@ -772,6 +781,14 @@ export default class TranslatorManager {
    * 处理 iframe 或页面内 postMessage 通信。
    */
   #handleInnerMessage(event) {
+    if (!event?.source) return;
+    if (
+      event.source !== window &&
+      event.source !== window.top &&
+      event.source !== window.parent
+    ) {
+      return;
+    }
     this.#processActions(event.data);
   }
 
@@ -939,12 +956,27 @@ export default class TranslatorManager {
         if (this.#pageSwitch === PAGE_SWITCH.PAUSED) break;
         const explicit = typeof args?.enabled === "boolean";
         if (this.#isIframe && !explicit) break;
+        if (
+          this.#isIframe &&
+          args?.pagePatch &&
+          typeof args.pagePatch === "object"
+        ) {
+          const { pagePatch } = frameRuntimeState({
+            pagePatch: args.pagePatch,
+          });
+          if (pagePatch && Object.keys(pagePatch).length) {
+            this.#onPageRuleChange?.(pagePatch);
+          }
+        }
         this.#applyManualSwitch(explicit ? args.enabled : undefined);
         let enabled = null;
         if (this.#pageSwitch === PAGE_SWITCH.ON) enabled = true;
         else if (this.#pageSwitch === PAGE_SWITCH.OFF) enabled = false;
         if (!fromExt && typeof enabled === "boolean") {
-          sendIframeMsg(MSG_TRANS_TOGGLE, { enabled });
+          sendIframeMsg(MSG_TRANS_TOGGLE, {
+            enabled,
+            pagePatch: this.#getPageRulePatch?.() || {},
+          });
         }
         publishRule = true;
         break;

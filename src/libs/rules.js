@@ -3,6 +3,7 @@
  * @description 翻译规则引擎。提供选择器的继承与差分算法（如支持加减号追加/剔除选择器）、内置规则与个人规则合并（个人规则覆盖内置规则，内置规则覆盖全局规则）以及规则数据的健全性清洗校验与保存。
  */
 
+import selectorParser from "postcss-selector-parser";
 import { matchValue, type } from "./utils";
 import {
   GLOBAL_KEY,
@@ -25,6 +26,44 @@ import {
   rulePatternIndex,
 } from "./siteMatch";
 import { getDomainOptions } from "./url";
+
+/**
+ * 规范化单个 CSS 选择器的引号与空白，仅用于差分合并时的等价判定与去重，
+ * 不改写原始选择器的语义或属性值。
+ */
+function normalizeSelectorKey(selector) {
+  try {
+    return selectorParser((root) => {
+      root.walk((node) => {
+        if (node.spaces) {
+          node.spaces.before = "";
+          node.spaces.after = "";
+        }
+        if (node.raws) {
+          delete node.raws.spaces;
+        }
+        if (node.type === "combinator") {
+          node.value = node.value.trim() || " ";
+          if (node.raws) delete node.raws.value;
+        } else if (node.type === "attribute") {
+          if (node.spaces) {
+            node.spaces.attribute = {};
+            node.spaces.operator = {};
+            node.spaces.value = {};
+            node.spaces.insensitive = {};
+          }
+          if (node.value !== undefined) {
+            node.setValue(node.value, { quoteMark: '"' });
+          }
+        }
+      });
+    })
+      .processSync(selector)
+      .trim();
+  } catch {
+    return selector.replace(/\s+/g, " ").trim();
+  }
+}
 
 /**
  * 差分合并 CSS 选择器。
@@ -56,13 +95,26 @@ export function mergeSelectors(defaultStr, userStr) {
     (s) => s.startsWith("+") || s.startsWith("-")
   );
 
-  // 纯覆盖模式：直接去重并返回用户的选择器
+  // 纯覆盖模式：按规范化键去重，同时保留用户原始写法
   if (!isPatchMode) {
-    return [...new Set(userList)].join(", ");
+    const deduped = new Map();
+    userList.forEach((selector) => {
+      const key = normalizeSelectorKey(selector);
+      if (!deduped.has(key)) {
+        deduped.set(key, selector);
+      }
+    });
+    return [...deduped.values()].join(", ");
   }
 
-  // 补丁差分模式
-  let finalSet = new Set(defaultList);
+  // 补丁差分模式（保持粘性 currentMode 契约，按规范化键匹配引号/空白差异）
+  const finalMap = new Map();
+  defaultList.forEach((selector) => {
+    const key = normalizeSelectorKey(selector);
+    if (!finalMap.has(key)) {
+      finalMap.set(key, selector);
+    }
+  });
   let currentMode = "add"; // 默认修饰动作为“添加”
   userList.forEach((item) => {
     let selector = item;
@@ -77,14 +129,15 @@ export function mergeSelectors(defaultStr, userStr) {
 
     if (!selector) return;
 
+    const key = normalizeSelectorKey(selector);
     if (currentMode === "remove") {
-      finalSet.delete(selector); // 剔除选择器
-    } else {
-      finalSet.add(selector); // 追加选择器
+      finalMap.delete(key); // 剔除选择器
+    } else if (!finalMap.has(key)) {
+      finalMap.set(key, selector); // 追加选择器
     }
   });
 
-  return [...finalSet].join(", ");
+  return [...finalMap.values()].join(", ");
 }
 
 /**
@@ -222,12 +275,17 @@ export const mergeRules = (baseRule, overrideRule) => {
     }
   });
 
-  // 4. 合并数字数值类型属性
-  ["splitLength", "transOnlyRevertDelay"].forEach((key) => {
-    if (overrideRule[key] && overrideRule[key] !== GLOBAL_KEY) {
-      merged[key] = overrideRule[key];
-    }
-  });
+  // 4. 合并数字数值类型属性（transOnlyRevertDelay 允许 0，splitLength=0 表示继承）
+  if (overrideRule.splitLength && overrideRule.splitLength !== GLOBAL_KEY) {
+    merged.splitLength = overrideRule.splitLength;
+  }
+  if (
+    overrideRule.transOnlyRevertDelay === 0 ||
+    (overrideRule.transOnlyRevertDelay &&
+      overrideRule.transOnlyRevertDelay !== GLOBAL_KEY)
+  ) {
+    merged.transOnlyRevertDelay = overrideRule.transOnlyRevertDelay;
+  }
 
   // 5. 覆盖 pattern (URL 匹配模板)
   if (overrideRule.pattern) {
@@ -296,7 +354,7 @@ export const matchRule = async (href, setting) =>
  * @returns {Array<Object>} 校验规范化后的规则数组
  * @throws {Error} 如果解析失败或数据格式不为数组，则抛出 "data error" 异常
  */
-export const checkRules = (rules) => {
+export const checkRules = (rules, { ensureGlobal = false } = {}) => {
   // 如果是 JSON 字符串，先尝试解析为 JavaScript 对象
   if (type(rules) === "string") {
     rules = JSON.parse(rules);
@@ -314,11 +372,12 @@ export const checkRules = (rules) => {
   rules = rules
     .filter((rule) => type(rule) === "object") // 过滤出有效的规则对象
     .filter(({ pattern }) => {
-      // 过滤掉没有 pattern 或 pattern 重复的规则
-      if (type(pattern) !== "string" || patternSet.has(pattern.trim())) {
+      // 过滤掉空 pattern 或 pattern 重复的规则
+      const trimmed = type(pattern) === "string" ? pattern.trim() : "";
+      if (!trimmed || patternSet.has(trimmed)) {
         return false;
       }
-      patternSet.add(pattern.trim());
+      patternSet.add(trimmed);
       return true;
     })
     .map(
@@ -359,78 +418,156 @@ export const checkRules = (rules) => {
         transTitle,
         splitParagraph,
         splitLength,
-      }) => ({
-        // 确保字段类型及取值的合法性，不合法或空值时回退到默认占位符或空值
-        pattern: pattern.trim(),
-        enabled: type(enabled) === "boolean" ? enabled : true,
-        selector: type(selector) === "string" ? selector : "",
-        keepSelector: type(keepSelector) === "string" ? keepSelector : "",
-        blockSelector: type(blockSelector) === "string" ? blockSelector : "",
-        rootsSelector: type(rootsSelector) === "string" ? rootsSelector : "",
-        ignoreSelector: type(ignoreSelector) === "string" ? ignoreSelector : "",
-        terms: type(terms) === "string" ? terms : "",
-        aiTerms: type(aiTerms) === "string" ? aiTerms : "",
-        termsStyle: type(termsStyle) === "string" ? termsStyle : "",
-        highlightStyle: type(highlightStyle) === "string" ? highlightStyle : "",
-        textExtStyle: type(textExtStyle) === "string" ? textExtStyle : "",
-        selectStyle: type(selectStyle) === "string" ? selectStyle : "",
-        parentStyle: type(parentStyle) === "string" ? parentStyle : "",
-        grandStyle: type(grandStyle) === "string" ? grandStyle : "",
-        injectCss: type(injectCss) === "string" ? injectCss : "",
-        apiSlug:
-          type(apiSlug) === "string" && apiSlug.trim() !== ""
-            ? apiSlug.trim()
-            : GLOBAL_KEY,
-        fromLang: matchValue([GLOBAL_KEY, ...fromLangs], fromLang),
-        toLang: matchValue([GLOBAL_KEY, ...toLangs], toLang),
-        textStyle:
-          type(textStyle) === "string" && textStyle.trim() !== ""
-            ? textStyle.trim()
-            : GLOBAL_KEY,
-        wrapOriginal: matchValue(
-          [GLOBAL_KEY, "true", "false"],
-          [GLOBAL_KEY, "true", "false"].includes(wrapOriginal)
-            ? wrapOriginal
-            : pattern.trim() === GLOBAL_KEY
-              ? GLOBLA_RULE.wrapOriginal
-              : GLOBAL_KEY
-        ),
-        originalTextStyle:
-          type(originalTextStyle) === "string" &&
-          originalTextStyle.trim() !== ""
-            ? originalTextStyle.trim()
-            : pattern.trim() === GLOBAL_KEY
-              ? GLOBLA_RULE.originalTextStyle
-              : GLOBAL_KEY,
-        transOpen: matchValue([GLOBAL_KEY, "true", "false"], transOpen),
-        transOnly: matchValue([GLOBAL_KEY, "true", "false"], transOnly),
-        transOnlyRevert: matchValue(
-          [GLOBAL_KEY, "true", "false"],
-          transOnlyRevert
-        ),
-        transOnlyRevertDelay:
-          type(transOnlyRevertDelay) === "string" &&
-          !isNaN(parseFloat(transOnlyRevertDelay))
-            ? transOnlyRevertDelay
-            : GLOBAL_KEY,
-        transOrder: matchValue(
-          [GLOBAL_KEY, "original-first", "translation-first"],
-          transOrder
-        ),
-        autoScan: matchValue([GLOBAL_KEY, "true", "false"], autoScan),
-        hasRichText: matchValue([GLOBAL_KEY, "true", "false"], hasRichText),
-        hasShadowroot: matchValue([GLOBAL_KEY, "true", "false"], hasShadowroot),
-        scanAll: matchValue([GLOBAL_KEY, "true", "false"], scanAll),
-        isPlainText: matchValue([GLOBAL_KEY, "true", "false"], isPlainText),
-        transTag: matchValue([GLOBAL_KEY, "span", "font"], transTag),
-        transTitle: matchValue([GLOBAL_KEY, "true", "false"], transTitle),
-        splitParagraph: matchValue(
-          [GLOBAL_KEY, ...OPT_SPLIT_PARAGRAPH_ALL],
-          splitParagraph
-        ),
-        splitLength: Number.isInteger(splitLength) ? splitLength : 0,
-      })
+      }) => {
+        const trimmedPattern = pattern.trim();
+        const isGlobal = trimmedPattern === GLOBAL_KEY;
+        const pickEnum = (allowed, value, globalFallback) => {
+          if (isGlobal) {
+            return allowed.includes(value) ? value : globalFallback;
+          }
+          return matchValue([GLOBAL_KEY, ...allowed], value);
+        };
+        const delayStr =
+          typeof transOnlyRevertDelay === "number" &&
+          Number.isFinite(transOnlyRevertDelay)
+            ? String(transOnlyRevertDelay)
+            : transOnlyRevertDelay;
+
+        return {
+          // 确保字段类型及取值的合法性，不合法或空值时回退到默认占位符或全局默认值
+          pattern: trimmedPattern,
+          enabled: isGlobal
+            ? true
+            : type(enabled) === "boolean"
+              ? enabled
+              : true,
+          selector:
+            type(selector) === "string" && (selector.trim() || !isGlobal)
+              ? selector
+              : isGlobal
+                ? GLOBLA_RULE.selector
+                : "",
+          keepSelector: type(keepSelector) === "string" ? keepSelector : "",
+          blockSelector: type(blockSelector) === "string" ? blockSelector : "",
+          rootsSelector:
+            type(rootsSelector) === "string" &&
+            (rootsSelector.trim() || !isGlobal)
+              ? rootsSelector
+              : isGlobal
+                ? GLOBLA_RULE.rootsSelector
+                : "",
+          ignoreSelector:
+            type(ignoreSelector) === "string" ? ignoreSelector : "",
+          terms: type(terms) === "string" ? terms : "",
+          aiTerms: type(aiTerms) === "string" ? aiTerms : "",
+          termsStyle: type(termsStyle) === "string" ? termsStyle : "",
+          highlightStyle:
+            type(highlightStyle) === "string" ? highlightStyle : "",
+          textExtStyle: type(textExtStyle) === "string" ? textExtStyle : "",
+          selectStyle: type(selectStyle) === "string" ? selectStyle : "",
+          parentStyle: type(parentStyle) === "string" ? parentStyle : "",
+          grandStyle: type(grandStyle) === "string" ? grandStyle : "",
+          injectCss: type(injectCss) === "string" ? injectCss : "",
+          apiSlug:
+            type(apiSlug) === "string" &&
+            apiSlug.trim() !== "" &&
+            (!isGlobal || apiSlug.trim() !== GLOBAL_KEY)
+              ? apiSlug.trim()
+              : isGlobal
+                ? GLOBLA_RULE.apiSlug
+                : GLOBAL_KEY,
+          fromLang: pickEnum(fromLangs, fromLang, GLOBLA_RULE.fromLang),
+          toLang: pickEnum(toLangs, toLang, GLOBLA_RULE.toLang),
+          textStyle:
+            type(textStyle) === "string" &&
+            textStyle.trim() !== "" &&
+            (!isGlobal || textStyle.trim() !== GLOBAL_KEY)
+              ? textStyle.trim()
+              : isGlobal
+                ? GLOBLA_RULE.textStyle
+                : GLOBAL_KEY,
+          wrapOriginal: pickEnum(
+            ["true", "false"],
+            wrapOriginal,
+            GLOBLA_RULE.wrapOriginal
+          ),
+          originalTextStyle:
+            type(originalTextStyle) === "string" &&
+            originalTextStyle.trim() !== "" &&
+            (!isGlobal || originalTextStyle.trim() !== GLOBAL_KEY)
+              ? originalTextStyle.trim()
+              : isGlobal
+                ? GLOBLA_RULE.originalTextStyle
+                : GLOBAL_KEY,
+          transOpen: pickEnum(
+            ["true", "false"],
+            transOpen,
+            GLOBLA_RULE.transOpen
+          ),
+          transOnly: pickEnum(
+            ["true", "false"],
+            transOnly,
+            GLOBLA_RULE.transOnly
+          ),
+          transOnlyRevert: pickEnum(
+            ["true", "false"],
+            transOnlyRevert,
+            GLOBLA_RULE.transOnlyRevert
+          ),
+          transOnlyRevertDelay:
+            type(delayStr) === "string" &&
+            delayStr.trim() !== "" &&
+            Number.isFinite(parseFloat(delayStr))
+              ? delayStr.trim()
+              : isGlobal
+                ? GLOBLA_RULE.transOnlyRevertDelay
+                : GLOBAL_KEY,
+          transOrder: pickEnum(
+            ["original-first", "translation-first"],
+            transOrder,
+            GLOBLA_RULE.transOrder
+          ),
+          autoScan: pickEnum(["true", "false"], autoScan, GLOBLA_RULE.autoScan),
+          hasRichText: pickEnum(
+            ["true", "false"],
+            hasRichText,
+            GLOBLA_RULE.hasRichText
+          ),
+          hasShadowroot: pickEnum(
+            ["true", "false"],
+            hasShadowroot,
+            GLOBLA_RULE.hasShadowroot
+          ),
+          scanAll: pickEnum(["true", "false"], scanAll, GLOBLA_RULE.scanAll),
+          isPlainText: pickEnum(
+            ["true", "false"],
+            isPlainText,
+            GLOBLA_RULE.isPlainText
+          ),
+          transTag: pickEnum(["span", "font"], transTag, GLOBLA_RULE.transTag),
+          transTitle: pickEnum(
+            ["true", "false"],
+            transTitle,
+            GLOBLA_RULE.transTitle
+          ),
+          splitParagraph: pickEnum(
+            OPT_SPLIT_PARAGRAPH_ALL,
+            splitParagraph,
+            GLOBLA_RULE.splitParagraph
+          ),
+          splitLength:
+            Number.isInteger(splitLength) && splitLength > 0
+              ? splitLength
+              : isGlobal
+                ? GLOBLA_RULE.splitLength
+                : 0,
+        };
+      }
     );
+
+  if (ensureGlobal && !patternSet.has(GLOBAL_KEY)) {
+    rules.push({ ...GLOBLA_RULE });
+  }
 
   return rules;
 };
@@ -475,7 +612,10 @@ const applySavedRule = (rules, curRule) => {
       return;
     }
     const value = curRule[key];
-    next[key] = !value ? DEFAULT_RULE[key] : value;
+    next[key] =
+      value === undefined || value === null || value === ""
+        ? DEFAULT_RULE[key]
+        : value;
   });
 
   // 跟随全局之后如果没有任何非 * 字段，删掉这条，不留全 * 的空壳。

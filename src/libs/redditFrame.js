@@ -30,12 +30,16 @@ export function redditEmbeddingHref({
   if (!isIframe) return "";
 
   const candidates = [topHref];
-  if (ancestorOrigins && typeof ancestorOrigins.length === "number") {
-    for (let i = 0; i < ancestorOrigins.length; i += 1) {
-      candidates.push(ancestorOrigins[i]);
-    }
+  const origins =
+    ancestorOrigins && typeof ancestorOrigins.length === "number"
+      ? Array.from(ancestorOrigins).filter(Boolean)
+      : [];
+  if (origins.length > 0) {
+    candidates.push(...origins);
+  } else if (referrer) {
+    // 仅在无法读取 ancestorOrigins 时才回退 referrer，避免非 Reddit 宿主的子框被外链来源误判
+    candidates.push(referrer);
   }
-  candidates.push(referrer);
 
   for (const candidate of candidates) {
     if (REDDIT_EMBEDDING_HOSTS.has(hostnameOf(candidate))) return candidate;
