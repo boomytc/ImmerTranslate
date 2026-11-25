@@ -7,8 +7,10 @@ import {
 const NARROW_OPTIONS_MAIN_STYLES = String.raw`
   .kt-overview-strip { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
   .kt-overview-strip__status { flex: 0 1 auto; flex-wrap: wrap; gap: 2px 8px; }
-  .kt-overview-strip__facts { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 8px 16px; padding-top: 0; border-top: 0; }
+  .kt-overview-strip__facts { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 8px 20px; padding-top: 0; border-top: 0; }
+  .kt-overview-strip__fact + .kt-overview-strip__fact { padding-inline-start: 0; border-inline-start: 0; }
   .kt-overview-strip__action { width: 100%; margin-inline-start: 0; }
+  .kt-overview-strip__link { margin-inline: -6px 0; }
   .kt-sync-methods { grid-template-columns: 1fr; }
   .kt-fab-appearance-layout { grid-template-columns: 1fr; gap: 18px; }
   .kt-settings-row { align-items: flex-start; flex-direction: column; gap: 10px; padding: 12px 10px; }
@@ -706,7 +708,7 @@ label.kt-settings-row__label { cursor: pointer; }
 .kt-overview-strip__facts {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   min-width: 0;
@@ -720,7 +722,7 @@ label.kt-settings-row__label { cursor: pointer; }
   min-width: 0;
 }
 .kt-overview-strip__fact + .kt-overview-strip__fact {
-  padding-inline-start: 10px;
+  padding-inline-start: 8px;
   border-inline-start: 1px solid var(--kt-linev);
 }
 .kt-overview-strip__fact dt {
@@ -744,7 +746,8 @@ label.kt-settings-row__label { cursor: pointer; }
   display: inline-flex;
   align-items: center;
   min-height: 32px;
-  padding: 4px;
+  padding: 4px 6px;
+  margin-inline-end: -6px;
   border-radius: var(--kt-radius-sm, 6px);
   color: var(--kt-pri);
   font-size: var(--kt-text-body, 0.875rem);
@@ -1515,7 +1518,7 @@ label.kt-settings-row__label { cursor: pointer; }
   .kt-master-rail { position: static; max-height: min(44vh, 340px); }
 }
 
-@container options-main (max-width: 780px) {
+@container options-main (max-width: 789px) {
   .kt-overview-strip {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1538,9 +1541,13 @@ label.kt-settings-row__label { cursor: pointer; }
     grid-row: 2;
     justify-content: flex-start;
     flex-wrap: wrap;
-    gap: 6px 14px;
+    gap: 6px 20px;
     padding-top: 8px;
     border-top: 1px solid var(--kt-linev);
+  }
+  .kt-overview-strip__fact + .kt-overview-strip__fact {
+    padding-inline-start: 0;
+    border-inline-start: 0;
   }
   .kt-overview-strip__fact dd {
     max-width: none;
