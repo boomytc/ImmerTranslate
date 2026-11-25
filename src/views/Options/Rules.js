@@ -1031,6 +1031,7 @@ function UserRules({ rules }) {
 
       <TextField
         size="small"
+        hiddenLabel
         fullWidth
         type="search"
         value={searchQuery}

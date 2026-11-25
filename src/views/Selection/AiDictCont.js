@@ -157,8 +157,6 @@ export default function AiDictCont({
         alignItems: "start",
         fontSize: "var(--kt-text-body, 14px)",
         lineHeight: 1.6,
-        "& > :first-of-type": { mt: 0 },
-        "& > :last-child": { mb: 0 },
         "& h1, & h2, & h3, & h4, & h5, & h6": {
           fontSize: "var(--kt-text-heading, 15px)",
           fontWeight: 600,
@@ -217,6 +215,8 @@ export default function AiDictCont({
           minWidth: 0,
           fontSize: "var(--kt-text-body, 14px)",
           lineHeight: 1.6,
+          "& > :first-of-type": { mt: 0 },
+          "& > :last-child": { mb: 0 },
         }}
       >
         <ReactMarkdown>{markdown}</ReactMarkdown>

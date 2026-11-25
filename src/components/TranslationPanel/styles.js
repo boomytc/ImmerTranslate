@@ -382,7 +382,8 @@ export const TRANSLATION_PANEL_STYLES = String.raw`
 .kt-translation-result--empty {
   min-height: 60px;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 /* Dictionary and suggestion panes locked to 15 / 14 / 13px. */

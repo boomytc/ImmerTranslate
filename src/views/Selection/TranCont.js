@@ -366,7 +366,9 @@ export default function TranCont({
       }`}
     >
       {errorText ? (
-        <Alert severity="error">{errorText}</Alert>
+        <Alert severity="error">
+          {showServiceLabel ? `${displayName} · ${errorText}` : errorText}
+        </Alert>
       ) : (
         <>
           {(showHeaderBar || hasActions) && (
@@ -423,7 +425,7 @@ export default function TranCont({
             </div>
           ) : !loading ? (
             <p className="kt-translation-result__placeholder">
-              {showServiceLabel ? displayName : i18n("translated_text")}
+              {i18n("translated_text")}
             </p>
           ) : null}
         </>
