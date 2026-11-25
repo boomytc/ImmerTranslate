@@ -9,7 +9,7 @@ export default function ApiKeyEmptyState({ messageKey, className = "" }) {
   const i18n = useI18n();
 
   return (
-    <div className={className} role="status">
+    <div className={`kt-api-key-empty ${className}`.trim()} role="status">
       <p>{i18n(messageKey)}</p>
       <button
         type="button"

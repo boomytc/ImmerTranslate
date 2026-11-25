@@ -9,11 +9,13 @@ import {
   M3_EASE,
   M3_FONT_FAMILY,
   M3_GLOBAL_CSS,
-  M3_RADIUS_2XL,
-  M3_RADIUS_CARD,
-  M3_RADIUS_CHIP,
   M3_RADIUS_CONTROL,
-  M3_RADIUS_XL,
+  M3_RADIUS_PANEL,
+  M3_RADIUS_SM,
+  M3_RADIUS_SURFACE,
+  M3_TEXT_BODY,
+  M3_TEXT_HEADING,
+  M3_TEXT_SM,
   resolveM3Colors,
   resolveM3ThemeMode,
 } from "../styles/m3";
@@ -123,6 +125,17 @@ export default function M3Theme({
     const focusRing = {
       outline: `2px solid ${color.primary}`,
       outlineOffset: 2,
+      "@media (forced-colors: active)": {
+        outline: "2px solid Highlight",
+      },
+    };
+    const insetFocusRing = {
+      outline: "none",
+      boxShadow: `inset 0 0 0 2px ${color.primary}`,
+      "@media (forced-colors: active)": {
+        outline: "2px solid Highlight",
+        outlineOffset: -2,
+      },
     };
     let htmlFontSize = 16;
     if (!isolateRem) {
@@ -136,17 +149,25 @@ export default function M3Theme({
       }
     }
 
+    const headingSize = isolateRem ? M3_TEXT_HEADING : "0.9375rem";
+    const bodySize = isolateRem ? M3_TEXT_BODY : "0.875rem";
+    const smSize = isolateRem ? M3_TEXT_SM : "0.8125rem";
+    const shrunkLabelSize = isolateRem
+      ? M3_TEXT_SM / 0.75
+      : `${M3_TEXT_SM / 0.75 / 16}rem`;
+
     const motion = `${M3_DURATION} ${M3_EASE}`;
-    const hoverMotion = `transform ${motion}, box-shadow ${motion}, border-color ${motion}`;
-    const glassSurface = `var(--kt-glass, ${color.surface})`;
-    const glassField = `var(--kt-glass-strong, ${color.surfaceContainer})`;
+    const stateMotion = `background-color ${motion}, color ${motion}, border-color ${motion}, box-shadow ${motion}`;
+    const stateAndTransformMotion = `${stateMotion}, transform ${motion}`;
+    const overlaySurface = `var(--kt-liquid, ${color.surface})`;
+
     const themeOptions = {
       palette: {
         mode: resolvedMode,
         primary: { main: color.primary, contrastText: color.onPrimary },
         secondary: {
-          main: color.secondaryContainer,
-          contrastText: color.onSecondaryContainer,
+          main: color.primaryContainer,
+          contrastText: color.onPrimaryContainer,
         },
         error: { main: color.error },
         warning: {
@@ -161,7 +182,7 @@ export default function M3Theme({
         },
         divider: color.outlineVariant,
       },
-      shape: { borderRadius: 12 },
+      shape: { borderRadius: M3_RADIUS_CONTROL },
       typography: (palette) => {
         const typography =
           typeof options.typography === "function"
@@ -173,10 +194,21 @@ export default function M3Theme({
             ? { pxToRem: (size) => `${size}px` }
             : { htmlFontSize }),
           fontFamily: M3_FONT_FAMILY,
+          h6: { fontSize: headingSize, fontWeight: 600, lineHeight: 1.35 },
+          subtitle1: {
+            fontSize: headingSize,
+            fontWeight: 600,
+            lineHeight: 1.35,
+          },
+          subtitle2: { fontSize: bodySize, fontWeight: 600, lineHeight: 1.4 },
+          body1: { fontSize: bodySize, lineHeight: 1.5 },
+          body2: { fontSize: bodySize, lineHeight: 1.5 },
+          caption: { fontSize: smSize, lineHeight: 1.45 },
           ...typography,
           button: {
+            fontSize: bodySize,
             textTransform: "none",
-            fontWeight: 650,
+            fontWeight: 600,
             ...typography?.button,
           },
         };
@@ -185,7 +217,12 @@ export default function M3Theme({
         MuiCssBaseline: {
           styleOverrides: {
             html: { backgroundColor: color.background },
-            body: { backgroundColor: color.background },
+            body: {
+              backgroundColor: color.background,
+              color: color.onSurface,
+              fontSize: bodySize,
+              lineHeight: 1.5,
+            },
             "#root": { minHeight: "100%" },
           },
         },
@@ -193,9 +230,7 @@ export default function M3Theme({
           styleOverrides: {
             root: {
               backgroundImage: "none",
-              backgroundColor: glassSurface,
-              WebkitBackdropFilter: "var(--kt-glass-blur)",
-              backdropFilter: "var(--kt-glass-blur)",
+              backgroundColor: color.surface,
               borderColor: color.outlineVariant,
               colorScheme: resolvedMode,
             },
@@ -205,28 +240,49 @@ export default function M3Theme({
           defaultProps: { disableElevation: true },
           styleOverrides: {
             root: {
-              minHeight: 40,
-              borderRadius: 999,
-              paddingInline: 18,
-              letterSpacing: ".01em",
-              transition: hoverMotion,
-              "&:active": { transform: "scale(.98)" },
+              minHeight: 36,
+              borderRadius: M3_RADIUS_CONTROL,
+              paddingInline: 14,
+              fontWeight: 600,
+              letterSpacing: 0,
+              transition: stateMotion,
+              "@media (prefers-reduced-motion: no-preference)": {
+                transition: stateAndTransformMotion,
+                "&:active": { transform: "scale(0.98)" },
+              },
               "&.Mui-focusVisible": focusRing,
             },
+            sizeSmall: {
+              minHeight: 32,
+              paddingInline: 12,
+            },
             contained: { boxShadow: "none" },
+            outlined: {
+              borderColor: color.outline,
+              color: color.onSurface,
+              "&:hover": {
+                borderColor: color.onSurface,
+                backgroundColor: color.surfaceLow,
+              },
+            },
           },
         },
         MuiIconButton: {
           styleOverrides: {
             root: ({ ownerState }) => ({
+              borderRadius: M3_RADIUS_CONTROL,
               ...(ownerState.color === "default" && {
                 color: color.onSurfaceVariant,
                 "&:hover": {
                   backgroundColor: color.surfaceContainer,
+                  color: color.onSurface,
                 },
               }),
-              transition: hoverMotion,
-              "&:active": { transform: "scale(.94)" },
+              transition: stateMotion,
+              "@media (prefers-reduced-motion: no-preference)": {
+                transition: stateAndTransformMotion,
+                "&:active": { transform: "scale(0.95)" },
+              },
               "&.Mui-focusVisible": focusRing,
             }),
           },
@@ -234,30 +290,92 @@ export default function M3Theme({
         MuiTextField: {
           defaultProps: { variant: "filled" },
         },
+        MuiInputLabel: {
+          styleOverrides: {
+            root: {
+              color: color.onSurfaceVariant,
+              fontSize: bodySize,
+            },
+            shrink: {
+              fontSize: shrunkLabelSize,
+            },
+          },
+        },
+        MuiFormHelperText: {
+          styleOverrides: {
+            root: {
+              fontSize: smSize,
+              lineHeight: 1.45,
+              color: color.onSurfaceVariant,
+              marginInline: 2,
+            },
+          },
+        },
         MuiFilledInput: {
           defaultProps: { disableUnderline: true },
           styleOverrides: {
             root: {
-              minHeight: 48,
+              minHeight: 38,
               overflow: "hidden",
-              border: "1px solid transparent",
+              border: `1px solid ${color.outline}`,
               borderRadius: M3_RADIUS_CONTROL,
-              backgroundColor: glassField,
-              WebkitBackdropFilter: "var(--kt-glass-blur)",
-              backdropFilter: "var(--kt-glass-blur)",
-              transition: `border-color ${motion}, box-shadow ${motion}`,
-              "&:not(.Mui-disabled, .Mui-focused):hover": {
-                backgroundColor: color.surfaceHigh,
+              backgroundColor: color.surface,
+              transition: `border-color ${motion}, box-shadow ${motion}, background-color ${motion}`,
+              "&:not(.Mui-disabled, .Mui-focused, .Mui-error):hover": {
+                borderColor: color.onSurface,
+                backgroundColor: color.surface,
               },
               "&.Mui-focused": {
                 borderColor: color.primary,
                 backgroundColor: color.surface,
+                boxShadow: `0 0 0 1px ${color.primary}`,
+                "@media (forced-colors: active)": {
+                  outline: "2px solid Highlight",
+                  outlineOffset: 1,
+                },
               },
               "&.Mui-error": {
                 borderColor: color.error,
               },
               "&.Mui-error.Mui-focused": {
                 borderColor: color.error,
+                boxShadow: `0 0 0 1px ${color.error}`,
+              },
+              "&.Mui-disabled": {
+                borderColor: color.outlineVariant,
+                backgroundColor: color.surfaceLow,
+              },
+            },
+            input: {
+              paddingTop: 18,
+              paddingBottom: 6,
+            },
+            inputHiddenLabel: {
+              paddingTop: 8,
+              paddingBottom: 8,
+            },
+            multiline: {
+              paddingTop: 20,
+              paddingBottom: 8,
+            },
+          },
+        },
+        MuiOutlinedInput: {
+          styleOverrides: {
+            root: {
+              minHeight: 38,
+              borderRadius: M3_RADIUS_CONTROL,
+              backgroundColor: color.surface,
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: color.outline,
+              },
+              "&:not(.Mui-disabled, .Mui-focused, .Mui-error):hover .MuiOutlinedInput-notchedOutline":
+                {
+                  borderColor: color.onSurface,
+                },
+              "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                borderColor: color.primary,
+                borderWidth: 2,
               },
             },
           },
@@ -271,7 +389,10 @@ export default function M3Theme({
               },
             },
             icon: {
-              transition: `transform ${motion}`,
+              color: color.onSurfaceVariant,
+              "@media (prefers-reduced-motion: no-preference)": {
+                transition: `transform ${motion}`,
+              },
             },
           },
         },
@@ -281,10 +402,7 @@ export default function M3Theme({
         MuiSlider: {
           styleOverrides: {
             thumb: {
-              "&.Mui-focusVisible": {
-                outline: `2px solid ${color.primary}`,
-                outlineOffset: 2,
-              },
+              "&.Mui-focusVisible": focusRing,
             },
           },
         },
@@ -292,7 +410,7 @@ export default function M3Theme({
           styleOverrides: {
             root: {
               "&.Mui-focusVisible": {
-                outline: `2px solid ${color.primary}`,
+                ...focusRing,
                 outlineOffset: 0,
               },
             },
@@ -301,9 +419,9 @@ export default function M3Theme({
         MuiTabs: {
           styleOverrides: {
             root: {
-              minHeight: 44,
-              padding: 4,
-              borderRadius: 999,
+              minHeight: 36,
+              padding: 3,
+              borderRadius: M3_RADIUS_CONTROL,
               backgroundColor: color.surfaceContainer,
             },
             indicator: { display: "none" },
@@ -314,51 +432,57 @@ export default function M3Theme({
             root: {
               minWidth: 0,
               maxWidth: "100%",
-              minHeight: 36,
+              minHeight: 30,
               overflow: "hidden",
-              borderRadius: 999,
+              padding: "4px 12px",
+              borderRadius: 8,
               color: color.onSurfaceVariant,
-              fontWeight: 650,
+              fontSize: bodySize,
+              fontWeight: 600,
               textOverflow: "ellipsis",
               textTransform: "none",
-              transition: hoverMotion,
+              transition: stateMotion,
               whiteSpace: "nowrap",
+              "&:hover": {
+                color: color.onSurface,
+              },
               "&.Mui-selected": {
-                backgroundColor: color.secondaryContainer,
-                color: color.onSecondaryContainer,
-                fontWeight: 650,
+                backgroundColor: color.surface,
+                color: color.onSurface,
+                fontWeight: 600,
+                boxShadow: "var(--kt-shadow-card)",
               },
-              "&&.Mui-focusVisible": {
-                outline: "none",
-                boxShadow: `inset 0 0 0 2px ${color.primary}`,
-              },
+              "&&.Mui-focusVisible": insetFocusRing,
             },
           },
         },
         MuiMenuItem: {
           styleOverrides: {
             root: {
-              borderRadius: M3_RADIUS_CHIP,
+              minHeight: 36,
+              borderRadius: M3_RADIUS_SM,
               color: color.onSurface,
-              transition: hoverMotion,
+              fontSize: bodySize,
+              transition: stateMotion,
               "&:hover": {
-                backgroundColor: color.surfaceContainer,
+                backgroundColor: color.surfaceLow,
               },
               "&.Mui-selected": {
-                backgroundColor: color.secondaryContainer,
-                color: color.onSecondaryContainer,
+                backgroundColor: color.primaryContainer,
+                color: color.onPrimaryContainer,
+                fontWeight: 600,
               },
               "&.Mui-selected:hover": {
-                backgroundColor: color.secondaryContainer,
+                backgroundColor: color.primaryContainer,
               },
               "&&.Mui-focusVisible": {
-                outline: "none",
+                ...insetFocusRing,
                 backgroundColor: color.surfaceHigh,
-                boxShadow: `inset 0 0 0 2px ${color.primary}`,
               },
               "&&.Mui-selected.Mui-focusVisible": {
-                backgroundColor: color.secondaryContainer,
-                color: color.onSecondaryContainer,
+                ...insetFocusRing,
+                backgroundColor: color.primaryContainer,
+                color: color.onPrimaryContainer,
               },
             },
           },
@@ -366,38 +490,49 @@ export default function M3Theme({
         MuiToggleButton: {
           styleOverrides: {
             root: {
-              borderRadius: M3_RADIUS_CHIP,
+              minHeight: 34,
+              borderRadius: M3_RADIUS_CONTROL,
+              borderColor: color.outlineVariant,
               color: color.onSurfaceVariant,
-              transition: hoverMotion,
+              fontSize: bodySize,
+              fontWeight: 500,
+              transition: stateMotion,
               "&:hover": {
-                backgroundColor: color.surfaceContainer,
+                backgroundColor: color.surfaceLow,
+                color: color.onSurface,
               },
               "&.Mui-selected": {
-                backgroundColor: color.secondaryContainer,
-                color: color.onSecondaryContainer,
-                fontWeight: 650,
+                backgroundColor: color.primaryContainer,
+                color: color.onPrimaryContainer,
+                fontWeight: 600,
               },
               "&.Mui-selected:hover": {
-                backgroundColor: color.secondaryContainer,
+                backgroundColor: color.primaryContainer,
               },
-              "&&.Mui-focusVisible": {
-                outline: "none",
-                boxShadow: `inset 0 0 0 2px ${color.primary}`,
-              },
+              "&&.Mui-focusVisible": insetFocusRing,
             },
           },
         },
         MuiListItemButton: {
           styleOverrides: {
             root: {
+              borderRadius: M3_RADIUS_CONTROL,
+              transition: stateMotion,
+              "&.Mui-selected": {
+                backgroundColor: color.primaryContainer,
+                color: color.onPrimaryContainer,
+              },
+              "&.Mui-selected:hover": {
+                backgroundColor: color.primaryContainer,
+              },
               "&&.Mui-focusVisible": {
-                outline: "none",
+                ...insetFocusRing,
                 backgroundColor: color.surfaceHigh,
-                boxShadow: `inset 0 0 0 2px ${color.primary}`,
               },
               "&&.Mui-selected.Mui-focusVisible": {
-                backgroundColor: color.secondaryContainer,
-                color: color.onSecondaryContainer,
+                ...insetFocusRing,
+                backgroundColor: color.primaryContainer,
+                color: color.onPrimaryContainer,
               },
             },
           },
@@ -406,8 +541,8 @@ export default function M3Theme({
           styleOverrides: {
             root: {
               border: `1px solid ${color.outlineVariant}`,
-              borderRadius: M3_RADIUS_CARD,
-              backgroundColor: glassSurface,
+              borderRadius: M3_RADIUS_SURFACE,
+              backgroundColor: color.surface,
               boxShadow: "none",
             },
           },
@@ -418,7 +553,8 @@ export default function M3Theme({
             root: {
               overflow: "hidden",
               border: `1px solid ${color.outlineVariant}`,
-              borderRadius: `${M3_RADIUS_CARD}px !important`,
+              borderRadius: M3_RADIUS_SURFACE,
+              backgroundColor: color.surface,
               boxShadow: "none",
               "&::before": { display: "none" },
             },
@@ -428,9 +564,8 @@ export default function M3Theme({
           styleOverrides: {
             root: {
               "&&.Mui-focusVisible": {
-                outline: "none",
+                ...insetFocusRing,
                 backgroundColor: color.surfaceHigh,
-                boxShadow: `inset 0 0 0 2px ${color.primary}`,
               },
             },
           },
@@ -440,27 +575,12 @@ export default function M3Theme({
             loadingIndicator: { color: color.primary },
           },
         },
-        MuiBackdrop: {
-          styleOverrides: {
-            root: {
-              "@media (prefers-reduced-motion: reduce)": {
-                transitionDuration: "0.01ms !important",
-              },
-            },
-          },
-        },
         MuiDialog: {
           styleOverrides: {
-            root: {
-              "@media (prefers-reduced-motion: reduce)": {
-                "& .MuiDialog-paper": {
-                  animationDuration: "0.01ms !important",
-                  transitionDuration: "0.01ms !important",
-                },
-              },
-            },
             paper: {
-              borderRadius: M3_RADIUS_2XL,
+              border: `1px solid ${color.outlineVariant}`,
+              borderRadius: M3_RADIUS_PANEL,
+              backgroundColor: color.surface,
               boxShadow: "var(--kt-shadow-menu)",
             },
           },
@@ -468,45 +588,55 @@ export default function M3Theme({
         MuiMenu: {
           styleOverrides: {
             paper: {
-              borderRadius: M3_RADIUS_XL,
-              backgroundColor: `var(--kt-liquid, ${glassSurface})`,
+              border: `1px solid ${color.outlineVariant}`,
+              borderRadius: M3_RADIUS_SURFACE,
+              backgroundColor: overlaySurface,
               boxShadow: "var(--kt-shadow-menu)",
-              WebkitBackdropFilter:
-                "var(--kt-liquid-blur, var(--kt-glass-blur))",
-              backdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
+              WebkitBackdropFilter: "var(--kt-liquid-blur)",
+              backdropFilter: "var(--kt-liquid-blur)",
+            },
+            list: {
+              padding: 4,
             },
           },
         },
         MuiTooltip: {
           styleOverrides: {
-            tooltip: { borderRadius: M3_RADIUS_CHIP },
+            tooltip: {
+              borderRadius: M3_RADIUS_SM,
+              fontSize: smSize,
+              lineHeight: 1.4,
+            },
           },
         },
         MuiPopover: {
           styleOverrides: {
             paper: {
-              borderRadius: M3_RADIUS_XL,
-              backgroundColor: `var(--kt-liquid, ${glassSurface})`,
+              border: `1px solid ${color.outlineVariant}`,
+              borderRadius: M3_RADIUS_SURFACE,
+              backgroundColor: overlaySurface,
               boxShadow: "var(--kt-shadow-menu)",
-              WebkitBackdropFilter:
-                "var(--kt-liquid-blur, var(--kt-glass-blur))",
-              backdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
-            },
-            root: {
-              "@media (prefers-reduced-motion: reduce)": {
-                "& .MuiPaper-root": {
-                  animationDuration: "0.01ms !important",
-                  transitionDuration: "0.01ms !important",
-                },
-              },
+              WebkitBackdropFilter: "var(--kt-liquid-blur)",
+              backdropFilter: "var(--kt-liquid-blur)",
             },
           },
         },
         MuiAlert: {
-          styleOverrides: { root: { borderRadius: M3_RADIUS_CONTROL } },
+          styleOverrides: {
+            root: {
+              borderRadius: M3_RADIUS_SURFACE,
+              fontSize: bodySize,
+              lineHeight: 1.5,
+            },
+          },
         },
         MuiSnackbarContent: {
-          styleOverrides: { root: { borderRadius: M3_RADIUS_CONTROL } },
+          styleOverrides: {
+            root: {
+              borderRadius: M3_RADIUS_CONTROL,
+              fontSize: bodySize,
+            },
+          },
         },
       },
       ...Object.fromEntries(
@@ -525,6 +655,7 @@ export default function M3Theme({
       <div
         className="kt-m3-root"
         data-theme={resolvedMode}
+        data-isolate-rem={isolateRem ? "true" : undefined}
         style={{
           ...cssVariables,
           colorScheme: resolvedMode,

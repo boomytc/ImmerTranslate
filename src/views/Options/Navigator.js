@@ -54,9 +54,10 @@ export default function Navigator({ open, compact = false, onClose }) {
   } = useSetting();
   const [query, setQuery] = useState("");
 
-  const groups = useMemo(
+  const primaryGroups = useMemo(
     () => [
       {
+        id: "general",
         label: i18n("options_group_general"),
         items: [
           ["overview", i18n("options_overview"), "/", TuneRoundedIcon],
@@ -69,6 +70,7 @@ export default function Navigator({ open, compact = false, onClose }) {
         ],
       },
       {
+        id: "scenarios",
         label: i18n("options_group_scenarios"),
         items: [
           [
@@ -99,6 +101,7 @@ export default function Navigator({ open, compact = false, onClose }) {
         ],
       },
       {
+        id: "services",
         label: i18n("options_group_services"),
         items: [
           [
@@ -116,21 +119,30 @@ export default function Navigator({ open, compact = false, onClose }) {
         ],
       },
       {
+        id: "data",
         label: i18n("options_group_data"),
         items: [
           ["sync", i18n("options_data_sync"), "/sync", CloudSyncRoundedIcon],
         ],
-      },
-      {
-        label: "",
-        items: [["about", i18n("about"), "/about", InfoRoundedIcon]],
       },
     ],
     [i18n]
   );
 
   const normalizedQuery = normalizeSearchText(query.trim(), uiLang);
-  const visibleGroups = groups
+  const searchableGroups = useMemo(() => {
+    if (!normalizedQuery) return primaryGroups;
+    return [
+      ...primaryGroups,
+      {
+        id: "about",
+        label: "",
+        items: [["about", i18n("about"), "/about", InfoRoundedIcon]],
+      },
+    ];
+  }, [i18n, normalizedQuery, primaryGroups]);
+
+  const visibleGroups = searchableGroups
     .map((group) => ({
       ...group,
       items: group.items.filter(([id, label]) => {
@@ -155,25 +167,20 @@ export default function Navigator({ open, compact = false, onClose }) {
       tabIndex={compact ? -1 : undefined}
     >
       <div className="kt-options-brand-row">
-        <a
+        <NavLink
+          to="/"
+          end
           className="kt-options-brand"
-          href={process.env.REACT_APP_HOMEPAGE}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={compact ? () => onClose?.(false) : undefined}
         >
-          <Logo size={30} />
-          <span className="kt-options-brand__text">
-            <span
-              id="kt-options-navigation-title"
-              className="kt-options-brand__name"
-            >
-              {i18n("app_name")}
-            </span>
-            <span className="kt-options-brand__version">
-              {process.env.REACT_APP_VERSION}
-            </span>
+          <Logo size={28} />
+          <span
+            id="kt-options-navigation-title"
+            className="kt-options-brand__name"
+          >
+            {i18n("app_name")}
           </span>
-        </a>
+        </NavLink>
         {compact ? (
           <button
             type="button"
@@ -188,7 +195,7 @@ export default function Navigator({ open, compact = false, onClose }) {
         )}
       </div>
       <label className="kt-options-search">
-        <SearchRoundedIcon />
+        <SearchRoundedIcon aria-hidden="true" />
         <input
           type="search"
           value={query}
@@ -197,36 +204,67 @@ export default function Navigator({ open, compact = false, onClose }) {
           aria-label={i18n("options_search")}
         />
       </label>
-      <nav className="kt-options-nav">
+      <nav className="kt-options-nav" aria-label={i18n("setting")}>
         {visibleGroups.length ? (
-          visibleGroups.map((group) => (
-            <section
-              className="kt-options-nav__group"
-              key={group.label || "other"}
-            >
-              {group.label && (
-                <h2 className="kt-options-nav__label">{group.label}</h2>
-              )}
-              {group.items.map(([id, label, path, Icon]) => (
-                <NavLink
-                  className="kt-options-nav__link"
-                  to={path}
-                  end={path === "/"}
-                  key={id}
-                  onClick={compact ? () => onClose?.(false) : undefined}
+          visibleGroups.map((group) => {
+            const groupLabelId = group.label
+              ? `kt-options-nav-group-${group.id}`
+              : undefined;
+            return (
+              <div className="kt-options-nav__group" key={group.id}>
+                {group.label && (
+                  <div
+                    id={groupLabelId}
+                    className="kt-options-nav__label"
+                    role="presentation"
+                  >
+                    {group.label}
+                  </div>
+                )}
+                <ul
+                  className="kt-options-nav__list"
+                  aria-labelledby={groupLabelId}
                 >
-                  <Icon />
-                  <span>{label}</span>
-                </NavLink>
-              ))}
-            </section>
-          ))
+                  {group.items.map(([id, label, path, Icon]) => (
+                    <li key={id}>
+                      <NavLink
+                        className="kt-options-nav__link"
+                        to={path}
+                        end={path === "/"}
+                        onClick={compact ? () => onClose?.(false) : undefined}
+                      >
+                        <Icon aria-hidden="true" />
+                        <span>{label}</span>
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })
         ) : (
           <div className="kt-options-nav__empty">
             {i18n("options_no_results")}
           </div>
         )}
       </nav>
+      {!normalizedQuery && (
+        <footer className="kt-options-sidebar__footer">
+          <NavLink
+            className="kt-options-nav__link"
+            to="/about"
+            onClick={compact ? () => onClose?.(false) : undefined}
+          >
+            <InfoRoundedIcon aria-hidden="true" />
+            <span>{i18n("about")}</span>
+          </NavLink>
+          {process.env.REACT_APP_VERSION && (
+            <span className="kt-options-sidebar__version">
+              {`v${process.env.REACT_APP_VERSION}`}
+            </span>
+          )}
+        </footer>
+      )}
     </aside>
   );
 }

@@ -52,7 +52,7 @@ function SyncBackdrop({ open }) {
         zIndex: theme.zIndex.modal + 1,
       })}
     >
-      <CircularProgress color="inherit" size={72} />
+      <CircularProgress color="inherit" size={36} />
     </Backdrop>
   );
 }

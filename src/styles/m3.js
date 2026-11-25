@@ -1,63 +1,70 @@
 export const M3_COLORS = {
   light: {
-    primary: "#0B57D0",
+    primary: "#0F5C9E",
     onPrimary: "#FFFFFF",
-    primaryContainer: "#D3E3FD",
-    onPrimaryContainer: "#041E49",
-    secondaryContainer: "#C2E7FF",
-    onSecondaryContainer: "#001D35",
-    tertiaryContainer: "#C4EED0",
-    onTertiaryContainer: "#072711",
-    error: "#B3261E",
-    errorContainer: "#F9DEDC",
-    onErrorContainer: "#8C1D18",
-    warning: "#9A5B00",
+    primaryContainer: "#DFEEFA",
+    onPrimaryContainer: "#093257",
+    // Keep secondaryContainer aliased to primaryContainer to avoid competing active accents.
+    secondaryContainer: "#DFEEFA",
+    onSecondaryContainer: "#093257",
+    tertiaryContainer: "#DCFCE7",
+    onTertiaryContainer: "#14532D",
+    error: "#B42318",
+    errorContainer: "#FEE4E2",
+    onErrorContainer: "#7A271A",
+    warning: "#92400E",
     onWarning: "#FFFFFF",
-    warningContainer: "#FEF0D5",
-    onWarningContainer: "#5C3400",
-    success: "#146C2E",
-    background: "#F8FAFD",
+    warningContainer: "#FEF3C7",
+    onWarningContainer: "#5C2806",
+    success: "#166534",
+    successContainer: "#DCFCE7",
+    onSuccessContainer: "#14532D",
+    background: "#F5F6F8",
     surface: "#FFFFFF",
-    surfaceLow: "#F3F6FB",
-    surfaceContainer: "#F0F4F9",
-    surfaceHigh: "#E9EEF6",
-    surfaceHighest: "#DDE3EA",
-    onSurface: "#1F1F1F",
-    onSurfaceVariant: "#444746",
-    outline: "#747775",
-    outlineVariant: "#C9CDD3",
-    inverseSurface: "#2F3033",
-    onInverseSurface: "#F1F1F1",
+    surfaceLow: "#ECEFF3",
+    surfaceContainer: "#E8ECF1",
+    surfaceHigh: "#DFE5EC",
+    surfaceHighest: "#D2DAE3",
+    onSurface: "#11161D",
+    onSurfaceVariant: "#4E5866",
+    outline: "#727C8A",
+    outlineVariant: "#D5DCE4",
+    scrollbarThumb: "#768190",
+    inverseSurface: "#171B21",
+    onInverseSurface: "#E8EDF3",
   },
   dark: {
-    primary: "#A8C7FA",
-    onPrimary: "#062E6F",
-    primaryContainer: "#0842A0",
-    onPrimaryContainer: "#D3E3FD",
-    secondaryContainer: "#004A77",
-    onSecondaryContainer: "#C2E7FF",
-    tertiaryContainer: "#0F5223",
-    onTertiaryContainer: "#C4EED0",
-    error: "#F2B8B5",
-    errorContainer: "#601410",
-    onErrorContainer: "#F9DEDC",
-    warning: "#F5B851",
+    primary: "#72BEF8",
+    onPrimary: "#08243D",
+    primaryContainer: "#133A5C",
+    onPrimaryContainer: "#D6ECFE",
+    secondaryContainer: "#133A5C",
+    onSecondaryContainer: "#D6ECFE",
+    tertiaryContainer: "#123826",
+    onTertiaryContainer: "#C6F6D5",
+    error: "#F8A39D",
+    errorContainer: "#531B18",
+    onErrorContainer: "#FEE4E2",
+    warning: "#F5C15C",
     onWarning: "#3E2400",
-    warningContainer: "#4F3100",
-    onWarningContainer: "#FEF0D5",
-    success: "#6DD58C",
-    background: "#131314",
-    surface: "#1E1F20",
-    surfaceLow: "#232426",
-    surfaceContainer: "#282A2C",
-    surfaceHigh: "#2D2F31",
-    surfaceHighest: "#37393B",
-    onSurface: "#E3E3E3",
-    onSurfaceVariant: "#C4C7C5",
-    outline: "#8E918F",
-    outlineVariant: "#3F4245",
-    inverseSurface: "#E3E3E3",
-    onInverseSurface: "#303030",
+    warningContainer: "#453008",
+    onWarningContainer: "#FDE68A",
+    success: "#6EE7A8",
+    successContainer: "#123826",
+    onSuccessContainer: "#C6F6D5",
+    background: "#101317",
+    surface: "#171B21",
+    surfaceLow: "#1D222A",
+    surfaceContainer: "#232933",
+    surfaceHigh: "#2B323E",
+    surfaceHighest: "#38414F",
+    onSurface: "#E8EDF3",
+    onSurfaceVariant: "#9AA6B5",
+    outline: "#6D7888",
+    outlineVariant: "#2A313C",
+    scrollbarThumb: "#6D7888",
+    inverseSurface: "#E8EDF3",
+    onInverseSurface: "#101317",
   },
 };
 
@@ -82,6 +89,8 @@ export function createM3CssVariables(colors) {
     "--kt-terc": colors.tertiaryContainer,
     "--kt-onterc": colors.onTertiaryContainer,
     "--kt-grn": colors.success,
+    "--kt-grnc": colors.successContainer,
+    "--kt-ongrnc": colors.onSuccessContainer,
     "--kt-warn": colors.warning,
     "--kt-onwarn": colors.onWarning,
     "--kt-warnc": colors.warningContainer,
@@ -99,32 +108,43 @@ export function createM3CssVariables(colors) {
     "--kt-onv": colors.onSurfaceVariant,
     "--kt-line": colors.outline,
     "--kt-linev": colors.outlineVariant,
+    "--kt-scrollbar-thumb": colors.scrollbarThumb,
     "--kt-inv": colors.inverseSurface,
     "--kt-oninv": colors.onInverseSurface,
   };
 }
 
 export const M3_FONT_FAMILY =
-  '"Google Sans Flex", "Google Sans", "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui, sans-serif';
 
-// Chrome motion stays inside 150–250ms and does not overshoot.
-export const M3_EASE = "cubic-bezier(.22, 1, .36, 1)";
-export const M3_DURATION = ".15s";
+export const M3_MONO_FONT_FAMILY =
+  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 
-// LightUI radius steps (tokens.css). Semantic aliases below stay for in-page
-// translation surfaces so this chrome pass does not restyle them.
+// Strict 3-step body scale (15 / 14 / 13 px).
+export const M3_TEXT_HEADING = 15;
+export const M3_TEXT_BODY = 14;
+export const M3_TEXT_SM = 13;
+
+// Desktop motion stays inside 150-220ms with smooth ease-out and zero overshoot.
+export const M3_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+export const M3_DURATION = "150ms";
+export const M3_DURATION_SLOW = "220ms";
+
+// Unified 4-step radius scale: 6 (sm) / 10 (control) / 12 (surface) / 16 (panel).
 export const M3_RADIUS_XS = 6;
-export const M3_RADIUS_SM = 8;
-export const M3_RADIUS_MD = 12;
-export const M3_RADIUS_LG = 16;
-export const M3_RADIUS_XL = 22;
-export const M3_RADIUS_2XL = 28;
-export const M3_RADIUS_CONTROL = M3_RADIUS_LG;
-export const M3_RADIUS_CARD = 20;
-export const M3_RADIUS_SHEET = 18;
-export const M3_RADIUS_CHIP = 14;
+export const M3_RADIUS_SM = 6;
+export const M3_RADIUS_CONTROL = 10;
+export const M3_RADIUS_MD = M3_RADIUS_CONTROL;
+export const M3_RADIUS_CHIP = M3_RADIUS_CONTROL;
+export const M3_RADIUS_SURFACE = 12;
+export const M3_RADIUS_LG = M3_RADIUS_SURFACE;
+export const M3_RADIUS_CARD = M3_RADIUS_SURFACE;
+export const M3_RADIUS_PANEL = 16;
+export const M3_RADIUS_SHEET = M3_RADIUS_PANEL;
+export const M3_RADIUS_XL = M3_RADIUS_PANEL;
+export const M3_RADIUS_2XL = M3_RADIUS_PANEL;
 
-// 4pt chrome spacing. Ball menu, popup, and options shell share this scale.
+// 4pt chrome spacing scale shared across Options, Popup, and in-page overlays.
 export const M3_SPACE_2XS = 4;
 export const M3_SPACE_XS = 8;
 export const M3_SPACE_SM = 12;
@@ -137,18 +157,26 @@ export const M3_GLOBAL_CSS = String.raw`
 :root[data-kt-m3-root],
 :host,
 .kt-m3-root {
+  --kt-font-sans: ${M3_FONT_FAMILY};
+  --kt-font-mono: ${M3_MONO_FONT_FAMILY};
+  --kt-text-heading: 0.9375rem;
+  --kt-text-body: 0.875rem;
+  --kt-text-sm: 0.8125rem;
   --kt-ease: ${M3_EASE};
   --kt-dur: ${M3_DURATION};
+  --kt-dur-slow: ${M3_DURATION_SLOW};
   --kt-radius-xs: ${M3_RADIUS_XS}px;
   --kt-radius-sm: ${M3_RADIUS_SM}px;
+  --kt-radius-control: ${M3_RADIUS_CONTROL}px;
   --kt-radius-md: ${M3_RADIUS_MD}px;
+  --kt-radius-chip: ${M3_RADIUS_CHIP}px;
+  --kt-radius-surface: ${M3_RADIUS_SURFACE}px;
   --kt-radius-lg: ${M3_RADIUS_LG}px;
+  --kt-radius-card: ${M3_RADIUS_CARD}px;
+  --kt-radius-panel: ${M3_RADIUS_PANEL}px;
+  --kt-radius-sheet: ${M3_RADIUS_SHEET}px;
   --kt-radius-xl: ${M3_RADIUS_XL}px;
   --kt-radius-2xl: ${M3_RADIUS_2XL}px;
-  --kt-radius-card: ${M3_RADIUS_CARD}px;
-  --kt-radius-control: ${M3_RADIUS_CONTROL}px;
-  --kt-radius-sheet: ${M3_RADIUS_SHEET}px;
-  --kt-radius-chip: ${M3_RADIUS_CHIP}px;
   --kt-space-2xs: ${M3_SPACE_2XS}px;
   --kt-space-xs: ${M3_SPACE_XS}px;
   --kt-space-sm: ${M3_SPACE_SM}px;
@@ -156,68 +184,83 @@ export const M3_GLOBAL_CSS = String.raw`
   --kt-space-lg: ${M3_SPACE_LG}px;
   --kt-space-xl: ${M3_SPACE_XL}px;
   --kt-chrome-inset: ${M3_CHROME_INSET}px;
-  --kt-border: rgb(23 24 28 / 0.08);
-  --kt-border-strong: rgb(23 24 28 / 0.14);
-  --kt-glass-blur: blur(22px) saturate(1.6);
+  --kt-border: var(--kt-linev);
+  --kt-border-strong: var(--kt-line);
+  --kt-scrim: rgb(17 22 29 / 0.34);
+  --kt-glass-blur: blur(18px) saturate(1.4);
+  --kt-glass: var(--kt-sf0);
+  --kt-glass-strong: var(--kt-sf1);
+  --kt-glass-bg: var(--kt-bg);
+  --kt-glass-tint: var(--kt-pric);
+  --kt-glass-edge: var(--kt-linev);
   --kt-liquid: var(--kt-sf0);
   --kt-liquid-tint: var(--kt-pric);
-  --kt-liquid-edge: var(--kt-border-strong);
+  --kt-liquid-edge: var(--kt-linev);
   --kt-liquid-blur: none;
-  --kt-shadow-card: 0 1px 2px rgb(23 24 28 / 0.04), 0 10px 28px rgb(23 24 28 / 0.05);
-  --kt-shadow-menu: 0 1px 2px rgb(23 24 28 / 0.04), 0 16px 40px rgb(23 24 28 / 0.08);
-  --kt-shadow-border: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06), 0 2px 4px 0 rgb(0 0 0 / 0.04);
-  --kt-shadow-border-hover: 0 0 0 1px rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.08), 0 2px 4px 0 rgb(0 0 0 / 0.06);
+  --kt-shadow-card: 0 1px 2px rgb(17 22 29 / 0.06), 0 4px 12px rgb(17 22 29 / 0.05);
+  --kt-shadow-menu: 0 2px 6px rgb(17 22 29 / 0.08), 0 12px 32px rgb(17 22 29 / 0.12);
+  --kt-shadow-border: 0 0 0 1px var(--kt-linev), 0 1px 2px rgb(17 22 29 / 0.05);
+  --kt-shadow-border-hover: 0 0 0 1px var(--kt-line), 0 2px 6px rgb(17 22 29 / 0.08);
   --kt-liquid-shadow: var(--kt-shadow-menu);
-  --kt-shadow-1: 0 1px 2px rgba(0, 0, 0, .14), 0 1px 6px 1px rgba(0, 0, 0, .08);
-  --kt-shadow-2: 0 4px 8px 3px rgba(0, 0, 0, .1), 0 1px 3px rgba(0, 0, 0, .18);
+  --kt-shadow-1: 0 1px 3px rgb(17 22 29 / 0.12), 0 2px 8px rgb(17 22 29 / 0.06);
+  --kt-shadow-2: 0 4px 12px rgb(17 22 29 / 0.12), 0 2px 4px rgb(17 22 29 / 0.08);
   color: var(--kt-on);
-  font-family: "Google Sans Flex", "Google Sans", "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--kt-font-sans);
+  scrollbar-color: var(--kt-scrollbar-thumb) transparent;
+  scrollbar-width: auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Shadow DOM and isolated roots lock body steps to exact pixels so host root rem never leaks. */
+:host,
+.kt-m3-root[data-isolate-rem="true"] {
+  --kt-text-heading: ${M3_TEXT_HEADING}px;
+  --kt-text-body: ${M3_TEXT_BODY}px;
+  --kt-text-sm: ${M3_TEXT_SM}px;
 }
 
 :root[data-kt-m3-root][data-theme="dark"],
 :host([data-theme="dark"]),
 .kt-m3-root[data-theme="dark"] {
-  --kt-border: rgb(255 255 255 / 0.08);
-  --kt-border-strong: rgb(255 255 255 / 0.14);
-  --kt-shadow-card: 0 1px 2px rgb(0 0 0 / 0.28), 0 10px 28px rgb(0 0 0 / 0.22);
-  --kt-shadow-menu: 0 1px 2px rgb(0 0 0 / 0.35), 0 16px 40px rgb(0 0 0 / 0.4);
-  --kt-shadow-border: 0 0 0 1px rgb(255 255 255 / 0.08);
-  --kt-shadow-border-hover: 0 0 0 1px rgb(255 255 255 / 0.13);
-  --kt-shadow-1: 0 1px 2px rgba(0, 0, 0, .5), 0 1px 6px 1px rgba(0, 0, 0, .35);
-  --kt-shadow-2: 0 4px 10px 3px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .5);
+  --kt-scrim: rgb(0 0 0 / 0.56);
+  --kt-shadow-card: 0 1px 2px rgb(0 0 0 / 0.34), 0 6px 18px rgb(0 0 0 / 0.24);
+  --kt-shadow-menu: 0 2px 8px rgb(0 0 0 / 0.45), 0 14px 36px rgb(0 0 0 / 0.42);
+  --kt-shadow-border: 0 0 0 1px var(--kt-linev);
+  --kt-shadow-border-hover: 0 0 0 1px var(--kt-line);
+  --kt-shadow-1: 0 1px 3px rgb(0 0 0 / 0.48), 0 2px 8px rgb(0 0 0 / 0.34);
+  --kt-shadow-2: 0 4px 14px rgb(0 0 0 / 0.48), 0 2px 4px rgb(0 0 0 / 0.42);
 }
 
-/* Translucent chrome only when blur can keep text readable. Otherwise surfaces stay solid. */
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in srgb, white 50%, transparent)) {
+/* Subtle overlay translucency reserved strictly for top-layer floating overlays and menus. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in oklab, white 50%, transparent)) {
   :root[data-kt-m3-root],
   :host,
   .kt-m3-root {
-    --kt-glass: color-mix(in srgb, var(--kt-sf0) 82%, transparent);
-    --kt-glass-strong: color-mix(in srgb, var(--kt-sf1) 92%, transparent);
-    --kt-glass-bg: color-mix(in srgb, var(--kt-bg) 88%, transparent);
-    --kt-glass-tint: color-mix(in srgb, var(--kt-pric) 78%, transparent);
-    --kt-glass-edge: color-mix(in srgb, var(--kt-sf0) 64%, var(--kt-linev));
-    --kt-liquid: color-mix(in srgb, var(--kt-sf0) 82%, transparent);
-    --kt-liquid-tint: color-mix(in srgb, var(--kt-pric) 78%, transparent);
-    --kt-liquid-edge: color-mix(in srgb, white 72%, var(--kt-border-strong));
-    --kt-liquid-blur: blur(22px) saturate(1.75) brightness(1.06);
-    --kt-liquid-shadow: inset 0 1px 0 color-mix(in srgb, white 74%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--kt-on) 6%, transparent), 0 10px 30px -12px color-mix(in srgb, var(--kt-on) 18%, transparent);
+    --kt-glass: color-mix(in oklab, var(--kt-sf0) 88%, transparent);
+    --kt-glass-strong: color-mix(in oklab, var(--kt-sf1) 94%, transparent);
+    --kt-glass-bg: color-mix(in oklab, var(--kt-bg) 90%, transparent);
+    --kt-glass-tint: color-mix(in oklab, var(--kt-pric) 86%, transparent);
+    --kt-glass-edge: var(--kt-linev);
+    --kt-liquid: color-mix(in oklab, var(--kt-sf0) 88%, transparent);
+    --kt-liquid-tint: color-mix(in oklab, var(--kt-pric) 86%, transparent);
+    --kt-liquid-edge: var(--kt-linev);
+    --kt-liquid-blur: blur(18px) saturate(1.4);
+    --kt-liquid-shadow: var(--kt-shadow-menu);
   }
 
   :root[data-kt-m3-root][data-theme="dark"],
   :host([data-theme="dark"]),
   .kt-m3-root[data-theme="dark"] {
-    --kt-glass: color-mix(in srgb, var(--kt-sf0) 90%, transparent);
-    --kt-glass-strong: color-mix(in srgb, var(--kt-sf1) 94%, transparent);
-    --kt-glass-bg: color-mix(in srgb, var(--kt-bg) 92%, transparent);
-    --kt-glass-tint: color-mix(in srgb, var(--kt-pric) 86%, transparent);
-    --kt-glass-edge: color-mix(in srgb, var(--kt-on) 18%, var(--kt-linev));
-    --kt-liquid: color-mix(in srgb, var(--kt-sf0) 78%, transparent);
-    --kt-liquid-tint: color-mix(in srgb, var(--kt-pric) 82%, transparent);
-    --kt-liquid-edge: color-mix(in srgb, white 24%, transparent);
-    --kt-liquid-shadow: inset 0 1px 0 color-mix(in srgb, white 22%, transparent), 0 10px 30px -12px color-mix(in srgb, black 40%, transparent);
+    --kt-glass: color-mix(in oklab, var(--kt-sf0) 92%, transparent);
+    --kt-glass-strong: color-mix(in oklab, var(--kt-sf1) 95%, transparent);
+    --kt-glass-bg: color-mix(in oklab, var(--kt-bg) 92%, transparent);
+    --kt-glass-tint: color-mix(in oklab, var(--kt-pric) 90%, transparent);
+    --kt-glass-edge: var(--kt-linev);
+    --kt-liquid: color-mix(in oklab, var(--kt-sf0) 90%, transparent);
+    --kt-liquid-tint: color-mix(in oklab, var(--kt-pric) 90%, transparent);
+    --kt-liquid-edge: var(--kt-linev);
+    --kt-liquid-shadow: var(--kt-shadow-menu);
   }
 }
 
@@ -260,6 +303,13 @@ export const M3_GLOBAL_CSS = String.raw`
   }
 }
 
+@media (forced-colors: active) {
+  .kt-m3-root :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
 .kt-m3-root .MuiInputBase-input:focus {
   outline: none;
 }
@@ -275,20 +325,22 @@ export const M3_GLOBAL_CSS = String.raw`
   .kt-m3-root .MuiSlider-input:focus-visible { outline: none; }
 }
 
-.kt-m3-root ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
+@supports not (scrollbar-color: auto) {
+  .kt-m3-root ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
 
-.kt-m3-root ::-webkit-scrollbar-thumb {
-  background: var(--kt-sf4);
-  background-clip: content-box;
-  border: 3px solid transparent;
-  border-radius: 999px;
-}
+  .kt-m3-root ::-webkit-scrollbar-thumb {
+    background: var(--kt-scrollbar-thumb);
+    background-clip: content-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+  }
 
-.kt-m3-root ::-webkit-scrollbar-track {
-  background: transparent;
+  .kt-m3-root ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 .kt-m3-root textarea.kt-resizable-textarea:not([aria-hidden="true"])::-webkit-scrollbar {
@@ -307,50 +359,97 @@ export const M3_GLOBAL_CSS = String.raw`
       var(--kt-onv) 65% 73%,
       transparent 74%
     );
-    background-image: linear-gradient(
-      135deg,
-      transparent 0 42%,
-      color-mix(in srgb, var(--kt-onv) 68%, transparent) 43% 51%,
-      transparent 52% 64%,
-      color-mix(in srgb, var(--kt-onv) 68%, transparent) 65% 73%,
-      transparent 74%
-    );
     background-repeat: no-repeat;
     background-position: right 6px bottom 6px;
     background-size: 10px 10px;
   }
 }
 
+/* Shared missing-API-key notice styled consistently across Options and overlays. */
+.kt-api-key-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kt-space-xs, 8px);
+  padding: var(--kt-space-sm, 12px) var(--kt-space-md, 16px);
+  border: 1px solid var(--kt-linev);
+  border-inline-start: 3px solid var(--kt-warn);
+  border-radius: var(--kt-radius-surface, 12px);
+  background: var(--kt-warnc);
+  color: var(--kt-onwarnc);
+}
+
+.kt-api-key-empty p {
+  margin: 0;
+  max-width: 65ch;
+  color: inherit;
+  font-size: var(--kt-text-sm, 13px);
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.kt-api-key-empty button {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--kt-radius-control, 10px);
+  background: var(--kt-pri);
+  color: var(--kt-onpri);
+  font: inherit;
+  font-size: var(--kt-text-sm, 13px);
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: background-color var(--kt-dur, 150ms) var(--kt-ease, ease-out), opacity var(--kt-dur, 150ms) var(--kt-ease, ease-out);
+}
+
+@media (hover: hover) {
+  .kt-api-key-empty button:hover {
+    opacity: 0.92;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kt-api-key-empty button {
+    transition: background-color var(--kt-dur, 150ms) var(--kt-ease, ease-out), opacity var(--kt-dur, 150ms) var(--kt-ease, ease-out), transform var(--kt-dur, 150ms) var(--kt-ease, ease-out);
+  }
+
+  .kt-api-key-empty button:active {
+    transform: scale(0.98);
+  }
+}
+
 @keyframes kt-m3-pop {
-  from { opacity: 0; transform: scale(.96); }
+  from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: none; }
 }
 
 @keyframes kt-m3-rise {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 
-@keyframes kt-m3-spin { to { transform: rotate(360deg); } }
+@keyframes kt-m3-spin {
+  to { transform: rotate(360deg); }
+}
 
+/* Legacy sweep kept until Wave 2 switches Popup progress bar to kt-m3-sweep-x. */
 @keyframes kt-m3-sweep {
   0% { left: -40%; width: 40%; }
   55%, 100% { left: 100%; width: 55%; }
 }
 
-@keyframes kt-m3-glow {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
+/* Compositor-only progress sweep; track consumers set left: 0; width: 42%; transform-origin: left center. */
+@keyframes kt-m3-sweep-x {
+  0% { transform: translateX(-100%) scaleX(0.45); }
+  55%, 100% { transform: translateX(240%) scaleX(0.65); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kt-m3-root *,
-  .kt-m3-root *::before,
-  .kt-m3-root *::after {
-    scroll-behavior: auto !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
+  :root[data-kt-m3-root] .MuiCircularProgress-svg,
+  .kt-m3-root .MuiCircularProgress-svg {
+    animation-duration: 3.6s;
   }
 }
 `;

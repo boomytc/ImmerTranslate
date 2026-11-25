@@ -1,2 +1,3 @@
+export const SETTINGS_HEADING_SIZE = 15;
 export const SETTINGS_FONT_SIZE = 14;
-export const SETTINGS_HELPER_FONT_SIZE = 12;
+export const SETTINGS_HELPER_FONT_SIZE = 13;

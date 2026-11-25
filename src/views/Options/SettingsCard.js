@@ -1,12 +1,18 @@
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  Children,
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import Accordion from "@mui/material/Accordion";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
 import ListItem from "@mui/material/ListItem";
-import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Slider from "@mui/material/Slider";
 import Switch from "@mui/material/Switch";
@@ -14,11 +20,21 @@ import TextField from "@mui/material/TextField";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
+import { useI18n } from "../../hooks/I18n";
 
-export function SettingsSection({ title, children, className = "" }) {
+const SettingsRowContext = createContext(null);
+
+export function SettingsSection({ title, action, children, className = "" }) {
   return (
     <section className={`kt-settings-section ${className}`.trim()}>
-      {title && <h2>{title}</h2>}
+      {(title || action) && (
+        <div className="kt-settings-section__header">
+          {title && <h2>{title}</h2>}
+          {action && (
+            <div className="kt-settings-section__action">{action}</div>
+          )}
+        </div>
+      )}
       {children}
     </section>
   );
@@ -26,13 +42,9 @@ export function SettingsSection({ title, children, className = "" }) {
 
 export function SettingsCard({ children, className = "" }) {
   return (
-    <Card
-      component="ul"
-      variant="outlined"
-      className={`kt-settings-card ${className}`.trim()}
-    >
+    <Box component="ul" className={`kt-settings-card ${className}`.trim()}>
       {children}
-    </Card>
+    </Box>
   );
 }
 
@@ -43,30 +55,72 @@ export function SettingsRow({
   stacked = false,
   className = "",
 }) {
+  const baseId = useId();
+  const labelId = `${baseId}-label`;
+  const descId = description ? `${baseId}-desc` : undefined;
+  const controlId = `${baseId}-control`;
+  const childArray = Children.toArray(children);
+  const singleChild = childArray.length === 1 ? childArray[0] : null;
+  // Only native <input> controls (SettingsSwitch) are HTML-labelable via <label htmlFor>.
+  const hasNativeInputControl = Boolean(
+    singleChild && singleChild.type === SettingsSwitch
+  );
+
   return (
-    <ListItem
-      disableGutters
-      className={`kt-settings-row ${stacked ? "kt-settings-row--stacked" : ""} ${className}`.trim()}
+    <SettingsRowContext.Provider
+      value={{
+        controlId,
+        labelId,
+        descId,
+        hasHtmlLabel: hasNativeInputControl,
+      }}
     >
-      <ListItemText
-        className="kt-settings-row__copy"
-        primary={label}
-        secondary={description || null}
-        primaryTypographyProps={{ component: "strong" }}
-        secondaryTypographyProps={{ component: "span" }}
-      />
-      <Box className="kt-settings-row__control">{children}</Box>
-    </ListItem>
+      <ListItem
+        disableGutters
+        className={`kt-settings-row ${stacked ? "kt-settings-row--stacked" : ""} ${className}`.trim()}
+      >
+        <div className="kt-settings-row__copy">
+          {hasNativeInputControl ? (
+            <label
+              id={labelId}
+              htmlFor={controlId}
+              className="kt-settings-row__label"
+            >
+              {label}
+            </label>
+          ) : (
+            <span id={labelId} className="kt-settings-row__label">
+              {label}
+            </span>
+          )}
+          {description && (
+            <span id={descId} className="kt-settings-row__desc">
+              {description}
+            </span>
+          )}
+        </div>
+        <Box className="kt-settings-row__control">{children}</Box>
+      </ListItem>
+    </SettingsRowContext.Provider>
   );
 }
 
 export function SettingsSwitch({ checked, onChange, label, disabled = false }) {
+  const rowContext = useContext(SettingsRowContext);
   return (
     <Switch
+      id={rowContext?.hasHtmlLabel ? rowContext.controlId : undefined}
       checked={checked}
       disabled={disabled}
       onChange={(event) => onChange(event.target.checked)}
-      inputProps={{ "aria-label": label }}
+      inputProps={{
+        "aria-label": rowContext ? undefined : label,
+        "aria-labelledby":
+          rowContext && !rowContext.hasHtmlLabel
+            ? rowContext.labelId
+            : undefined,
+        "aria-describedby": rowContext?.descId,
+      }}
     />
   );
 }
@@ -78,6 +132,7 @@ export function SettingsSegmented({
   label,
   className = "",
 }) {
+  const rowContext = useContext(SettingsRowContext);
   const itemRefs = useRef([]);
   const normalizedItems = items.map((item) =>
     typeof item === "object" ? item : { value: item, label: String(item) }
@@ -132,7 +187,9 @@ export function SettingsSegmented({
         if (nextValue !== null) onChange(nextValue);
       }}
       className={`kt-settings-segmented ${className}`.trim()}
-      aria-label={label}
+      aria-label={rowContext ? undefined : label}
+      aria-labelledby={rowContext?.labelId}
+      aria-describedby={rowContext?.descId}
       role="radiogroup"
     >
       {normalizedItems.map((normalized, index) => {
@@ -174,6 +231,7 @@ export function SettingsSelect({
   multiple = false,
   disabled = false,
 }) {
+  const rowContext = useContext(SettingsRowContext);
   return (
     <TextField
       select
@@ -183,8 +241,14 @@ export function SettingsSelect({
       className="kt-settings-select"
       value={value}
       disabled={disabled}
-      SelectProps={{ multiple }}
-      inputProps={{ "aria-label": label }}
+      SelectProps={{
+        multiple,
+        SelectDisplayProps: {
+          "aria-labelledby": rowContext?.labelId,
+          "aria-describedby": rowContext?.descId,
+        },
+      }}
+      inputProps={{ "aria-label": rowContext ? undefined : label }}
       onChange={(event) => onChange(event.target.value)}
     >
       {options.map((option) => {
@@ -210,6 +274,7 @@ export function SettingsRange({
   label,
   onChange,
 }) {
+  const rowContext = useContext(SettingsRowContext);
   const [draftValue, setDraftValue] = useState(value);
 
   useEffect(() => {
@@ -223,18 +288,28 @@ export function SettingsRange({
         min={min}
         max={max}
         step={step}
-        aria-label={label}
+        aria-label={rowContext ? undefined : label}
+        aria-labelledby={rowContext?.labelId}
+        aria-describedby={rowContext?.descId}
         onChange={(_event, nextValue) => setDraftValue(Number(nextValue))}
         onChangeCommitted={(_event, nextValue) => onChange(Number(nextValue))}
       />
-      <Typography component="output">{`${draftValue}${unit}`}</Typography>
+      <Typography
+        component="output"
+        className="kt-settings-range__output"
+      >{`${draftValue}${unit}`}</Typography>
     </Box>
   );
 }
 
 export function ShortcutKeys({ keys = [] }) {
+  const i18n = useI18n();
   if (keys.length === 0) {
-    return <span className="kt-settings-keys kt-settings-keys--empty">—</span>;
+    return (
+      <span className="kt-settings-keys kt-settings-keys--empty">
+        {i18n("not_set")}
+      </span>
+    );
   }
 
   return (
@@ -243,6 +318,44 @@ export function ShortcutKeys({ keys = [] }) {
         <kbd key={key}>{key}</kbd>
       ))}
     </span>
+  );
+}
+
+export function SettingsDisclosure({
+  label,
+  children,
+  defaultOpen = false,
+  className = "",
+}) {
+  const id = useId();
+  const [open, setOpen] = useState(defaultOpen);
+  const panelId = `kt-settings-disclosure-${id}`;
+
+  return (
+    <div
+      className={`kt-settings-disclosure ${
+        open ? "kt-settings-disclosure--open" : ""
+      } ${className}`.trim()}
+    >
+      <button
+        type="button"
+        className="kt-settings-disclosure__trigger"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <ExpandMoreRoundedIcon
+          className="kt-settings-disclosure__icon"
+          aria-hidden="true"
+        />
+        <span>{label}</span>
+      </button>
+      {open && (
+        <div id={panelId} className="kt-settings-disclosure__content">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -40,8 +40,8 @@ export const SETTINGS_I18N = {
     en: `Size`,
   },
   fab_size_helper: {
-    zh: `{min}–{max} px · 默认 {default} px`,
-    en: `{min}–{max} px · Default {default} px`,
+    zh: `{min}-{max} px · 默认 {default} px`,
+    en: `{min}-{max} px · Default {default} px`,
   },
   fab_size_s: {
     zh: `小 (36px)`,
@@ -93,11 +93,95 @@ export const SETTINGS_I18N = {
   },
   overview_ready_subtitle: {
     zh: `当前已启用 {count} 个可用翻译服务`,
-    en: `{count} translation service(s) ready to use`,
+    en: `{count} active translation services`,
+  },
+  overview_ready_count: {
+    zh: `{count} 个可用服务`,
+    en: `{count} active`,
   },
   overview_configure_services: {
     zh: `去配置服务`,
     en: `Configure`,
+  },
+  overview_manage_services: {
+    zh: `管理服务`,
+    en: `Manage services`,
+  },
+  options_lang_pair: {
+    zh: `默认语言`,
+    en: `Languages`,
+  },
+  backup_and_restore: {
+    zh: `备份与恢复`,
+    en: `Backup & restore`,
+  },
+  usage_guide: {
+    zh: `使用说明`,
+    en: `Usage notes`,
+  },
+  api_filter_all: {
+    zh: `全部`,
+    en: `All`,
+  },
+  api_filter_enabled: {
+    zh: `已启用`,
+    en: `Enabled`,
+  },
+  service_enabled: {
+    zh: `启用服务`,
+    en: `Enable service`,
+  },
+  test_translate: {
+    zh: `翻译测试`,
+    en: `Test translation`,
+  },
+  insert_variable: {
+    zh: `插入变量`,
+    en: `Insert variable`,
+  },
+  not_set: {
+    zh: `未设置`,
+    en: `Not set`,
+  },
+  preview_bg_light: {
+    zh: `浅色页面`,
+    en: `Light page`,
+  },
+  preview_bg_dark: {
+    zh: `深色页面`,
+    en: `Dark page`,
+  },
+  about_version: {
+    zh: `版本`,
+    en: `Version`,
+  },
+  about_license: {
+    zh: `许可证`,
+    en: `License`,
+  },
+  about_homepage: {
+    zh: `项目主页`,
+    en: `Homepage`,
+  },
+  quick_toggles: {
+    zh: `快捷开关`,
+    en: `Quick toggles`,
+  },
+  style_stage_source: {
+    zh: `Clear typography stays quiet so you can read both languages smoothly.`,
+    en: `Clear typography stays quiet so you can read both languages smoothly.`,
+  },
+  style_stage_translation: {
+    zh: `清晰的排版保持克制，让双语对照阅读更自然流畅。`,
+    en: `清晰的排版保持克制，让双语对照阅读更自然流畅。`,
+  },
+  subtitle_preview_source: {
+    zh: `Bilingual captions stay easy to read across scenes.`,
+    en: `Bilingual captions stay easy to read across scenes.`,
+  },
+  subtitle_preview_translation: {
+    zh: `双语字幕在不同画面下依然清晰易读。`,
+    en: `双语字幕在不同画面下依然清晰易读。`,
   },
   settings_group_fab: {
     zh: `悬浮球`,
@@ -165,11 +249,11 @@ export const SETTINGS_I18N = {
   },
   api_url: {
     zh: `接口地址 (URL)`,
-    en: `URL`,
+    en: `Endpoint URL`,
   },
   api_key: {
     zh: `API 密钥`,
-    en: `API Key`,
+    en: `API key`,
   },
   api_region: {
     zh: `区域 (Region)`,
@@ -189,15 +273,15 @@ export const SETTINGS_I18N = {
   },
   api_max_tokens: {
     zh: `最大 Token 数 (0-1000000)`,
-    en: `Max Tokens (0-1000000)`,
+    en: `Max tokens (0-1000000)`,
   },
   request_hook: {
     zh: `请求钩子 (Request Hook)`,
-    en: `Request Hook`,
+    en: `Request hook`,
   },
   response_hook: {
     zh: `响应钩子 (Response Hook)`,
-    en: `Response Hook`,
+    en: `Response hook`,
   },
   drag_to_reorder: {
     zh: `拖拽排序`,

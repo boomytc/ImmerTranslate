@@ -17,6 +17,7 @@ export default function Layout() {
   const pathname = normalizeOptionsPath(location.pathname);
   const i18n = useI18n();
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [headerScrolled, setHeaderScrolled] = useState(false);
   const navigationTriggerRef = useRef(null);
   const returnFocusOnCloseRef = useRef(false);
   const backgroundRef = useRef(null);
@@ -33,13 +34,22 @@ export default function Layout() {
     setNavigationOpen(false);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+    setHeaderScrolled(false);
   }, [location.pathname]);
 
   useEffect(() => {
     if (!compact) {
       returnFocusOnCloseRef.current = false;
       setNavigationOpen(false);
+      setHeaderScrolled(false);
+      return undefined;
     }
+    const handleScroll = () => {
+      setHeaderScrolled(window.scrollY > 4);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [compact]);
 
   useLayoutEffect(() => {
@@ -181,6 +191,7 @@ export default function Layout() {
       <div className="kt-options-background" ref={backgroundRef}>
         <Header
           navigationOpen={navigationOpen}
+          scrolled={headerScrolled}
           onDrawerToggle={(event) => {
             navigationTriggerRef.current = event.currentTarget;
             setNavigationOpen(true);
@@ -192,7 +203,7 @@ export default function Layout() {
             <div
               className={`kt-options-main__inner ${
                 isWidePage ? "kt-options-main__inner--wide" : ""
-              } ${pathname === "/about" ? "kt-options-main__inner--about" : ""}`.trim()}
+              }`.trim()}
             >
               <header className="kt-options-page-header">
                 <h1>{page[0]}</h1>
