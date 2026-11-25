@@ -1244,7 +1244,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
             }
           />
           <Box className="kt-api-key-field-wrap">
-            {(apiKeyUrl || (requiresKey && isKeyEmpty)) && (
+            {Boolean(apiKeyUrl || (requiresKey && isKeyEmpty)) && (
               <Box className="kt-api-key-header">
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <span className="kt-api-key-header__label">
@@ -1274,13 +1274,23 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
             <SensitiveTextField
               size="small"
               fullWidth
-              label={i18n("api_key")}
+              hiddenLabel={Boolean(apiKeyUrl || (requiresKey && isKeyEmpty))}
+              label={
+                apiKeyUrl || (requiresKey && isKeyEmpty)
+                  ? undefined
+                  : i18n("api_key")
+              }
               toggleLabel={i18n("api_key")}
               name="key"
               value={key}
               onChange={handleChange}
               multiline={API_SPE_TYPES.mulkeys.has(apiType)}
               maxRows={10}
+              inputProps={
+                apiKeyUrl || (requiresKey && isKeyEmpty)
+                  ? { "aria-label": i18n("api_key") }
+                  : undefined
+              }
               helperText={effectiveKeyHelper || undefined}
             />
           </Box>
@@ -2286,6 +2296,9 @@ export default function Apis() {
     (sourceApi) => {
       const newApiSlug = copyApi(sourceApi);
       setDetailDirty(false);
+      if (sourceApi?.isDisabled) {
+        setListFilter("all");
+      }
       setDetailKey((key) => key + 1);
       if (newApiSlug) {
         setSelectedApiSlug(newApiSlug);

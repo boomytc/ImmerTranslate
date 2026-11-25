@@ -533,11 +533,19 @@ export const POPUP_STYLES = String.raw`
   align-items: center;
   gap: 8px;
 }
+.kt-popup-site__select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  color: var(--kt-on);
+}
 .kt-popup-site__select {
+  width: 100%;
   min-width: 0;
   min-height: 32px;
-  flex: 1;
-  padding: 4px 8px;
+  padding: 4px 30px 4px 10px;
   border: 1px solid var(--kt-linev);
   border-radius: var(--kt-radius-control, 10px);
   background: var(--kt-sf0);
@@ -546,6 +554,26 @@ export const POPUP_STYLES = String.raw`
   font-weight: 600;
   line-height: 1.4;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color var(--kt-dur, 150ms) var(--kt-ease, ease-out), background-color var(--kt-dur, 150ms) var(--kt-ease, ease-out);
+}
+@media (hover: hover) {
+  .kt-popup-site__select:hover {
+    border-color: var(--kt-line);
+    background: var(--kt-sf1);
+  }
+}
+.kt-popup-site__chevron {
+  position: absolute;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  color: var(--kt-onv);
+  pointer-events: none;
 }
 .kt-popup-site__status {
   flex: none;

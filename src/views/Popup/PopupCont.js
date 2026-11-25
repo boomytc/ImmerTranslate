@@ -1331,19 +1331,25 @@ export default function PopupCont({
           {domainOptions.length > 0 && (
             <>
               <div className="kt-popup-site__top">
-                <select
-                  className="kt-popup-site__select"
-                  value={selectedDomain}
-                  aria-label={i18n("domain")}
-                  title={selectedDomain}
-                  onChange={(event) => setSelectedDomain(event.target.value)}
-                >
-                  {domainOptions.map((domain) => (
-                    <option key={domain} value={domain} title={domain}>
-                      {truncateMiddle(domain)}
-                    </option>
-                  ))}
-                </select>
+                <span className="kt-popup-site__select-wrap">
+                  <select
+                    className="kt-popup-site__select"
+                    value={selectedDomain}
+                    aria-label={i18n("domain")}
+                    title={selectedDomain}
+                    onChange={(event) => setSelectedDomain(event.target.value)}
+                  >
+                    {domainOptions.map((domain) => (
+                      <option key={domain} value={domain} title={domain}>
+                        {truncateMiddle(domain)}
+                      </option>
+                    ))}
+                  </select>
+                  <ExpandMoreRoundedIcon
+                    className="kt-popup-site__chevron"
+                    aria-hidden="true"
+                  />
+                </span>
                 {pageBlocked && (
                   <span className="kt-popup-site__status kt-popup-site__status--blocked">
                     {i18n("popup_domain_blocked")}

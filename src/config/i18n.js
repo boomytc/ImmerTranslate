@@ -1650,7 +1650,7 @@ export const I18N = {
   },
   get_api_key: {
     zh: `获取 API Key`,
-    en: `Get API Key`,
+    en: `Get API key`,
   },
   key_configured: {
     zh: `已配置`,

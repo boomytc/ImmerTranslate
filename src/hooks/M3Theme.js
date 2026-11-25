@@ -349,14 +349,27 @@ export default function M3Theme({
             input: {
               paddingTop: 18,
               paddingBottom: 6,
+              "&.MuiInputBase-inputMultiline": {
+                paddingTop: 0,
+                paddingBottom: 0,
+              },
             },
             inputHiddenLabel: {
               paddingTop: 8,
               paddingBottom: 8,
+              "&.MuiInputBase-inputMultiline": {
+                paddingTop: 0,
+                paddingBottom: 0,
+              },
             },
             multiline: {
-              paddingTop: 20,
+              paddingTop: 22,
               paddingBottom: 8,
+              "&.MuiInputBase-hiddenLabel, &.MuiFilledInput-hiddenLabel, &:has(.MuiFilledInput-inputHiddenLabel)":
+                {
+                  paddingTop: 9,
+                  paddingBottom: 9,
+                },
             },
           },
         },

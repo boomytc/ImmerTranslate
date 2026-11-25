@@ -450,15 +450,17 @@ function PromptFields({
         useFlexGap
         flexWrap="wrap"
       >
-        <Button
-          size="small"
-          variant="contained"
-          onClick={handleSave}
-          disabled={!isModified || saving}
-          startIcon={<SaveIcon />}
-        >
-          {i18n("save")}
-        </Button>
+        {!isPreset && (
+          <Button
+            size="small"
+            variant="contained"
+            onClick={handleSave}
+            disabled={!isModified || saving}
+            startIcon={<SaveIcon />}
+          >
+            {i18n("save")}
+          </Button>
+        )}
         <Button
           size="small"
           variant="outlined"
@@ -575,7 +577,10 @@ export default function Prompts() {
   };
 
   const handleAddPromptFromTemplate = async (template) => {
-    if (!(await confirmDiscardChanges())) return;
+    if (!(await confirmDiscardChanges())) {
+      handleClose();
+      return;
+    }
     const templateName = getPromptDisplayName(template, i18n);
     const promptSlug = addPrompt(template, templateName);
     setEditorDirty(false);

@@ -381,6 +381,11 @@ label.kt-settings-row__label { cursor: pointer; }
   justify-content: flex-end;
   gap: 8px;
 }
+.kt-settings-row__control:has(> .kt-settings-segmented) {
+  width: auto;
+  min-width: var(--kt-settings-control-width);
+  max-width: 62%;
+}
 .kt-settings-row__control > .MuiFormControl-root { width: 100%; }
 .kt-settings-row__control .MuiInputBase-root { font-size: var(--kt-settings-font-size); }
 .kt-settings-row__control .MuiFilledInput-root { min-height: 38px; }
@@ -644,10 +649,10 @@ label.kt-settings-row__label { cursor: pointer; }
 /* Compact single-line overview status strip replacing the old 200px hero banner. */
 .kt-overview-strip {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px 20px;
+  gap: 10px 14px;
   margin: 0 0 24px;
   padding: 12px 16px;
   border: 1px solid var(--kt-linev);
@@ -665,6 +670,7 @@ label.kt-settings-row__label { cursor: pointer; }
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: none;
 }
 .kt-overview-strip__dot {
   width: 8px;
@@ -678,21 +684,25 @@ label.kt-settings-row__label { cursor: pointer; }
   font-size: var(--kt-text-body, 0.875rem);
   font-weight: 600;
   line-height: 1.4;
+  white-space: nowrap;
 }
 .kt-overview-strip__meta {
   color: var(--kt-onv);
   font-size: var(--kt-text-sm, 0.8125rem);
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
+  white-space: nowrap;
 }
 .kt-overview-strip--warn .kt-overview-strip__meta { color: inherit; }
 .kt-overview-strip__facts {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
 }
 .kt-overview-strip__fact {
   display: flex;
@@ -701,7 +711,7 @@ label.kt-settings-row__label { cursor: pointer; }
   min-width: 0;
 }
 .kt-overview-strip__fact + .kt-overview-strip__fact {
-  padding-inline-start: 18px;
+  padding-inline-start: 12px;
   border-inline-start: 1px solid var(--kt-linev);
 }
 .kt-overview-strip__fact dt {
@@ -718,7 +728,7 @@ label.kt-settings-row__label { cursor: pointer; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 220px;
+  max-width: 190px;
 }
 .kt-overview-strip__action { flex: none; margin-inline-start: auto; }
 .kt-overview-strip__link {

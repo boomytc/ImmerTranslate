@@ -163,7 +163,7 @@ export const ACTION_STYLES = String.raw`${FLOATING_BUTTON_STYLES}
   align-items: center;
   min-width: 0;
   width: 100%;
-  color: var(--kt-onv);
+  color: var(--kt-on);
 }
 .kt-content-fab-menu__select,
 .kt-content-fab-menu__model,
@@ -194,7 +194,7 @@ export const ACTION_STYLES = String.raw`${FLOATING_BUTTON_STYLES}
   right: 8px;
   width: 18px !important;
   height: 18px !important;
-  color: currentColor;
+  color: var(--kt-onv);
   pointer-events: none;
 }
 @media (hover: hover) {
