@@ -1,17 +1,17 @@
 import IconButton from "@mui/material/IconButton";
-import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
-import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import PushPinIcon from "@mui/icons-material/PushPin";
+import UnfoldLessRoundedIcon from "@mui/icons-material/UnfoldLessRounded";
+import UnfoldMoreRoundedIcon from "@mui/icons-material/UnfoldMoreRounded";
+import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
+import PushPinRoundedIcon from "@mui/icons-material/PushPinRounded";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import CloseIcon from "@mui/icons-material/Close";
-import LightModeIcon from "@mui/icons-material/LightMode";
-import DarkModeIcon from "@mui/icons-material/DarkMode";
-import BrightnessAutoIcon from "@mui/icons-material/BrightnessAuto";
+import LockRoundedIcon from "@mui/icons-material/LockRounded";
+import LockOpenRoundedIcon from "@mui/icons-material/LockOpenRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
+import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
+import BrightnessAutoRoundedIcon from "@mui/icons-material/BrightnessAutoRounded";
 import DragIndicatorRoundedIcon from "@mui/icons-material/DragIndicatorRounded";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import MoreVertRoundedIcon from "@mui/icons-material/MoreVertRounded";
 import {
   useCallback,
   useEffect,
@@ -163,15 +163,11 @@ export default function TranslationPanelHeader({
         </span>
       )}
 
-      {/* Left: logo and version. */}
+      {/* Left: logo and brand title. */}
       {!compact && (
         <span className="kt-tranbox-header__brand">
-          <span className="kt-tranbox-header__logo">
-            <Logo size={16} />
-          </span>
-          <span className="kt-tranbox-header__title">
-            {`${i18n("app_name")} ${process.env.REACT_APP_VERSION}`}
-          </span>
+          <Logo size={18} className="kt-tranbox-header__logo" />
+          <span className="kt-tranbox-header__title">{i18n("app_name")}</span>
         </span>
       )}
 
@@ -186,7 +182,7 @@ export default function TranslationPanelHeader({
             data-kt-tranbox-lock={String(!hideClickAway)}
             onClick={() => setHideClickAway((pre) => !pre)}
           >
-            {hideClickAway ? <LockOpenIcon /> : <LockIcon />}
+            {hideClickAway ? <LockOpenRoundedIcon /> : <LockRoundedIcon />}
           </IconButton>
         )}
 
@@ -211,7 +207,7 @@ export default function TranslationPanelHeader({
             setShowMore(true);
           }}
         >
-          <MoreVertIcon />
+          <MoreVertRoundedIcon />
         </IconButton>
 
         {/* Close the translation panel. */}
@@ -221,7 +217,7 @@ export default function TranslationPanelHeader({
             aria-label={i18n("close")}
             onClick={onClose}
           >
-            <CloseIcon />
+            <CloseRoundedIcon />
           </IconButton>
         )}
       </span>
@@ -244,7 +240,7 @@ export default function TranslationPanelHeader({
               role="menuitem"
               onClick={onOpenSeparateWindow}
             >
-              <OpenInNewIcon />
+              <OpenInNewRoundedIcon />
               {i18n("open_separate_window")}
             </button>
           )}
@@ -264,7 +260,11 @@ export default function TranslationPanelHeader({
                 setSimpleStyle((pre) => !pre);
               }}
             >
-              {simpleStyle ? <UnfoldMoreIcon /> : <UnfoldLessIcon />}
+              {simpleStyle ? (
+                <UnfoldMoreRoundedIcon />
+              ) : (
+                <UnfoldLessRoundedIcon />
+              )}
               {i18n("btn_tip_simple_style")}
             </button>
           )}
@@ -278,7 +278,11 @@ export default function TranslationPanelHeader({
               aria-checked={followSelection}
               onClick={() => setFollowSelection((pre) => !pre)}
             >
-              {followSelection ? <PushPinOutlinedIcon /> : <PushPinIcon />}
+              {followSelection ? (
+                <PushPinOutlinedIcon />
+              ) : (
+                <PushPinRoundedIcon />
+              )}
               {i18n("btn_tip_follow_selection")}
             </button>
           )}
@@ -291,11 +295,11 @@ export default function TranslationPanelHeader({
             onClick={toggleDarkMode}
           >
             {darkMode === "dark" ? (
-              <DarkModeIcon />
+              <DarkModeRoundedIcon />
             ) : darkMode === "auto" ? (
-              <BrightnessAutoIcon />
+              <BrightnessAutoRoundedIcon />
             ) : (
-              <LightModeIcon />
+              <LightModeRoundedIcon />
             )}
             {i18n("btn_tip_dark_mode")}
           </button>

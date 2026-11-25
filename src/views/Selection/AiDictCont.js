@@ -155,29 +155,35 @@ export default function AiDictCont({
         gridTemplateColumns: "minmax(0, 1fr) auto",
         columnGap: 1,
         alignItems: "start",
+        fontSize: "var(--kt-text-body, 14px)",
+        lineHeight: 1.6,
         "& > :first-of-type": { mt: 0 },
         "& > :last-child": { mb: 0 },
         "& h1, & h2, & h3, & h4, & h5, & h6": {
-          fontSize: "1em",
-          fontWeight: 700,
-          lineHeight: 1.55,
+          fontSize: "var(--kt-text-heading, 15px)",
+          fontWeight: 600,
+          lineHeight: 1.4,
           mt: 1.25,
           mb: 0.75,
         },
-        "& p": { my: 1 },
-        "& ul, & ol": { pl: 3, my: 1 },
+        "& p": { my: 0.75, maxWidth: "65ch" },
+        "& ul, & ol": { pl: 2.5, my: 0.75, maxWidth: "65ch" },
+        "& li + li": { mt: 0.35 },
         "& blockquote": {
           m: 0,
+          my: 0.75,
           pl: 1.5,
-          borderLeft: "3px solid",
-          borderColor: "divider",
-          color: "text.secondary",
+          borderLeft: "2px solid var(--kt-line)",
+          color: "var(--kt-onv)",
+          maxWidth: "65ch",
         },
         "& code": {
           px: 0.5,
           py: 0.1,
-          borderRadius: "4px",
-          bgcolor: "action.hover",
+          borderRadius: "var(--kt-radius-sm, 6px)",
+          bgcolor: "var(--kt-sf1)",
+          fontFamily: "var(--kt-font-mono)",
+          fontSize: "var(--kt-text-sm, 13px)",
         },
       }}
     >
@@ -190,7 +196,7 @@ export default function AiDictCont({
         }}
       >
         {loading && (
-          <CircularProgress size={12} sx={{ mr: 0.5, flexShrink: 0 }} />
+          <CircularProgress size={14} sx={{ mr: 0.5, flexShrink: 0 }} />
         )}
         <BrowserTtsBtn
           text={text}
@@ -205,7 +211,13 @@ export default function AiDictCont({
       </Box>
       <Typography
         component="div"
-        sx={{ gridColumn: 1, gridRow: 1, minWidth: 0 }}
+        sx={{
+          gridColumn: 1,
+          gridRow: 1,
+          minWidth: 0,
+          fontSize: "var(--kt-text-body, 14px)",
+          lineHeight: 1.6,
+        }}
       >
         <ReactMarkdown>{markdown}</ReactMarkdown>
       </Typography>

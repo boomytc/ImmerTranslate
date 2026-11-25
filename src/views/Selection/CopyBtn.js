@@ -1,6 +1,6 @@
 import IconButton from "@mui/material/IconButton";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import LibraryAddCheckIcon from "@mui/icons-material/LibraryAddCheck";
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import { useEffect, useRef, useState } from "react";
 import { kissLog } from "../../libs/log";
 
@@ -94,14 +94,15 @@ export default function CopyBtn({
       <IconButton
         size="small"
         sx={{
-          opacity: 0.72,
+          color: copied ? "var(--kt-grn)" : "var(--kt-onv)",
           transition:
-            "background-color .3s, color .3s, opacity 160ms ease, transform .15s",
-          "&.Mui-focusVisible": {
-            opacity: 1,
+            "background-color var(--kt-dur, 150ms) var(--kt-ease, ease-out), color var(--kt-dur, 150ms) var(--kt-ease, ease-out)",
+          "@media (prefers-reduced-motion: no-preference)": {
+            transition:
+              "background-color var(--kt-dur, 150ms) var(--kt-ease, ease-out), color var(--kt-dur, 150ms) var(--kt-ease, ease-out), transform var(--kt-dur, 150ms) var(--kt-ease, ease-out)",
           },
           "@media (hover: hover)": {
-            "&:hover": { opacity: 1 },
+            "&:hover": { color: copied ? "var(--kt-grn)" : "var(--kt-on)" },
           },
         }}
         onClick={handleClick}
@@ -109,9 +110,9 @@ export default function CopyBtn({
         aria-label={title}
       >
         {copied ? (
-          <LibraryAddCheckIcon fontSize="inherit" />
+          <CheckRoundedIcon fontSize="inherit" />
         ) : (
-          <ContentCopyIcon fontSize="inherit" />
+          <ContentCopyRoundedIcon fontSize="inherit" />
         )}
       </IconButton>
       <span

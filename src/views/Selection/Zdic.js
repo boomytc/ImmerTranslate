@@ -19,11 +19,9 @@ import { AudioBtn } from "./AudioBtn";
  */
 export default function Zdic({ text }) {
   const i18n = useI18n();
-  // 存放汉典接口返回的数据
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // 监听 text 变化，发起汉典查询
   useEffect(() => {
     setData(null);
     if (!text) {
@@ -56,104 +54,120 @@ export default function Zdic({ text }) {
   if (loading) {
     return (
       <Stack alignItems="center" justifyContent="center" py={2}>
-        <CircularProgress size={24} />
+        <CircularProgress size={20} />
       </Stack>
     );
   }
 
-  // 无汉典数据时的备用占位显示
   if (!data) {
     return (
       <Stack spacing={1}>
-        <Typography variant="subtitle1" style={{ fontWeight: "bold" }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontSize: "var(--kt-text-heading, 15px)",
+            fontWeight: 600,
+            lineHeight: 1.35,
+          }}
+        >
           {text}
         </Typography>
         <Divider />
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "var(--kt-onv)",
+            fontSize: "var(--kt-text-sm, 13px)",
+            lineHeight: 1.5,
+          }}
+        >
           {i18n("dict_no_data")}
         </Typography>
       </Stack>
     );
   }
 
+  const metaItems = [
+    data.bushou && { label: i18n("zdic_radical"), value: data.bushou },
+    data.wubi && { label: i18n("zdic_wubi"), value: data.wubi },
+    data.fanti && { label: i18n("zdic_traditional"), value: data.fanti },
+    data.yiti && { label: i18n("zdic_variant"), value: data.yiti },
+  ].filter(Boolean);
+
+  const foreignItems = [
+    data.en && { label: i18n("zdic_en"), value: data.en },
+    data.de && { label: i18n("zdic_de"), value: data.de },
+    data.fr && { label: i18n("zdic_fr"), value: data.fr },
+  ].filter(Boolean);
+
   return (
-    <Stack spacing={1}>
-      {/* 汉字标题 */}
-      <Typography variant="subtitle1" style={{ fontWeight: "bold" }}>
+    <Stack spacing={1.25}>
+      <Typography
+        variant="subtitle1"
+        sx={{
+          fontSize: "var(--kt-text-heading, 15px)",
+          fontWeight: 600,
+          lineHeight: 1.35,
+        }}
+      >
         {data.text}
       </Typography>
       <Divider />
 
-      {/* 部首与五笔信息 */}
-      {(data.bushou || data.wubi) && (
-        <Typography variant="body2" color="text.secondary">
-          {data.bushou && `[${i18n("zdic_radical")}]: ${data.bushou}  `}
-          {data.wubi && `[${i18n("zdic_wubi")}]: ${data.wubi}`}
-        </Typography>
+      {metaItems.length > 0 && (
+        <div className="kt-dict-meta-grid">
+          {metaItems.map(({ label, value }) => (
+            <span className="kt-dict-meta-item" key={label}>
+              <span className="kt-dict-meta-label">{label}</span>
+              <span className="kt-dict-meta-value">{value}</span>
+            </span>
+          ))}
+        </div>
       )}
 
-      {/* 繁体与异体字信息 */}
-      {(data.fanti || data.yiti) && (
-        <Typography variant="body2" color="text.secondary">
-          {data.fanti && `[${i18n("zdic_traditional")}]: ${data.fanti}  `}
-          {data.yiti && `[${i18n("zdic_variant")}]: ${data.yiti}`}
-        </Typography>
-      )}
-
-      {/* 字音、拼音发音以及汉典释义多分支 */}
       {data.results && data.results.length > 0 && (
-        <Stack spacing={1} mt={1}>
+        <Stack spacing={1.25}>
           {data.results.map((res, idx) => (
             <Box key={idx}>
-              <Stack direction="row" alignItems="center" spacing={1}>
-                {/* 拼音 */}
+              <Stack direction="row" alignItems="center" spacing={0.75}>
                 <Typography
-                  variant="body2"
-                  color="primary"
-                  style={{ fontWeight: "bold" }}
+                  component="span"
+                  sx={{
+                    color: "var(--kt-pri)",
+                    fontSize: "var(--kt-text-body, 14px)",
+                    fontWeight: 600,
+                    lineHeight: 1.4,
+                  }}
                 >
-                  [{res.pinyin}]
+                  {res.pinyin}
                 </Typography>
-                {/* 汉字发音音频按钮 */}
                 {res.audioUrl && <AudioBtn src={res.audioUrl} />}
               </Stack>
-              {/* 字义解释列表 */}
-              <Box component="ol" sx={{ pl: 3, m: 0, mt: 0.5 }}>
-                {res.definitions &&
-                  res.definitions.map((def, i) => (
-                    <Typography
-                      component="li"
-                      key={i}
-                      variant="body2"
-                      sx={{ mb: 0.5 }}
-                    >
-                      {def}
-                    </Typography>
+              {res.definitions && res.definitions.length > 0 && (
+                <ol className="kt-dict-list">
+                  {res.definitions.map((def, i) => (
+                    <li key={i}>{def}</li>
                   ))}
-              </Box>
+                </ol>
+              )}
             </Box>
           ))}
         </Stack>
       )}
 
-      {/* 外语英法德翻译对照 (若有) */}
-      {(data.en || data.de || data.fr) && (
-        <Stack spacing={0.5} mt={1}>
-          {data.en && (
-            <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-              {`[${i18n("zdic_en")}]: ${data.en}`}
-            </Typography>
-          )}
-          {data.de && (
-            <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-              {`[${i18n("zdic_de")}]: ${data.de}`}
-            </Typography>
-          )}
-          {data.fr && (
-            <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-              {`[${i18n("zdic_fr")}]: ${data.fr}`}
-            </Typography>
-          )}
+      {foreignItems.length > 0 && (
+        <Stack spacing={0.5}>
+          {foreignItems.map(({ label, value }) => (
+            <div className="kt-dict-meta-item" key={label}>
+              <span className="kt-dict-meta-label">{label}</span>
+              <span
+                className="kt-dict-meta-value"
+                style={{ wordBreak: "break-word" }}
+              >
+                {value}
+              </span>
+            </div>
+          ))}
         </Stack>
       )}
     </Stack>

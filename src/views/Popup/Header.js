@@ -33,33 +33,30 @@ export default function Header({ onClose, openSeparateWindow, openSettings }) {
         onClick={handleHomepage}
         aria-label={appName}
       >
-        <Logo size={24} className="kt-popup-header__logo" />
-      </button>
-      <span className="kt-popup-header__identity">
+        <Logo size={20} className="kt-popup-header__logo" />
         <span className="kt-popup-header__title">{appName}</span>
-        <span className="kt-popup-header__version">
-          {process.env.REACT_APP_VERSION}
-        </span>
-      </span>
+      </button>
       <span className="kt-popup-header__spacer" />
       {onClose ? (
         <IconButton onClick={onClose} aria-label={i18n("close")}>
-          <CloseRoundedIcon />
+          <CloseRoundedIcon fontSize="small" />
         </IconButton>
       ) : (
         <span className="kt-popup-header__actions">
-          <button
-            type="button"
+          <IconButton
             className="kt-popup-header__window"
             onClick={openSeparateWindow}
             aria-label={openSeparateWindowName}
             title={openSeparateWindowName}
           >
-            <OpenInNewRoundedIcon aria-hidden="true" />
-            <span>{openSeparateWindowLabel}</span>
-          </button>
-          <IconButton onClick={openSettings} aria-label={i18n("setting")}>
-            <SettingsRoundedIcon />
+            <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            onClick={openSettings}
+            aria-label={i18n("setting")}
+            title={i18n("setting")}
+          >
+            <SettingsRoundedIcon fontSize="small" aria-hidden="true" />
           </IconButton>
         </span>
       )}

@@ -8,11 +8,25 @@ import { OPT_SUG_BAIDU, OPT_SUG_YOUDAO } from "../../config";
 import { useAsyncNow } from "../../hooks/Fetch";
 import { useI18n } from "../../hooks/I18n";
 
+function SugList({ items }) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <ul className="kt-sug-list">
+      {items.map(({ term, desc }) => (
+        <li className="kt-sug-list__item" key={term}>
+          <div className="kt-sug-list__term">{term}</div>
+          {desc && <div className="kt-sug-list__desc">{desc}</div>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * 百度输入建议/联想词列表组件
  */
 function SugBaidu({ text }) {
-  // 使用 useAsyncNow 即时查询百度建议接口
   const { loading, error, data } = useAsyncNow(apiBaiduSuggest, text);
 
   if (loading) {
@@ -27,25 +41,13 @@ function SugBaidu({ text }) {
     return null;
   }
 
-  return (
-    <>
-      {data.map(({ k, v }) => (
-        <Typography component="div" key={k}>
-          <Typography>{k}</Typography>
-          <Typography component="ul" style={{ margin: "0" }}>
-            <Typography component="li">{v}</Typography>
-          </Typography>
-        </Typography>
-      ))}
-    </>
-  );
+  return <SugList items={data.map(({ k, v }) => ({ term: k, desc: v }))} />;
 }
 
 /**
  * 有道输入建议/联想词列表组件
  */
 function SugYoudao({ text }) {
-  // 使用 useAsyncNow 即时查询有道建议接口
   const { loading, error, data } = useAsyncNow(apiYoudaoSuggest, text);
 
   if (loading) {
@@ -61,16 +63,9 @@ function SugYoudao({ text }) {
   }
 
   return (
-    <>
-      {data.map(({ entry, explain }) => (
-        <Typography component="div" key={entry}>
-          <Typography>{entry}</Typography>
-          <Typography component="ul" style={{ margin: "0" }}>
-            <Typography component="li">{explain}</Typography>
-          </Typography>
-        </Typography>
-      ))}
-    </>
+    <SugList
+      items={data.map(({ entry, explain }) => ({ term: entry, desc: explain }))}
+    />
   );
 }
 
@@ -92,7 +87,16 @@ export default function SugCont({ text, enSug }) {
       ) : enSug === OPT_SUG_YOUDAO ? (
         <SugYoudao text={text} />
       ) : (
-        <Typography>{i18n("sug_not_supported")}</Typography>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "var(--kt-onv)",
+            fontSize: "var(--kt-text-sm, 13px)",
+            lineHeight: 1.5,
+          }}
+        >
+          {i18n("sug_not_supported")}
+        </Typography>
       )}
     </Stack>
   );

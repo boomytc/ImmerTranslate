@@ -10,25 +10,41 @@ const popupGradientFlow = keyframes`
 `;
 const popupBlink = keyframes`
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50% { opacity: 0.25; }
 `;
 const popupGlow = keyframes`
   from {
-    text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #0073e6,
-      0 0 40px #0073e6;
+    text-shadow: 0 0 8px color-mix(in oklab, var(--kt-pri) 45%, transparent);
   }
   to {
-    text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6,
-      0 0 50px #ff4da6;
+    text-shadow: 0 0 14px color-mix(in oklab, var(--kt-pri) 85%, transparent);
   }
 `;
+
+const activePreviewSelector =
+  ".kt-popup-style-chip:hover &, .kt-popup-style-chip:focus-visible &, .kt-popup-style-chip[aria-pressed='true'] &";
+
 const popupPreviewAnimationStyles = {
   [OPT_STYLE_GRADIENT]: {
-    animation: `${popupGradientFlow} 4s linear infinite`,
+    "@media (prefers-reduced-motion: no-preference)": {
+      [activePreviewSelector]: {
+        animation: `${popupGradientFlow} 4s linear infinite`,
+      },
+    },
   },
-  [OPT_STYLE_BLINK]: { animation: `${popupBlink} 1s infinite` },
+  [OPT_STYLE_BLINK]: {
+    "@media (prefers-reduced-motion: no-preference)": {
+      [activePreviewSelector]: {
+        animation: `${popupBlink} 1.2s ease-out infinite`,
+      },
+    },
+  },
   [OPT_STYLE_GLOW]: {
-    animation: `${popupGlow} 2s ease-in-out infinite alternate`,
+    "@media (prefers-reduced-motion: no-preference)": {
+      [activePreviewSelector]: {
+        animation: `${popupGlow} 1.8s ease-out infinite alternate`,
+      },
+    },
   },
 };
 

@@ -434,12 +434,6 @@ export const M3_GLOBAL_CSS = String.raw`
   to { transform: rotate(360deg); }
 }
 
-/* Legacy sweep kept until Wave 2 switches Popup progress bar to kt-m3-sweep-x. */
-@keyframes kt-m3-sweep {
-  0% { left: -40%; width: 40%; }
-  55%, 100% { left: 100%; width: 55%; }
-}
-
 /* Compositor-only progress sweep; track consumers set left: 0; width: 42%; transform-origin: left center. */
 @keyframes kt-m3-sweep-x {
   0% { transform: translateX(-100%) scaleX(0.45); }

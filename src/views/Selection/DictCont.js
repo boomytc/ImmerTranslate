@@ -47,11 +47,18 @@ function DictBody({ text, setCopyText, setRealWord, dict, i18n }) {
   }
 
   if (!data) {
-    return <Typography>{i18n("dict_not_found")}</Typography>;
+    return (
+      <Typography variant="body2" color="text.secondary">
+        {i18n("dict_not_found")}
+      </Typography>
+    );
   }
 
   return (
-    <Typography component="div">
+    <Typography
+      component="div"
+      sx={{ fontSize: "var(--kt-text-body, 14px)", lineHeight: 1.6 }}
+    >
       {uiAudio}
       {uiTrans}
     </Typography>
@@ -80,9 +87,20 @@ export default function DictCont({ text, enDict }) {
   return (
     <Stack spacing={1}>
       {text && (
-        <Stack direction="row" justifyContent="space-between">
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+        >
           {/* Display the resolved headword. */}
-          <Typography variant="subtitle1" style={{ fontWeight: "bold" }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontSize: "var(--kt-text-heading, 15px)",
+              fontWeight: 600,
+              lineHeight: 1.35,
+            }}
+          >
             {realWord}
           </Typography>
           <Stack direction="row" justifyContent="space-between">

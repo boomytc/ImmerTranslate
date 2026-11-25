@@ -481,10 +481,8 @@ export default function Draggable({
     return origin ? 0.8 : 1;
   }, [active, idleOpacity, origin, snapEdge]);
 
-  const transition =
-    positionTransitionEnabled && !origin
-      ? "opacity 160ms ease, transform 180ms cubic-bezier(.2, 0, 0, 1)"
-      : "opacity 160ms ease";
+  const positionedClass =
+    positionTransitionEnabled && !origin ? " kt-fab-draggable--positioned" : "";
 
   // Cancellation must end a drag because browsers do not emit a later up event.
   const pointerProps = {
@@ -497,16 +495,16 @@ export default function Draggable({
   return (
     <div
       ref={containerRef}
+      className={`kt-fab-draggable${positionedClass}`}
       style={{
         width: fitContent ? undefined : width,
         opacity,
-        transition,
         position: "fixed",
         top: 0,
         left: 0,
         zIndex: 2147483647,
         display: show ? "block" : "none",
-        willChange: "transform, opacity",
+        willChange: active ? "transform, opacity" : "auto",
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

@@ -253,8 +253,6 @@ export default function DraggableResizable({
         gridTemplateColumns: `${lineWidth * 2}px ${size.w}px ${lineWidth * 2}px`,
         gridTemplateRows: `${lineWidth * 2}px auto ${lineWidth * 2}px`,
         zIndex: 2147483647,
-        borderRadius: "16px",
-        overflow: "hidden",
       }}
       {...props}
     >
@@ -327,7 +325,7 @@ export default function DraggableResizable({
         direction="BottomLeft"
         style={{
           transform: `translate(${lineWidth}px, -${lineWidth}px)`,
-          cursor: "ne-resize",
+          cursor: "sw-resize",
         }}
         {...opts}
       />
@@ -344,7 +342,7 @@ export default function DraggableResizable({
         direction="BottomRight"
         style={{
           transform: `translate(-${lineWidth}px, -${lineWidth}px)`,
-          cursor: "nw-resize",
+          cursor: "se-resize",
         }}
         {...opts}
       />

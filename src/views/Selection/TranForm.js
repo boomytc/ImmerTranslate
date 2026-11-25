@@ -3,12 +3,13 @@ import TextField from "@mui/material/TextField";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import MenuItem from "@mui/material/MenuItem";
-import Grid from "@mui/material/Grid";
+import Select from "@mui/material/Select";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import DoneIcon from "@mui/icons-material/Done";
+import DoneRoundedIcon from "@mui/icons-material/DoneRounded";
 import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
-import ContentPasteIcon from "@mui/icons-material/ContentPaste";
+import ContentPasteRoundedIcon from "@mui/icons-material/ContentPasteRounded";
+import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
 import { useI18n } from "../../hooks/I18n";
 import {
   OPT_LANGS_FROM_REVERSED as OPT_LANGS_FROM,
@@ -53,6 +54,11 @@ export const formatLanguageOptionName = (name) => {
   }
 
   return parts.join(" - ");
+};
+
+const getPrimaryLanguageName = (name) => {
+  const formatted = formatLanguageOptionName(name);
+  return formatted.split(" - ")[0] || formatted;
 };
 
 // Treat whitespace-only prompts as unconfigured.
@@ -177,7 +183,9 @@ export default function TranForm({
   }, []);
   const selectMenuProps = useMemo(
     () => ({
-      container: () => inputRef.current?.closest(".kt-m3-root"),
+      container: () =>
+        formRef.current?.closest(".kt-m3-root") ||
+        inputRef.current?.closest(".kt-m3-root"),
       disableScrollLock: true,
       // MUI's trap sees the shadow host as active and otherwise steals focus
       // from the selected option. Its normal focus restoration still applies.
@@ -338,8 +346,13 @@ export default function TranForm({
   }, [transApis]);
 
   const isWord = useMemo(() => isValidWord(text), [text]);
-  const xs = 4;
-  const md = 4;
+  const isAutoSource = !fromLang || fromLang === "auto";
+
+  const handleSwapLanguages = () => {
+    if (isAutoSource) return;
+    setFromLang(toLang);
+    setToLang(fromLang);
+  };
 
   const activeApiSlugs = useMemo(
     () => resolveActiveApiSlugs(apiSlugs, optApis),
@@ -501,6 +514,7 @@ export default function TranForm({
       fromLang={fromLang}
       toLang={realToLang}
       simpleStyle={simpleStyle}
+      showServiceLabel={activeApiSlugs.length > 1}
       apiSlug={slug}
       transApis={transApis}
       translateVariants={translateVariants}
@@ -546,113 +560,136 @@ export default function TranForm({
           className={
             simpleStyle
               ? "kt-translation-config-actions"
-              : configActions
-                ? "kt-translation-config-row"
-                : undefined
+              : "kt-translation-toolbar"
           }
         >
           {!simpleStyle && (
             <>
-              {/* Service and language settings grid. */}
-              <Grid
-                className="kt-translation-config"
-                container
-                spacing={2}
-                columns={12}
-              >
-                {/* Select multiple translation engines to compare their results. */}
-                <Grid
-                  className="kt-translation-config__service"
-                  item
-                  xs={xs}
-                  md={md}
+              {/* Multi-select translation engines to compare results. */}
+              <Box className="kt-translation-toolbar__service">
+                <Select
+                  multiple
+                  displayEmpty
+                  variant="standard"
+                  disableUnderline
+                  className="kt-translation-toolbar__select"
+                  value={activeApiSlugs}
+                  name="apiSlugs"
+                  inputProps={{
+                    "aria-label": i18n("translate_service_multiple"),
+                  }}
+                  MenuProps={selectMenuProps}
+                  renderValue={(selected) => {
+                    if (!selected || selected.length === 0) {
+                      return i18n("translate_service");
+                    }
+                    const names = selected.map(
+                      (slug) =>
+                        optApis.find((api) => api.key === slug)?.name || slug
+                    );
+                    const label = names.join(", ");
+                    return <span title={label}>{label}</span>;
+                  }}
+                  onChange={(e) => {
+                    setHasUserChangedApiSlugs(true);
+                    setApiSlugs(e.target.value);
+                    // 仅在宿主显式提供 storageKey 时写回（空数组 = 用户显式清空）。
+                    if (apiSlugsStorageKey) {
+                      writeStoredApiChoice(apiSlugsStorageKey, e.target.value);
+                    }
+                  }}
                 >
-                  <TextField
-                    select
-                    SelectProps={{
-                      multiple: true,
-                      MenuProps: selectMenuProps,
-                    }}
-                    fullWidth
-                    size="small"
-                    value={activeApiSlugs}
-                    name="apiSlugs"
-                    label={i18n("translate_service_multiple")}
-                    onChange={(e) => {
-                      setHasUserChangedApiSlugs(true);
-                      setApiSlugs(e.target.value);
-                      // 仅在宿主显式提供 storageKey 时写回（空数组 = 用户显式清空）。
-                      if (apiSlugsStorageKey) {
-                        writeStoredApiChoice(
-                          apiSlugsStorageKey,
-                          e.target.value
-                        );
-                      }
-                    }}
-                  >
-                    {optApis.map(({ key, name }) => (
-                      <MenuItem key={key} value={key}>
-                        {name}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-                {/* Source language. */}
-                <Grid
-                  className="kt-translation-config__language"
-                  item
-                  xs={xs}
-                  md={md}
+                  {optApis.map(({ key, name }) => (
+                    <MenuItem key={key} value={key}>
+                      {name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </Box>
+              <span
+                className="kt-translation-toolbar__divider"
+                aria-hidden="true"
+              />
+              {/* Source and target languages with swap button. */}
+              <Box className="kt-translation-toolbar__langs">
+                <Select
+                  variant="standard"
+                  disableUnderline
+                  className="kt-translation-toolbar__select"
+                  name="fromLang"
+                  value={fromLang}
+                  inputProps={{ "aria-label": i18n("from_lang") }}
+                  MenuProps={selectMenuProps}
+                  renderValue={(selected) => {
+                    const entry = OPT_LANGS_FROM.find(
+                      ([lang]) => lang === selected
+                    );
+                    const fullName = formatLanguageOptionName(
+                      entry?.[1] || selected
+                    );
+                    return (
+                      <span title={fullName}>
+                        {getPrimaryLanguageName(fullName)}
+                      </span>
+                    );
+                  }}
+                  onChange={(e) => {
+                    setFromLang(e.target.value);
+                  }}
                 >
-                  <TextField
-                    select
-                    SelectProps={{ MenuProps: selectMenuProps }}
-                    fullWidth
-                    size="small"
-                    name="fromLang"
-                    value={fromLang}
-                    label={i18n("from_lang")}
-                    onChange={(e) => {
-                      setFromLang(e.target.value);
-                    }}
-                  >
-                    {OPT_LANGS_FROM.map(([lang, name]) => (
-                      <MenuItem key={lang} value={lang}>
-                        {formatLanguageOptionName(name)}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-                {/* Target language. */}
-                <Grid
-                  className="kt-translation-config__language"
-                  item
-                  xs={xs}
-                  md={md}
+                  {OPT_LANGS_FROM.map(([lang, name]) => (
+                    <MenuItem key={lang} value={lang}>
+                      {formatLanguageOptionName(name)}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <IconButton
+                  size="small"
+                  className="kt-translation-toolbar__swap"
+                  disabled={isAutoSource}
+                  title={i18n("swap_languages")}
+                  aria-label={i18n("swap_languages")}
+                  onClick={handleSwapLanguages}
                 >
-                  <TextField
-                    select
-                    SelectProps={{ MenuProps: selectMenuProps }}
-                    fullWidth
-                    size="small"
-                    name="toLang"
-                    value={toLang}
-                    label={i18n("to_lang")}
-                    onChange={(e) => {
-                      setToLang(e.target.value);
-                    }}
-                  >
-                    {OPT_LANGS_TO.map(([lang, name]) => (
-                      <MenuItem key={lang} value={lang}>
-                        {formatLanguageOptionName(name)}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-              </Grid>
+                  <SwapHorizRoundedIcon fontSize="small" />
+                </IconButton>
+                <Select
+                  variant="standard"
+                  disableUnderline
+                  className="kt-translation-toolbar__select"
+                  name="toLang"
+                  value={toLang}
+                  inputProps={{ "aria-label": i18n("to_lang") }}
+                  MenuProps={selectMenuProps}
+                  renderValue={(selected) => {
+                    const entry = OPT_LANGS_TO.find(
+                      ([lang]) => lang === selected
+                    );
+                    const fullName = formatLanguageOptionName(
+                      entry?.[1] || selected
+                    );
+                    return (
+                      <span title={fullName}>
+                        {getPrimaryLanguageName(fullName)}
+                      </span>
+                    );
+                  }}
+                  onChange={(e) => {
+                    setToLang(e.target.value);
+                  }}
+                >
+                  {OPT_LANGS_TO.map(([lang, name]) => (
+                    <MenuItem key={lang} value={lang}>
+                      {formatLanguageOptionName(name)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </Box>
             </>
           )}
-          {configActions}
+          {configActions && (
+            <Box className="kt-translation-config-actions">{configActions}</Box>
+          )}
         </Box>
       )}
       {/* Hide the source input in simple mode. */}
@@ -718,7 +755,7 @@ export default function TranForm({
                         title={i18n("submit")}
                         aria-label={i18n("submit")}
                       >
-                        <DoneIcon fontSize="inherit" />
+                        <DoneRoundedIcon fontSize="inherit" />
                       </IconButton>
                     ) : text ? (
                       /* Show the copy action when text is present. */
@@ -735,7 +772,7 @@ export default function TranForm({
                         title={i18n("paste")}
                         aria-label={i18n("paste")}
                       >
-                        <ContentPasteIcon fontSize="inherit" />
+                        <ContentPasteRoundedIcon fontSize="inherit" />
                       </IconButton>
                     )}
                     {text && editText.trim() === text && (
@@ -773,7 +810,7 @@ export default function TranForm({
                   setDictTab(value);
                 }}
                 variant="scrollable"
-                aria-label={i18n("default_dict", "Dictionary")}
+                aria-label={i18n("dictionary")}
                 sx={{ minHeight: 36, mb: 1 }}
               >
                 {defaultDictAvailable && (
@@ -781,16 +818,16 @@ export default function TranForm({
                     id={defaultDictionaryTabId}
                     aria-controls={defaultDictionaryPanelId}
                     value="default"
-                    label={i18n("default_dict", "默认词典")}
-                    sx={{ minHeight: 36, py: 0.5 }}
+                    label={i18n("default_dict")}
+                    sx={{ minHeight: 30, py: 0.5 }}
                   />
                 )}
                 <Tab
                   id={aiDictionaryTabId}
                   aria-controls={aiDictionaryPanelId}
                   value="ai"
-                  label={i18n("ai_dict", "AI词典")}
-                  sx={{ minHeight: 36, py: 0.5 }}
+                  label={i18n("ai_dict")}
+                  sx={{ minHeight: 30, py: 0.5 }}
                 />
               </Tabs>
               {defaultDictAvailable && dictTab === "default" && (

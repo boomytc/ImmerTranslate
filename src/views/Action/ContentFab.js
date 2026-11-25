@@ -1,4 +1,3 @@
-import PaletteRoundedIcon from "@mui/icons-material/PaletteRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
 import ListItemIcon from "@mui/material/ListItemIcon";
@@ -21,8 +20,6 @@ import {
   MSG_OPEN_OPTIONS,
   MSG_TRANS_CURRULE,
   MSG_TRANS_TOGGLE,
-  MSG_TRANS_TOGGLE_STYLE,
-  OPT_STYLE_NONE,
   STOKEY_FAB,
 } from "../../config";
 import { useI18n } from "../../hooks/I18n";
@@ -37,8 +34,6 @@ import { ACTION_STYLES } from "./styles";
 import {
   normalizeFabAppearance,
   isFabVisible,
-  FAB_MAX_SIZE,
-  FAB_MIN_SIZE,
   applyFabSitePolicy,
   activeFabSiteList,
   splitFabSites,
@@ -104,37 +99,11 @@ export function ContentFabContent({
     edge: fabEdge,
     fabClickAction = 0,
   } = fabConfig || {};
-  const [localSize, setLocalSize] = useState(null);
   const {
     halfHide,
     opacity,
-    size: baseFabSize,
+    size: fabSize,
   } = normalizeFabAppearance(fabConfig);
-  const fabSize = localSize ?? baseFabSize;
-
-  useEffect(() => {
-    setLocalSize(null);
-  }, [baseFabSize]);
-
-  const handleSizeChange = useCallback(
-    (newSize) => {
-      const clamped = Math.round(
-        Math.min(FAB_MAX_SIZE, Math.max(FAB_MIN_SIZE, newSize))
-      );
-      setLocalSize(clamped);
-      void processActions?.({
-        action: MSG_FAB_TOGGLE,
-        args: {
-          fabConfig: { size: clamped },
-        },
-      });
-      void getStorageState(STOKEY_FAB, DEFAULT_FAB).save((previous) => ({
-        ...(previous || DEFAULT_FAB),
-        size: clamped,
-      }));
-    },
-    [processActions]
-  );
   const opensMenu = fabClickAction !== 1;
   const windowSize = useWindowSize();
   const [showFab, setShowFab] = useState(true);
@@ -523,14 +492,6 @@ export function ContentFabContent({
       pressed: pageRule?.transOpen === "true",
     },
     {
-      label: i18n("text_style_alt"),
-      icon: PaletteRoundedIcon,
-      action: () => runAction(MSG_TRANS_TOGGLE_STYLE),
-      pressed: Boolean(
-        pageRule?.textStyle && pageRule.textStyle !== OPT_STYLE_NONE
-      ),
-    },
-    {
       label: i18n("open_setting"),
       icon: SettingsRoundedIcon,
       action: openSettings,
@@ -625,8 +586,6 @@ export function ContentFabContent({
               processActions={processActions}
               onPageRule={setPageRule}
               onHideOnSite={handleHideOnSite}
-              currentFabSize={fabSize}
-              onChangeFabSize={handleSizeChange}
             />
           </Paper>
         </Popper>

@@ -45,11 +45,6 @@ export default function CompactLanguageSelect({
         return (
           <span className="kt-popup-language-value" title={displayName}>
             <span className="kt-popup-language-value__primary">{primary}</span>
-            {secondary && (
-              <small className="kt-popup-language-value__secondary">
-                {secondary}
-              </small>
-            )}
           </span>
         );
       }}

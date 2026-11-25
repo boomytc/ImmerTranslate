@@ -2,8 +2,6 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiTranslate } from "../../apis";
 import {
@@ -161,6 +159,7 @@ export default function TranCont({
   detectedLang = "",
   sourceDetectionPending = false,
   simpleStyle = false,
+  showServiceLabel = false,
   requestRevision = 0,
   onActionPointerDown,
 }) {
@@ -325,18 +324,20 @@ export default function TranCont({
           <Alert severity="error">{errorText}</Alert>
         ) : trText ? (
           <Stack direction="row" spacing={1} alignItems="flex-start">
-            <Box sx={{ width: 12, height: 12, flex: "0 0 auto", mt: "0.35em" }}>
-              {loading && (
+            {loading && (
+              <Box
+                sx={{ width: 14, height: 14, flex: "0 0 auto", mt: "0.35em" }}
+              >
                 <CircularProgress
-                  size={12}
+                  size={14}
                   aria-label={i18n("popup_translating")}
                 />
-              )}
-            </Box>
-            <Typography style={{ whiteSpace: "pre-line" }}>{trText}</Typography>
+              </Box>
+            )}
+            <div className="kt-translation-result__text">{trText}</div>
           </Stack>
         ) : loading ? (
-          <CircularProgress size={16} />
+          <CircularProgress size={16} aria-label={i18n("popup_translating")} />
         ) : null}
       </Box>
     );
@@ -348,87 +349,85 @@ export default function TranCont({
       ? getApiDisplayName(apiSetting)
       : apiSetting.apiName || apiSetting.apiSlug;
 
-  const resultLabel = `${i18n("translated_text")} - ${displayName}`;
+  const resultLabel = `${i18n("translated_text")} · ${displayName}`;
   const hasCopyBtn = Boolean(trText);
   const hasTtsBtn = Boolean(trText?.trim() && canSpeak());
-  const actionCount = (hasCopyBtn ? 1 : 0) + (hasTtsBtn ? 1 : 0);
-  const paddingInlineEnd = actionCount >= 2 ? 64 : actionCount === 1 ? 36 : 0;
+  const hasActions = hasCopyBtn || hasTtsBtn;
+  const showHeaderBar = showServiceLabel || loading;
 
   return (
-    <Box className="kt-translation-result">
-      <TextField
-        className="kt-resizable-text-field"
-        size="small"
-        label={resultLabel}
-        fullWidth
-        multiline
-        maxRows={10}
-        inputProps={{
-          className: "kt-resizable-textarea",
-          style: {
-            resize: "vertical",
-            boxSizing: "border-box",
-            paddingInlineEnd,
-          },
-          "aria-busy": loading,
-          "aria-label": resultLabel,
-        }}
-        sx={{
-          "& .MuiInputBase-root": {
-            overflow: "visible",
-          },
-          '& textarea:not([aria-hidden="true"])': {
-            resize: "vertical",
-          },
-        }}
-        value={trText}
-        helperText={errorText}
-        InputProps={{
-          readOnly: true,
-          startAdornment: (
-            <Box
-              sx={{
-                width: 16,
-                height: 16,
-                display: "grid",
-                placeItems: "center",
-              }}
+    <Box
+      className={`kt-translation-result${
+        errorText
+          ? " kt-translation-result--error"
+          : !trText && !loading
+            ? " kt-translation-result--empty"
+            : ""
+      }`}
+    >
+      {errorText ? (
+        <Alert severity="error">{errorText}</Alert>
+      ) : (
+        <>
+          {(showHeaderBar || hasActions) && (
+            <div
+              className={`kt-translation-result__bar${
+                !showHeaderBar ? " kt-translation-result__bar--floating" : ""
+              }`}
             >
-              {loading && (
-                <CircularProgress
-                  size={16}
-                  aria-label={i18n("popup_translating")}
-                />
+              {showHeaderBar && (
+                <span className="kt-translation-result__meta">
+                  {showServiceLabel && (
+                    <span className="kt-translation-result__label">
+                      {displayName}
+                    </span>
+                  )}
+                  {loading && (
+                    <CircularProgress
+                      size={14}
+                      aria-label={i18n("popup_translating")}
+                    />
+                  )}
+                </span>
               )}
-            </Box>
-          ),
-          endAdornment: (
-            <Stack
-              onPointerDown={onActionPointerDown}
-              direction="row"
-              sx={{
-                position: "absolute",
-                right: 0,
-                top: 0,
-              }}
+              {hasActions && (
+                <Stack
+                  className="kt-translation-result__actions"
+                  onPointerDown={onActionPointerDown}
+                  direction="row"
+                >
+                  {/* Copy the current translation, including partial text during streaming. */}
+                  {hasCopyBtn && (
+                    <CopyBtn
+                      text={trText}
+                      title={i18n("copy")}
+                      copiedLabel={i18n("copy_success", "Copied")}
+                    />
+                  )}
+                  <BrowserTtsBtn
+                    text={trText}
+                    lang={toLang}
+                    title={i18n("read_aloud")}
+                  />
+                </Stack>
+              )}
+            </div>
+          )}
+          {trText ? (
+            <div
+              className="kt-translation-result__text"
+              aria-label={resultLabel}
+              aria-busy={loading}
             >
-              {/* Copy the current translation, including partial text during streaming. */}
-              {trText && (
-                <CopyBtn
-                  text={trText}
-                  title={i18n("copy")}
-                  copiedLabel={i18n("copy_success", "Copied")}
-                />
-              )}
-              <BrowserTtsBtn
-                text={trText}
-                lang={toLang}
-                title={i18n("read_aloud")}
-              />
-            </Stack>
-          ),
-        }}
-      />
+              {trText}
+            </div>
+          ) : !loading ? (
+            <p className="kt-translation-result__placeholder">
+              {showServiceLabel ? displayName : i18n("translated_text")}
+            </p>
+          ) : null}
+        </>
+      )}
       {/* Announce completed results without repeating every streaming chunk. */}
       <Box
         role="status"

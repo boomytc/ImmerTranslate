@@ -1,5 +1,5 @@
 import IconButton from "@mui/material/IconButton";
-import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import VolumeUpRoundedIcon from "@mui/icons-material/VolumeUpRounded";
 import { useEffect, useRef, useState } from "react";
 import { useAudio } from "../../hooks/Audio";
 import { useI18n } from "../../hooks/I18n";
@@ -29,7 +29,7 @@ export function AudioBtn({ src, title, pauseTitle }) {
         aria-label={effectiveTitle}
         aria-busy={!error && !ready}
       >
-        <VolumeUpIcon fontSize="inherit" />
+        <VolumeUpRoundedIcon fontSize="inherit" />
       </IconButton>
     );
   }
@@ -45,7 +45,7 @@ export function AudioBtn({ src, title, pauseTitle }) {
         aria-label={effectivePauseTitle}
         aria-pressed="true"
       >
-        <VolumeUpIcon fontSize="inherit" />
+        <VolumeUpRoundedIcon fontSize="inherit" />
       </IconButton>
     );
   }
@@ -59,7 +59,7 @@ export function AudioBtn({ src, title, pauseTitle }) {
       aria-label={effectiveTitle}
       aria-pressed="false"
     >
-      <VolumeUpIcon fontSize="inherit" />
+      <VolumeUpRoundedIcon fontSize="inherit" />
     </IconButton>
   );
 }
@@ -129,7 +129,7 @@ export function BrowserTtsBtn({ text, lang = "en-US", title }) {
         cursor: speaking ? "default" : undefined,
       }}
     >
-      <VolumeUpIcon fontSize="inherit" />
+      <VolumeUpRoundedIcon fontSize="inherit" />
     </IconButton>
   );
 }

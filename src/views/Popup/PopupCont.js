@@ -9,7 +9,7 @@ import {
 } from "react";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
@@ -49,7 +49,6 @@ import { fetchModelCatalog } from "../../libs/modelList";
 import {
   DEFAULT_FAB,
   isFabVisible,
-  FAB_SIZE_PRESETS,
   applyFabSitePolicy,
   normalizeFabConfig,
   undoFabWrite,
@@ -650,8 +649,9 @@ export default function PopupCont({
   const isPlainText = plainTextValue === "true";
   const targetName =
     OPT_LANGS_TO.find(([key]) => key === toLang)?.[1] || toLang;
+  const targetShortName = String(targetName || "").split(" - ")[0];
   const activeService = services.find(({ key }) => key === apiSlug);
-  const activeServiceName = activeService?.name || apiSlug || "—";
+  const activeServiceName = activeService?.name || apiSlug || "";
   const effectiveTransApis =
     contextSetting?.transApis || setting?.transApis || [];
   const activeApiSetting = effectiveTransApis.find(
@@ -946,33 +946,6 @@ export default function PopupCont({
     updateFab,
   ]);
 
-  const handleUpdateFabSize = useCallback(
-    async (size) => {
-      if (fabLoading || !fabPageReady) return;
-      let previous = fabData;
-      let next = fabData;
-      try {
-        await updateFab((prev) => {
-          previous = normalizeFabConfig(prev);
-          next = normalizeFabConfig({ ...previous, size });
-          return next;
-        });
-        if (canTranslatePage) await confirmFabChange({ previous, next });
-      } catch (error) {
-        reportFabFailure(error);
-      }
-    },
-    [
-      canTranslatePage,
-      confirmFabChange,
-      fabData,
-      fabLoading,
-      fabPageReady,
-      reportFabFailure,
-      updateFab,
-    ]
-  );
-
   const [localSelectionTranslateOpen, setLocalSelectionTranslateOpen] =
     useState(null);
   const activeTranboxSetting =
@@ -1138,9 +1111,12 @@ export default function PopupCont({
   const heroActive = translationEnabled && !missingApiKey;
   const heroBusy = translationBusy && !missingApiKey;
   const pageShortcutLabel = shortcutMap.page.join("+");
+  const serviceRoute = [activeServiceName, targetShortName]
+    .filter(Boolean)
+    .join(" → ");
   const enabledSummary = [
     i18n("popup_enabled"),
-    `${activeServiceName} → ${targetName}`,
+    serviceRoute,
     pageShortcutLabel,
   ]
     .filter(Boolean)
@@ -1162,6 +1138,7 @@ export default function PopupCont({
     ["hasRichText", i18n("richtext_alt"), hasRichText === "true"],
     ["scanAll", i18n("scan_all_nodes"), scanAll === "true"],
     ["isPlainText", i18n("plain_text_translate"), isPlainText],
+    ["autoScan", i18n("autoscan_alt"), autoScan === "true"],
   ];
 
   const renderPopupStyleChip = (style) => (
@@ -1300,7 +1277,6 @@ export default function PopupCont({
                   <ApiProviderIcon
                     apiType={service.type}
                     className="kt-service-logo"
-                    lightSurface
                   />
                   <span className="kt-popup-service__name">{service.name}</span>
                 </button>
@@ -1368,17 +1344,11 @@ export default function PopupCont({
                     </option>
                   ))}
                 </select>
-                <span
-                  className={`kt-popup-site__badge ${
-                    pageBlocked ? "kt-popup-site__badge--blocked" : ""
-                  }`}
-                >
-                  {i18n(
-                    pageBlocked
-                      ? "popup_domain_blocked"
-                      : "popup_domain_allowed"
-                  )}
-                </span>
+                {pageBlocked && (
+                  <span className="kt-popup-site__status kt-popup-site__status--blocked">
+                    {i18n("popup_domain_blocked")}
+                  </span>
+                )}
               </div>
               <div
                 className={`kt-popup-site__actions${
@@ -1460,14 +1430,14 @@ export default function PopupCont({
         </div>
       )}
 
-      <div className="kt-popup-fab-control">
-        <div className="kt-popup-fab-control__head">
-          <div className="kt-popup-section-label">{i18n("fab_control")}</div>
+      <div className="kt-popup-quick-toggles">
+        <div className="kt-popup-quick-toggles__head">
+          <div className="kt-popup-section-label">{i18n("quick_toggles")}</div>
           {canTranslatePage && domainOptions.length > 0 && (
             <Button
-              variant="outlined"
+              variant="text"
               size="small"
-              className="kt-popup-fab-control__site-btn"
+              className="kt-popup-quick-toggles__site-btn"
               disabled={fabLoading || !fabPageReady}
               onClick={() => void handleToggleSiteFab()}
             >
@@ -1479,9 +1449,11 @@ export default function PopupCont({
             </Button>
           )}
         </div>
-        <div className="kt-popup-fab-control__switches">
-          <div className="kt-popup-fab-control__global">
-            <span>{i18n("fab_global_switch")}</span>
+        <div className="kt-popup-quick-toggles__list">
+          <label className="kt-popup-toggle-row">
+            <span className="kt-popup-toggle-row__label">
+              {i18n("fab_global_switch")}
+            </span>
             <Switch
               size="small"
               checked={!fabLoading && !fabData?.isHide}
@@ -1491,13 +1463,15 @@ export default function PopupCont({
               }
               inputProps={{ "aria-label": i18n("fab_global_switch") }}
             />
-          </div>
-          <div className="kt-popup-fab-control__global">
-            <span>
+          </label>
+          <label className="kt-popup-toggle-row">
+            <span className="kt-popup-toggle-row__label">
               {i18n("selection_translate")}
-              {selectionBlockedOnSite
-                ? ` · ${i18n("selection_translate_site_blocked")}`
-                : ""}
+              {selectionBlockedOnSite ? (
+                <span className="kt-popup-toggle-row__meta">
+                  {` · ${i18n("selection_translate_site_blocked")}`}
+                </span>
+              ) : null}
             </span>
             <Switch
               size="small"
@@ -1507,13 +1481,15 @@ export default function PopupCont({
               }
               inputProps={{ "aria-label": i18n("selection_translate") }}
             />
-          </div>
-          <div className="kt-popup-fab-control__global">
-            <span>
+          </label>
+          <label className="kt-popup-toggle-row">
+            <span className="kt-popup-toggle-row__label">
               {i18n("input_dot_switch")}
-              {inputBlockedOnSite
-                ? ` · ${i18n("selection_translate_site_blocked")}`
-                : ""}
+              {inputBlockedOnSite ? (
+                <span className="kt-popup-toggle-row__meta">
+                  {` · ${i18n("selection_translate_site_blocked")}`}
+                </span>
+              ) : null}
             </span>
             <Switch
               size="small"
@@ -1521,30 +1497,7 @@ export default function PopupCont({
               onChange={(_event, checked) => void handleToggleInputDot(checked)}
               inputProps={{ "aria-label": i18n("input_dot_switch") }}
             />
-          </div>
-        </div>
-        <div className="kt-popup-fab-control__sizes">
-          <span className="kt-popup-fab-control__size-label">
-            {i18n("fab_size")}
-          </span>
-          <div
-            className="kt-popup-fab-control__size-group"
-            role="group"
-            aria-label={i18n("fab_size")}
-          >
-            {FAB_SIZE_PRESETS.map(({ size, labelKey }) => (
-              <button
-                key={size}
-                type="button"
-                className="kt-popup-fab-control__size-chip"
-                aria-pressed={(fabData?.size || DEFAULT_FAB.size) === size}
-                disabled={fabLoading || !fabPageReady}
-                onClick={() => void handleUpdateFabSize(size)}
-              >
-                {i18n(labelKey)}
-              </button>
-            ))}
-          </div>
+          </label>
         </div>
       </div>
 
@@ -1611,27 +1564,13 @@ export default function PopupCont({
                     </div>
                   ))}
                 </div>
-                <div className="kt-popup-advanced-row">
-                  <span>{i18n("autoscan_alt")}</span>
-                  <Switch
-                    size="small"
-                    checked={autoScan === "true"}
-                    onChange={(event) =>
-                      putRuleValue(
-                        "autoScan",
-                        event.target.checked ? "true" : "false"
-                      )
-                    }
-                    inputProps={{ "aria-label": i18n("autoscan_alt") }}
-                  />
-                </div>
               </>
             )}
             <div className="kt-popup-advanced-tools">
               {canEditRule && (
                 <Button
                   variant="text"
-                  startIcon={<EditOutlinedIcon />}
+                  startIcon={<EditRoundedIcon />}
                   onClick={handleOpenRuleEditor}
                 >
                   {i18n("rule_editor_open")}

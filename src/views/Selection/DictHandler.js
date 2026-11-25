@@ -9,7 +9,7 @@ function renderHighlightedSentence(sentence, word) {
   const pattern = new RegExp(`(${escaped})`, "gi");
   return sentence.split(pattern).map((part, index) =>
     index % 2 === 1 ? (
-      <span key={index} style={{ fontWeight: "bold", color: "var(--kt-pri)" }}>
+      <span key={index} style={{ fontWeight: 600, color: "var(--kt-pri)" }}>
         {part}
       </span>
     ) : (
@@ -24,184 +24,143 @@ function renderHighlightedSentence(sentence, word) {
 export const dictHandlers = {
   // ------------------ 必应词典 (Bing Dictionary) ------------------
   [OPT_DICT_BING]: {
-    // 异步查询 API 函数
     apiFn: apiMicrosoftDict,
-    // 从返回数据中读取单词原型
     reWord: (data) => data?.word,
-    // 将词典解释转换为纯文本数组（用于快速复制）
     toText: (data) =>
       data?.trs?.map(({ pos, def }) => `${pos ? `[${pos}] ` : ""}${def}`) || [],
-    // 渲染发音部分 (包含音标及发音按钮，包含英音、美音等)
     uiAudio: (data) => (
-      <Typography component="div">
+      <div className="kt-dict-meta-grid">
         {data?.aus?.map(({ key, audio, phonetic }) => (
+          <span className="kt-dict-meta-item" key={key}>
+            <span className="kt-dict-meta-label">{key}</span>
+            {phonetic && (
+              <span className="kt-dict-meta-value">{`/${phonetic}/`}</span>
+            )}
+            <AudioBtn src={audio} />
+          </span>
+        ))}
+      </div>
+    ),
+    uiTrans: (data, i18n) => (
+      <div>
+        <ul className="kt-dict-list">
+          {data?.trs?.map(({ pos, def }, idx) => (
+            <li key={idx}>
+              {pos && <span className="kt-dict-pos">{pos}</span>}
+              <span>{def}</span>
+            </li>
+          ))}
+        </ul>
+
+        {data?.presents?.length > 0 && (
           <Typography
             component="div"
-            key={key}
-            style={{ display: "inline-block", paddingRight: "1em" }}
+            sx={{
+              mt: 1.25,
+              color: "var(--kt-onv)",
+              fontSize: "var(--kt-text-sm, 13px)",
+              lineHeight: 1.5,
+            }}
           >
-            <Typography component="span">{`${key} [${phonetic || ""}]`}</Typography>
-            {/* 音频发音按钮 */}
-            <AudioBtn src={audio} />
-          </Typography>
-        ))}
-      </Typography>
-    ),
-    // 渲染词典主体翻译与例句部分
-    uiTrans: (data, i18n) => (
-      <Typography component="div">
-        {/* 词性及基本释义列表 */}
-        <Typography component="ul">
-          {data?.trs?.map(({ pos, def }, idx) => (
-            <Typography component="li" key={idx}>
-              {pos && `[${pos}] `}
-              {def}
-            </Typography>
-          ))}
-        </Typography>
-
-        {/* 单词的时态/变形展示 */}
-        {data?.presents?.length > 0 && (
-          <Typography component="div" style={{ marginTop: "10px" }}>
             {data.presents.join(", ")}
           </Typography>
         )}
 
-        {/* 英汉双解详细释义 */}
         {data?.ecs?.length > 0 && (
-          <Typography component="div" style={{ marginTop: "10px" }}>
-            <Typography
-              component="div"
-              style={{ fontWeight: "bold", marginBottom: "5px" }}
-            >
+          <div style={{ marginTop: "12px" }}>
+            <div className="kt-dict-section-title">
               {i18n("dict_bilingual")}
-            </Typography>
+            </div>
             {data.ecs.map(({ pos, lis }) => (
-              <Typography component="div" key={pos}>
-                <Typography component="div">{pos}</Typography>
-                <Typography component="ul">
+              <div key={pos} style={{ marginTop: "6px" }}>
+                <div className="kt-dict-pos">{pos}</div>
+                <ul className="kt-dict-list">
                   {lis.map((item, idx) => (
-                    <Typography component="li" key={idx}>
-                      {item}
-                    </Typography>
+                    <li key={idx}>{item}</li>
                   ))}
-                </Typography>
-              </Typography>
+                </ul>
+              </div>
             ))}
-          </Typography>
+          </div>
         )}
 
-        {/* 显示相关双语例句 */}
         {data?.sentences?.length > 0 && (
-          <Typography component="div" style={{ marginTop: "10px" }}>
-            <Typography
-              component="div"
-              style={{ fontWeight: "bold", marginBottom: "5px" }}
-            >
-              {i18n("dict_examples")}
-            </Typography>
-            {/* 仅截取前 2 条例句显示 */}
+          <div style={{ marginTop: "12px" }}>
+            <div className="kt-dict-section-title">{i18n("dict_examples")}</div>
             {data.sentences.slice(0, 2).map((sentence, idx) => (
-              <Typography
-                component="div"
-                key={idx}
-                style={{ marginBottom: "5px" }}
-              >
-                {/* 英文例句中对查询单词进行高亮处理 */}
-                <Typography component="div">
-                  {renderHighlightedSentence(sentence.eng, data.word)}
-                </Typography>
-                {/* 中文例句对照 */}
-                <Typography
-                  component="div"
-                  style={{ opacity: "0.6", fontStyle: "italic" }}
-                >
-                  {sentence.chs}
-                </Typography>
-              </Typography>
+              <div className="kt-dict-example" key={idx}>
+                <div>{renderHighlightedSentence(sentence.eng, data.word)}</div>
+                <div className="kt-dict-example__trans">{sentence.chs}</div>
+              </div>
             ))}
-          </Typography>
+          </div>
         )}
-      </Typography>
+      </div>
     ),
   },
 
   // ------------------ 有道词典 (Youdao Dictionary) ------------------
   [OPT_DICT_YOUDAO]: {
-    // 异步查询 API 函数
     apiFn: apiYoudaoDict,
-    // 获取原型词汇
     reWord: (data) => data?.ec?.word?.["return-phrase"],
-    // 词义纯文本转换
     toText: (data) =>
       data?.ec?.word?.trs?.map(
         ({ pos, tran }) => `${pos ? `[${pos}] ` : ""}${tran}`
       ) || [],
-    // 渲染英音/美音音标并调用百度 TTS 播放发音
     uiAudio: (data, i18n) => (
-      <Typography component="div">
-        <Typography
-          component="div"
-          style={{ display: "inline-block", paddingRight: "1em" }}
-        >
-          <Typography component="span">{`${i18n("dict_uk")} ${data?.ec?.word?.ukphone ? `[${data?.ec?.word?.ukphone}]` : ""}`}</Typography>
+      <div className="kt-dict-meta-grid">
+        <span className="kt-dict-meta-item">
+          <span className="kt-dict-meta-label">{i18n("dict_uk")}</span>
+          {data?.ec?.word?.ukphone && (
+            <span className="kt-dict-meta-value">
+              {`/${data.ec.word.ukphone}/`}
+            </span>
+          )}
           <BaiduAudioBtn text={data?.ec?.word?.["return-phrase"]} lan="uk" />
-        </Typography>
-        <Typography
-          component="div"
-          style={{ display: "inline-block", paddingRight: "1em" }}
-        >
-          <Typography component="span">{`${i18n("dict_us")} ${data?.ec?.word?.usphone ? `[${data?.ec?.word?.usphone}]` : ""}`}</Typography>
+        </span>
+        <span className="kt-dict-meta-item">
+          <span className="kt-dict-meta-label">{i18n("dict_us")}</span>
+          {data?.ec?.word?.usphone && (
+            <span className="kt-dict-meta-value">
+              {`/${data.ec.word.usphone}/`}
+            </span>
+          )}
           <BaiduAudioBtn text={data?.ec?.word?.["return-phrase"]} lan="en" />
-        </Typography>
-      </Typography>
+        </span>
+      </div>
     ),
-    // 渲染有道的中文翻译与例句
     uiTrans: (data, i18n) => (
-      <Typography component="div">
-        <Typography component="ul">
+      <div>
+        <ul className="kt-dict-list">
           {data?.ec?.word?.trs?.map(({ pos, tran }, idx) => (
-            <Typography component="li" key={idx}>
-              {pos && `[${pos}] `}
-              {tran}
-            </Typography>
+            <li key={idx}>
+              {pos && <span className="kt-dict-pos">{pos}</span>}
+              <span>{tran}</span>
+            </li>
           ))}
-        </Typography>
+        </ul>
 
-        {/* 例句显示 */}
         {data?.blng_sents_part?.["sentence-pair"]?.length > 0 && (
-          <Typography component="div" style={{ marginTop: "10px" }}>
-            <Typography
-              component="div"
-              style={{ fontWeight: "bold", marginBottom: "5px" }}
-            >
-              {i18n("dict_examples")}
-            </Typography>
+          <div style={{ marginTop: "12px" }}>
+            <div className="kt-dict-section-title">{i18n("dict_examples")}</div>
             {data.blng_sents_part["sentence-pair"]
               .slice(0, 2)
               .map((sentence, idx) => (
-                <Typography
-                  component="div"
-                  key={idx}
-                  style={{ marginBottom: "5px" }}
-                >
-                  <Typography component="div">
+                <div className="kt-dict-example" key={idx}>
+                  <div>
                     {renderHighlightedSentence(
                       sentence.sentence,
                       data.ec?.word?.["return-phrase"]
                     )}
-                  </Typography>
-                  <Typography
-                    component="div"
-                    style={{ opacity: "0.6", fontStyle: "italic" }}
-                  >
+                  </div>
+                  <div className="kt-dict-example__trans">
                     {sentence["sentence-translation"]}
-                  </Typography>
-                </Typography>
+                  </div>
+                </div>
               ))}
-          </Typography>
+          </div>
         )}
-      </Typography>
+      </div>
     ),
   },
 };

@@ -4,9 +4,7 @@ import {
   Autocomplete,
   Box,
   Button,
-  Card,
-  CardActionArea,
-  Chip,
+  ButtonBase,
   CircularProgress,
   Divider,
   Dialog,
@@ -24,14 +22,14 @@ import {
   Typography,
 } from "@mui/material";
 import LoadingButton from "@mui/lab/LoadingButton";
-import CloseIcon from "@mui/icons-material/Close";
-import UndoIcon from "@mui/icons-material/Undo";
-import RedoIcon from "@mui/icons-material/Redo";
-import AddIcon from "@mui/icons-material/Add";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import UndoRoundedIcon from "@mui/icons-material/UndoRounded";
+import RedoRoundedIcon from "@mui/icons-material/RedoRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import AdsClickRoundedIcon from "@mui/icons-material/AdsClickRounded";
 import CodeRoundedIcon from "@mui/icons-material/CodeRounded";
-import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
+import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import M3Theme from "../../hooks/M3Theme";
 import { SettingProvider } from "../../hooks/Setting";
 import { useI18n } from "../../hooks/I18n";
@@ -47,7 +45,7 @@ import {
 } from "../../libs/selectorList";
 import { limitNumber } from "../../libs/utils";
 import FloatingPanel from "./FloatingPanel";
-import EditorSelect from "./EditorSelect";
+import EditorSelect, { EDITOR_MENU_PAPER_SX } from "./EditorSelect";
 import { getEditorPortalContainer } from "./portal";
 import usePanelPosition from "./usePanelPosition";
 import usePanelViewport from "./usePanelViewport";
@@ -62,43 +60,73 @@ const selectorLabels = {
 const MAIN_WIDTH = 448;
 
 const codeStyle = {
-  fontFamily: 'Consolas, "SFMono-Regular", monospace',
-  fontSize: 13,
-  lineHeight: 1.6,
+  fontFamily: "var(--kt-font-mono)",
+  fontSize: "var(--kt-text-sm, 13px)",
+  lineHeight: 1.55,
   overflowWrap: "anywhere",
   textTransform: "none",
   textAlign: "left",
 };
-const themeOptions = {
-  typography: {
-    body1: { fontSize: 14 },
-    body2: { fontSize: 13 },
-    caption: { fontSize: 12 },
-    button: { fontSize: 13 },
-  },
+
+const flatListSx = {
+  margin: 0,
+  padding: 0,
+  listStyle: "none",
+  borderTop: "1px solid var(--kt-linev)",
+  borderBottom: "1px solid var(--kt-linev)",
 };
-const cardStyle = (selected) => ({
-  border: "1px solid",
-  borderColor: selected ? "primary.main" : "divider",
-  bgcolor: selected ? "var(--kt-secc)" : "var(--kt-glass, var(--kt-sf0))",
-  color: selected ? "var(--kt-onsecc)" : "text.primary",
-  borderRadius: "var(--kt-radius-md, 12px)",
-  overflow: "hidden",
+
+const flatRowSx = (selected) => ({
+  display: "flex",
+  alignItems: "center",
+  borderBottom: "1px solid var(--kt-linev)",
+  "&:last-child": { borderBottom: 0 },
+  bgcolor: selected ? "var(--kt-pric)" : "transparent",
+  color: selected ? "var(--kt-onpric)" : "var(--kt-on)",
+  transition:
+    "background-color var(--kt-dur, 150ms) var(--kt-ease, ease-out), color var(--kt-dur, 150ms) var(--kt-ease, ease-out)",
+  "@media (hover: hover)": {
+    "&:hover": {
+      bgcolor: selected ? "var(--kt-pric)" : "var(--kt-sf1)",
+    },
+  },
 });
-const cardActionStyle = {
+
+const rowActionSx = {
+  width: "100%",
   minWidth: 0,
-  p: 1.5,
+  display: "block",
+  px: 1.25,
+  py: 1,
   textAlign: "left",
   "&&.Mui-focusVisible": {
     outline: "none",
-    boxShadow: "inset 0 0 0 3px var(--kt-pri)",
+    boxShadow: "inset 0 0 0 2px var(--kt-pri)",
+    "@media (forced-colors: active)": {
+      outline: "2px solid Highlight",
+      outlineOffset: "-2px",
+    },
   },
 };
+
+const countMetaSx = (selected, invalid = false) => ({
+  flex: "none",
+  fontVariantNumeric: "tabular-nums",
+  fontSize: "var(--kt-text-sm, 13px)",
+  fontWeight: 600,
+  lineHeight: 1.4,
+  whiteSpace: "nowrap",
+  color: invalid
+    ? "var(--kt-err)"
+    : selected
+      ? "var(--kt-onpric)"
+      : "var(--kt-onv)",
+});
 
 function CandidateList({ session, state, t }) {
   const busy = state.saving || state.loading;
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1.25}>
       {!!state.ancestors.length && (
         <EditorSelect
           label={t("element")}
@@ -121,88 +149,75 @@ function CandidateList({ session, state, t }) {
           {t("navigateHelp")}
         </Typography>
       )}
-      {state.candidates.map((candidate) => {
-        const selected = state.input === candidate.selector;
-        return (
-          <Card
-            key={candidate.selector}
-            variant="outlined"
-            sx={cardStyle(selected)}
-          >
-            <CardActionArea
-              disabled={busy}
-              aria-pressed={selected}
-              onClick={() => {
-                session.setInput(candidate.selector);
-                session.refresh();
-              }}
-              sx={cardActionStyle}
-            >
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                gap={1}
+      {!!state.candidates.length && (
+        <Box component="ul" sx={flatListSx}>
+          {state.candidates.map((candidate) => {
+            const selected = state.input === candidate.selector;
+            return (
+              <Box
+                component="li"
+                key={candidate.selector}
+                sx={flatRowSx(selected)}
               >
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: selected ? "var(--kt-onsecc)" : "text.secondary",
-                    opacity: selected ? 0.85 : 1,
+                <ButtonBase
+                  disabled={busy}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    session.setInput(candidate.selector);
+                    session.refresh();
                   }}
+                  sx={rowActionSx}
                 >
-                  {t(candidate.kind)}
-                </Typography>
-                <Chip
-                  size="small"
-                  aria-live={selected ? "polite" : "off"}
-                  sx={
-                    selected
-                      ? {
-                          bgcolor:
-                            "color-mix(in srgb, var(--kt-onsecc) 12%, transparent)",
-                          color: "var(--kt-onsecc)",
-                        }
-                      : undefined
-                  }
-                  label={
-                    selected && state.matchIndex
-                      ? `${state.matchIndex} / ${candidate.count}`
-                      : candidate.count
-                  }
-                />
-              </Stack>
-              <Typography
-                component="code"
-                sx={{ ...codeStyle, display: "block", mt: 0.5 }}
-              >
-                {candidate.selector}
-              </Typography>
-              {candidate.fragile && (
-                <Typography
-                  variant="caption"
-                  component="div"
-                  sx={{
-                    mt: 0.5,
-                    color: selected
-                      ? "var(--kt-onwarnc)"
-                      : "var(--kt-warn, warning.main)",
-                    ...(selected && {
-                      display: "inline-block",
-                      px: 0.75,
-                      py: 0.125,
-                      borderRadius: "var(--kt-radius-xs, 6px)",
-                      bgcolor: "var(--kt-warnc)",
-                    }),
-                  }}
-                >
-                  {t("fragile")}
-                </Typography>
-              )}
-            </CardActionArea>
-          </Card>
-        );
-      })}
+                  <Stack
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    gap={1}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: selected ? "var(--kt-onpric)" : "var(--kt-onv)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {t(candidate.kind)}
+                    </Typography>
+                    <Typography
+                      component="span"
+                      aria-live={selected ? "polite" : "off"}
+                      sx={countMetaSx(selected)}
+                    >
+                      {selected && state.matchIndex
+                        ? `${state.matchIndex} / ${candidate.count}`
+                        : candidate.count}
+                    </Typography>
+                  </Stack>
+                  <Typography
+                    component="code"
+                    sx={{ ...codeStyle, display: "block", mt: 0.5 }}
+                  >
+                    {candidate.selector}
+                  </Typography>
+                  {candidate.fragile && (
+                    <Typography
+                      variant="caption"
+                      component="div"
+                      sx={{
+                        mt: 0.5,
+                        color: selected ? "var(--kt-onpric)" : "var(--kt-warn)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {t("fragile")}
+                    </Typography>
+                  )}
+                </ButtonBase>
+              </Box>
+            );
+          })}
+        </Box>
+      )}
     </Stack>
   );
 }
@@ -308,7 +323,7 @@ export function Editor({ session }) {
                 sx={{
                   width: "100%",
                   minWidth: 0,
-                  boxShadow: "var(--kt-shadow-2)",
+                  boxShadow: "var(--kt-shadow-menu)",
                   overflowWrap: "anywhere",
                 }}
               >
@@ -325,28 +340,31 @@ export function Editor({ session }) {
         actions={
           <Stack direction="row" sx={{ flexShrink: 0 }}>
             <IconButton
+              size="small"
               title={t("undo")}
               aria-label={t("undo")}
               disabled={busy || !state.undo}
               onClick={() => session.history()}
             >
-              <UndoIcon fontSize="small" />
+              <UndoRoundedIcon fontSize="small" />
             </IconButton>
             <IconButton
+              size="small"
               title={t("redo")}
               aria-label={t("redo")}
               disabled={busy || !state.redo}
               onClick={() => session.history(true)}
             >
-              <RedoIcon fontSize="small" />
+              <RedoRoundedIcon fontSize="small" />
             </IconButton>
             <IconButton
+              size="small"
               title={t("exit")}
               aria-label={t("exit")}
               disabled={state.saving}
               onClick={() => session.requestAction("exit")}
             >
-              <CloseIcon fontSize="small" />
+              <CloseRoundedIcon fontSize="small" />
             </IconButton>
           </Stack>
         }
@@ -362,25 +380,33 @@ export function Editor({ session }) {
                   component="section"
                   aria-label={t("pagePreview")}
                   direction="row"
-                  spacing={1}
+                  spacing={0.5}
                   sx={{
                     flex: 1,
                     minWidth: 0,
-                    p: 0.5,
-                    borderRadius: "var(--kt-radius-control, 16px)",
+                    p: 0.375,
+                    borderRadius: "var(--kt-radius-control, 10px)",
                     bgcolor: "var(--kt-sf2)",
                     "& .MuiToggleButton-root": {
                       flex: 1,
                       minWidth: 0,
-                      minHeight: 40,
+                      minHeight: 34,
                       px: 1,
                       py: 0.5,
                       border: 0,
-                      borderRadius: "var(--kt-radius-md, 12px)",
-                      fontSize: 13,
-                      lineHeight: 1.4,
-                      "&:first-of-type": { flex: 1.4 },
+                      borderRadius: "8px",
+                      fontSize: "var(--kt-text-sm, 13px)",
+                      lineHeight: 1.35,
+                      "&:first-of-type": { flex: 1.35 },
                       "&.Mui-disabled": { border: 0 },
+                      "&.Mui-selected": {
+                        bgcolor: "var(--kt-pric)",
+                        color: "var(--kt-onpric)",
+                        fontWeight: 600,
+                      },
+                      "&.Mui-selected:hover": {
+                        bgcolor: "var(--kt-pric)",
+                      },
                     },
                   }}
                 >
@@ -424,8 +450,8 @@ export function Editor({ session }) {
                 aria-busy={state.saving}
                 title={state.dirty ? t("unsaved") : undefined}
                 onClick={() => session.save()}
-                startIcon={<SaveOutlinedIcon />}
-                sx={{ flexShrink: 0, minHeight: 48 }}
+                startIcon={<SaveRoundedIcon />}
+                sx={{ flexShrink: 0, minHeight: 40 }}
               >
                 {t("save")}
               </LoadingButton>
@@ -469,24 +495,21 @@ export function Editor({ session }) {
                 sx: {
                   zIndex: 2147483647,
                   "& .MuiAutocomplete-paper": {
+                    ...EDITOR_MENU_PAPER_SX,
                     mt: 0.5,
-                    border: "1px solid",
-                    borderColor:
-                      "var(--kt-liquid-edge, var(--kt-border-strong, var(--kt-linev)))",
-                    borderRadius: "var(--kt-radius-md, 12px)",
-                    bgcolor: "var(--kt-liquid, var(--kt-sf0))",
-                    WebkitBackdropFilter:
-                      "var(--kt-liquid-blur, var(--kt-glass-blur))",
-                    backdropFilter:
-                      "var(--kt-liquid-blur, var(--kt-glass-blur))",
-                    boxShadow: "var(--kt-liquid-shadow, var(--kt-shadow-menu))",
                   },
                   "& .MuiAutocomplete-option": {
-                    borderRadius: "var(--kt-radius-sm, 8px)",
-                    "&.Mui-focused": { bgcolor: "var(--kt-sf3)" },
+                    minHeight: 36,
+                    borderRadius: "var(--kt-radius-sm, 6px)",
+                    fontSize: "var(--kt-text-body, 14px)",
+                    "&.Mui-focused": { bgcolor: "var(--kt-sf1)" },
                     '&[aria-selected="true"]': {
-                      bgcolor: "var(--kt-secc)",
-                      color: "var(--kt-onsecc)",
+                      bgcolor: "var(--kt-pric)",
+                      color: "var(--kt-onpric)",
+                      fontWeight: 600,
+                    },
+                    '&[aria-selected="true"].Mui-focused': {
+                      bgcolor: "var(--kt-pric)",
                     },
                   },
                 },
@@ -495,7 +518,7 @@ export function Editor({ session }) {
             ListboxProps={{
               style: {
                 overscrollBehavior: "contain",
-                fontSize: 14,
+                fontSize: "var(--kt-text-body, 14px)",
                 padding: 4,
               },
             }}
@@ -538,7 +561,7 @@ export function Editor({ session }) {
               role="status"
               sx={{ p: 1 }}
             >
-              <CircularProgress size={20} />
+              <CircularProgress size={18} />
               <Typography variant="body2">{t("loading")}</Typography>
             </Stack>
           )}
@@ -551,14 +574,15 @@ export function Editor({ session }) {
                 justifyContent="space-between"
                 gap={2}
                 sx={{
-                  px: 1.5,
+                  px: 0.5,
                   py: 1,
-                  minHeight: 52,
-                  borderRadius: "12px",
-                  bgcolor: "var(--kt-sf2)",
+                  minHeight: 42,
+                  borderTop: "1px solid var(--kt-linev)",
+                  borderBottom: "1px solid var(--kt-linev)",
+                  cursor: "pointer",
                 }}
               >
-                <Typography variant="body2" sx={{ fontWeight: 650 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {i18n("auto_scan_page")}
                 </Typography>
                 <Switch
@@ -579,7 +603,7 @@ export function Editor({ session }) {
               <Stack
                 component="section"
                 aria-label={t("currentGroup")}
-                spacing={1.5}
+                spacing={1.25}
                 sx={{
                   minWidth: 0,
                   minHeight: 0,
@@ -591,20 +615,18 @@ export function Editor({ session }) {
                   direction="row"
                   alignItems="center"
                   justifyContent="space-between"
-                  sx={{ pt: 0.5 }}
+                  sx={{ pt: 0.25 }}
                 >
                   <Typography
-                    variant="body2"
+                    variant="h6"
                     component="h2"
-                    sx={{ fontWeight: 650 }}
+                    sx={{ fontWeight: 600 }}
                   >
                     {t("currentGroup")}
                   </Typography>
-                  <Chip
-                    size="small"
-                    label={state.entries.length}
-                    sx={{ bgcolor: "var(--kt-sf2)" }}
-                  />
+                  <Typography component="span" sx={countMetaSx(false)}>
+                    {state.entries.length}
+                  </Typography>
                 </Stack>
                 <EditorSelect
                   label={t("purpose")}
@@ -631,7 +653,7 @@ export function Editor({ session }) {
                   </Button>
                   <Button
                     variant="outlined"
-                    startIcon={<AddIcon />}
+                    startIcon={<AddRoundedIcon />}
                     disabled={busy}
                     onClick={() => session.add()}
                     sx={{ flex: 1, minWidth: 0 }}
@@ -644,117 +666,112 @@ export function Editor({ session }) {
                     {t("picking")}
                   </Alert>
                 )}
-                <Stack
-                  spacing={1}
+                <Box
                   sx={{
                     maxHeight: 280,
                     minHeight: 80,
                     flexShrink: 1,
                     overflowY: "auto",
                     overscrollBehavior: "contain",
-                    scrollbarWidth: "thin",
+                    scrollbarWidth: "auto",
+                    scrollbarColor: "var(--kt-scrollbar-thumb) transparent",
                   }}
                   aria-label={t("entries")}
                 >
-                  {state.entries.length === 0 && (
+                  {state.entries.length === 0 ? (
                     <Stack
                       alignItems="center"
-                      spacing={1}
+                      spacing={0.75}
                       sx={{
                         p: 2.5,
-                        border: "1px dashed",
-                        borderColor: "divider",
-                        borderRadius: "12px",
-                        color: "text.secondary",
+                        borderTop: "1px solid var(--kt-linev)",
+                        borderBottom: "1px solid var(--kt-linev)",
+                        color: "var(--kt-onv)",
                       }}
                     >
-                      <CodeRoundedIcon />
-                      <Typography variant="body2">{t("empty")}</Typography>
+                      <CodeRoundedIcon fontSize="small" />
+                      <Typography variant="caption">{t("empty")}</Typography>
                     </Stack>
-                  )}
-                  {state.entries.map((entry) => {
-                    const selected = state.editing === entry.selector;
-                    return (
-                      <Card
-                        key={entry.selector}
-                        variant="outlined"
-                        onMouseEnter={() => session.hover(entry.selector)}
-                        onMouseLeave={() => session.refresh()}
-                        sx={{
-                          ...cardStyle(selected),
-                          display: "flex",
-                          alignItems: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <CardActionArea
-                          disabled={busy}
-                          aria-label={entry.selector}
-                          aria-pressed={selected}
-                          onClick={() => session.edit(entry.selector)}
-                          sx={{
-                            ...cardActionStyle,
-                            flex: 1,
-                          }}
-                        >
-                          <Stack direction="row" alignItems="start" gap={1}>
-                            <Typography
-                              component="code"
+                  ) : (
+                    <Box component="ul" sx={flatListSx}>
+                      {state.entries.map((entry) => {
+                        const selected = state.editing === entry.selector;
+                        return (
+                          <Box
+                            component="li"
+                            key={entry.selector}
+                            onMouseEnter={() => session.hover(entry.selector)}
+                            onMouseLeave={() => session.refresh()}
+                            sx={flatRowSx(selected)}
+                          >
+                            <ButtonBase
+                              disabled={busy}
+                              aria-label={entry.selector}
+                              aria-pressed={selected}
+                              onClick={() => session.edit(entry.selector)}
                               sx={{
-                                ...codeStyle,
+                                ...rowActionSx,
                                 flex: 1,
-                                minWidth: 0,
                               }}
                             >
-                              {entry.selector}
-                            </Typography>
-                            <Chip
+                              <Stack
+                                direction="row"
+                                alignItems="start"
+                                justifyContent="space-between"
+                                gap={1}
+                              >
+                                <Typography
+                                  component="code"
+                                  sx={{
+                                    ...codeStyle,
+                                    flex: 1,
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  {entry.selector}
+                                </Typography>
+                                <Typography
+                                  component="span"
+                                  sx={countMetaSx(selected, entry.invalid)}
+                                >
+                                  {entry.invalid ? "!" : entry.count}
+                                </Typography>
+                              </Stack>
+                              <Typography
+                                variant="caption"
+                                component="div"
+                                sx={{
+                                  mt: 0.5,
+                                  color: selected
+                                    ? "var(--kt-onpric)"
+                                    : "var(--kt-onv)",
+                                }}
+                              >
+                                {t(entry.source)}
+                              </Typography>
+                            </ButtonBase>
+                            <IconButton
                               size="small"
-                              color={entry.invalid ? "error" : "default"}
-                              sx={
-                                selected && !entry.invalid
-                                  ? {
-                                      bgcolor:
-                                        "color-mix(in srgb, var(--kt-onsecc) 12%, transparent)",
-                                      color: "var(--kt-onsecc)",
-                                    }
-                                  : undefined
-                              }
-                              label={entry.invalid ? "!" : entry.count}
-                            />
-                          </Stack>
-                          <Typography
-                            variant="caption"
-                            component="div"
-                            sx={{
-                              mt: 0.75,
-                              color: selected
-                                ? "var(--kt-onsecc)"
-                                : "text.secondary",
-                              opacity: selected ? 0.85 : 1,
-                            }}
-                          >
-                            {t(entry.source)}
-                          </Typography>
-                        </CardActionArea>
-                        <IconButton
-                          size="small"
-                          title={t("delete")}
-                          aria-label={`${t("delete")}: ${entry.selector}`}
-                          disabled={busy}
-                          onClick={() => session.remove(entry.selector)}
-                          sx={{
-                            m: 0.5,
-                            flexShrink: 0,
-                            color: selected ? "var(--kt-onsecc)" : undefined,
-                          }}
-                        >
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </Card>
-                    );
-                  })}
-                </Stack>
+                              title={t("delete")}
+                              aria-label={`${t("delete")}: ${entry.selector}`}
+                              disabled={busy}
+                              onClick={() => session.remove(entry.selector)}
+                              sx={{
+                                mr: 0.75,
+                                flexShrink: 0,
+                                color: selected
+                                  ? "var(--kt-onpric)"
+                                  : "var(--kt-onv)",
+                              }}
+                            >
+                              <DeleteOutlineRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  )}
+                </Box>
                 <Divider />
                 <Stack direction="row" justifyContent="space-between" gap={1}>
                   <Button
@@ -800,16 +817,17 @@ export function Editor({ session }) {
           bodySx={state.selected ? undefined : { display: "none" }}
           actions={
             <IconButton
+              size="small"
               title={t("closeInspector")}
               aria-label={t("closeInspector")}
               disabled={state.saving}
               onClick={() => session.closeInspector()}
             >
-              <CloseIcon fontSize="small" />
+              <CloseRoundedIcon fontSize="small" />
             </IconButton>
           }
           footer={
-            <Stack spacing={1.5}>
+            <Stack spacing={1.25}>
               <TextField
                 label={t("input")}
                 variant="filled"
@@ -837,7 +855,7 @@ export function Editor({ session }) {
           }
         >
           {state.selected && (
-            <Stack spacing={2}>
+            <Stack spacing={1.5}>
               <Stack
                 direction="row"
                 alignItems="center"
@@ -910,7 +928,7 @@ export function Editor({ session }) {
 export default function RuleEditor(props) {
   return (
     <SettingProvider context="ruleEditor">
-      <M3Theme options={themeOptions} isolateRem>
+      <M3Theme isolateRem>
         <Editor {...props} />
       </M3Theme>
     </SettingProvider>

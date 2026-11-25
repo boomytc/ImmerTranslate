@@ -6,11 +6,11 @@ import {
   useState,
 } from "react";
 import { Box, ButtonBase, Paper, Portal, Typography } from "@mui/material";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
+import DragIndicatorRoundedIcon from "@mui/icons-material/DragIndicatorRounded";
 import { limitNumber } from "../../libs/utils";
 import { getEditorPortalContainer } from "./portal";
 
-const HEADER_HEIGHT = 56;
+const HEADER_HEIGHT = 48;
 
 // Contain wheel input at each surface, including notifications in a portal.
 const containWheel = (event) => {
@@ -139,14 +139,17 @@ export default function FloatingPanel({
           flexDirection: "column",
           overflow: "hidden",
           border: "1px solid",
-          borderColor:
-            "var(--kt-liquid-edge, var(--kt-border-strong, var(--kt-linev)))",
-          borderRadius: "var(--kt-radius-card, 20px)",
+          borderColor: "var(--kt-linev)",
+          borderRadius: "var(--kt-radius-panel, 16px)",
           bgcolor: "var(--kt-liquid, var(--kt-sf0))",
-          WebkitBackdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
-          backdropFilter: "var(--kt-liquid-blur, var(--kt-glass-blur))",
+          WebkitBackdropFilter: "var(--kt-liquid-blur)",
+          backdropFilter: "var(--kt-liquid-blur)",
           color: "var(--kt-on)",
-          boxShadow: "var(--kt-liquid-shadow, var(--kt-shadow-menu))",
+          boxShadow: "var(--kt-shadow-menu)",
+          "@media (prefers-reduced-motion: no-preference)": {
+            animation:
+              "kt-m3-rise var(--kt-dur, 150ms) var(--kt-ease, ease-out)",
+          },
         }}
       >
         <Box
@@ -155,11 +158,11 @@ export default function FloatingPanel({
             display: "flex",
             alignItems: "center",
             minHeight: HEADER_HEIGHT,
-            px: 2,
+            px: 1.5,
             gap: 1,
-            bgcolor: "var(--kt-glass-strong, var(--kt-sf1))",
+            bgcolor: "transparent",
             borderBottom: "1px solid",
-            borderColor: "var(--kt-border, var(--kt-linev))",
+            borderColor: "var(--kt-linev)",
             flexShrink: 0,
           }}
         >
@@ -222,29 +225,37 @@ export default function FloatingPanel({
             sx={{
               flex: 1,
               minWidth: 0,
-              minHeight: 40,
+              minHeight: 36,
               justifyContent: "flex-start",
               px: 0.5,
-              py: 1,
+              py: 0.5,
               ml: -0.5,
-              gap: 1,
-              borderRadius: "var(--kt-radius-sm, 8px)",
+              gap: 0.75,
+              borderRadius: "var(--kt-radius-sm, 6px)",
               cursor: "grab",
               userSelect: "none",
               "&:active": { cursor: "grabbing" },
               "&&.Mui-focusVisible": {
                 outline: "none",
-                boxShadow: "inset 0 0 0 3px var(--kt-pri)",
+                boxShadow: "inset 0 0 0 2px var(--kt-pri)",
+                "@media (forced-colors: active)": {
+                  outline: "2px solid Highlight",
+                  outlineOffset: "-2px",
+                },
               },
             }}
           >
-            <DragIndicatorIcon
-              sx={{ fontSize: 20, flexShrink: 0, color: "var(--kt-onv)" }}
+            <DragIndicatorRoundedIcon
+              sx={{ fontSize: 18, flexShrink: 0, color: "var(--kt-onv)" }}
             />
             <Typography
               component="span"
               noWrap
-              sx={{ fontSize: 16, lineHeight: 1.5, fontWeight: 650 }}
+              sx={{
+                fontSize: "var(--kt-text-heading, 15px)",
+                lineHeight: 1.35,
+                fontWeight: 600,
+              }}
             >
               {title}
             </Typography>
@@ -255,6 +266,8 @@ export default function FloatingPanel({
           sx={{
             overflowY: "auto",
             overscrollBehavior: "contain",
+            scrollbarWidth: "auto",
+            scrollbarColor: "var(--kt-scrollbar-thumb) transparent",
             minHeight: 0,
             p: 2,
             ...bodySx,
@@ -266,14 +279,16 @@ export default function FloatingPanel({
           <Box
             component="footer"
             sx={{
-              p: 2,
-              bgcolor: "var(--kt-glass-strong, var(--kt-sf1))",
+              p: 1.5,
+              bgcolor: "transparent",
               borderTop: "1px solid",
-              borderColor: "var(--kt-border, var(--kt-linev))",
+              borderColor: "var(--kt-linev)",
               flexShrink: 0,
               maxHeight: viewport.h * 0.55,
               overflowY: "auto",
               overscrollBehavior: "contain",
+              scrollbarWidth: "auto",
+              scrollbarColor: "var(--kt-scrollbar-thumb) transparent",
             }}
           >
             {footer}
