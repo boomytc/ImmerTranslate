@@ -24,7 +24,6 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { useConfirm } from "../../hooks/Confirm";
 import { useAlert } from "../../hooks/Alert";
 import { useI18n } from "../../hooks/I18n";
@@ -126,30 +125,51 @@ function getPromptPlaceholders(category) {
   return [];
 }
 
-function PromptPlaceholderButtons({ category, disabled, onInsert }) {
+function PromptVariableMenu({ category, disabled, onInsert, idPrefix }) {
+  const i18n = useI18n();
+  const [anchorEl, setAnchorEl] = useState(null);
   const placeholders = getPromptPlaceholders(category);
+  const open = Boolean(anchorEl);
 
-  if (placeholders.length === 0) {
+  if (placeholders.length === 0 || disabled) {
     return null;
   }
 
+  const menuId = `${idPrefix}-variable-menu`;
+
   return (
-    <Box>
-      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+    <>
+      <Button
+        size="small"
+        variant="text"
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        aria-controls={open ? menuId : undefined}
+        aria-haspopup="menu"
+        aria-expanded={open ? "true" : undefined}
+        endIcon={<KeyboardArrowDownIcon fontSize="small" />}
+      >
+        {i18n("insert_variable")}
+      </Button>
+      <Menu
+        id={menuId}
+        anchorEl={anchorEl}
+        open={open}
+        onClose={() => setAnchorEl(null)}
+      >
         {placeholders.map((placeholder) => (
-          <Button
+          <MenuItem
             key={placeholder}
-            size="small"
-            variant="text"
-            disabled={disabled}
-            onClick={() => onInsert(placeholder)}
-            sx={{ textTransform: "none" }}
+            onClick={() => {
+              setAnchorEl(null);
+              onInsert(placeholder);
+            }}
+            sx={{ fontFamily: "var(--kt-font-mono)" }}
           >
             {placeholder}
-          </Button>
+          </MenuItem>
         ))}
-      </Stack>
-    </Box>
+      </Menu>
+    </>
   );
 }
 
@@ -157,40 +177,29 @@ function PromptListItem({ prompt, selected, isPreset, onSelect }) {
   const i18n = useI18n();
 
   return (
-    <ListItem
-      disablePadding
-      sx={{
-        px: 1,
-        minHeight: 44,
-      }}
-    >
+    <ListItem disablePadding className="kt-master-row">
       <ListItemButton
+        className="kt-master-row__btn"
         selected={selected}
-        aria-pressed={selected}
+        aria-current={selected ? "true" : undefined}
         onClick={onSelect}
-        sx={{
-          gap: 1,
-          minWidth: 0,
-          minHeight: 40,
-          py: 0.75,
-          px: 0.5,
-          borderRadius: "8px",
-        }}
       >
         {isPreset ? (
           <LockIcon fontSize="small" color="action" />
         ) : (
           <TextSnippetIcon fontSize="small" color="action" />
         )}
-        <Typography
-          sx={{
-            minWidth: 0,
-            flex: 1,
-            overflowWrap: "anywhere",
-          }}
-        >
-          {getPromptDisplayName(prompt, i18n)}
-        </Typography>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <span className="kt-master-row__title">
+            {getPromptDisplayName(prompt, i18n)}
+          </span>
+          <span className="kt-master-row__secondary">
+            {getPromptCategoryDisplayName(
+              normalizePrompt(prompt).category,
+              i18n
+            )}
+          </span>
+        </Box>
       </ListItemButton>
     </ListItem>
   );
@@ -214,6 +223,7 @@ function PromptFields({
   const promptDisplayName = getPromptDisplayName(prompt, i18n);
   const systemPromptRef = useRef(null);
   const userPromptRef = useRef(null);
+  const selectionRangesRef = useRef({});
   const showUserPrompt =
     formData.category === PROMPT_CATEGORY_USER ||
     formData.category === PROMPT_CATEGORY_DICTIONARY ||
@@ -225,6 +235,7 @@ function PromptFields({
       return;
     }
     lastSyncedPromptRef.current = nextSnapshot;
+    selectionRangesRef.current = {};
     setFormData(normalizePrompt(prompt));
   }, [prompt]);
 
@@ -266,6 +277,15 @@ function PromptFields({
     setFormData(normalizePrompt(prompt));
   };
 
+  const captureSelection = (name, event) => {
+    const target = event?.target;
+    if (!target) return;
+    selectionRangesRef.current[name] = {
+      start: target.selectionStart,
+      end: target.selectionEnd,
+    };
+  };
+
   const handleInsertPlaceholder = (name, inputRef, placeholder) => {
     if (isPreset) {
       return;
@@ -273,10 +293,19 @@ function PromptFields({
 
     const input = inputRef.current;
     const value = formData[name] || "";
-    const start = input?.selectionStart ?? value.length;
-    const end = input?.selectionEnd ?? value.length;
+    const savedRange = selectionRangesRef.current[name];
+    const start =
+      typeof savedRange?.start === "number"
+        ? savedRange.start
+        : (input?.selectionStart ?? value.length);
+    const end =
+      typeof savedRange?.end === "number"
+        ? savedRange.end
+        : (input?.selectionEnd ?? value.length);
     const nextValue =
       value.slice(0, start) + placeholder + value.slice(end, value.length);
+    const nextCaret = start + placeholder.length;
+    selectionRangesRef.current[name] = { start: nextCaret, end: nextCaret };
 
     setFormData((prev) => ({
       ...prev,
@@ -285,10 +314,7 @@ function PromptFields({
 
     setTimeout(() => {
       input?.focus();
-      input?.setSelectionRange(
-        start + placeholder.length,
-        start + placeholder.length
-      );
+      input?.setSelectionRange(nextCaret, nextCaret);
     });
   };
 
@@ -312,26 +338,47 @@ function PromptFields({
     <Stack spacing={3}>
       <TextField
         size="small"
-        label={i18n("prompt_name", "名称")}
+        label={i18n("prompt_name")}
         name="name"
         value={isPreset ? promptDisplayName : formData.name}
         onChange={handleChange}
         disabled={isPreset}
       />
 
-      <Stack spacing={1}>
+      <Stack spacing={0.75}>
+        <Box className="kt-prompt-field-header">
+          <span className="kt-prompt-field-header__label">
+            {i18n("system_prompt")}
+          </span>
+          <PromptVariableMenu
+            idPrefix="system-prompt"
+            category={formData.category}
+            disabled={isPreset}
+            onInsert={(placeholder) =>
+              handleInsertPlaceholder(
+                "systemPrompt",
+                systemPromptRef,
+                placeholder
+              )
+            }
+          />
+        </Box>
         <CodeField
           className="kt-resizable-text-field"
+          hiddenLabel
           size="small"
-          label={i18n("system_prompt", "系统提示词")}
           name="systemPrompt"
           value={formData.systemPrompt}
           onChange={handleChange}
+          onSelect={(event) => captureSelection("systemPrompt", event)}
+          onKeyUp={(event) => captureSelection("systemPrompt", event)}
+          onBlur={(event) => captureSelection("systemPrompt", event)}
           inputRef={systemPromptRef}
           minRows={3}
           maxRows={14}
           disabled={isPreset}
           inputProps={{
+            "aria-label": i18n("system_prompt"),
             className: "kt-resizable-textarea",
             style: { resize: "vertical" },
           }}
@@ -344,34 +391,43 @@ function PromptFields({
             },
           }}
         />
-        {!isPreset && (
-          <PromptPlaceholderButtons
-            category={formData.category}
-            onInsert={(placeholder) =>
-              handleInsertPlaceholder(
-                "systemPrompt",
-                systemPromptRef,
-                placeholder
-              )
-            }
-          />
-        )}
       </Stack>
 
       {showUserPrompt && (
-        <Stack spacing={1}>
+        <Stack spacing={0.75}>
+          <Box className="kt-prompt-field-header">
+            <span className="kt-prompt-field-header__label">
+              {i18n("user_prompt")}
+            </span>
+            <PromptVariableMenu
+              idPrefix="user-prompt"
+              category={formData.category}
+              disabled={isPreset}
+              onInsert={(placeholder) =>
+                handleInsertPlaceholder(
+                  "userPrompt",
+                  userPromptRef,
+                  placeholder
+                )
+              }
+            />
+          </Box>
           <CodeField
             className="kt-resizable-text-field"
+            hiddenLabel
             size="small"
-            label={i18n("user_prompt", "用户提示词")}
             name="userPrompt"
             value={formData.userPrompt}
             onChange={handleChange}
+            onSelect={(event) => captureSelection("userPrompt", event)}
+            onKeyUp={(event) => captureSelection("userPrompt", event)}
+            onBlur={(event) => captureSelection("userPrompt", event)}
             inputRef={userPromptRef}
             minRows={3}
             maxRows={14}
             disabled={isPreset}
             inputProps={{
+              "aria-label": i18n("user_prompt"),
               className: "kt-resizable-textarea",
               style: { resize: "vertical" },
             }}
@@ -384,25 +440,13 @@ function PromptFields({
               },
             }}
           />
-          {!isPreset && (
-            <PromptPlaceholderButtons
-              category={formData.category}
-              onInsert={(placeholder) =>
-                handleInsertPlaceholder(
-                  "userPrompt",
-                  userPromptRef,
-                  placeholder
-                )
-              }
-            />
-          )}
         </Stack>
       )}
 
       <Stack
         direction="row"
         alignItems="center"
-        spacing={2}
+        spacing={1}
         useFlexGap
         flexWrap="wrap"
       >
@@ -415,34 +459,35 @@ function PromptFields({
         >
           {i18n("save")}
         </Button>
-        {isModified && (
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleDiscard}
-            startIcon={<RestoreIcon />}
-          >
-            {i18n("discard_changes")}
-          </Button>
-        )}
         <Button
           size="small"
           variant="outlined"
           onClick={() => onCopy(formData, promptDisplayName)}
           startIcon={<ContentCopyIcon />}
         >
-          {i18n("copy_as_template", "复制为模板")}
+          {i18n("copy_as_template")}
         </Button>
-        <Button
-          size="small"
-          variant="outlined"
-          color="error"
-          onClick={handleDelete}
-          disabled={isPreset}
-          startIcon={<DeleteIcon />}
-        >
-          {i18n("delete")}
-        </Button>
+        {isModified && (
+          <Button
+            size="small"
+            variant="text"
+            onClick={handleDiscard}
+            startIcon={<RestoreIcon />}
+          >
+            {i18n("discard_changes")}
+          </Button>
+        )}
+        {!isPreset && (
+          <Button
+            size="small"
+            variant="text"
+            color="error"
+            onClick={handleDelete}
+            startIcon={<DeleteIcon />}
+          >
+            {i18n("delete")}
+          </Button>
+        )}
       </Stack>
     </Stack>
   );
@@ -554,19 +599,14 @@ export default function Prompts() {
 
   return (
     <Box>
-      <Stack spacing={3}>
-        <Box>
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={2}
-            useFlexGap
-            flexWrap="wrap"
-          >
+      <Box className="kt-prompt-editor kt-master-detail">
+        <Box className="kt-master-rail kt-prompt-editor__list-panel">
+          <Box className="kt-master-rail__header">
             <Button
               size="small"
+              fullWidth
               id="add-prompt-button"
-              variant="contained"
+              variant="outlined"
               onClick={handleClick}
               aria-controls={addMenuOpen ? "add-prompt-menu" : undefined}
               aria-haspopup="true"
@@ -574,96 +614,50 @@ export default function Prompts() {
               startIcon={<AddIcon />}
               endIcon={<KeyboardArrowDownIcon />}
             >
-              {i18n("add_prompt", "新增提示词")}
+              {i18n("add_prompt")}
             </Button>
-          </Stack>
+          </Box>
+          <List
+            className="kt-master-rail__list kt-prompt-editor__list"
+            disablePadding
+            aria-label={i18n("prompt_management")}
+          >
+            {prompts.map((prompt) => (
+              <PromptListItem
+                key={normalizePrompt(prompt).slug}
+                prompt={prompt}
+                selected={normalizePrompt(prompt).slug === selectedPromptSlug}
+                isPreset={isPresetPromptSlug(normalizePrompt(prompt).slug)}
+                onSelect={() => void handleSelectPrompt(prompt)}
+              />
+            ))}
+          </List>
         </Box>
 
         <Box
-          className="kt-prompt-editor kt-prompt-editor--container-responsive"
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            border: 1,
-            borderColor: "divider",
-            borderRadius: "16px",
-            "@container options-main (min-width: 760px)": {
-              flexDirection: "row",
-              alignItems: "flex-start",
-            },
-          }}
+          className="kt-master-detail-pane kt-prompt-editor__detail-panel"
+          ref={detailPanelRef}
         >
-          <Box
-            className="kt-prompt-editor__list-panel"
-            sx={(theme) => ({
-              width: "100%",
-              flex: "0 0 auto",
-              maxHeight: "min(40vh, 360px)",
-              overflowY: "auto",
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              "@container options-main (min-width: 760px)": {
-                position: "sticky",
-                top: 24,
-                width: 280,
-                flex: "0 0 280px",
-                maxHeight: "calc(100vh - 48px)",
-                borderRight: `1px solid ${theme.palette.divider}`,
-                borderBottom: 0,
-              },
-            })}
-          >
-            <List
-              className="kt-prompt-editor__list"
-              disablePadding
-              sx={{ width: "100%", boxSizing: "border-box", py: 0.5 }}
-            >
-              {prompts.map((prompt) => (
-                <PromptListItem
-                  key={normalizePrompt(prompt).slug}
-                  prompt={prompt}
-                  selected={normalizePrompt(prompt).slug === selectedPromptSlug}
-                  isPreset={isPresetPromptSlug(normalizePrompt(prompt).slug)}
-                  onSelect={() => void handleSelectPrompt(prompt)}
-                />
-              ))}
-            </List>
-          </Box>
-
-          <Box
-            className="kt-prompt-editor__detail-panel"
-            ref={detailPanelRef}
-            sx={(theme) => ({
-              flex: 1,
-              minWidth: 0,
-              p: 2,
-              boxSizing: "border-box",
-              "@container options-main (min-width: 760px)": {
-                borderLeft: `1px solid ${theme.palette.divider}`,
-                marginLeft: "-1px",
-              },
-            })}
-          >
-            {selectedPrompt && (
-              <PromptFields
-                prompt={selectedPrompt}
-                isPreset={isPresetPromptSlug(
-                  normalizePrompt(selectedPrompt).slug
-                )}
-                onSave={(updateData) =>
-                  updatePrompt(normalizePrompt(selectedPrompt).slug, updateData)
-                }
-                onCopy={handleCopyPrompt}
-                onDelete={deletePrompt}
-                onDirtyChange={setEditorDirty}
-                onCollapse={() => {
-                  setEditorDirty(false);
-                  setSelectedPromptSlug("");
-                }}
-              />
-            )}
-          </Box>
+          {selectedPrompt && (
+            <PromptFields
+              prompt={selectedPrompt}
+              isPreset={isPresetPromptSlug(
+                normalizePrompt(selectedPrompt).slug
+              )}
+              onSave={(updateData) =>
+                updatePrompt(normalizePrompt(selectedPrompt).slug, updateData)
+              }
+              onCopy={handleCopyPrompt}
+              onDelete={deletePrompt}
+              onDirtyChange={setEditorDirty}
+              onCollapse={() => {
+                setEditorDirty(false);
+                setSelectedPromptSlug("");
+              }}
+            />
+          )}
         </Box>
-      </Stack>
+      </Box>
 
       <Menu
         id="add-prompt-menu"

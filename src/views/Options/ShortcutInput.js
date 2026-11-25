@@ -119,25 +119,36 @@ export default function ShortcutInput({
   const displayValue = isEditing ? editingKeys : keys;
   const formattedValue = displayValue.map(formatShortcutKey).join(" + ");
   const hasValue = displayValue.length > 0;
+  const placeholderText = isEditing
+    ? i18n("pls_press_shortcut")
+    : i18n("not_set");
 
   return (
     <Stack
-      className={compact ? "kt-shortcut-input kt-shortcut-input--compact" : ""}
+      className={`kt-shortcut-input ${
+        compact ? "kt-shortcut-input--compact" : ""
+      } ${isEditing ? "kt-shortcut-input--editing" : "kt-shortcut-input--idle"}`.trim()}
       direction="row"
-      alignItems="flex-start"
+      alignItems="center"
       spacing={0.5}
       useFlexGap
     >
       <TextField
         size="small"
+        hiddenLabel={compact}
         label={compact ? undefined : label}
         name={label || "shortcut"}
         value={formattedValue}
-        placeholder={compact ? i18n("pls_press_shortcut") : undefined}
+        placeholder={placeholderText}
         fullWidth
         inputRef={inputRef}
-        disabled={!isEditing}
-        inputProps={{ "aria-label": label }}
+        inputProps={{
+          "aria-label": label,
+          readOnly: !isEditing,
+        }}
+        onClick={() => {
+          if (!isEditing) handleEditClick();
+        }}
         onBlur={handleBlur}
         helperText={
           compact
@@ -150,27 +161,30 @@ export default function ShortcutInput({
       {isEditing ? (
         <IconButton
           key="save"
+          size="small"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => commitChanges(editingKeys)}
           color="primary"
           aria-label={`${i18n("save")} ${label}`}
           title={`${i18n("save")} ${label}`}
         >
-          <CheckIcon />
+          <CheckIcon fontSize="small" />
         </IconButton>
       ) : (
         <IconButton
           key="edit"
+          size="small"
           onClick={handleEditClick}
           aria-label={`${i18n("edit")} ${label}`}
           title={`${i18n("edit")} ${label}`}
         >
-          <EditIcon />
+          <EditIcon fontSize="small" />
         </IconButton>
       )}
       {hasValue && (
         <IconButton
           key="clear"
+          size="small"
           onMouseDown={(e) => e.preventDefault()}
           onClick={handleClearClick}
           aria-label={`${i18n("clear")} ${label}`}

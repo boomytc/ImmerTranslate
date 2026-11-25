@@ -319,35 +319,6 @@ export default function Settings() {
     <Box>
       <OverviewHero />
       <Stack spacing={3}>
-        {/* 数据导入导出控制条 */}
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={2}
-          useFlexGap
-          flexWrap="wrap"
-        >
-          <UploadButton text={i18n("import")} handleImport={handleImport} />
-          <DownloadButton
-            handleData={() =>
-              JSON.stringify(
-                {
-                  ...setting,
-                  ...(blacklistDraft !== null
-                    ? { blacklist: blacklistDraft }
-                    : {}),
-                  ...(orilistDraft !== null ? { orilist: orilistDraft } : {}),
-                  ...(csplistDraft !== null ? { csplist: csplistDraft } : {}),
-                },
-                null,
-                2
-              )
-            }
-            text={i18n("export")}
-            fileName={`${APP_LCNAME}-setting_${Date.now()}.json`}
-          />
-        </Stack>
-
         {/* 通用设置 */}
         <SettingsSection title={i18n("general")}>
           <SettingsCard>
@@ -456,14 +427,10 @@ export default function Settings() {
         <SettingsSection title={i18n("settings_group_fab")}>
           <SettingsCard>
             <SettingsRow label={i18n("hide_fab_button")}>
-              <SettingsSegmented
-                value={Boolean(isHide)}
+              <SettingsSwitch
+                checked={!isHide}
                 label={i18n("hide_fab_button")}
-                onChange={(value) => updateFab({ isHide: value })}
-                items={[
-                  { value: false, label: i18n("show") },
-                  { value: true, label: i18n("hide") },
-                ]}
+                onChange={(checked) => updateFab({ isHide: !checked })}
               />
             </SettingsRow>
             <SettingsRow label={i18n("fab_click_action")}>
@@ -488,9 +455,7 @@ export default function Settings() {
               />
             </SettingsRow>
           </SettingsCard>
-          <Box sx={{ mt: 2 }}>
-            <FabAppearanceSetting fab={fab} onChange={updateFab} />
-          </Box>
+          <FabAppearanceSetting fab={fab} onChange={updateFab} />
           <Stack spacing={2} sx={{ mt: 2 }}>
             <TextField
               fullWidth
@@ -521,7 +486,31 @@ export default function Settings() {
 
         {/* 黑名单与缓存 */}
         <SettingsSection title={i18n("settings_group_blacklist_cache")}>
-          <Stack spacing={2}>
+          <SettingsCard>
+            <SettingsRow
+              label={i18n("if_clear_cache")}
+              description={
+                <Link
+                  component="button"
+                  type="button"
+                  onClick={handleClearCache}
+                >
+                  {i18n("clear_all_cache_now")}
+                </Link>
+              }
+            >
+              <SettingsSegmented
+                value={Boolean(clearCache)}
+                label={i18n("if_clear_cache")}
+                onChange={(value) => updateField("clearCache", value)}
+                items={[
+                  { value: false, label: i18n("clear_cache_never") },
+                  { value: true, label: i18n("clear_cache_restart") },
+                ]}
+              />
+            </SettingsRow>
+          </SettingsCard>
+          <Box sx={{ mt: 2 }}>
             <TextField
               fullWidth
               size="small"
@@ -534,57 +523,69 @@ export default function Settings() {
               maxRows={10}
               multiline
             />
-            <SettingsCard>
-              <SettingsRow
-                label={i18n("if_clear_cache")}
-                description={
-                  <Link
-                    component="button"
-                    type="button"
-                    onClick={handleClearCache}
-                  >
-                    {i18n("clear_all_cache_now")}
-                  </Link>
+          </Box>
+          <SettingsAdvanced label={i18n("settings_detailed_controls")}>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label={i18n("disabled_orilist")}
+                helperText={i18n("pattern_helper")}
+                name="orilist"
+                value={orilistValue}
+                onChange={(e) => setOrilistDraft(e.target.value)}
+                onBlur={(e) => commitOrilist(e.target.value)}
+                multiline
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label={i18n("disabled_csplist")}
+                helperText={`${i18n("pattern_helper")} ${i18n("disabled_csplist_helper")}`}
+                name="csplist"
+                value={csplistValue}
+                onChange={(e) => setCsplistDraft(e.target.value)}
+                onBlur={(e) => commitCsplist(e.target.value)}
+                multiline
+              />
+            </Stack>
+          </SettingsAdvanced>
+        </SettingsSection>
+
+        {/* 备份与恢复 */}
+        <SettingsSection title={i18n("backup_and_restore")}>
+          <SettingsCard>
+            <SettingsRow label={`${i18n("import")} / ${i18n("export")}`}>
+              <UploadButton
+                variant="outlined"
+                text={i18n("import")}
+                handleImport={handleImport}
+              />
+              <DownloadButton
+                variant="outlined"
+                handleData={() =>
+                  JSON.stringify(
+                    {
+                      ...setting,
+                      ...(blacklistDraft !== null
+                        ? { blacklist: blacklistDraft }
+                        : {}),
+                      ...(orilistDraft !== null
+                        ? { orilist: orilistDraft }
+                        : {}),
+                      ...(csplistDraft !== null
+                        ? { csplist: csplistDraft }
+                        : {}),
+                    },
+                    null,
+                    2
+                  )
                 }
-              >
-                <SettingsSegmented
-                  value={Boolean(clearCache)}
-                  label={i18n("if_clear_cache")}
-                  onChange={(value) => updateField("clearCache", value)}
-                  items={[
-                    { value: false, label: i18n("clear_cache_never") },
-                    { value: true, label: i18n("clear_cache_restart") },
-                  ]}
-                />
-              </SettingsRow>
-            </SettingsCard>
-            <SettingsAdvanced label={i18n("settings_detailed_controls")}>
-              <Stack spacing={2} sx={{ pt: 1 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label={i18n("disabled_orilist")}
-                  helperText={i18n("pattern_helper")}
-                  name="orilist"
-                  value={orilistValue}
-                  onChange={(e) => setOrilistDraft(e.target.value)}
-                  onBlur={(e) => commitOrilist(e.target.value)}
-                  multiline
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  label={i18n("disabled_csplist")}
-                  helperText={`${i18n("pattern_helper")} ${i18n("disabled_csplist_helper")}`}
-                  name="csplist"
-                  value={csplistValue}
-                  onChange={(e) => setCsplistDraft(e.target.value)}
-                  onBlur={(e) => commitCsplist(e.target.value)}
-                  multiline
-                />
-              </Stack>
-            </SettingsAdvanced>
-          </Stack>
+                text={i18n("export")}
+                fileName={`${APP_LCNAME}-setting_${Date.now()}.json`}
+              />
+            </SettingsRow>
+          </SettingsCard>
         </SettingsSection>
 
         <ExtCommands />

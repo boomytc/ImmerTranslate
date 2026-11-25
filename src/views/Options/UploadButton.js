@@ -18,6 +18,9 @@ export default function UploadButton({
   text,
   fileType = "json",
   fileExts = [".json"],
+  variant = "outlined",
+  color,
+  sx,
 }) {
   const i18n = useI18n();
   const alert = useAlert();
@@ -60,7 +63,9 @@ export default function UploadButton({
     <>
       <Button
         size="small"
-        variant="outlined"
+        variant={variant}
+        color={color}
+        sx={sx}
         onClick={handleClick}
         startIcon={<FileUploadIcon />}
       >

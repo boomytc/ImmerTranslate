@@ -35,6 +35,7 @@ import FolderSharedRoundedIcon from "@mui/icons-material/FolderSharedRounded";
 import CodeRoundedIcon from "@mui/icons-material/CodeRounded";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import { SettingsDisclosure, SettingsSection } from "./SettingsCard";
 
 const SYNC_METHOD_METADATA = {
   [OPT_SYNCTYPE_WEBDAV]: {
@@ -504,174 +505,178 @@ export default function SyncSetting() {
 
   return (
     <Box>
+      <SettingsDisclosure label={i18n("usage_guide")} defaultOpen={false}>
+        <ul>
+          <li>{i18n("sync_warn_encryption")}</li>
+          <li>{i18n("sync_warn")}</li>
+          <li>{i18n("sync_warn_2")}</li>
+          {isGistSync && <li>{i18n("sync_warn_gist")}</li>}
+        </ul>
+      </SettingsDisclosure>
+
       <Stack spacing={3}>
-        <Alert severity="info">{i18n("sync_warn_encryption")}</Alert>
-        <Alert severity="warning">
-          {i18n("sync_warn")}
-          <br />
-          {i18n("sync_warn_2")}
-          {isGistSync && (
-            <>
-              <br />
-              {i18n("sync_warn_gist")}
-            </>
-          )}
-        </Alert>
-
-        <div
-          className="kt-sync-methods"
-          role="radiogroup"
-          aria-label={i18n("data_sync_type")}
-        >
-          {OPT_SYNCTYPE_ALL.map((item, index) => {
-            const { Icon, descriptionKey } = SYNC_METHOD_METADATA[item];
-            return (
-              <button
-                type="button"
-                className="kt-sync-method"
-                role="radio"
-                data-sync-type={item}
-                aria-checked={syncType === item}
-                tabIndex={index === tabbableSyncMethodIndex ? 0 : -1}
-                ref={(element) => {
-                  syncMethodRefs.current[index] = element;
-                }}
-                key={item}
-                onClick={() => void handleSyncTypeChange(item)}
-                onKeyDown={(event) => handleSyncTypeKeyDown(event, index)}
-              >
-                <Icon />
-                <span className="kt-sync-method__name">{item}</span>
-                <span className="kt-sync-method__description">
-                  {i18n(descriptionKey)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {isGistSync && (
-          <Link
-            href={URL_GITHUB_GIST_TOKEN}
-            target="_blank"
-            rel="noopener noreferrer"
+        <SettingsSection title={i18n("data_sync_type")}>
+          <div
+            className="kt-sync-methods"
+            role="radiogroup"
+            aria-label={i18n("data_sync_type")}
           >
-            {i18n("gist_sync_tip")}
-          </Link>
-        )}
-
-        {!isGistSync && (
-          <TextField
-            size="small"
-            label={i18n("data_sync_url")}
-            name="syncUrl"
-            value={syncUrlValue}
-            onChange={handleFieldChange}
-            onBlur={(e) => void commitField("syncUrl", e.target.value)}
-          />
-        )}
-
-        {syncType === OPT_SYNCTYPE_WEBDAV && (
-          <TextField
-            size="small"
-            label={i18n("data_sync_user")}
-            name="syncUser"
-            value={syncUserValue}
-            onChange={handleFieldChange}
-            onBlur={(e) => void commitField("syncUser", e.target.value)}
-          />
-        )}
-
-        <TextField
-          size="small"
-          type={showSyncKey ? "text" : "password"}
-          label={i18n("data_sync_key")}
-          name="syncKey"
-          value={syncKeyValue}
-          onChange={handleFieldChange}
-          onBlur={(e) => void commitField("syncKey", e.target.value)}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  size="small"
-                  edge="end"
-                  aria-label={`${i18n(showSyncKey ? "hide" : "show")} ${i18n(
-                    "data_sync_key"
-                  )}`}
-                  onClick={() => setShowSyncKey((value) => !value)}
-                  onMouseDown={(e) => e.preventDefault()}
+            {OPT_SYNCTYPE_ALL.map((item, index) => {
+              const { Icon, descriptionKey } = SYNC_METHOD_METADATA[item];
+              return (
+                <button
+                  type="button"
+                  className="kt-sync-method"
+                  role="radio"
+                  data-sync-type={item}
+                  aria-checked={syncType === item}
+                  tabIndex={index === tabbableSyncMethodIndex ? 0 : -1}
+                  ref={(element) => {
+                    syncMethodRefs.current[index] = element;
+                  }}
+                  key={item}
+                  onClick={() => void handleSyncTypeChange(item)}
+                  onKeyDown={(event) => handleSyncTypeKeyDown(event, index)}
                 >
-                  {showSyncKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-        />
+                  <Icon />
+                  <span className="kt-sync-method__name">{item}</span>
+                  <span className="kt-sync-method__description">
+                    {i18n(descriptionKey)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {isGistSync && (
+            <Box sx={{ mt: 1.5 }}>
+              <Link
+                href={URL_GITHUB_GIST_TOKEN}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {i18n("gist_sync_tip")}
+              </Link>
+            </Box>
+          )}
+        </SettingsSection>
 
-        <Box>
-          <Stack direction="row" alignItems="center" spacing={2}>
+        <Stack spacing={2}>
+          {!isGistSync && (
             <TextField
-              fullWidth
               size="small"
-              type={showSyncEncryptKey ? "text" : "password"}
-              label={i18n("data_sync_encrypt_key")}
-              name="syncEncryptKey"
-              value={syncEncryptKey}
-              InputProps={{
-                readOnly: true,
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      edge="end"
-                      aria-label={`${i18n(
-                        showSyncEncryptKey ? "hide" : "show"
-                      )} ${i18n("data_sync_encrypt_key")}`}
-                      onClick={() => setShowSyncEncryptKey((value) => !value)}
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      {showSyncEncryptKey ? (
-                        <VisibilityOffIcon />
-                      ) : (
-                        <VisibilityIcon />
-                      )}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
+              label={i18n("data_sync_url")}
+              name="syncUrl"
+              value={syncUrlValue}
+              onChange={handleFieldChange}
+              onBlur={(e) => void commitField("syncUrl", e.target.value)}
             />
-            <IconButton
-              size="small"
-              aria-label={editEncryptKeyLabel}
-              title={editEncryptKeyLabel}
-              sx={{ flexShrink: 0 }}
-              onClick={() =>
-                openEncryptKeyDialog(syncEncryptKey ? "change" : "set")
-              }
-            >
-              <EditIcon />
-            </IconButton>
-          </Stack>
-          {!syncEncryptKey && (
-            <FormHelperText error>
-              {i18n("sync_encrypt_key_not_set")}
-            </FormHelperText>
           )}
-          {syncEncryptKey && (
-            <Button
+
+          {syncType === OPT_SYNCTYPE_WEBDAV && (
+            <TextField
               size="small"
-              onClick={handleClearLocalEncryptKey}
-              sx={{ mt: 1 }}
-            >
-              {i18n("clear_sync_encrypt_key")}
-            </Button>
+              label={i18n("data_sync_user")}
+              name="syncUser"
+              value={syncUserValue}
+              onChange={handleFieldChange}
+              onBlur={(e) => void commitField("syncUser", e.target.value)}
+            />
           )}
-        </Box>
+
+          <TextField
+            size="small"
+            type={showSyncKey ? "text" : "password"}
+            label={i18n("data_sync_key")}
+            name="syncKey"
+            value={syncKeyValue}
+            onChange={handleFieldChange}
+            onBlur={(e) => void commitField("syncKey", e.target.value)}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    edge="end"
+                    aria-label={`${i18n(showSyncKey ? "hide" : "show")} ${i18n(
+                      "data_sync_key"
+                    )}`}
+                    onClick={() => setShowSyncKey((value) => !value)}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {showSyncKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          <Box>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <TextField
+                fullWidth
+                size="small"
+                type={showSyncEncryptKey ? "text" : "password"}
+                label={i18n("data_sync_encrypt_key")}
+                name="syncEncryptKey"
+                value={syncEncryptKey}
+                InputProps={{
+                  readOnly: true,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label={`${i18n(
+                          showSyncEncryptKey ? "hide" : "show"
+                        )} ${i18n("data_sync_encrypt_key")}`}
+                        onClick={() => setShowSyncEncryptKey((value) => !value)}
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                        {showSyncEncryptKey ? (
+                          <VisibilityOffIcon />
+                        ) : (
+                          <VisibilityIcon />
+                        )}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <IconButton
+                size="small"
+                aria-label={editEncryptKeyLabel}
+                title={editEncryptKeyLabel}
+                sx={{ flexShrink: 0 }}
+                onClick={() =>
+                  openEncryptKeyDialog(syncEncryptKey ? "change" : "set")
+                }
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+            {!syncEncryptKey && (
+              <FormHelperText error>
+                {i18n("sync_encrypt_key_not_set")}
+              </FormHelperText>
+            )}
+            {syncEncryptKey && (
+              <Button
+                size="small"
+                variant="text"
+                color="error"
+                onClick={handleClearLocalEncryptKey}
+                sx={{ mt: 0.75 }}
+              >
+                {i18n("clear_sync_encrypt_key")}
+              </Button>
+            )}
+          </Box>
+        </Stack>
 
         <Stack
           direction="row"
           alignItems="center"
-          spacing={2}
+          spacing={1.5}
           useFlexGap
           flexWrap="wrap"
         >
@@ -692,19 +697,19 @@ export default function SyncSetting() {
           </LoadingButton>
           <Button
             size="small"
-            variant="outlined"
+            variant="text"
             onClick={handleGenerateShareString}
             startIcon={<ContentCopyIcon />}
           >
-            {i18n("copy", "copy")}
+            {i18n("copy")}
           </Button>
           <Button
             onClick={handleImportFromClipboard}
             size="small"
-            variant="outlined"
+            variant="text"
             startIcon={<ContentPasteIcon />}
           >
-            {i18n("import", "import")}
+            {i18n("import")}
           </Button>
         </Stack>
       </Stack>

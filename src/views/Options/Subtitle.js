@@ -4,15 +4,7 @@ import TextField from "@mui/material/TextField";
 import CodeField from "./CodeField";
 import MenuItem from "@mui/material/MenuItem";
 import Grid from "@mui/material/Grid";
-import Typography from "@mui/material/Typography";
 import Slider from "@mui/material/Slider";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import Divider from "@mui/material/Divider";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import { useI18n } from "../../hooks/I18n";
 import {
   OPT_LANGS_TO_REVERSED as OPT_LANGS_TO,
@@ -22,9 +14,6 @@ import {
   getPromptDisplayName,
   getSubtitlePromptOptions,
 } from "../../config";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Alert from "@mui/material/Alert";
-import Switch from "@mui/material/Switch";
 import { useSubtitle } from "../../hooks/Subtitle";
 import { useApiList, getApiDisplayName } from "../../hooks/Api";
 import { usePromptList } from "../../hooks/Prompt";
@@ -40,6 +29,7 @@ import {
 import {
   SettingsAdvanced,
   SettingsCard,
+  SettingsDisclosure,
   SettingsRow,
   SettingsSection,
   SettingsSegmented,
@@ -70,6 +60,7 @@ function SubtitleStylePreview({
   originStyle,
   translationStyle,
   displayOrder,
+  isBilingual = true,
 }) {
   const i18n = useI18n();
   const [stageBg, setStageBg] = useState("dark");
@@ -90,60 +81,38 @@ function SubtitleStylePreview({
       transRef.current.style.cssText = translationStyle || "";
       transRef.current.style.margin = "0";
     }
-  }, [displayOrder, originStyle, translationStyle, windowStyle]);
+  }, [displayOrder, isBilingual, originStyle, translationStyle, windowStyle]);
 
-  const originPreview = <p ref={originRef}>This is an example subtitle</p>;
+  const originPreview = (
+    <p ref={originRef}>{i18n("subtitle_preview_source")}</p>
+  );
   const translationPreview = (
-    <p ref={transRef}>{i18n("subtitle_preview_sample", "这是示例字幕文本")}</p>
+    <p ref={transRef}>{i18n("subtitle_preview_translation")}</p>
   );
 
   return (
-    <Box>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          mb: 1,
-        }}
-      >
-        <Typography variant="subtitle2">
-          {i18n("subtitle_style_preview", "样式预览")}
-        </Typography>
-        <ToggleButtonGroup
-          size="small"
-          exclusive
+    <Box className="kt-preview-stage">
+      <Box className="kt-preview-stage__header">
+        <h3 className="kt-preview-stage__title">
+          {i18n("subtitle_style_preview")}
+        </h3>
+        <SettingsSegmented
+          className="kt-preview-stage__toggle"
           value={stageBg}
-          aria-label={i18n("subtitle_preview_stage_bg")}
-          onChange={(_e, next) => {
-            if (next) setStageBg(next);
-          }}
-        >
-          <ToggleButton value="dark" sx={{ py: 0.25, px: 1.25, fontSize: 12 }}>
-            {i18n("settings_theme_dark")}
-          </ToggleButton>
-          <ToggleButton value="light" sx={{ py: 0.25, px: 1.25, fontSize: 12 }}>
-            {i18n("settings_theme_light")}
-          </ToggleButton>
-        </ToggleButtonGroup>
+          label={i18n("subtitle_preview_stage_bg")}
+          onChange={setStageBg}
+          items={[
+            { value: "dark", label: i18n("preview_bg_dark") },
+            { value: "light", label: i18n("preview_bg_light") },
+          ]}
+        />
       </Box>
       <Box
-        sx={{
-          background:
-            stageBg === "dark"
-              ? "radial-gradient(circle at 50% 25%, #2a3140 0%, #151821 62%, #0c0e14 100%)"
-              : "linear-gradient(135deg, #eef2f7 0%, #dde4ee 100%)",
-          borderRadius: "12px",
-          border: "1px solid",
-          borderColor: "divider",
-          overflow: "hidden",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: 132,
-          px: 2,
-        }}
+        className={`kt-subtitle-stage__canvas ${
+          stageBg === "dark"
+            ? "kt-subtitle-stage__canvas--dark"
+            : "kt-subtitle-stage__canvas--light"
+        }`}
       >
         <Box
           sx={{
@@ -155,16 +124,20 @@ function SubtitleStylePreview({
           }}
         >
           <div ref={windowRef}>
-            {displayOrder === "translation-first" ? (
-              <>
-                {translationPreview}
-                {originPreview}
-              </>
+            {isBilingual ? (
+              displayOrder === "translation-first" ? (
+                <>
+                  {translationPreview}
+                  {originPreview}
+                </>
+              ) : (
+                <>
+                  {originPreview}
+                  {translationPreview}
+                </>
+              )
             ) : (
-              <>
-                {originPreview}
-                {translationPreview}
-              </>
+              translationPreview
             )}
           </div>
         </Box>
@@ -461,6 +434,11 @@ export default function SubtitleSetting() {
   const windowLineHeight = parseFloat(windowCssObj["line-height"]) || 1.3;
   const windowHasTextShadow = !!windowCssObj["text-shadow"];
 
+  const segDiffWarning =
+    forceSubtitleRetranslate &&
+    safeSegSlug !== "-" &&
+    safeSegSlug !== safeApiSlug;
+
   const textStyleControls = useCallback(
     (label, fontSize, cssObj, updateCss) => {
       const isCustomFontSize = fontSize.mode === "custom";
@@ -471,31 +449,29 @@ export default function SubtitleSetting() {
           : String(fontSize.preferred);
       return (
         <Box>
-          <Typography variant="subtitle2" gutterBottom>
-            {label}
-          </Typography>
+          <h4 className="kt-subtitle-group__title">{label}</h4>
           <Stack spacing={1.5}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ minWidth: 56, flexShrink: 0 }}
-              >
-                {i18n("font_size", "字体大小")}
-              </Typography>
+            <Box className="kt-subtitle-slider-row">
+              <span className="kt-subtitle-slider-row__label">
+                {i18n("font_size")}
+              </span>
               {isCustomFontSize ? (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ flex: 1, fontFamily: "ui-monospace, monospace" }}
+                <Box
+                  component="span"
+                  sx={{
+                    flex: 1,
+                    color: "text.secondary",
+                    fontFamily: "var(--kt-font-mono)",
+                    fontSize: "var(--kt-text-sm)",
+                  }}
                 >
                   {sizeDisplay}
-                </Typography>
+                </Box>
               ) : (
                 <>
                   <Slider
                     size="small"
-                    aria-label={`${label} ${i18n("font_size", "Font size")}`}
+                    aria-label={`${label} ${i18n("font_size")}`}
                     value={fontSize.preferred}
                     min={fontSize.sliderMin}
                     max={fontSize.sliderMax}
@@ -508,58 +484,33 @@ export default function SubtitleSetting() {
                     }}
                     sx={{ flex: 1 }}
                   />
-                  <Typography
-                    variant="body2"
-                    sx={{ minWidth: 36, textAlign: "right" }}
-                  >
+                  <output className="kt-subtitle-slider-row__value">
                     {sizeDisplay}
-                  </Typography>
+                  </output>
                 </>
               )}
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ minWidth: 56, flexShrink: 0 }}
-              >
-                {i18n("font_color", "字体颜色")}
-              </Typography>
-              <Box
-                component="input"
+            <Box className="kt-subtitle-slider-row">
+              <span className="kt-subtitle-slider-row__label">
+                {i18n("font_color")}
+              </span>
+              <input
                 type="color"
-                aria-label={`${label} ${i18n("font_color", "Font color")}`}
+                className="kt-color-swatch"
+                aria-label={`${label} ${i18n("font_color")}`}
                 value={colorToHex(cssObj["color"])}
                 onChange={(e) => updateCss("color", e.target.value)}
-                sx={{
-                  width: 48,
-                  height: 48,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  p: 0,
-                  bgcolor: "transparent",
-                  "&::-webkit-color-swatch-wrapper": { p: "3px" },
-                  "&::-webkit-color-swatch": {
-                    border: 0,
-                    borderRadius: "6px",
-                  },
-                  "&::-moz-color-swatch": {
-                    border: 0,
-                    borderRadius: "6px",
-                  },
-                }}
               />
               <TextField
                 size="small"
+                hiddenLabel
                 value={cssObj["color"] || ""}
                 onChange={(e) =>
                   updateCss("color", e.target.value, { immediate: true })
                 }
                 placeholder="#ffffff"
                 inputProps={{
-                  "aria-label": `${label} ${i18n("font_color", "Font color")}`,
+                  "aria-label": `${label} ${i18n("font_color")}`,
                 }}
                 sx={{ flex: 1 }}
               />
@@ -573,15 +524,15 @@ export default function SubtitleSetting() {
 
   return (
     <Box>
-      <Stack spacing={3}>
-        <Alert severity="info">
-          {i18n("subtitle_helper_1")}
-          <br />
-          {i18n("subtitle_helper_2")}
-          <br />
-          {i18n("subtitle_helper_3")}
-        </Alert>
+      <SettingsDisclosure label={i18n("usage_guide")} defaultOpen={false}>
+        <ul>
+          <li>{i18n("subtitle_helper_1")}</li>
+          <li>{i18n("subtitle_helper_2")}</li>
+          <li>{i18n("subtitle_helper_3")}</li>
+        </ul>
+      </SettingsDisclosure>
 
+      <Stack spacing={3}>
         <SettingsSection>
           <SettingsCard>
             <SettingsRow label={i18n("toggle_subtitle_translate")}>
@@ -638,219 +589,190 @@ export default function SubtitleSetting() {
                 options={safeApiOptions}
               />
             </SettingsRow>
-            <SettingsRow label={i18n("ai_segmentation")}>
-              <TextField
-                select
-                hiddenLabel
-                size="small"
-                variant="filled"
-                className="kt-settings-select"
-                name="segSlug"
+            <SettingsRow
+              label={i18n("ai_segmentation")}
+              description={
+                segDiffWarning ? (
+                  <span className="kt-inline-status kt-inline-status--err">
+                    {i18n("seg_trans_diff_warning")}
+                  </span>
+                ) : undefined
+              }
+            >
+              <SettingsSelect
                 value={safeSegSlug}
-                inputProps={{ "aria-label": i18n("ai_segmentation") }}
-                onChange={handleChange}
-                helperText={
-                  forceSubtitleRetranslate &&
-                  safeSegSlug !== "-" &&
-                  safeSegSlug !== safeApiSlug
-                    ? i18n(
-                        "seg_trans_diff_warning",
-                        "断句和翻译服务不同，翻译引擎会重复翻译字幕"
-                      )
-                    : ""
-                }
-                FormHelperTextProps={{
-                  sx: { color: "error.main" },
-                }}
-              >
-                <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
-                {aiEnabledApis.map((api) => (
-                  <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                    {getApiDisplayName(api)}
-                  </MenuItem>
-                ))}
-              </TextField>
+                label={i18n("ai_segmentation")}
+                onChange={(value) => updateSubtitle({ segSlug: value })}
+                options={[
+                  { value: "-", label: i18n("disable") },
+                  ...aiEnabledApis.map((api) => ({
+                    value: api.apiSlug,
+                    label: getApiDisplayName(api),
+                  })),
+                ]}
+              />
             </SettingsRow>
           </SettingsCard>
         </SettingsSection>
 
         <SettingsAdvanced label={i18n("settings_detailed_controls")}>
-          <Grid container spacing={2} columns={12}>
-            {safeSegSlug !== "-" && (
+          <Stack spacing={2.5} sx={{ pt: 1 }}>
+            <SettingsCard>
+              <SettingsRow label={i18n("force_subtitle_retranslate")}>
+                <SettingsSwitch
+                  checked={Boolean(forceSubtitleRetranslate)}
+                  label={i18n("force_subtitle_retranslate")}
+                  onChange={(checked) =>
+                    updateSubtitle({ forceSubtitleRetranslate: checked })
+                  }
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("subtitle_loading_notification")}>
+                <SettingsSwitch
+                  checked={Boolean(showLoadNotification)}
+                  label={i18n("subtitle_loading_notification")}
+                  onChange={(checked) =>
+                    updateSubtitle({ showLoadNotification: checked })
+                  }
+                />
+              </SettingsRow>
+              <SettingsRow label={i18n("hide_subtitle_button")}>
+                <SettingsSwitch
+                  checked={Boolean(hideSubtitleButton)}
+                  label={i18n("hide_subtitle_button")}
+                  onChange={(checked) =>
+                    updateSubtitle({ hideSubtitleButton: checked })
+                  }
+                />
+              </SettingsRow>
+            </SettingsCard>
+
+            <Grid container spacing={2} columns={12}>
+              {safeSegSlug !== "-" && (
+                <Grid item xs={12} sm={12} md={6} lg={6}>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    name="segPromptSlug"
+                    value={segPromptValue}
+                    label={i18n("seg_prompt_mode")}
+                    onChange={handleSegPromptChange}
+                  >
+                    <MenuItem value={PROMPT_MODE_FOLLOW_API}>
+                      {i18n("follow_api_prompt")}
+                    </MenuItem>
+                    {subtitlePromptOptions.map((prompt) => (
+                      <MenuItem key={prompt.slug} value={prompt.slug}>
+                        {getPromptDisplayName(prompt, i18n)}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+              )}
               <Grid item xs={12} sm={12} md={6} lg={6}>
                 <TextField
                   select
                   fullWidth
                   size="small"
-                  name="segPromptSlug"
-                  value={segPromptValue}
-                  label={i18n("seg_prompt_mode", "AI断句提示词")}
-                  onChange={handleSegPromptChange}
+                  name="aiContextSlug"
+                  value={safeAiContextSlug}
+                  label={i18n("ai_enhanced_context")}
+                  onChange={handleChange}
                 >
-                  <MenuItem value={PROMPT_MODE_FOLLOW_API}>
-                    {i18n("follow_api_prompt", "接口默认")}
-                  </MenuItem>
-                  {subtitlePromptOptions.map((prompt) => (
-                    <MenuItem key={prompt.slug} value={prompt.slug}>
-                      {getPromptDisplayName(prompt, i18n)}
+                  <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
+                  {aiEnabledApis.map((api) => (
+                    <MenuItem key={api.apiSlug} value={api.apiSlug}>
+                      {getApiDisplayName(api)}
                     </MenuItem>
                   ))}
                 </TextField>
               </Grid>
-            )}
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                name="forceSubtitleRetranslate"
-                value={forceSubtitleRetranslate}
-                label={i18n("force_subtitle_retranslate")}
-                onChange={handleChange}
-              >
-                <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                <MenuItem value={false}>{i18n("disable")}</MenuItem>
-              </TextField>
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <TextField
+                  fullWidth
+                  select
+                  size="small"
+                  name="toLang"
+                  value={safeToLang}
+                  label={i18n("to_lang")}
+                  onChange={handleChange}
+                >
+                  {OPT_LANGS_TO.map(([lang, name]) => (
+                    <MenuItem key={lang} value={lang}>
+                      {name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <ValidationInput
+                  fullWidth
+                  size="small"
+                  label={i18n("ai_chunk_length")}
+                  type="number"
+                  name="chunkLength"
+                  value={chunkLength}
+                  onChange={handleChange}
+                  min={200}
+                  max={20000}
+                />
+              </Grid>
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <ValidationInput
+                  fullWidth
+                  size="small"
+                  label={i18n("long_sentence_threshold")}
+                  type="number"
+                  name="longSentenceThreshold"
+                  value={longSentenceThreshold}
+                  onChange={handleChange}
+                  min={20}
+                  max={500}
+                />
+              </Grid>
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <ValidationInput
+                  fullWidth
+                  size="small"
+                  label={i18n("pre_trans_seconds")}
+                  type="number"
+                  name="preTrans"
+                  value={preTrans}
+                  onChange={handleChange}
+                  min={10}
+                  max={36000}
+                />
+              </Grid>
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <ValidationInput
+                  fullWidth
+                  size="small"
+                  label={i18n("throttle_trans_interval")}
+                  type="number"
+                  name="throttleTrans"
+                  value={throttleTrans}
+                  onChange={handleChange}
+                  min={1}
+                  max={3600}
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                name="aiContextSlug"
-                value={safeAiContextSlug}
-                label={i18n("ai_enhanced_context")}
-                onChange={handleChange}
-              >
-                <MenuItem value={"-"}>{i18n("disable")}</MenuItem>
-                {aiEnabledApis.map((api) => (
-                  <MenuItem key={api.apiSlug} value={api.apiSlug}>
-                    {getApiDisplayName(api)}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("ai_chunk_length")}
-                type="number"
-                name="chunkLength"
-                value={chunkLength}
-                onChange={handleChange}
-                min={200}
-                max={20000}
-              />
-            </Grid>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("long_sentence_threshold")}
-                type="number"
-                name="longSentenceThreshold"
-                value={longSentenceThreshold}
-                onChange={handleChange}
-                min={20}
-                max={500}
-              />
-            </Grid>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("pre_trans_seconds")}
-                type="number"
-                name="preTrans"
-                value={preTrans}
-                onChange={handleChange}
-                min={10}
-                max={36000}
-              />
-            </Grid>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <ValidationInput
-                fullWidth
-                size="small"
-                label={i18n("throttle_trans_interval")}
-                type="number"
-                name="throttleTrans"
-                value={throttleTrans}
-                onChange={handleChange}
-                min={1}
-                max={3600}
-              />
-            </Grid>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                name="toLang"
-                value={safeToLang}
-                label={i18n("to_lang")}
-                onChange={handleChange}
-              >
-                {OPT_LANGS_TO.map(([lang, name]) => (
-                  <MenuItem key={lang} value={lang}>
-                    {name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                name="showLoadNotification"
-                value={showLoadNotification}
-                label={i18n("subtitle_loading_notification")}
-                onChange={handleChange}
-              >
-                <MenuItem value={true}>{i18n("show")}</MenuItem>
-                <MenuItem value={false}>{i18n("hide")}</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                name="hideSubtitleButton"
-                value={hideSubtitleButton}
-                label={i18n("hide_subtitle_button")}
-                onChange={handleChange}
-              >
-                <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                <MenuItem value={false}>{i18n("disable")}</MenuItem>
-              </TextField>
-            </Grid>
-          </Grid>
+          </Stack>
         </SettingsAdvanced>
 
         <SettingsSection title={i18n("settings_appearance_group")}>
-          <Box
-            sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: "12px",
-              p: 2,
-            }}
-          >
-            <Stack spacing={2} useFlexGap>
-              <SubtitleStylePreview
-                windowStyle={localWindowStyle}
-                originStyle={localOriginStyle}
-                translationStyle={localTransStyle}
-                displayOrder={displayOrder}
-              />
+          <SubtitleStylePreview
+            windowStyle={localWindowStyle}
+            originStyle={localOriginStyle}
+            translationStyle={localTransStyle}
+            displayOrder={displayOrder}
+            isBilingual={isBilingual}
+          />
 
-              <Divider />
-
-              <Grid container spacing={2}>
+          <Box className="kt-subtitle-controls">
+            <Box className="kt-subtitle-group">
+              <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
                   {textStyleControls(
                     i18n("origin_styles"),
@@ -868,244 +790,182 @@ export default function SubtitleSetting() {
                   )}
                 </Grid>
               </Grid>
+            </Box>
 
-              <Divider />
-
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>
-                  {i18n("background_styles")}
-                </Typography>
-                <Grid container spacing={1.5} alignItems="center">
-                  <Grid item xs={12} sm={6}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{ minWidth: 56, flexShrink: 0 }}
-                      >
-                        {i18n("background_color", "背景颜色")}
-                      </Typography>
-                      <Box
-                        component="input"
-                        type="color"
-                        aria-label={i18n(
-                          "background_color",
-                          "Background color"
-                        )}
-                        value={windowBgHex}
-                        onChange={(e) => {
-                          const rgb = hexToRgb(e.target.value);
-                          updateWindowCss(
-                            "background-color",
-                            `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${windowBgRgba.a})`
-                          );
-                        }}
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          border: "1px solid",
-                          borderColor: "divider",
-                          borderRadius: "8px",
-                          cursor: "pointer",
-                          p: 0,
-                          bgcolor: "transparent",
-                          "&::-webkit-color-swatch-wrapper": { p: "3px" },
-                          "&::-webkit-color-swatch": {
-                            border: 0,
-                            borderRadius: "6px",
-                          },
-                          "&::-moz-color-swatch": {
-                            border: 0,
-                            borderRadius: "6px",
-                          },
-                        }}
-                      />
-                      <Typography variant="body2" sx={{ minWidth: 48 }}>
-                        {i18n("opacity", "透明度")}
-                      </Typography>
-                      <Slider
-                        size="small"
-                        aria-label={i18n("opacity", "Opacity")}
-                        value={windowBgRgba.a}
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        onChange={(_e, val) => {
-                          updateWindowCss(
-                            "background-color",
-                            `rgba(${windowBgRgba.r}, ${windowBgRgba.g}, ${windowBgRgba.b}, ${val})`
-                          );
-                        }}
-                        sx={{ flex: 1 }}
-                      />
-                      <Typography
-                        variant="body2"
-                        sx={{ minWidth: 36, textAlign: "right" }}
-                      >
-                        {Math.round(windowBgRgba.a * 100)}%
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{ minWidth: 56, flexShrink: 0 }}
-                      >
-                        {i18n("line_height", "行高")}
-                      </Typography>
-                      <Slider
-                        size="small"
-                        aria-label={i18n("line_height", "Line height")}
-                        value={windowLineHeight}
-                        min={1}
-                        max={2.5}
-                        step={0.1}
-                        onChange={(_e, val) =>
-                          updateWindowCss("line-height", String(val))
-                        }
-                        sx={{ flex: 1 }}
-                      />
-                      <Typography
-                        variant="body2"
-                        sx={{ minWidth: 28, textAlign: "right" }}
-                      >
-                        {windowLineHeight}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: 2,
+            <Box className="kt-subtitle-group">
+              <h4 className="kt-subtitle-group__title">
+                {i18n("background_styles")}
+              </h4>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} sm={6}>
+                  <Box className="kt-subtitle-slider-row">
+                    <span className="kt-subtitle-slider-row__label">
+                      {i18n("background_color")}
+                    </span>
+                    <input
+                      type="color"
+                      className="kt-color-swatch"
+                      aria-label={i18n("background_color")}
+                      value={windowBgHex}
+                      onChange={(e) => {
+                        const rgb = hexToRgb(e.target.value);
+                        updateWindowCss(
+                          "background-color",
+                          `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${windowBgRgba.a})`
+                        );
                       }}
-                    >
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{ minWidth: 56, flexShrink: 0 }}
-                      >
-                        {i18n("padding", "内边距")}
-                      </Typography>
-                      <Typography variant="body2">
-                        {i18n("vertical", "上下")}
-                      </Typography>
-                      <Slider
-                        size="small"
-                        aria-label={`${i18n("padding", "Padding")} ${i18n("vertical", "Vertical")}`}
-                        value={windowPadding.vertical}
-                        min={0}
-                        max={windowPadding.verticalMax}
-                        step={windowPadding.step}
-                        onChange={(_e, val) => {
-                          updateWindowCss(
-                            "padding",
-                            `${val}${windowPadding.unit} ${windowPadding.horizontal}${windowPadding.unit}`
-                          );
-                        }}
-                        sx={{ width: 80, flex: "1 1 80px" }}
-                      />
-                      <Typography variant="body2">
-                        {i18n("horizontal", "左右")}
-                      </Typography>
-                      <Slider
-                        size="small"
-                        aria-label={`${i18n("padding", "Padding")} ${i18n("horizontal", "Horizontal")}`}
-                        value={windowPadding.horizontal}
-                        min={0}
-                        max={windowPadding.horizontalMax}
-                        step={windowPadding.step}
-                        onChange={(_e, val) => {
-                          updateWindowCss(
-                            "padding",
-                            `${windowPadding.vertical}${windowPadding.unit} ${val}${windowPadding.unit}`
-                          );
-                        }}
-                        sx={{ width: 80, flex: "1 1 80px" }}
-                      />
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          size="small"
-                          checked={windowHasTextShadow}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              updateWindowCss(
-                                "text-shadow",
-                                "1px 1px 2px black"
-                              );
-                            } else {
-                              const newObj = { ...windowCssRef.current };
-                              delete newObj["text-shadow"];
-                              updateWindowCssDirect(objectToCss(newObj));
-                            }
-                          }}
-                        />
-                      }
-                      label={
-                        <Typography variant="body2">
-                          {i18n("text_shadow", "文字阴影")}
-                        </Typography>
-                      }
                     />
-                  </Grid>
+                    <Slider
+                      size="small"
+                      aria-label={i18n("opacity")}
+                      value={windowBgRgba.a}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={(_e, val) => {
+                        updateWindowCss(
+                          "background-color",
+                          `rgba(${windowBgRgba.r}, ${windowBgRgba.g}, ${windowBgRgba.b}, ${val})`
+                        );
+                      }}
+                      sx={{ flex: 1 }}
+                    />
+                    <output className="kt-subtitle-slider-row__value">
+                      {Math.round(windowBgRgba.a * 100)}%
+                    </output>
+                  </Box>
                 </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box className="kt-subtitle-slider-row">
+                    <span className="kt-subtitle-slider-row__label">
+                      {i18n("line_height")}
+                    </span>
+                    <Slider
+                      size="small"
+                      aria-label={i18n("line_height")}
+                      value={windowLineHeight}
+                      min={1}
+                      max={2.5}
+                      step={0.1}
+                      onChange={(_e, val) =>
+                        updateWindowCss("line-height", String(val))
+                      }
+                      sx={{ flex: 1 }}
+                    />
+                    <output className="kt-subtitle-slider-row__value">
+                      {windowLineHeight.toFixed(1)}
+                    </output>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box className="kt-subtitle-slider-row">
+                    <span className="kt-subtitle-slider-row__label">
+                      {`${i18n("padding")} · ${i18n("vertical")}`}
+                    </span>
+                    <Slider
+                      size="small"
+                      aria-label={`${i18n("padding")} ${i18n("vertical")}`}
+                      value={windowPadding.vertical}
+                      min={0}
+                      max={windowPadding.verticalMax}
+                      step={windowPadding.step}
+                      onChange={(_e, val) => {
+                        updateWindowCss(
+                          "padding",
+                          `${val}${windowPadding.unit} ${windowPadding.horizontal}${windowPadding.unit}`
+                        );
+                      }}
+                      sx={{ flex: 1 }}
+                    />
+                    <output className="kt-subtitle-slider-row__value">
+                      {`${windowPadding.vertical}${windowPadding.unit}`}
+                    </output>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box className="kt-subtitle-slider-row">
+                    <span className="kt-subtitle-slider-row__label">
+                      {`${i18n("padding")} · ${i18n("horizontal")}`}
+                    </span>
+                    <Slider
+                      size="small"
+                      aria-label={`${i18n("padding")} ${i18n("horizontal")}`}
+                      value={windowPadding.horizontal}
+                      min={0}
+                      max={windowPadding.horizontalMax}
+                      step={windowPadding.step}
+                      onChange={(_e, val) => {
+                        updateWindowCss(
+                          "padding",
+                          `${windowPadding.vertical}${windowPadding.unit} ${val}${windowPadding.unit}`
+                        );
+                      }}
+                      sx={{ flex: 1 }}
+                    />
+                    <output className="kt-subtitle-slider-row__value">
+                      {`${windowPadding.horizontal}${windowPadding.unit}`}
+                    </output>
+                  </Box>
+                </Grid>
+              </Grid>
+              <Box sx={{ mt: 2 }}>
+                <SettingsCard>
+                  <SettingsRow label={i18n("text_shadow")}>
+                    <SettingsSwitch
+                      checked={windowHasTextShadow}
+                      label={i18n("text_shadow")}
+                      onChange={(checked) => {
+                        if (checked) {
+                          updateWindowCss("text-shadow", "1px 1px 2px black");
+                        } else {
+                          const newObj = { ...windowCssRef.current };
+                          delete newObj["text-shadow"];
+                          updateWindowCssDirect(objectToCss(newObj));
+                        }
+                      }}
+                    />
+                  </SettingsRow>
+                </SettingsCard>
               </Box>
+            </Box>
 
-              <Accordion
-                sx={{ boxShadow: "none", "&:before": { display: "none" } }}
-              >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="body2" color="text.secondary">
-                    {i18n("advanced_css", "高级 CSS 编辑")}
-                  </Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                      <CodeField
-                        size="small"
-                        label={i18n("origin_styles")}
-                        name="originStyle"
-                        value={localOriginStyle}
-                        onChange={handleChange}
-                        maxRows={10}
-                        fullWidth
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <CodeField
-                        size="small"
-                        label={i18n("translation_styles")}
-                        name="translationStyle"
-                        value={localTransStyle}
-                        onChange={handleChange}
-                        maxRows={10}
-                        fullWidth
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <CodeField
-                        size="small"
-                        label={i18n("background_styles")}
-                        name="windowStyle"
-                        value={localWindowStyle}
-                        onChange={handleChange}
-                        maxRows={10}
-                        fullWidth
-                      />
-                    </Grid>
-                  </Grid>
-                </AccordionDetails>
-              </Accordion>
-            </Stack>
+            <SettingsAdvanced label={i18n("advanced_css")}>
+              <Grid container spacing={2} sx={{ pt: 1 }}>
+                <Grid item xs={12} sm={4}>
+                  <CodeField
+                    size="small"
+                    label={i18n("origin_styles")}
+                    name="originStyle"
+                    value={localOriginStyle}
+                    onChange={handleChange}
+                    maxRows={10}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <CodeField
+                    size="small"
+                    label={i18n("translation_styles")}
+                    name="translationStyle"
+                    value={localTransStyle}
+                    onChange={handleChange}
+                    maxRows={10}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <CodeField
+                    size="small"
+                    label={i18n("background_styles")}
+                    name="windowStyle"
+                    value={localWindowStyle}
+                    onChange={handleChange}
+                    maxRows={10}
+                    fullWidth
+                  />
+                </Grid>
+              </Grid>
+            </SettingsAdvanced>
           </Box>
         </SettingsSection>
       </Stack>

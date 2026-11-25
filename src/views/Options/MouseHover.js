@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import { useI18n } from "../../hooks/I18n";
 import ShortcutInput from "./ShortcutInput";
 import CodeField from "./CodeField";
@@ -227,7 +226,7 @@ export default function MouseHoverSetting() {
       </SettingsSection>
 
       {(mouseHoverKeyHold || mouseHoverKey2Hold) && (
-        <SettingsSection>
+        <SettingsSection title={i18n("mousehover_hold_key")}>
           <SettingsCard>
             <SettingsRow
               label={i18n("mousehover_hold_delay")}
@@ -309,54 +308,58 @@ export default function MouseHoverSetting() {
         </SettingsSection>
       )}
 
-      <SettingsAdvanced label={i18n("settings_detailed_controls")}>
-        <Stack spacing={2} sx={{ py: 1 }}>
-          <SettingsCard>
-            <SettingsRow
-              label={`${i18n("trigger_trans_shortcut")} 2`}
-              description={i18n("mousehover_key_help")}
-            >
-              <ShortcutInput
-                compact
-                value={mouseHoverKey2}
-                onChange={handleAltShortcutInput}
-                label={`${i18n("trigger_trans_shortcut")} 2`}
-              />
-            </SettingsRow>
-            <SettingsRow
-              label={`${i18n("mousehover_hold_key")} 2`}
-              description={i18n("mousehover_hold_key_helper")}
-            >
-              <SettingsSwitch
-                checked={mouseHoverKey2Hold}
-                label={`${i18n("mousehover_hold_key")} 2`}
-                onChange={handleAltHoldKeyChange}
-              />
-            </SettingsRow>
-          </SettingsCard>
-          {displayMode === OPT_MOUSE_HOVER_DISPLAY_BUBBLE && (
+      <SettingsAdvanced rows label={i18n("settings_detailed_controls")}>
+        <SettingsRow
+          label={`${i18n("trigger_trans_shortcut")} 2`}
+          description={i18n("mousehover_key_help")}
+        >
+          <ShortcutInput
+            compact
+            value={mouseHoverKey2}
+            onChange={handleAltShortcutInput}
+            label={`${i18n("trigger_trans_shortcut")} 2`}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label={`${i18n("mousehover_hold_key")} 2`}
+          description={i18n("mousehover_hold_key_helper")}
+        >
+          <SettingsSwitch
+            checked={mouseHoverKey2Hold}
+            label={`${i18n("mousehover_hold_key")} 2`}
+            onChange={handleAltHoldKeyChange}
+          />
+        </SettingsRow>
+        {displayMode === OPT_MOUSE_HOVER_DISPLAY_BUBBLE && (
+          <SettingsRow
+            stacked
+            label={i18n("mousehover_bubble_style")}
+            description={i18n("mousehover_bubble_style_helper")}
+          >
             <CodeField
+              fullWidth
+              hiddenLabel
               size="small"
-              label={i18n("mousehover_bubble_style")}
-              helperText={i18n("mousehover_bubble_style_helper")}
               name="bubbleStyle"
               value={bubbleStyleValue}
+              inputProps={{ "aria-label": i18n("mousehover_bubble_style") }}
               onChange={(e) => setBubbleStyleDraft(e.target.value)}
               onBlur={(e) => commitBubbleStyle(e.target.value)}
               maxRows={12}
             />
-          )}
-        </Stack>
+          </SettingsRow>
+        )}
       </SettingsAdvanced>
 
       <SettingsSection title={i18n("blacklist")}>
         <TextField
           fullWidth
+          hiddenLabel
           size="small"
-          label={i18n("blacklist")}
           helperText={i18n("pattern_helper")}
           name="blacklist"
           value={blacklistValue}
+          inputProps={{ "aria-label": i18n("blacklist") }}
           onChange={(e) => setBlacklistDraft(e.target.value)}
           onBlur={(e) => commitBlacklist(e.target.value)}
           maxRows={10}

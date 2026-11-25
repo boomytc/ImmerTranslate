@@ -3,26 +3,26 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import CodeField from "./CodeField";
 import Button from "@mui/material/Button";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import SaveIcon from "@mui/icons-material/Save";
+import Box from "@mui/material/Box";
+import { css } from "@emotion/css";
 import { useI18n } from "../../hooks/I18n";
 import { useAlert } from "../../hooks/Alert";
-import Typography from "@mui/material/Typography";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import AddIcon from "@mui/icons-material/Add";
 import { useConfirm } from "../../hooks/Confirm";
-import Box from "@mui/material/Box";
 import {
-  getCompactStylePreviewCode,
   toPersistedCustomStyle,
   useAllTextStyles,
   useStyleList,
 } from "../../hooks/CustomStyles";
-import { css } from "@emotion/css";
 import { normalizeUiLang } from "../../config/i18n";
 import { useSetting } from "../../hooks/Setting";
 import { kissLog } from "../../libs/log";
+import { createM3CssVariables, resolveM3Colors } from "../../styles/m3";
 import {
   SettingsCard,
   SettingsRow,
@@ -35,47 +35,67 @@ const UI_LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
 ];
 
-/**
- * 单个自定义 CSS 样式编辑表单区域
- */
-function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
+function StyleRailItem({ styleItem, selected, onSelect }) {
   const i18n = useI18n();
-  const alert = useAlert();
-  const [formData, setFormData] = useState(() => customStyle || {});
-  const [saving, setSaving] = useState(false);
-  const lastSyncedStyleRef = useRef(JSON.stringify(customStyle || {}));
-  const confirm = useConfirm();
-
-  useEffect(() => {
-    const nextSnapshot = JSON.stringify(customStyle || {});
-    if (lastSyncedStyleRef.current === nextSnapshot) {
-      return;
-    }
-    lastSyncedStyleRef.current = nextSnapshot;
-    setFormData(customStyle || {});
-  }, [customStyle]);
-
-  const isModified = useMemo(
-    () => JSON.stringify(customStyle || {}) !== JSON.stringify(formData),
-    [customStyle, formData]
+  const sampleClass = useMemo(
+    () =>
+      styleItem.styleCode
+        ? css`
+            ${styleItem.styleCode}
+          `
+        : undefined,
+    [styleItem.styleCode]
   );
 
-  const handleChange = (e) => {
-    e.preventDefault();
-    const { name, value } = e.target;
+  return (
+    <ListItem disablePadding className="kt-master-row">
+      <ListItemButton
+        className="kt-master-row__btn kt-style-list-btn"
+        selected={selected}
+        aria-current={selected ? "true" : undefined}
+        onClick={onSelect}
+      >
+        <span className="kt-style-list-btn__name">{styleItem.styleName}</span>
+        <span className="kt-style-list-btn__sample">
+          <span className={sampleClass}>
+            {i18n("style_preview_translation")}
+          </span>
+        </span>
+      </ListItemButton>
+    </ListItem>
+  );
+}
 
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: value,
-    }));
-  };
+/**
+ * 单个译文 CSS 样式编辑表单区域
+ */
+function StyleEditor({
+  selectedStyle,
+  formData,
+  onFieldChange,
+  deleteStyle,
+  updateStyle,
+}) {
+  const i18n = useI18n();
+  const alert = useAlert();
+  const confirm = useConfirm();
+  const [saving, setSaving] = useState(false);
+  const isBuiltin = Boolean(selectedStyle?.isBuiltin);
+
+  const isModified = useMemo(
+    () =>
+      !isBuiltin &&
+      JSON.stringify(toPersistedCustomStyle(selectedStyle || {})) !==
+        JSON.stringify(toPersistedCustomStyle(formData || {})),
+    [formData, isBuiltin, selectedStyle]
+  );
 
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || isBuiltin || !selectedStyle) return;
     setSaving(true);
     try {
       await updateStyle(
-        customStyle.styleSlug,
+        selectedStyle.styleSlug,
         toPersistedCustomStyle(formData)
       );
       alert.success(i18n("save_success"));
@@ -88,8 +108,9 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
   };
 
   const handleDelete = async () => {
+    if (isBuiltin || !selectedStyle) return;
     const displayName =
-      customStyle.styleName || formData.styleName || customStyle.styleSlug;
+      selectedStyle.styleName || formData.styleName || selectedStyle.styleSlug;
     const isConfirmed = await confirm({
       message: i18n("delete_style_confirm").replace("{name}", displayName),
       confirmText: i18n("delete"),
@@ -97,31 +118,20 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
     });
 
     if (isConfirmed) {
-      deleteStyle(customStyle.styleSlug);
+      deleteStyle(selectedStyle.styleSlug);
     }
   };
 
-  const { styleName = "", styleCode = "" } = formData;
-
-  const textClass = useMemo(
-    () => css`
-      ${styleCode}
-    `,
-    [styleCode]
-  );
+  const { styleName = "", styleCode = "" } = formData || {};
 
   return (
-    <Stack spacing={3}>
-      <Box>
-        <span className={textClass}>{i18n("style_preview_translation")}</span>
-      </Box>
-
+    <Stack spacing={2.5}>
       <TextField
         size="small"
         label={i18n("style_name")}
         name="styleName"
         value={styleName}
-        onChange={handleChange}
+        onChange={onFieldChange}
         disabled={isBuiltin}
       />
       <CodeField
@@ -129,8 +139,9 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
         label={i18n("style_code")}
         name="styleCode"
         value={styleCode}
-        onChange={handleChange}
-        maxRows={10}
+        onChange={onFieldChange}
+        minRows={4}
+        maxRows={12}
         disabled={isBuiltin}
       />
 
@@ -138,13 +149,14 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
         <Stack
           direction="row"
           alignItems="center"
-          spacing={2}
+          spacing={1}
           useFlexGap
           flexWrap="wrap"
         >
           <Button
             size="small"
             variant="contained"
+            startIcon={<SaveIcon />}
             onClick={handleSave}
             disabled={!isModified || saving}
           >
@@ -152,8 +164,9 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
           </Button>
           <Button
             size="small"
-            variant="outlined"
+            variant="text"
             color="error"
+            startIcon={<DeleteIcon />}
             onClick={handleDelete}
           >
             {i18n("delete")}
@@ -165,81 +178,96 @@ function StyleFields({ customStyle, deleteStyle, updateStyle, isBuiltin }) {
 }
 
 /**
- * 样式的折叠手风琴壳组件
- */
-export function StyleAccordion({ customStyle, deleteStyle, updateStyle }) {
-  const [expanded, setExpanded] = useState(false);
-  const i18n = useI18n();
-  const { isBuiltin } = customStyle;
-  const previewCode = getCompactStylePreviewCode(customStyle);
-  const previewClass = useMemo(
-    () =>
-      previewCode
-        ? css`
-            ${previewCode}
-          `
-        : undefined,
-    [previewCode]
-  );
-
-  const handleChange = () => {
-    setExpanded((pre) => !pre);
-  };
-
-  return (
-    <Accordion
-      className="kt-style-card"
-      expanded={expanded}
-      onChange={handleChange}
-    >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Box className="kt-style-card__summary">
-          <span>{i18n("style_preview_source")}</span>
-          <span className={previewClass}>
-            {i18n("style_preview_translation")}
-          </span>
-          <Typography sx={{ overflowWrap: "anywhere" }}>
-            {customStyle.styleName}
-          </Typography>
-        </Box>
-      </AccordionSummary>
-      <AccordionDetails>
-        {expanded && (
-          <StyleFields
-            customStyle={customStyle}
-            deleteStyle={deleteStyle}
-            updateStyle={updateStyle}
-            isBuiltin={isBuiltin}
-          />
-        )}
-      </AccordionDetails>
-    </Accordion>
-  );
-}
-
-/**
  * 译文展现样式设置主页面组件 (StylesSetting)
  */
 export default function StylesSetting() {
   const i18n = useI18n();
   const { setting, updateSetting } = useSetting();
-  const [showStyleManager, setShowStyleManager] = useState(false);
-  const [hasOpenedStyleManager, setHasOpenedStyleManager] = useState(false);
   const { addStyle, deleteStyle, updateStyle } = useStyleList();
-  const { builtinStyles, customStyles } = useAllTextStyles();
+  const { builtinStyles, customStyles, allTextStyles } = useAllTextStyles();
+  const [selectedSlug, setSelectedSlug] = useState("");
+  const [previewBg, setPreviewBg] = useState("light");
+  const [draftStyle, setDraftStyle] = useState(null);
+  const pendingSelectNewRef = useRef(false);
+  const prevCustomCountRef = useRef(customStyles.length);
 
-  const handleClick = (e) => {
-    e.preventDefault();
-    addStyle();
+  useEffect(() => {
+    if (
+      pendingSelectNewRef.current &&
+      customStyles.length > prevCustomCountRef.current
+    ) {
+      const newest = customStyles[customStyles.length - 1];
+      if (newest?.styleSlug) {
+        setSelectedSlug(newest.styleSlug);
+      }
+      pendingSelectNewRef.current = false;
+    }
+    prevCustomCountRef.current = customStyles.length;
+  }, [customStyles]);
+
+  useEffect(() => {
+    if (allTextStyles.length === 0) {
+      setSelectedSlug("");
+      return;
+    }
+    const exists = allTextStyles.some(
+      (item) => item.styleSlug === selectedSlug
+    );
+    if (!exists) {
+      const fallback = customStyles[0] || builtinStyles[0] || allTextStyles[0];
+      if (fallback) setSelectedSlug(fallback.styleSlug);
+    }
+  }, [allTextStyles, builtinStyles, customStyles, selectedSlug]);
+
+  const selectedStyle = useMemo(
+    () =>
+      allTextStyles.find((item) => item.styleSlug === selectedSlug) ||
+      allTextStyles[0] ||
+      null,
+    [allTextStyles, selectedSlug]
+  );
+
+  const selectedSnapshot = useMemo(
+    () => JSON.stringify(selectedStyle || {}),
+    [selectedStyle]
+  );
+
+  useEffect(() => {
+    setDraftStyle(selectedStyle ? { ...selectedStyle } : null);
+  }, [selectedSnapshot, selectedStyle]);
+
+  const activeDraft =
+    draftStyle && draftStyle.styleSlug === selectedStyle?.styleSlug
+      ? draftStyle
+      : selectedStyle || {};
+
+  const stagePreviewClass = useMemo(
+    () =>
+      activeDraft.styleCode
+        ? css`
+            ${activeDraft.styleCode}
+          `
+        : undefined,
+    [activeDraft.styleCode]
+  );
+
+  const handleFieldChange = (event) => {
+    const { name, value } = event.target;
+    setDraftStyle((prev) => ({
+      ...(prev || selectedStyle || {}),
+      [name]: value,
+    }));
   };
 
-  const setStyleManagerVisibility = (visible) => {
-    if (visible) setHasOpenedStyleManager(true);
-    setShowStyleManager(visible);
+  const handleAddStyle = (event) => {
+    event.preventDefault();
+    pendingSelectNewRef.current = true;
+    addStyle();
   };
 
   const darkMode = setting.darkMode || "auto";
   const uiLang = normalizeUiLang(setting.uiLang);
+  const previewColors = resolveM3Colors(previewBg);
 
   return (
     <Box>
@@ -268,83 +296,109 @@ export default function StylesSetting() {
         </SettingsCard>
       </SettingsSection>
 
-      <SettingsSection title={i18n("settings_translation_styles")}>
-        <SettingsCard>
-          <SettingsRow
-            label={i18n("settings_style_library")}
-            description={i18n("settings_style_library_description")
-              .replace("{0}", String(customStyles.length))
-              .replace("{1}", String(builtinStyles.length))}
+      <SettingsSection
+        title={i18n("settings_translation_styles")}
+        action={
+          <Button
+            size="small"
+            id="add-style-button"
+            variant="outlined"
+            onClick={handleAddStyle}
+            startIcon={<AddIcon />}
           >
-            <Button
-              size="small"
-              variant={showStyleManager ? "outlined" : "contained"}
-              onClick={() => setStyleManagerVisibility(!showStyleManager)}
-            >
-              {showStyleManager ? i18n("hide") : i18n("edit")}
-            </Button>
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
-
-      {hasOpenedStyleManager && (
-        <Stack
-          className="kt-style-manager"
-          spacing={3}
-          hidden={!showStyleManager}
-          aria-hidden={!showStyleManager}
-          sx={{ display: showStyleManager ? "flex" : "none" }}
-        >
-          <Box>
-            <Button
-              size="small"
-              id="add-style-button"
-              variant="contained"
-              onClick={handleClick}
-              startIcon={<AddIcon />}
-            >
-              {i18n("add")}
-            </Button>
+            {i18n("add")}
+          </Button>
+        }
+      >
+        <Box className="kt-preview-stage">
+          <Box className="kt-preview-stage__header">
+            <h3 className="kt-preview-stage__title">
+              {activeDraft.styleName || i18n("settings_style_library")}
+            </h3>
+            <SettingsSegmented
+              className="kt-preview-stage__toggle"
+              value={previewBg}
+              label={i18n("settings_appearance_mode")}
+              onChange={setPreviewBg}
+              items={[
+                { value: "light", label: i18n("preview_bg_light") },
+                { value: "dark", label: i18n("preview_bg_dark") },
+              ]}
+            />
           </Box>
+          <Box
+            className="kt-style-stage__canvas kt-m3-root"
+            data-theme={previewBg}
+            style={{
+              ...createM3CssVariables(previewColors),
+              colorScheme: previewBg,
+            }}
+          >
+            <p className="kt-style-stage__source">
+              {i18n("style_stage_source")}
+            </p>
+            <p className="kt-style-stage__translation">
+              <span className={stagePreviewClass}>
+                {i18n("style_stage_translation")}
+              </span>
+            </p>
+          </Box>
+        </Box>
 
-          <section>
-            <Typography component="h2" className="kt-options-section-title">
-              {i18n("custom_styles")}
-            </Typography>
-            {customStyles.length > 0 ? (
-              <Box className="kt-style-grid">
-                {customStyles.map((customStyle) => (
-                  <StyleAccordion
-                    key={customStyle.styleSlug}
-                    customStyle={customStyle}
-                    deleteStyle={deleteStyle}
-                    updateStyle={updateStyle}
+        <Box className="kt-style-workbench">
+          <Box className="kt-master-rail">
+            <List
+              disablePadding
+              className="kt-master-rail__list"
+              aria-label={i18n("settings_style_library")}
+            >
+              <li className="kt-master-rail__group">{i18n("custom_styles")}</li>
+              {customStyles.length > 0 ? (
+                customStyles.map((item) => (
+                  <StyleRailItem
+                    key={item.styleSlug}
+                    styleItem={
+                      item.styleSlug === activeDraft.styleSlug
+                        ? activeDraft
+                        : item
+                    }
+                    selected={item.styleSlug === selectedStyle?.styleSlug}
+                    onSelect={() => setSelectedSlug(item.styleSlug)}
                   />
-                ))}
-              </Box>
-            ) : (
-              <div className="kt-empty-state">
-                {i18n("custom_styles_empty")}
-              </div>
-            )}
-          </section>
-          <section>
-            <Typography component="h2" className="kt-options-section-title">
-              {i18n("builtin_styles")}
-            </Typography>
-            <Box className="kt-style-grid">
-              {builtinStyles.map((customStyle) => (
-                <StyleAccordion
-                  key={customStyle.styleSlug}
-                  customStyle={customStyle}
-                  deleteStyle={deleteStyle}
-                  updateStyle={updateStyle}
+                ))
+              ) : (
+                <li className="kt-master-rail__empty">
+                  {i18n("custom_styles_empty")}
+                </li>
+              )}
+
+              <li className="kt-master-rail__group">
+                {i18n("builtin_styles")}
+              </li>
+              {builtinStyles.map((item) => (
+                <StyleRailItem
+                  key={item.styleSlug}
+                  styleItem={item}
+                  selected={item.styleSlug === selectedStyle?.styleSlug}
+                  onSelect={() => setSelectedSlug(item.styleSlug)}
                 />
               ))}
-            </Box>
-          </section>
-        </Stack>
-      )}
+            </List>
+          </Box>
+
+          <Box className="kt-master-detail-pane">
+            {selectedStyle && (
+              <StyleEditor
+                selectedStyle={selectedStyle}
+                formData={activeDraft}
+                onFieldChange={handleFieldChange}
+                deleteStyle={deleteStyle}
+                updateStyle={updateStyle}
+              />
+            )}
+          </Box>
+        </Box>
+      </SettingsSection>
     </Box>
   );
 }

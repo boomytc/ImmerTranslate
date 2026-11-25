@@ -10,6 +10,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import CodeField from "./CodeField";
 import Button from "@mui/material/Button";
+import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import LoadingButton from "@mui/lab/LoadingButton";
@@ -18,7 +19,6 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import { useI18n } from "../../hooks/I18n";
 import Typography from "@mui/material/Typography";
-import StarIcon from "@mui/icons-material/Star";
 import AddIcon from "@mui/icons-material/Add";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import PushPinIcon from "@mui/icons-material/PushPin";
@@ -40,6 +40,13 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RestoreIcon from "@mui/icons-material/Restore";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import {
+  SettingsCard,
+  SettingsDisclosure,
+  SettingsRow,
+  SettingsSegmented,
+  SettingsSwitch,
+} from "./SettingsCard";
 import { useSetting } from "../../hooks/Setting";
 import { useAlert } from "../../hooks/Alert";
 import {
@@ -203,12 +210,22 @@ function describeConnectionResult(result, i18n) {
   return { ok: false, text };
 }
 
-function TestButton({ api }) {
+function ApiTestSplitButton({
+  api,
+  canTestConnection,
+  connectionLoading,
+  onTestConnection,
+}) {
   const i18n = useI18n();
   const alert = useAlert();
   const { setting: { prompts, subtitleSetting } = {} } = useSetting();
   const [loading, setLoading] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+  const menuOpen = Boolean(menuAnchorEl);
+  const isBusy = loading || connectionLoading;
+
   const handleApiTest = async () => {
+    setMenuAnchorEl(null);
     try {
       setLoading(true);
       const text = "The quick brown fox jumps over the lazy dog.";
@@ -242,11 +259,10 @@ function TestButton({ api }) {
         </>
       );
     } catch (err) {
-      // alert.error(`${i18n("test_failed")}: ${err.message}`);
       let msg = err.message;
       try {
         msg = JSON.stringify(JSON.parse(err.message), null, 2);
-      } catch (err) {
+      } catch (_err) {
         // skip
       }
       alert.error(
@@ -260,15 +276,61 @@ function TestButton({ api }) {
     }
   };
 
+  if (!canTestConnection) {
+    return (
+      <LoadingButton
+        size="small"
+        variant="outlined"
+        onClick={handleApiTest}
+        loading={loading}
+      >
+        {i18n("test_translate")}
+      </LoadingButton>
+    );
+  }
+
   return (
-    <LoadingButton
-      size="small"
-      variant="outlined"
-      onClick={handleApiTest}
-      loading={loading}
-    >
-      {i18n("click_test")}
-    </LoadingButton>
+    <>
+      <ButtonGroup size="small" variant="outlined">
+        <LoadingButton
+          size="small"
+          variant="outlined"
+          onClick={handleApiTest}
+          loading={isBusy}
+        >
+          {i18n("test_translate")}
+        </LoadingButton>
+        <Button
+          size="small"
+          variant="outlined"
+          disabled={isBusy}
+          aria-label={i18n("test_connection")}
+          aria-controls={menuOpen ? "api-test-split-menu" : undefined}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen ? "true" : undefined}
+          onClick={(event) => setMenuAnchorEl(event.currentTarget)}
+          sx={{ minWidth: 32, px: 0.75 }}
+        >
+          <KeyboardArrowDownIcon fontSize="small" />
+        </Button>
+      </ButtonGroup>
+      <Menu
+        id="api-test-split-menu"
+        anchorEl={menuAnchorEl}
+        open={menuOpen}
+        onClose={() => setMenuAnchorEl(null)}
+      >
+        <MenuItem onClick={handleApiTest}>{i18n("test_translate")}</MenuItem>
+        <MenuItem
+          onClick={() => {
+            setMenuAnchorEl(null);
+            onTestConnection();
+          }}
+        >
+          {i18n("test_connection")}
+        </MenuItem>
+      </Menu>
+    </>
   );
 }
 
@@ -1035,6 +1097,18 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
     url,
   ]);
 
+  const effectiveKeyHelper = useMemo(() => {
+    const parts = [];
+    if (requiresKey && isKeyEmpty) parts.push(i18n("api_key_missing_tip"));
+    if (keyHelper) parts.push(keyHelper);
+    return parts.join(" ");
+  }, [i18n, isKeyEmpty, keyHelper, requiresKey]);
+
+  const headerMetaParts = [apiType, getApiCategoryLabel(apiType, i18n)];
+  if (API_SPE_TYPES.sponsors.has(apiType)) {
+    headerMetaParts.push(i18n("api_sponsor"));
+  }
+
   return (
     <Stack spacing={3}>
       <Stack
@@ -1055,68 +1129,33 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
           <ApiProviderIcon
             className="kt-api-provider-icon"
             apiType={apiType}
-            size={38}
-            imageSize={22}
+            size={34}
+            imageSize={20}
             disabled={isBuiltinUnsupported || isDisabled}
-            lightSurface
           />
           <Box sx={{ minWidth: 0 }}>
             <Typography
               component="h2"
-              sx={{ fontSize: 16, fontWeight: 700, lineHeight: 1.3 }}
+              variant="subtitle1"
+              sx={{ lineHeight: 1.3 }}
             >
               {getApiDisplayName(activeFormData)}
             </Typography>
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={0.75}
-              sx={{ mt: 0.25 }}
-              flexWrap="wrap"
-              useFlexGap
-            >
-              <Typography color="text.secondary" sx={{ fontSize: 12 }}>
-                {apiType}
-              </Typography>
-              <Box component="span" className="kt-api-category-badge">
-                {getApiCategoryLabel(apiType, i18n)}
-              </Box>
+            <Box className="kt-api-detail__meta">
+              <span>{headerMetaParts.join(" · ")}</span>
               {isBuiltin && builtinAvailable && (
-                <Box
-                  component="span"
-                  className="kt-api-builtin-ready kt-api-key-status kt-api-key-status--configured"
-                >
-                  {i18n("builtin_ai_ready")}
-                </Box>
+                <span className="kt-inline-status kt-inline-status--ok">
+                  · {i18n("builtin_ai_ready")}
+                </span>
               )}
-              {API_SPE_TYPES.sponsors.has(apiType) && (
-                <Box
-                  component="span"
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 0.25,
-                    fontSize: "11px",
-                    px: 0.75,
-                    py: 0.1,
-                    borderRadius: "4px",
-                    bgcolor: "warning.main",
-                    color: "warning.contrastText",
-                    fontWeight: 650,
-                  }}
-                >
-                  <StarIcon sx={{ fontSize: 13 }} />
-                  <span>{i18n("api_sponsor")}</span>
-                </Box>
-              )}
-            </Stack>
+            </Box>
           </Box>
         </Stack>
         <Stack
           className="kt-api-detail__status-actions"
           direction="row"
           alignItems="center"
-          spacing={1}
+          spacing={1.5}
           useFlexGap
           flexWrap="wrap"
         >
@@ -1125,12 +1164,20 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
               <Switch
                 size="small"
                 name="isDisabled"
-                checked={isBuiltinUnsupported ? true : isDisabled}
+                checked={isBuiltinUnsupported ? false : !isDisabled}
                 disabled={isBuiltinUnsupported}
-                onChange={handleChange}
+                onChange={(event) =>
+                  handleChange({
+                    target: {
+                      name: "isDisabled",
+                      type: "switch",
+                      checked: !event.target.checked,
+                    },
+                  })
+                }
               />
             }
-            label={i18n("is_disabled")}
+            label={i18n("service_enabled")}
           />
           <FormControlLabel
             control={
@@ -1152,16 +1199,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
         </Stack>
       </Stack>
       {isBuiltinUnsupported && (
-        <Alert
-          severity="warning"
-          variant="outlined"
-          className="kt-api-builtin-unsupported-alert"
-          sx={{
-            py: 0.5,
-            px: 1.5,
-            fontSize: 12,
-          }}
-        >
+        <Alert severity="warning" className="kt-api-builtin-unsupported-alert">
           {i18n("builtin_ai_unsupported_hint")}
         </Alert>
       )}
@@ -1206,57 +1244,33 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
             }
           />
           <Box className="kt-api-key-field-wrap">
-            <Box
-              className="kt-api-key-header"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 0.75,
-                gap: 1,
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    fontWeight: 650,
-                    color: "text.primary",
-                    fontSize: 12,
-                  }}
-                >
-                  {i18n("api_key")}
-                </Typography>
-                {requiresKey && (
-                  <Box
-                    component="span"
-                    className={`kt-api-key-status ${
-                      isKeyEmpty
-                        ? "kt-api-key-status--required"
-                        : "kt-api-key-status--configured"
-                    }`}
+            {(apiKeyUrl || (requiresKey && isKeyEmpty)) && (
+              <Box className="kt-api-key-header">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <span className="kt-api-key-header__label">
+                    {i18n("api_key")}
+                  </span>
+                  {requiresKey && isKeyEmpty && (
+                    <span className="kt-inline-status kt-inline-status--err">
+                      {i18n("key_required")}
+                    </span>
+                  )}
+                </Box>
+                {apiKeyUrl && (
+                  <Button
+                    component="a"
+                    href={apiKeyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="small"
+                    variant="text"
+                    endIcon={<OpenInNewIcon fontSize="small" />}
                   >
-                    {isKeyEmpty ? i18n("key_required") : i18n("key_configured")}
-                  </Box>
+                    {i18n("get_api_key")}
+                  </Button>
                 )}
               </Box>
-              {apiKeyUrl && (
-                <Button
-                  component="a"
-                  href={apiKeyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="small"
-                  variant="outlined"
-                  endIcon={
-                    <OpenInNewIcon sx={{ fontSize: "14px !important" }} />
-                  }
-                  sx={{ minHeight: 32, px: 1.5 }}
-                >
-                  {i18n("get_api_key")}
-                </Button>
-              )}
-            </Box>
+            )}
             <SensitiveTextField
               size="small"
               fullWidth
@@ -1267,23 +1281,8 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
               onChange={handleChange}
               multiline={API_SPE_TYPES.mulkeys.has(apiType)}
               maxRows={10}
-              helperText={keyHelper || undefined}
+              helperText={effectiveKeyHelper || undefined}
             />
-            {requiresKey && isKeyEmpty && (
-              <Alert
-                severity="info"
-                variant="outlined"
-                className="kt-api-key-empty-alert"
-                sx={{
-                  mt: 1,
-                  py: 0.5,
-                  px: 1.5,
-                  fontSize: 12,
-                }}
-              >
-                {i18n("api_key_missing_tip")}
-              </Alert>
-            )}
           </Box>
         </Box>
       )}
@@ -1335,8 +1334,8 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
                   <Button
                     type="button"
                     size="small"
-                    variant="outlined"
-                    sx={{ mt: 1 }}
+                    variant="text"
+                    sx={{ mt: 0.5 }}
                     disabled={modelListStatus === "loading"}
                     onClick={() => {
                       void handleLoadModelList({ force: true });
@@ -1409,99 +1408,89 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
       )}
 
       {API_SPE_TYPES.batch.has(apiType) && !API_SPE_TYPES.ai.has(apiType) && (
-        <Box>
-          <Box sx={apiFieldsGridSx}>
-            <Box>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                name="useBatchFetch"
-                value={useBatchFetch}
-                label={i18n("use_batch_fetch")}
-                onChange={handleChange}
-              >
-                <MenuItem value={false}>{i18n("disable")}</MenuItem>
-                <MenuItem value={true}>{i18n("enable")}</MenuItem>
-              </TextField>
-            </Box>
-          </Box>
-        </Box>
+        <SettingsCard>
+          <SettingsRow label={i18n("use_batch_fetch")}>
+            <SettingsSwitch
+              checked={Boolean(useBatchFetch)}
+              label={i18n("use_batch_fetch")}
+              onChange={(checked) =>
+                handleChange({
+                  target: { name: "useBatchFetch", type: "switch", checked },
+                })
+              }
+            />
+          </SettingsRow>
+        </SettingsCard>
       )}
 
       {hasRuntimeOptions && (
         <Box className="kt-api-runtime-options">
-          <Box sx={apiFieldsGridSx}>
+          <SettingsCard>
             {API_SPE_TYPES.stream.has(apiType) && (
-              <Box>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  name="useStream"
-                  value={useStream}
+              <SettingsRow label={i18n("use_stream")}>
+                <SettingsSwitch
+                  checked={Boolean(useStream)}
                   label={i18n("use_stream")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={false}>{i18n("disable")}</MenuItem>
-                  <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                </TextField>
-              </Box>
+                  onChange={(checked) =>
+                    handleChange({
+                      target: { name: "useStream", type: "switch", checked },
+                    })
+                  }
+                />
+              </SettingsRow>
             )}
 
             {API_SPE_TYPES.stream.has(apiType) && useStream && (
-              <Box>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  name="streamRenderMode"
+              <SettingsRow label={i18n("stream_render_mode")}>
+                <SettingsSegmented
                   value={streamRenderMode}
                   label={i18n("stream_render_mode")}
-                  onChange={handleChange}
-                >
-                  <MenuItem value="disabled">{i18n("disable")}</MenuItem>
-                  <MenuItem value="realtime">
-                    {i18n("stream_render_realtime")}
-                  </MenuItem>
-                  <MenuItem value="segment">
-                    {i18n("stream_render_segment")}
-                  </MenuItem>
-                </TextField>
-              </Box>
+                  onChange={(value) =>
+                    handleChange({
+                      target: { name: "streamRenderMode", value },
+                    })
+                  }
+                  items={[
+                    { value: "disabled", label: i18n("disable") },
+                    {
+                      value: "realtime",
+                      label: i18n("stream_render_realtime"),
+                    },
+                    { value: "segment", label: i18n("stream_render_segment") },
+                  ]}
+                />
+              </SettingsRow>
             )}
 
             {API_SPE_TYPES.context.has(apiType) && (
               <>
-                <Box>
-                  <TextField
-                    select
-                    size="small"
-                    fullWidth
-                    name="useContext"
-                    value={useContext}
+                <SettingsRow label={i18n("use_context")}>
+                  <SettingsSwitch
+                    checked={Boolean(useContext)}
                     label={i18n("use_context")}
-                    onChange={handleChange}
-                  >
-                    <MenuItem value={false}>{i18n("disable")}</MenuItem>
-                    <MenuItem value={true}>{i18n("enable")}</MenuItem>
-                  </TextField>
-                </Box>
-                <Box>
+                    onChange={(checked) =>
+                      handleChange({
+                        target: { name: "useContext", type: "switch", checked },
+                      })
+                    }
+                  />
+                </SettingsRow>
+                <SettingsRow label={i18n("context_size")}>
                   <ValidationInput
                     size="small"
+                    hiddenLabel
                     fullWidth
-                    label={i18n("context_size")}
                     name="contextSize"
                     value={contextSize}
+                    inputProps={{ "aria-label": i18n("context_size") }}
                     onChange={handleChange}
                     min={1}
                     max={20}
                   />
-                </Box>
+                </SettingsRow>
               </>
             )}
-          </Box>
+          </SettingsCard>
         </Box>
       )}
 
@@ -1897,26 +1886,21 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
           >
             {i18n("save")}
           </Button>
+          <ApiTestSplitButton
+            api={activeFormData}
+            canTestConnection={canTestConnection}
+            connectionLoading={connectionLoading}
+            onTestConnection={handleTestConnection}
+          />
           {isModified && (
             <Button
               size="small"
-              variant="outlined"
+              variant="text"
               onClick={handleDiscard}
               startIcon={<RestoreIcon />}
             >
               {i18n("discard_changes")}
             </Button>
-          )}
-          <TestButton api={activeFormData} />
-          {canTestConnection && (
-            <LoadingButton
-              size="small"
-              variant="outlined"
-              onClick={handleTestConnection}
-              loading={connectionLoading}
-            >
-              {i18n("test_connection")}
-            </LoadingButton>
           )}
         </Stack>
         <Stack
@@ -1929,7 +1913,7 @@ function ApiFields({ apiSlug, deleteApi, copyApi, onDirtyChange }) {
           <Button
             id={`api-detail-actions-button-${apiSlug}`}
             size="small"
-            variant="outlined"
+            variant="text"
             aria-controls={
               actionsMenuOpen ? `api-detail-actions-menu-${apiSlug}` : undefined
             }
@@ -2002,12 +1986,23 @@ function ApiListItem({
   const displayName = getApiDisplayName(api);
   const cardSelected = bulkMode ? checked : selected;
   const cardRef = useRef(null);
+  const missingKeyWarning =
+    !api.isDisabled &&
+    isMissingRequiredApiKey(api) &&
+    apiTypeOf(api) !== OPT_TRANS_CUSTOMIZE;
+  const secondaryText =
+    apiTypeOf(api) === OPT_TRANS_CUSTOMIZE
+      ? api.url || api.apiType
+      : api.model || api.apiType;
 
   useEffect(() => {
     if (selected && !bulkMode) {
+      const reducedMotion = window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)"
+      )?.matches;
       cardRef.current?.scrollIntoView?.({
         block: "nearest",
-        behavior: "smooth",
+        behavior: reducedMotion ? "auto" : "smooth",
       });
     }
   }, [selected, bulkMode]);
@@ -2025,7 +2020,7 @@ function ApiListItem({
   return (
     <ListItem
       disablePadding
-      className="kt-api-list__item"
+      className="kt-api-list__item kt-master-row"
       onDragOver={onDragOver}
       onDragEnter={onDragOver}
       onDrop={onDrop}
@@ -2036,7 +2031,9 @@ function ApiListItem({
     >
       <ListItemButton
         ref={cardRef}
-        className="kt-api-list__card"
+        className={`kt-api-list__card kt-master-row__btn ${
+          dragOver ? "kt-master-row__btn--dragover" : ""
+        }`.trim()}
         selected={cardSelected}
         onClick={handleContentClick}
         aria-current={!bulkMode && selected ? "true" : undefined}
@@ -2045,40 +2042,7 @@ function ApiListItem({
         aria-label={displayName}
         aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
         onKeyDown={handleCardKeyDown}
-        sx={(theme) => ({
-          gap: API_LIST_CONTROL_GAP,
-          minWidth: 0,
-          minHeight: 68,
-          py: 1,
-          px: 1,
-          border: "1px solid",
-          borderColor: dragOver
-            ? theme.palette.primary.main
-            : theme.palette.divider,
-          borderRadius: "12px",
-          backgroundColor: theme.palette.background.paper,
-          boxShadow: dragOver
-            ? `0 0 0 2px ${theme.palette.primary.main}`
-            : "none",
-          transition: theme.transitions.create([
-            "background-color",
-            "border-color",
-            "box-shadow",
-            "color",
-          ]),
-          "&.Mui-selected": {
-            borderColor: theme.palette.primary.main,
-            backgroundColor: theme.palette.secondary.main,
-            color: theme.palette.secondary.contrastText,
-          },
-          "&.Mui-selected:hover": {
-            backgroundColor: theme.palette.secondary.main,
-          },
-          "&.Mui-selected .kt-api-list__secondary": {
-            color: "inherit",
-            opacity: 0.78,
-          },
-        })}
+        sx={{ gap: API_LIST_CONTROL_GAP }}
       >
         {bulkMode && (
           <Box
@@ -2122,63 +2086,26 @@ function ApiListItem({
         <ApiProviderIcon
           className="kt-api-provider-icon"
           apiType={api.apiType}
-          size={38}
-          imageSize={22}
+          size={34}
+          imageSize={20}
           disabled={api.isDisabled}
-          lightSurface
         />
         <Box
           sx={{
             minWidth: 0,
             flex: 1,
-            opacity: api.isDisabled ? 0.5 : 1,
+            opacity: api.isDisabled ? 0.55 : 1,
           }}
         >
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 0.5,
-            }}
+          <span className="kt-master-row__title">{displayName}</span>
+          <span
+            className={`kt-master-row__secondary ${
+              missingKeyWarning ? "kt-master-row__secondary--warn" : ""
+            }`.trim()}
+            title={missingKeyWarning ? i18n("key_required") : secondaryText}
           >
-            <Typography
-              sx={{
-                fontSize: 14,
-                fontWeight: 650,
-                overflowWrap: "anywhere",
-              }}
-            >
-              {displayName}
-            </Typography>
-            {!api.isDisabled &&
-              isMissingRequiredApiKey(api) &&
-              apiTypeOf(api) !== OPT_TRANS_CUSTOMIZE && (
-                <Box
-                  component="span"
-                  className="kt-api-list__key-warning"
-                  title={i18n("key_required")}
-                >
-                  {i18n("key_required")}
-                </Box>
-              )}
-          </Box>
-          <Typography
-            className="kt-api-list__secondary"
-            color="text.secondary"
-            sx={(theme) => ({
-              mt: 0.25,
-              fontSize: 11,
-              transition: theme.transitions.create(["color", "opacity"]),
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            })}
-          >
-            {apiTypeOf(api) === OPT_TRANS_CUSTOMIZE
-              ? api.url || api.apiType
-              : api.model || api.apiType}
-          </Typography>
+            {missingKeyWarning ? i18n("key_required") : secondaryText}
+          </span>
         </Box>
       </ListItemButton>
     </ListItem>
@@ -2205,6 +2132,7 @@ export default function Apis() {
   const [detailKey, setDetailKey] = useState(0);
   const [detailDirty, setDetailDirty] = useState(false);
   const [selectedApiSlug, setSelectedApiSlug] = useState("");
+  const [listFilter, setListFilter] = useState("all");
   const [bulkMode, setBulkMode] = useState(false);
   const [checkedApiSlugs, setCheckedApiSlugs] = useState([]);
   const [draggingApiSlug, setDraggingApiSlug] = useState("");
@@ -2225,6 +2153,13 @@ export default function Apis() {
     () => transApis.map((api) => ({ api })),
     [transApis]
   );
+  const visibleApiItems = useMemo(
+    () =>
+      listFilter === "enabled"
+        ? apiItems.filter(({ api }) => !api.isDisabled)
+        : apiItems,
+    [apiItems, listFilter]
+  );
   // Same usable set as FAB/Popup. The management list below stays complete,
   // including keyed rows with a blank key, so they can still be enabled.
   const usableApis = useMemo(() => configuredByokApis(transApis), [transApis]);
@@ -2244,8 +2179,8 @@ export default function Apis() {
         : i18n("custom_option", "Custom");
 
   const apiSlugList = useMemo(
-    () => apiItems.map(({ api }) => api.apiSlug),
-    [apiItems]
+    () => visibleApiItems.map(({ api }) => api.apiSlug),
+    [visibleApiItems]
   );
 
   const checkedApiSlugSet = useMemo(
@@ -2256,7 +2191,7 @@ export default function Apis() {
   const checkedApiCount = checkedApiSlugs.length;
   const hasCheckedApis = checkedApiCount > 0;
   const allApisChecked =
-    apiItems.length > 0 && checkedApiCount === apiItems.length;
+    visibleApiItems.length > 0 && checkedApiCount === visibleApiItems.length;
 
   useEffect(() => {
     if (apiItems.length === 0) {
@@ -2339,6 +2274,7 @@ export default function Apis() {
     }
     const newApiSlug = addApi(apiType);
     setDetailDirty(false);
+    setListFilter("all");
     setDetailKey((key) => key + 1);
     if (newApiSlug) {
       setSelectedApiSlug(newApiSlug);
@@ -2531,40 +2467,61 @@ export default function Apis() {
     setDragOverApiSlug("");
   }, []);
 
+  const handleFilterChange = useCallback(
+    async (nextFilter) => {
+      if (nextFilter === listFilter) return;
+      const nextItems =
+        nextFilter === "enabled"
+          ? apiItems.filter(({ api }) => !api.isDisabled)
+          : apiItems;
+      const selectedStillVisible = nextItems.some(
+        ({ api }) => api.apiSlug === selectedApiSlug
+      );
+      if (!selectedStillVisible && nextItems.length > 0) {
+        if (!(await confirmDiscardDetailChanges())) return;
+        setDetailDirty(false);
+        setSelectedApiSlug(nextItems[0].api.apiSlug);
+      }
+      setListFilter(nextFilter);
+    },
+    [apiItems, confirmDiscardDetailChanges, listFilter, selectedApiSlug]
+  );
+
   const handleMoveApi = useCallback(
     async (apiSlug, direction) => {
-      const currentIndex = apiItems.findIndex(
+      const currentIndex = visibleApiItems.findIndex(
         ({ api }) => api.apiSlug === apiSlug
       );
-      const targetItem = apiItems[currentIndex + direction];
+      const targetItem = visibleApiItems[currentIndex + direction];
       if (currentIndex < 0 || !targetItem) return;
       if (!(await prepareListMutation())) return;
       reorderApis(apiSlug, targetItem.api.apiSlug);
     },
-    [apiItems, prepareListMutation, reorderApis]
+    [prepareListMutation, reorderApis, visibleApiItems]
   );
 
   return (
     <Box>
-      <Stack spacing={3}>
-        <Alert severity="info">
-          {i18n("about_api")}
-          <br />
-          {i18n("about_api_2")}
-          <br />
-          {i18n("about_api_3")}
-          <br />
-          {i18n("about_api_4")}
-          <Link
-            href={URL_CUSTOM_API_EXAMPLE}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {i18n("goto_custom_api_example")}
-          </Link>
-        </Alert>
+      <SettingsDisclosure label={i18n("usage_guide")} defaultOpen={false}>
+        <ul>
+          <li>{i18n("about_api")}</li>
+          <li>{i18n("about_api_2")}</li>
+          <li>{i18n("about_api_3")}</li>
+          <li>
+            {i18n("about_api_4")}{" "}
+            <Link
+              href={URL_CUSTOM_API_EXAMPLE}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {i18n("goto_custom_api_example")}
+            </Link>
+          </li>
+        </ul>
+      </SettingsDisclosure>
 
-        {usableApis.length === 0 ? (
+      <Stack spacing={2.5}>
+        {usableApis.length === 0 && (
           <Alert
             className="kt-api-usable-empty"
             severity="warning"
@@ -2572,109 +2529,28 @@ export default function Apis() {
           >
             {i18n("fab_no_keyed_provider")}
           </Alert>
-        ) : (
-          <Box className="kt-api-usable" role="status">
-            <Typography
-              component="span"
-              sx={{ fontSize: 13, fontWeight: 650, color: "text.primary" }}
-            >
-              {i18n("translate_service")}
-            </Typography>
-            {usableApis.map((api) => (
-              <Box
-                key={api.apiSlug}
-                className="kt-api-usable__item"
-                component="span"
-              >
-                {getApiDisplayName(api)}
-              </Box>
-            ))}
-          </Box>
         )}
 
         <Box>
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={2}
-            useFlexGap
-            flexWrap="wrap"
-          >
-            <Button
-              size="small"
-              id="add-api-button"
-              variant="contained"
-              onClick={handleClick}
-              aria-controls={open ? "add-api-menu" : undefined}
-              aria-haspopup="true"
-              aria-expanded={open ? "true" : undefined}
-              endIcon={<KeyboardArrowDownIcon />}
-              startIcon={<AddIcon />}
-            >
-              {i18n("add")}
-            </Button>
-            <Button
-              id="api-sort-button"
-              size="small"
-              variant="outlined"
-              disabled={!canAlphabeticallySort}
-              onClick={(event) => setSortAnchorEl(event.currentTarget)}
-              aria-controls={sortMenuOpen ? "api-sort-menu" : undefined}
-              aria-haspopup="menu"
-              aria-expanded={sortMenuOpen ? "true" : undefined}
-              aria-label={`${i18n("sort_alphabetically")}: ${apiSortModeLabel}`}
-              startIcon={<SwapVertIcon />}
-              endIcon={<KeyboardArrowDownIcon />}
-            >
-              {i18n("sort_alphabetically")} · {apiSortModeLabel}
-            </Button>
-            <Menu
-              id="api-sort-menu"
-              anchorEl={sortAnchorEl}
-              open={sortMenuOpen}
-              onClose={handleSortMenuClose}
-              MenuListProps={{
-                "aria-labelledby": "api-sort-button",
-              }}
-            >
-              <MenuItem
-                role="menuitemradio"
-                aria-checked={apiSortMode === API_SORT_MODES.ASC}
-                selected={apiSortMode === API_SORT_MODES.ASC}
-                onClick={() => handleAlphaSortApis(API_SORT_MODES.ASC)}
-              >
-                A–Z
-              </MenuItem>
-              <MenuItem
-                role="menuitemradio"
-                aria-checked={apiSortMode === API_SORT_MODES.DESC}
-                selected={apiSortMode === API_SORT_MODES.DESC}
-                onClick={() => handleAlphaSortApis(API_SORT_MODES.DESC)}
-              >
-                Z–A
-              </MenuItem>
-            </Menu>
-            <Button
-              size="small"
-              variant={bulkMode ? "contained" : "outlined"}
-              aria-pressed={bulkMode}
-              onClick={handleToggleBulkMode}
-            >
-              {i18n("bulk_actions")}
-            </Button>
-            {bulkMode && (
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          {bulkMode ? (
+            <Box className="kt-bulk-bar">
+              <Box className="kt-toolbar-row__group">
                 <Button
                   size="small"
-                  variant="outlined"
-                  disabled={apiItems.length === 0}
+                  variant="text"
+                  disabled={visibleApiItems.length === 0}
                   onClick={handleToggleAllApis}
                 >
                   {allApisChecked ? i18n("deselect_all") : i18n("select_all")}
                 </Button>
+                <span className="kt-bulk-bar__count">
+                  {checkedApiCount} / {visibleApiItems.length}
+                </span>
+              </Box>
+              <Box className="kt-toolbar-row__group">
                 <Button
                   size="small"
-                  variant="outlined"
+                  variant="text"
                   disabled={!hasCheckedApis}
                   onClick={handlePinCheckedApis}
                   startIcon={<PushPinIcon />}
@@ -2683,7 +2559,7 @@ export default function Apis() {
                 </Button>
                 <Button
                   size="small"
-                  variant="outlined"
+                  variant="text"
                   disabled={!hasCheckedApis}
                   onClick={handleEnableCheckedApis}
                   startIcon={<CheckCircleOutlineIcon />}
@@ -2692,7 +2568,7 @@ export default function Apis() {
                 </Button>
                 <Button
                   size="small"
-                  variant="outlined"
+                  variant="text"
                   disabled={!hasCheckedApis}
                   onClick={handleDisableCheckedApis}
                   startIcon={<BlockIcon />}
@@ -2701,7 +2577,7 @@ export default function Apis() {
                 </Button>
                 <Button
                   size="small"
-                  variant="outlined"
+                  variant="text"
                   color="error"
                   disabled={!hasCheckedApis}
                   onClick={handleDeleteCheckedApis}
@@ -2709,9 +2585,85 @@ export default function Apis() {
                 >
                   {i18n("delete")}
                 </Button>
-              </Stack>
-            )}
-          </Stack>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleToggleBulkMode}
+                >
+                  {i18n("close")}
+                </Button>
+              </Box>
+            </Box>
+          ) : (
+            <Box className="kt-toolbar-row">
+              <Box className="kt-toolbar-row__group">
+                <Button
+                  size="small"
+                  id="add-api-button"
+                  variant="contained"
+                  onClick={handleClick}
+                  aria-controls={open ? "add-api-menu" : undefined}
+                  aria-haspopup="true"
+                  aria-expanded={open ? "true" : undefined}
+                  endIcon={<KeyboardArrowDownIcon />}
+                  startIcon={<AddIcon />}
+                >
+                  {i18n("add")}
+                </Button>
+              </Box>
+              <Box className="kt-toolbar-row__group">
+                <Button
+                  id="api-sort-button"
+                  size="small"
+                  variant="text"
+                  disabled={!canAlphabeticallySort}
+                  onClick={(event) => setSortAnchorEl(event.currentTarget)}
+                  aria-controls={sortMenuOpen ? "api-sort-menu" : undefined}
+                  aria-haspopup="menu"
+                  aria-expanded={sortMenuOpen ? "true" : undefined}
+                  aria-label={`${i18n("sort_alphabetically")}: ${apiSortModeLabel}`}
+                  startIcon={<SwapVertIcon />}
+                  endIcon={<KeyboardArrowDownIcon />}
+                >
+                  {`${i18n("sort_alphabetically")}: ${apiSortModeLabel}`}
+                </Button>
+                <Button
+                  size="small"
+                  variant="text"
+                  aria-pressed={bulkMode}
+                  onClick={handleToggleBulkMode}
+                >
+                  {i18n("bulk_actions")}
+                </Button>
+              </Box>
+            </Box>
+          )}
+          <Menu
+            id="api-sort-menu"
+            anchorEl={sortAnchorEl}
+            open={sortMenuOpen}
+            onClose={handleSortMenuClose}
+            MenuListProps={{
+              "aria-labelledby": "api-sort-button",
+            }}
+          >
+            <MenuItem
+              role="menuitemradio"
+              aria-checked={apiSortMode === API_SORT_MODES.ASC}
+              selected={apiSortMode === API_SORT_MODES.ASC}
+              onClick={() => handleAlphaSortApis(API_SORT_MODES.ASC)}
+            >
+              A–Z
+            </MenuItem>
+            <MenuItem
+              role="menuitemradio"
+              aria-checked={apiSortMode === API_SORT_MODES.DESC}
+              selected={apiSortMode === API_SORT_MODES.DESC}
+              onClick={() => handleAlphaSortApis(API_SORT_MODES.DESC)}
+            >
+              Z–A
+            </MenuItem>
+          </Menu>
           <Menu
             id="add-api-menu"
             anchorEl={anchorEl}
@@ -2730,80 +2682,79 @@ export default function Apis() {
                 <ApiProviderIcon
                   className="kt-api-provider-icon"
                   apiType={apiOption.type}
-                  size={38}
-                  imageSize={22}
-                  lightSurface
+                  size={34}
+                  imageSize={20}
                 />
                 <Box component="span" sx={{ flex: 1 }}>
                   {apiOption.label}
                 </Box>
                 {API_SPE_TYPES.sponsors.has(apiOption.type) && (
-                  <StarIcon color="warning" sx={{ marginLeft: "0.2em" }} />
+                  <Box
+                    component="span"
+                    sx={{
+                      color: "text.secondary",
+                      fontSize: "var(--kt-text-sm)",
+                    }}
+                  >
+                    {i18n("api_sponsor")}
+                  </Box>
                 )}
               </MenuItem>
             ))}
           </Menu>
         </Box>
 
-        <Box
-          className="kt-api-master-detail"
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr)",
-            gap: 2,
-            alignItems: "start",
-            "@container options-main (min-width: 760px)": {
-              gridTemplateColumns: "minmax(230px, 0.72fr) minmax(0, 1.28fr)",
-            },
-          }}
-        >
-          <List
-            disablePadding
-            className="kt-api-list"
-            aria-label={i18n("apis_setting")}
-            sx={{
-              minWidth: 0,
-              maxHeight: "min(48vh, 420px)",
-              display: "flex !important",
-              flexDirection: "column",
-              gap: 1,
-              overflowX: "hidden",
-              overflowY: "auto",
-              pl: "0 !important",
-              pr: 0.5,
-              "@container options-main (min-width: 760px)": {
-                position: "sticky",
-                top: 24,
-                maxHeight: "calc(100vh - 48px)",
-              },
-            }}
-          >
-            {apiItems.map(({ api }) => (
-              <ApiListItem
-                key={api.apiSlug}
-                api={api}
-                selected={api.apiSlug === selectedApiSlug}
-                bulkMode={bulkMode}
-                checked={checkedApiSlugSet.has(api.apiSlug)}
-                dragging={api.apiSlug === draggingApiSlug}
-                dragOver={api.apiSlug === dragOverApiSlug}
-                onSelect={() => handleSelectApi(api.apiSlug)}
-                onCheck={handleCheckApi}
-                onDragStart={(event) => handleDragStart(event, api.apiSlug)}
-                onDragOver={(event) => handleDragOver(event, api.apiSlug)}
-                onDrop={(event) => handleDrop(event, api.apiSlug)}
-                onDragEnd={handleDragEnd}
-                onMove={(direction) => handleMoveApi(api.apiSlug, direction)}
+        <Box className="kt-api-master-detail kt-master-detail">
+          <Box className="kt-master-rail">
+            <Box className="kt-master-rail__header">
+              <SettingsSegmented
+                value={listFilter}
+                label={i18n("translate_service")}
+                onChange={(value) => void handleFilterChange(value)}
+                items={[
+                  { value: "all", label: i18n("api_filter_all") },
+                  { value: "enabled", label: i18n("api_filter_enabled") },
+                ]}
               />
-            ))}
-          </List>
+            </Box>
+            {visibleApiItems.length > 0 ? (
+              <List
+                disablePadding
+                className="kt-master-rail__list kt-api-list"
+                aria-label={i18n("apis_setting")}
+              >
+                {visibleApiItems.map(({ api }) => (
+                  <ApiListItem
+                    key={api.apiSlug}
+                    api={api}
+                    selected={api.apiSlug === selectedApiSlug}
+                    bulkMode={bulkMode}
+                    checked={checkedApiSlugSet.has(api.apiSlug)}
+                    dragging={api.apiSlug === draggingApiSlug}
+                    dragOver={api.apiSlug === dragOverApiSlug}
+                    onSelect={() => handleSelectApi(api.apiSlug)}
+                    onCheck={handleCheckApi}
+                    onDragStart={(event) => handleDragStart(event, api.apiSlug)}
+                    onDragOver={(event) => handleDragOver(event, api.apiSlug)}
+                    onDrop={(event) => handleDrop(event, api.apiSlug)}
+                    onDragEnd={handleDragEnd}
+                    onMove={(direction) =>
+                      handleMoveApi(api.apiSlug, direction)
+                    }
+                  />
+                ))}
+              </List>
+            ) : (
+              <div className="kt-master-rail__empty">
+                {i18n("overview_no_service_short")}
+              </div>
+            )}
+          </Box>
           {selectedApiItem && (
             <Box
-              className="kt-api-detail"
+              className="kt-master-detail-pane kt-api-detail"
               ref={detailPanelRef}
               sx={{
-                minWidth: 0,
-                mt: "0 !important",
                 containerName: "api-detail",
                 containerType: "inline-size",
               }}

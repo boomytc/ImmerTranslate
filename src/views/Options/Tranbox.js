@@ -291,221 +291,212 @@ export default function Tranbox() {
                 onChange={(checked) => updateTranbox({ simpleStyle: checked })}
               />
             </SettingsRow>
+            <SettingsRow label={i18n("hide_click_away")}>
+              <SettingsSwitch
+                checked={Boolean(hideClickAway)}
+                label={i18n("hide_click_away")}
+                onChange={(checked) =>
+                  updateTranbox({ hideClickAway: checked })
+                }
+              />
+            </SettingsRow>
+            <SettingsRow label={i18n("tranbox_auto_height")}>
+              <SettingsSwitch
+                checked={Boolean(autoHeight)}
+                label={i18n("tranbox_auto_height")}
+                onChange={(checked) => updateTranbox({ autoHeight: checked })}
+              />
+            </SettingsRow>
           </SettingsCard>
         </SettingsSection>
 
-        <SettingsAdvanced label={i18n("settings_detailed_controls")}>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <SettingsCard>
-              <SettingsRow label={i18n("translate_service_multiple")}>
-                <SettingsSelect
-                  multiple
-                  value={safeApiSlugs}
-                  label={i18n("translate_service_multiple")}
-                  onChange={(value) => updateTranbox({ apiSlugs: value })}
-                  options={enabledApis.map((api) => ({
-                    value: api.apiSlug,
-                    label: getApiDisplayName(api),
-                  }))}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("from_lang")}>
-                <SettingsSelect
-                  value={safeFromLang}
-                  label={i18n("from_lang")}
-                  onChange={(value) => updateTranbox({ fromLang: value })}
-                  options={OPT_LANGS_FROM}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("to_lang")}>
-                <SettingsSelect
-                  value={safeToLang}
-                  label={i18n("to_lang")}
-                  onChange={(value) => updateTranbox({ toLang: value })}
-                  options={OPT_LANGS_TO}
-                />
-              </SettingsRow>
-              <SettingsRow
-                label={i18n("to_lang2")}
-                description={i18n("to_lang2_helper")}
-              >
-                <SettingsSelect
-                  value={safeToLang2}
-                  label={i18n("to_lang2")}
-                  onChange={(value) => updateTranbox({ toLang2: value })}
-                  options={[
-                    { value: "-", label: i18n("disable") },
-                    ...OPT_LANGS_TO,
-                  ]}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("ai_dict_prompt")}>
-                <SettingsSelect
-                  value={safeAiDictPromptSlug}
-                  label={i18n("ai_dict_prompt")}
-                  onChange={(value) =>
-                    updateTranbox({ aiDictPromptSlug: value })
-                  }
-                  options={[
-                    {
-                      value: PROMPT_MODE_FOLLOW_API,
-                      label: i18n("follow_api_prompt"),
-                    },
-                    ...dictionaryPromptOptions.map((prompt) => ({
-                      value: prompt.slug,
-                      label: getPromptDisplayName(prompt, i18n),
-                    })),
-                  ]}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("english_suggest")}>
-                <SettingsSelect
-                  value={safeEnSug}
-                  label={i18n("english_suggest")}
-                  onChange={(value) => updateTranbox({ enSug: value })}
-                  options={[
-                    { value: "-", label: i18n("disable") },
-                    ...OPT_SUG_ALL.map((item) => ({
-                      value: item,
-                      label: item,
-                    })),
-                  ]}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("tranbtn_position_mode")}>
-                <SettingsSelect
-                  value={safeBtnPositionMode}
-                  label={i18n("tranbtn_position_mode")}
-                  onChange={(value) =>
-                    updateTranbox({ btnPositionMode: value })
-                  }
-                  options={OPT_TRANBOX_BTN_POSITION_ALL.map((item) => ({
-                    value: item,
-                    label: i18n(`tranbtn_position_${item}`),
-                  }))}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("hide_tran_button")}>
-                <SettingsSegmented
-                  value={Boolean(hideTranBtn)}
-                  label={i18n("hide_tran_button")}
-                  onChange={(value) => updateTranbox({ hideTranBtn: value })}
-                  items={[
-                    { value: false, label: i18n("show") },
-                    { value: true, label: i18n("hide") },
-                  ]}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("hide_click_away")}>
-                <SettingsSwitch
-                  checked={Boolean(hideClickAway)}
-                  label={i18n("hide_click_away")}
-                  onChange={(checked) =>
-                    updateTranbox({ hideClickAway: checked })
-                  }
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("tranbox_auto_height")}>
-                <SettingsSwitch
-                  checked={Boolean(autoHeight)}
-                  label={i18n("tranbox_auto_height")}
-                  onChange={(checked) => updateTranbox({ autoHeight: checked })}
-                />
-              </SettingsRow>
-              <SettingsRow label={i18n("tranbox_interact_mode")}>
-                <SettingsSelect
-                  value={safeInteractMode}
-                  label={i18n("tranbox_interact_mode")}
-                  onChange={(value) =>
-                    updateTranbox({ tranboxInteractMode: value })
-                  }
-                  options={[
-                    { value: "-", label: i18n("disable") },
-                    {
-                      value: OPT_TRANBOX_INTERACT_CLICK,
-                      label: i18n("tranbox_interact_click"),
-                    },
-                    {
-                      value: OPT_TRANBOX_INTERACT_DBLCLICK,
-                      label: i18n("tranbox_interact_dblclick"),
-                    },
-                  ]}
-                />
-              </SettingsRow>
-            </SettingsCard>
-
-            <Grid container spacing={2} columns={12}>
-              <Grid item xs={12} sm={6}>
-                <ValidationInput
-                  fullWidth
-                  size="small"
-                  label={i18n("tranbtn_offset_x")}
-                  type="number"
-                  name="btnOffsetX"
-                  value={btnOffsetX}
-                  onChange={handleChange}
-                  min={-200}
-                  max={200}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <ValidationInput
-                  fullWidth
-                  size="small"
-                  label={i18n("tranbtn_offset_y")}
-                  type="number"
-                  name="btnOffsetY"
-                  value={btnOffsetY}
-                  onChange={handleChange}
-                  min={-200}
-                  max={200}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <ValidationInput
-                  fullWidth
-                  size="small"
-                  label={i18n("tranbox_offset_x")}
-                  type="number"
-                  name="boxOffsetX"
-                  value={boxOffsetX}
-                  onChange={handleChange}
-                  min={-200}
-                  max={200}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <ValidationInput
-                  fullWidth
-                  size="small"
-                  label={i18n("tranbox_offset_y")}
-                  type="number"
-                  name="boxOffsetY"
-                  value={boxOffsetY}
-                  onChange={handleChange}
-                  min={-200}
-                  max={200}
-                />
-              </Grid>
-            </Grid>
-
-            <TextField
-              fullWidth
-              size="small"
-              label={i18n("blacklist")}
-              helperText={i18n("pattern_helper")}
-              name="blacklist"
-              value={blacklistDraft ?? blacklist}
-              onChange={(e) => setBlacklistDraft(e.target.value)}
-              onBlur={(e) => {
-                const value = e.target.value;
-                setBlacklistDraft(null);
-                if (value !== blacklist) updateTranbox({ blacklist: value });
-              }}
-              maxRows={10}
-              multiline
+        <SettingsAdvanced rows label={i18n("settings_detailed_controls")}>
+          <SettingsRow label={i18n("translate_service_multiple")}>
+            <SettingsSelect
+              multiple
+              value={safeApiSlugs}
+              label={i18n("translate_service_multiple")}
+              onChange={(value) => updateTranbox({ apiSlugs: value })}
+              options={enabledApis.map((api) => ({
+                value: api.apiSlug,
+                label: getApiDisplayName(api),
+              }))}
             />
-          </Stack>
+          </SettingsRow>
+          <SettingsRow label={i18n("from_lang")}>
+            <SettingsSelect
+              value={safeFromLang}
+              label={i18n("from_lang")}
+              onChange={(value) => updateTranbox({ fromLang: value })}
+              options={OPT_LANGS_FROM}
+            />
+          </SettingsRow>
+          <SettingsRow label={i18n("to_lang")}>
+            <SettingsSelect
+              value={safeToLang}
+              label={i18n("to_lang")}
+              onChange={(value) => updateTranbox({ toLang: value })}
+              options={OPT_LANGS_TO}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label={i18n("to_lang2")}
+            description={i18n("to_lang2_helper")}
+          >
+            <SettingsSelect
+              value={safeToLang2}
+              label={i18n("to_lang2")}
+              onChange={(value) => updateTranbox({ toLang2: value })}
+              options={[
+                { value: "-", label: i18n("disable") },
+                ...OPT_LANGS_TO,
+              ]}
+            />
+          </SettingsRow>
+          <SettingsRow label={i18n("ai_dict_prompt")}>
+            <SettingsSelect
+              value={safeAiDictPromptSlug}
+              label={i18n("ai_dict_prompt")}
+              onChange={(value) => updateTranbox({ aiDictPromptSlug: value })}
+              options={[
+                {
+                  value: PROMPT_MODE_FOLLOW_API,
+                  label: i18n("follow_api_prompt"),
+                },
+                ...dictionaryPromptOptions.map((prompt) => ({
+                  value: prompt.slug,
+                  label: getPromptDisplayName(prompt, i18n),
+                })),
+              ]}
+            />
+          </SettingsRow>
+          <SettingsRow label={i18n("english_suggest")}>
+            <SettingsSelect
+              value={safeEnSug}
+              label={i18n("english_suggest")}
+              onChange={(value) => updateTranbox({ enSug: value })}
+              options={[
+                { value: "-", label: i18n("disable") },
+                ...OPT_SUG_ALL.map((item) => ({
+                  value: item,
+                  label: item,
+                })),
+              ]}
+            />
+          </SettingsRow>
+          <SettingsRow label={i18n("tranbtn_position_mode")}>
+            <SettingsSelect
+              value={safeBtnPositionMode}
+              label={i18n("tranbtn_position_mode")}
+              onChange={(value) => updateTranbox({ btnPositionMode: value })}
+              options={OPT_TRANBOX_BTN_POSITION_ALL.map((item) => ({
+                value: item,
+                label: i18n(`tranbtn_position_${item}`),
+              }))}
+            />
+          </SettingsRow>
+          <SettingsRow label={i18n("hide_tran_button")}>
+            <SettingsSwitch
+              checked={Boolean(hideTranBtn)}
+              label={i18n("hide_tran_button")}
+              onChange={(checked) => updateTranbox({ hideTranBtn: checked })}
+            />
+          </SettingsRow>
+          <SettingsRow label={i18n("tranbox_interact_mode")}>
+            <SettingsSelect
+              value={safeInteractMode}
+              label={i18n("tranbox_interact_mode")}
+              onChange={(value) =>
+                updateTranbox({ tranboxInteractMode: value })
+              }
+              options={[
+                { value: "-", label: i18n("disable") },
+                {
+                  value: OPT_TRANBOX_INTERACT_CLICK,
+                  label: i18n("tranbox_interact_click"),
+                },
+                {
+                  value: OPT_TRANBOX_INTERACT_DBLCLICK,
+                  label: i18n("tranbox_interact_dblclick"),
+                },
+              ]}
+            />
+          </SettingsRow>
+          <Box component="li" sx={{ listStyle: "none", py: 2 }}>
+            <Stack spacing={2}>
+              <Grid container spacing={2} columns={12}>
+                <Grid item xs={12} sm={6}>
+                  <ValidationInput
+                    fullWidth
+                    size="small"
+                    label={i18n("tranbtn_offset_x")}
+                    type="number"
+                    name="btnOffsetX"
+                    value={btnOffsetX}
+                    onChange={handleChange}
+                    min={-200}
+                    max={200}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <ValidationInput
+                    fullWidth
+                    size="small"
+                    label={i18n("tranbtn_offset_y")}
+                    type="number"
+                    name="btnOffsetY"
+                    value={btnOffsetY}
+                    onChange={handleChange}
+                    min={-200}
+                    max={200}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <ValidationInput
+                    fullWidth
+                    size="small"
+                    label={i18n("tranbox_offset_x")}
+                    type="number"
+                    name="boxOffsetX"
+                    value={boxOffsetX}
+                    onChange={handleChange}
+                    min={-200}
+                    max={200}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <ValidationInput
+                    fullWidth
+                    size="small"
+                    label={i18n("tranbox_offset_y")}
+                    type="number"
+                    name="boxOffsetY"
+                    value={boxOffsetY}
+                    onChange={handleChange}
+                    min={-200}
+                    max={200}
+                  />
+                </Grid>
+              </Grid>
+
+              <TextField
+                fullWidth
+                size="small"
+                label={i18n("blacklist")}
+                helperText={i18n("pattern_helper")}
+                name="blacklist"
+                value={blacklistDraft ?? blacklist}
+                onChange={(e) => setBlacklistDraft(e.target.value)}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  setBlacklistDraft(null);
+                  if (value !== blacklist) updateTranbox({ blacklist: value });
+                }}
+                maxRows={10}
+                multiline
+              />
+            </Stack>
+          </Box>
         </SettingsAdvanced>
       </Stack>
     </Box>

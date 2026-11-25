@@ -128,6 +128,7 @@ export default function InputSetting() {
           </SettingsRow>
           <SettingsRow label={i18n("shortcut_press_count")}>
             <SettingsSegmented
+              className="kt-settings-segmented--numeric"
               value={Number(triggerCount)}
               label={i18n("shortcut_press_count")}
               onChange={(value) => updateInputRule({ triggerCount: value })}
@@ -163,24 +164,16 @@ export default function InputSetting() {
             />
           </SettingsRow>
           <SettingsRow label={i18n("show_translation_dot")}>
-            <SettingsSegmented
-              value={
-                isInputDotShown(showDot)
-                  ? OPT_INPUT_DOT_ALWAYS
-                  : OPT_INPUT_DOT_DISABLE
-              }
+            <SettingsSwitch
+              checked={isInputDotShown(showDot)}
               label={i18n("show_translation_dot")}
-              onChange={(value) => updateInputRule({ showDot: value })}
-              items={[
-                {
-                  value: OPT_INPUT_DOT_DISABLE,
-                  label: i18n("show_dot_disable"),
-                },
-                {
-                  value: OPT_INPUT_DOT_ALWAYS,
-                  label: i18n("show_dot_always"),
-                },
-              ]}
+              onChange={(checked) =>
+                updateInputRule({
+                  showDot: checked
+                    ? OPT_INPUT_DOT_ALWAYS
+                    : OPT_INPUT_DOT_DISABLE,
+                })
+              }
             />
           </SettingsRow>
         </SettingsCard>
@@ -219,11 +212,12 @@ export default function InputSetting() {
       <SettingsSection title={i18n("blacklist")}>
         <TextField
           fullWidth
+          hiddenLabel
           size="small"
-          label={i18n("blacklist")}
           helperText={i18n("pattern_helper")}
           name="blacklist"
           value={blacklistValue}
+          inputProps={{ "aria-label": i18n("blacklist") }}
           onChange={(e) => setBlacklistDraft(e.target.value)}
           onBlur={(e) => commitBlacklist(e.target.value)}
           maxRows={10}

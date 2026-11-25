@@ -14,114 +14,7 @@ import {
 } from "../../config/fab";
 import { useI18n } from "../../hooks/I18n";
 import { createM3CssVariables, resolveM3Colors } from "../../styles/m3";
-
-const FAB_APPEARANCE_STYLES = String.raw`
-.kt-fab-appearance {
-  padding: 8px 0 24px;
-  border: 0;
-  border-bottom: 1px solid var(--kt-border, var(--kt-linev));
-  border-radius: 0;
-  background: transparent;
-}
-.kt-fab-appearance .kt-fab-appearance-title {
-  margin: 0 0 22px;
-  color: var(--kt-on);
-  font-size: 16px;
-  line-height: 1.4;
-  font-weight: 600;
-}
-.kt-fab-appearance .kt-fab-appearance-layout {
-  display: grid;
-  grid-template-columns: clamp(112px, 28%, 176px) minmax(0, 1fr);
-  align-items: center;
-  gap: 26px;
-}
-.kt-fab-appearance .kt-fab-preview,
-.kt-fab-appearance .kt-fab-appearance-controls { min-width: 0; }
-.kt-fab-appearance .kt-fab-preview-stage {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 184px;
-  border-radius: var(--kt-radius-card, 20px);
-  background: linear-gradient(145deg, var(--kt-sf4), var(--kt-sf1) 58%, var(--kt-pric));
-}
-.kt-fab-appearance .kt-fab-preview-label,
-.kt-fab-appearance .kt-fab-preview-dimensions {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  color: var(--kt-onv);
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.5;
-  pointer-events: none;
-}
-.kt-fab-appearance .kt-fab-preview-label { top: 12px; }
-.kt-fab-appearance .kt-fab-preview-dimensions {
-  bottom: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.kt-fab-appearance .kt-fab-preview-opacity {
-  display: grid;
-  place-items: center;
-  transition: opacity var(--kt-dur, .2s) var(--kt-ease, ease-out);
-}
-.kt-fab-appearance .kt-fab-preview-hint {
-  margin: 10px 0 0;
-  color: var(--kt-onv);
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.kt-fab-appearance .kt-fab-appearance-controls { display: grid; gap: 24px; }
-.kt-fab-appearance .kt-fab-appearance-label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-}
-.kt-fab-appearance .kt-fab-appearance-label-row > label {
-  min-width: 0;
-  color: var(--kt-on);
-  font-size: 14px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.kt-fab-appearance .kt-fab-appearance-label-row > output {
-  flex: none;
-  color: var(--kt-on);
-  font-size: 14px;
-  line-height: 1.5;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.kt-fab-appearance .MuiSlider-root { display: block; width: 100%; }
-.kt-fab-appearance .kt-fab-appearance-helper {
-  margin: 0;
-  color: var(--kt-onv);
-  font-size: 12px;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-.kt-fab-appearance .kt-fab-appearance-refresh {
-  margin: 16px 0 0;
-  color: var(--kt-onv);
-  font-size: 12px;
-  line-height: 1.55;
-}
-@media (max-width: 600px) {
-  .kt-fab-appearance { padding: 12px; }
-  .kt-fab-appearance .kt-fab-appearance-title { margin-bottom: 18px; }
-  .kt-fab-appearance .kt-fab-appearance-layout { gap: 12px; }
-  .kt-fab-appearance .kt-fab-preview-stage { height: 168px; }
-  .kt-fab-appearance .kt-fab-appearance-controls { gap: 20px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .kt-fab-appearance .kt-fab-preview-opacity { transition: none; }
-}
-`;
+import { SettingsSegmented } from "./SettingsCard";
 
 export default function FabAppearanceSetting({ fab, onChange }) {
   const i18n = useI18n();
@@ -134,6 +27,8 @@ export default function FabAppearanceSetting({ fab, onChange }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const colors = resolveM3Colors(previewTheme);
+  const isHalfHide = Boolean(fab?.halfHide);
+  const isActive = hovered || focused;
 
   useEffect(() => {
     setOpacityPercent(Math.round(opacity * 100));
@@ -143,26 +38,32 @@ export default function FabAppearanceSetting({ fab, onChange }) {
     setSizePixels(size);
   }, [size]);
 
-  const togglePreviewTheme = (event) => {
-    setPreviewTheme((current) => (current === "light" ? "dark" : "light"));
-    if (event.detail > 0) event.currentTarget.blur();
-  };
-
   return (
     <Box
-      component="section"
+      component="div"
       className="kt-fab-appearance"
       aria-labelledby="fab-appearance-title"
     >
       <style>{FLOATING_BUTTON_STYLES}</style>
-      <style>{FAB_APPEARANCE_STYLES}</style>
-      <Typography
-        component="h2"
-        id="fab-appearance-title"
-        className="kt-fab-appearance-title"
-      >
-        {i18n("fab_appearance")}
-      </Typography>
+      <Box className="kt-fab-appearance__header">
+        <Typography
+          component="h3"
+          id="fab-appearance-title"
+          className="kt-fab-appearance__title"
+        >
+          {i18n("fab_appearance")}
+        </Typography>
+        <SettingsSegmented
+          className="kt-preview-stage__toggle"
+          value={previewTheme}
+          label={i18n("fab_appearance")}
+          onChange={setPreviewTheme}
+          items={[
+            { value: "light", label: i18n("preview_bg_light") },
+            { value: "dark", label: i18n("preview_bg_dark") },
+          ]}
+        />
+      </Box>
       <Box className="kt-fab-appearance-layout">
         <Box className="kt-fab-preview">
           <Box
@@ -170,36 +71,39 @@ export default function FabAppearanceSetting({ fab, onChange }) {
             data-theme={previewTheme}
             style={{
               ...createM3CssVariables(colors),
-              backgroundColor:
-                previewTheme === "light" ? colors.surface : colors.background,
               colorScheme: previewTheme,
             }}
+            onPointerEnter={() => setHovered(true)}
+            onPointerLeave={() => setHovered(false)}
+            onPointerCancel={() => setHovered(false)}
           >
-            <Typography component="span" className="kt-fab-preview-label">
-              {i18n(
-                previewTheme === "light"
-                  ? "fab_preview_light"
-                  : "fab_preview_dark"
-              )}
-            </Typography>
+            <Box className="kt-fab-preview-page" aria-hidden="true">
+              <span className="kt-fab-preview-line kt-fab-preview-line--short" />
+              <span className="kt-fab-preview-line" />
+              <span className="kt-fab-preview-line kt-fab-preview-line--mid" />
+              <span className="kt-fab-preview-line kt-fab-preview-line--short" />
+            </Box>
             <Box
-              className="kt-fab-preview-opacity"
-              style={{ opacity: hovered || focused ? 1 : opacityPercent / 100 }}
+              className={`kt-fab-preview-dock ${
+                isHalfHide ? "kt-fab-preview-dock--half-hide" : ""
+              } ${isActive ? "kt-fab-preview-dock--active" : ""}`.trim()}
             >
-              <FloatingButton
-                size={sizePixels}
-                opensMenu={fab?.fabClickAction !== 1}
-                className="kt-fab-preview-button"
-                aria-label={i18n("fab_preview_dark")}
-                aria-pressed={previewTheme === "dark"}
-                aria-describedby="fab-preview-theme-hint"
-                onClick={togglePreviewTheme}
-                onPointerEnter={() => setHovered(true)}
-                onPointerLeave={() => setHovered(false)}
-                onPointerCancel={() => setHovered(false)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-              />
+              <Box
+                className="kt-fab-preview-opacity"
+                style={{ opacity: isActive ? 1 : opacityPercent / 100 }}
+              >
+                <FloatingButton
+                  size={sizePixels}
+                  opensMenu={fab?.fabClickAction !== 1}
+                  className="kt-fab-preview-button"
+                  aria-label={i18n("fab_appearance")}
+                  onClick={(event) => {
+                    if (event.detail > 0) event.currentTarget.blur();
+                  }}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                />
+              </Box>
             </Box>
             <Typography
               component="span"
@@ -209,12 +113,6 @@ export default function FabAppearanceSetting({ fab, onChange }) {
               {sizePixels} × {sizePixels} px
             </Typography>
           </Box>
-          <Typography
-            id="fab-preview-theme-hint"
-            className="kt-fab-preview-hint"
-          >
-            {i18n("fab_preview_theme_hint")}
-          </Typography>
         </Box>
         <Box className="kt-fab-appearance-controls">
           <Box>

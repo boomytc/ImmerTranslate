@@ -14,7 +14,14 @@ import { useI18n } from "../../hooks/I18n";
  * @param {string} props.text - 按钮文字展示内容
  * @param {string} props.fileName - 保存的文件名称
  */
-export default function DownloadButton({ handleData, text, fileName }) {
+export default function DownloadButton({
+  handleData,
+  text,
+  fileName,
+  variant = "outlined",
+  color,
+  sx,
+}) {
   const i18n = useI18n();
   const alert = useAlert();
   const [loading, setLoading] = useState(false);
@@ -46,7 +53,9 @@ export default function DownloadButton({ handleData, text, fileName }) {
   return (
     <LoadingButton
       size="small"
-      variant="outlined"
+      variant={variant}
+      color={color}
+      sx={sx}
       onClick={handleClick}
       loading={loading}
       startIcon={<FileDownloadIcon />}

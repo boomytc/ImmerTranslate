@@ -1,5 +1,5 @@
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import Button from "@mui/material/Button";
 import { useI18n } from "../../hooks/I18n";
 
@@ -17,27 +17,17 @@ export default function ShowMoreButton({ onChange, showMore }) {
     onChange((prev) => !prev);
   };
 
-  if (showMore) {
-    return (
-      <Button
-        size="small"
-        variant="text"
-        onClick={handleClick}
-        startIcon={<ExpandLessIcon />}
-      >
-        {i18n("less")}
-      </Button>
-    );
-  }
-
   return (
     <Button
       size="small"
       variant="text"
+      aria-expanded={Boolean(showMore)}
       onClick={handleClick}
-      startIcon={<ExpandMoreIcon />}
+      startIcon={
+        showMore ? <ExpandLessRoundedIcon /> : <ExpandMoreRoundedIcon />
+      }
     >
-      {i18n("more")}
+      {showMore ? i18n("less") : i18n("more")}
     </Button>
   );
 }

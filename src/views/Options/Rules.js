@@ -3,7 +3,6 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import CodeField from "./CodeField";
 import Button from "@mui/material/Button";
-import Alert from "@mui/material/Alert";
 import InputAdornment from "@mui/material/InputAdornment";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import {
@@ -38,7 +37,6 @@ import HelpButton from "./HelpButton";
 import DownloadButton from "./DownloadButton";
 import UploadButton from "./UploadButton";
 import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
 import CancelIcon from "@mui/icons-material/Cancel";
 import SaveIcon from "@mui/icons-material/Save";
 import ValidationInput from "../../hooks/ValidationInput";
@@ -48,6 +46,12 @@ import ShowMoreButton from "./ShowMoreButton";
 import { useConfirm } from "../../hooks/Confirm";
 import { useAllTextStyles } from "../../hooks/CustomStyles";
 import { sameRulePattern } from "../../libs/siteMatch";
+import {
+  SettingsCard,
+  SettingsDisclosure,
+  SettingsRow,
+  SettingsSwitch,
+} from "./SettingsCard";
 
 // 存储里的个人规则可以是稀疏的（popup / FAB 只写 pattern + transOpen），
 // 编辑器在这里用整份默认结构补齐缺的字段。
@@ -83,7 +87,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
   const i18n = useI18n();
   const alert = useAlert();
   const confirm = useConfirm();
-  const [disabled, setDisabled] = useState(editMode);
   const [errors, setErrors] = useState({});
   const [initialFormValues, setInitialFormValues] = useState(() =>
     calculateInitialValues(rule)
@@ -92,6 +95,7 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
   const [showMore, setShowMore] = useState(!rules);
   const { enabledApis } = useApiList();
   const { allTextStyles } = useAllTextStyles();
+  const disabled = !rules;
 
   useEffect(() => {
     const newInitialValues = calculateInitialValues(rule);
@@ -194,9 +198,7 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
 
   const handleCancel = (e) => {
     e.preventDefault();
-    if (editMode) {
-      setDisabled(true);
-    } else {
+    if (!editMode) {
       setShow(false);
     }
     setErrors({});
@@ -262,7 +264,6 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           await rules.put(rule.pattern, patch);
           alert.success(i18n("save_success"));
         }
-        setDisabled(true);
       } else {
         await rules.add(formValues);
         alert.success(i18n("save_success"));
@@ -300,18 +301,20 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <Stack spacing={2}>
-        <CodeField
-          size="small"
-          label={i18n("pattern")}
-          error={!!errors.pattern}
-          helperText={errors.pattern || i18n("rule_pattern_helper")}
-          name="pattern"
-          value={pattern}
-          disabled={isGlobalRule || disabled}
-          onChange={handleChange}
-          onFocus={handleFocus}
-        />
+      <Stack spacing={2.5}>
+        {!isGlobalRule && (
+          <CodeField
+            size="small"
+            label={i18n("pattern")}
+            error={!!errors.pattern}
+            helperText={errors.pattern || i18n("rule_pattern_helper")}
+            name="pattern"
+            value={pattern}
+            disabled={disabled}
+            onChange={handleChange}
+            onFocus={handleFocus}
+          />
+        )}
         <CodeField
           size="small"
           label={i18n("root_selector")}
@@ -360,24 +363,28 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           onChange={handleChange}
         />
 
-        <Box>
+        <Box className="kt-field-subgroup">
           <Grid container spacing={2} columns={12}>
-            <Grid item xs={12} sm={12} md={6} lg={6}>
-              <TextField
-                select
-                size="small"
-                fullWidth
-                name="transOpen"
-                value={transOpen}
-                label={i18n("translate_alt")}
-                disabled={disabled}
-                onChange={handleChange}
-              >
-                {GlobalItem}
-                <MenuItem value={"true"}>{i18n("default_enabled")}</MenuItem>
-                <MenuItem value={"false"}>{i18n("default_disabled")}</MenuItem>
-              </TextField>
-            </Grid>
+            {!isGlobalRule && (
+              <Grid item xs={12} sm={12} md={6} lg={6}>
+                <TextField
+                  select
+                  size="small"
+                  fullWidth
+                  name="transOpen"
+                  value={transOpen}
+                  label={i18n("translate_alt")}
+                  disabled={disabled}
+                  onChange={handleChange}
+                >
+                  {GlobalItem}
+                  <MenuItem value={"true"}>{i18n("default_enabled")}</MenuItem>
+                  <MenuItem value={"false"}>
+                    {i18n("default_disabled")}
+                  </MenuItem>
+                </TextField>
+              </Grid>
+            )}
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
                 select
@@ -451,24 +458,25 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
               </TextField>
             </Grid>
 
-            {BOOLEAN_RULE_FIELDS.map(({ name, labelKey }) => (
-              <Grid item xs={12} sm={12} md={6} lg={6} key={name}>
-                <TextField
-                  select
-                  size="small"
-                  fullWidth
-                  name={name}
-                  value={formValues[name] ?? "false"}
-                  label={i18n(labelKey)}
-                  disabled={disabled}
-                  onChange={handleChange}
-                >
-                  {GlobalItem}
-                  <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
-                  <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
-                </TextField>
-              </Grid>
-            ))}
+            {!isGlobalRule &&
+              BOOLEAN_RULE_FIELDS.map(({ name, labelKey }) => (
+                <Grid item xs={12} sm={12} md={6} lg={6} key={name}>
+                  <TextField
+                    select
+                    size="small"
+                    fullWidth
+                    name={name}
+                    value={formValues[name] ?? "false"}
+                    label={i18n(labelKey)}
+                    disabled={disabled}
+                    onChange={handleChange}
+                  >
+                    {GlobalItem}
+                    <MenuItem value={"false"}>{i18n("disable")}</MenuItem>
+                    <MenuItem value={"true"}>{i18n("enable")}</MenuItem>
+                  </TextField>
+                </Grid>
+              ))}
 
             <Grid item xs={12} sm={12} md={6} lg={6}>
               <TextField
@@ -618,6 +626,33 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
           </Grid>
         </Box>
 
+        {isGlobalRule && (
+          <SettingsCard>
+            <SettingsRow label={i18n("translate_alt")}>
+              <SettingsSwitch
+                checked={transOpen === "true"}
+                disabled={disabled}
+                label={i18n("translate_alt")}
+                onChange={(checked) =>
+                  updateFormValue("transOpen", checked ? "true" : "false")
+                }
+              />
+            </SettingsRow>
+            {BOOLEAN_RULE_FIELDS.map(({ name, labelKey }) => (
+              <SettingsRow key={name} label={i18n(labelKey)}>
+                <SettingsSwitch
+                  checked={(formValues[name] ?? "false") === "true"}
+                  disabled={disabled}
+                  label={i18n(labelKey)}
+                  onChange={(checked) =>
+                    updateFormValue(name, checked ? "true" : "false")
+                  }
+                />
+              </SettingsRow>
+            ))}
+          </SettingsCard>
+        )}
+
         {showMore && (
           <>
             <TextField
@@ -711,80 +746,90 @@ function RuleFields({ rule, rules, setShow, setKeyword }) {
 
         {rules &&
           (editMode ? (
-            <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
-              {disabled ? (
-                <>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1.5}
+              useFlexGap
+              flexWrap="wrap"
+            >
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
+              >
+                <Button
+                  size="small"
+                  variant="contained"
+                  type="submit"
+                  startIcon={<SaveIcon />}
+                  disabled={!isModified}
+                >
+                  {i18n("save")}
+                </Button>
+                {isModified && (
                   <Button
                     size="small"
-                    variant="contained"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setDisabled(false);
-                    }}
-                    startIcon={<EditIcon />}
-                  >
-                    {i18n("edit")}
-                  </Button>
-                  {!isGlobalRule && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      onClick={handleDelete}
-                      startIcon={<DeleteIcon />}
-                    >
-                      {i18n("delete")}
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    type="submit"
-                    startIcon={<SaveIcon />}
-                    disabled={!isModified}
-                  >
-                    {i18n("save")}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
+                    variant="text"
                     onClick={handleCancel}
                     startIcon={<CancelIcon />}
                   >
-                    {i18n("cancel")}
+                    {i18n("discard_changes")}
                   </Button>
+                )}
+                <Button size="small" variant="text" onClick={handleRestore}>
+                  {i18n("restore_default")}
+                </Button>
+                {!isGlobalRule && (
                   <Button
                     size="small"
-                    variant="outlined"
-                    onClick={handleRestore}
+                    variant="text"
+                    color="error"
+                    onClick={handleDelete}
+                    startIcon={<DeleteIcon />}
                   >
-                    {i18n("restore_default")}
+                    {i18n("delete")}
                   </Button>
-                </>
-              )}
+                )}
+              </Stack>
               <ShowMoreButton showMore={showMore} onChange={setShowMore} />
             </Stack>
           ) : (
-            <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
-              <Button
-                size="small"
-                variant="contained"
-                type="submit"
-                startIcon={<SaveIcon />}
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1.5}
+              useFlexGap
+              flexWrap="wrap"
+            >
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
               >
-                {i18n("save")}
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={handleCancel}
-                startIcon={<CancelIcon />}
-              >
-                {i18n("cancel")}
-              </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  type="submit"
+                  startIcon={<SaveIcon />}
+                >
+                  {i18n("save")}
+                </Button>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={handleCancel}
+                  startIcon={<CancelIcon />}
+                >
+                  {i18n("cancel")}
+                </Button>
+              </Stack>
               <ShowMoreButton showMore={showMore} onChange={setShowMore} />
             </Stack>
           ))}
@@ -942,47 +987,47 @@ function UserRules({ rules }) {
     : personalRules;
 
   return (
-    <Stack spacing={3}>
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={2}
-        useFlexGap
-        flexWrap="wrap"
-      >
-        <Button
-          size="small"
-          variant="contained"
-          disabled={showAdd}
-          onClick={(e) => {
-            e.preventDefault();
-            setShowAdd(true);
-          }}
-          startIcon={<AddIcon />}
-        >
-          {i18n("add")}
-        </Button>
-
-        <UploadButton text={i18n("import")} handleImport={handleImport} />
-        <DownloadButton
-          handleData={() => JSON.stringify([...rules.list], null, 2)}
-          text={i18n("export")}
-          fileName={`immer-rules_v2_${Date.now()}.json`}
-        />
-
-        <Button
-          size="small"
-          variant="outlined"
-          color="error"
-          disabled={personalRules.length === 0}
-          onClick={handleClearAll}
-          startIcon={<ClearAllIcon />}
-        >
-          {i18n("clear_all")}
-        </Button>
-
-        <HelpButton url={URL_KISS_RULES_NEW_ISSUE} />
-      </Stack>
+    <Stack spacing={2.5}>
+      <Box className="kt-toolbar-row" sx={{ mb: 0 }}>
+        <Box className="kt-toolbar-row__group">
+          <Button
+            size="small"
+            variant="contained"
+            disabled={showAdd}
+            onClick={(e) => {
+              e.preventDefault();
+              setShowAdd(true);
+            }}
+            startIcon={<AddIcon />}
+          >
+            {i18n("add")}
+          </Button>
+        </Box>
+        <Box className="kt-toolbar-row__group">
+          <UploadButton
+            variant="text"
+            text={i18n("import")}
+            handleImport={handleImport}
+          />
+          <DownloadButton
+            variant="text"
+            handleData={() => JSON.stringify([...rules.list], null, 2)}
+            text={i18n("export")}
+            fileName={`immer-rules_v2_${Date.now()}.json`}
+          />
+          <Button
+            size="small"
+            variant="text"
+            color="error"
+            disabled={personalRules.length === 0}
+            onClick={handleClearAll}
+            startIcon={<ClearAllIcon />}
+          >
+            {i18n("clear_all")}
+          </Button>
+          <HelpButton url={URL_KISS_RULES_NEW_ISSUE} />
+        </Box>
+      </Box>
 
       <TextField
         size="small"
@@ -1037,14 +1082,7 @@ function GlobalRule({ rules }) {
   }
 
   return (
-    <Stack spacing={3}>
-      <RuleAccordion
-        key={globalRule.pattern}
-        rule={globalRule}
-        rules={rules}
-        isExpanded={true}
-      />
-    </Stack>
+    <RuleFields key={globalRule.pattern} rule={globalRule} rules={rules} />
   );
 }
 
@@ -1059,15 +1097,15 @@ export default function Rules() {
 
   return (
     <Box>
-      <Stack spacing={3}>
-        <Alert severity="info">
-          {i18n("rules_warn_1")}
-          <br />
-          {i18n("rules_warn_2")}
-          <br />
-          {i18n("rules_warn_3")}
-        </Alert>
+      <SettingsDisclosure label={i18n("usage_guide")} defaultOpen={false}>
+        <ul>
+          <li>{i18n("rules_warn_1")}</li>
+          <li>{i18n("rules_warn_2")}</li>
+          <li>{i18n("rules_warn_3")}</li>
+        </ul>
+      </SettingsDisclosure>
 
+      <Stack spacing={2.5}>
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
